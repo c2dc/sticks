@@ -1,0 +1,19 @@
+{
+  "id": soft_cell_roth,
+  "name": "Soft Cell (2019) (Inspired)",
+  "description": "The Soft Cell campaign is a long-term cyber espionage operation targeting telecom providers globally. The adversary exploited public-facing applications (PHP) to gain access, installed web shells for persistence, performed credential dumping and lateral movement, and exfiltrated Call Detail Records (CDRs) and other sensitive data from telecom infrastructure.",
+  "atomic_ordering": [
+    "1a1b2c3d-0000-1111-2222-abcdef000013",
+    "1a1b2c3d-0000-1111-2222-abcdef000014",
+    "1a1b2c3d-0000-1111-2222-abcdef000015",
+    "1a1b2c3d-0000-1111-2222-abcdef000016",
+    "1a1b2c3d-0000-1111-2222-abcdef000017",
+    "1a1b2c3d-0000-1111-2222-abcdef000018",
+    "1a1b2c3d-0000-1111-2222-abcdef000019",
+    "1a1b2c3d-0000-1111-2222-abcdef000020",
+    "1a1b2c3d-0000-1111-2222-abcdef000021",
+    "1a1b2c3d-0000-1111-2222-abcdef000022",
+    "1a1b2c3d-0000-1111-2222-abcdef000023",
+    "1a1b2c3d-0000-1111-2222-abcdef000024"
+  ] 
+}
