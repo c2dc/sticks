@@ -2,9 +2,13 @@ STICK: Suitability of APT Emulation from STIX Sources
 Authors:
 
 Agney Lopes Roth Ferraz
+
 Sidnei Barbieri
+
 César A. C. Marcondes
+
 Lourenço A. Pereira Júnior
+
 
 Content:
 
