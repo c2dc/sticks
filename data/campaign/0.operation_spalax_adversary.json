@@ -1,0 +1,25 @@
+{
+  "id": "operation_spalax",
+  "name": "0.Operation Spalax",
+  "description": "[Operation Spalax](https://attack.mitre.org/campaigns/C0005) was a campaign that primarily targeted Colombian government organizations and private companies, particularly those associated with the energy and metallurgical industries. The [Operation Spalax](https://attack.mitre.org/campaigns/C0005) threat actors distributed commodity malware and tools using generic phishing topics related to COVID-19, banking, and law enforcement action. Security researchers noted indicators of compromise and some infrastructure overlaps with other campaigns dating back to April 2018, including at least one separately attributed to [APT-C-36](https://attack.mitre.org/groups/G0099), however identified enough differences to report this as separate, unattributed activity.(Citation: ESET Operation Spalax Jan 2021)  \n\nAlso known as: Operation Spalax",
+  "objective": "495a9828-cab1-44dd-a0ca-66e58177d8cc",
+  "atomic_ordering": [
+    "attack-pattern--a2fdce72-04b2-409a-ac10-cc1695f4fce0",
+    "attack-pattern--40f5caa0-4cb7-4117-89fc-d421bb493df3",
+    "attack-pattern--c2e147a9-d1a8-4074-811a-d8789202d916",
+    "attack-pattern--7807d3a4-a885-4639-a786-c1ed41484970",
+    "attack-pattern--7bd9c723-2f78-4309-82c5-47cad406572b",
+    "attack-pattern--3ccef7ae-cb5e-48f6-8302-897105fbf55c",
+    "attack-pattern--7385dfaf-6886-4229-9ecd-6fd678040830",
+    "attack-pattern--ef67e13e-5598-4adc-bdb2-998225874fa9",
+    "attack-pattern--2b742742-28c3-4e1b-bab7-8350d6300fa7",
+    "attack-pattern--830c9528-df21-472c-8c14-a036bf17d665",
+    "attack-pattern--deb98323-e13f-4b0c-8d94-175379069062",
+    "attack-pattern--3ee16395-03f0-4690-a32e-69ce9ada0f9e",
+    "attack-pattern--82caa33e-d11a-433a-94ea-9b5a5fbef81d",
+    "attack-pattern--232b7f21-adf9-4b42-b936-b9d6f7df856e",
+    "attack-pattern--2e34237d-8574-43f6-aace-ae2915de8597",
+    "attack-pattern--045d0922-2310-4e60-b5e4-3302302cb3c5",
+    "attack-pattern--0d91b3c0-5e50-47c3-949a-2a796f04d144"
+  ]
+}

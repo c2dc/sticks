@@ -1,0 +1,262 @@
+[
+  {
+    "id": "attack-pattern--7bdca9d5-d500-4d7d-8c52-5fd47baf4c0c",
+    "name": "Masquerade Task or Service",
+    "description": "Adversaries may attempt to manipulate the name of a task or service to make it appear legitimate or benign. Tasks/services executed by the Task Scheduler or systemd will typically be given a name and/or description.(Citation: TechNet Schtasks)(Citation: Systemd Service Units) Windows services will have a service name as well as a display name. Many benign tasks and services exist that have commonly associated names. Adversaries may give tasks or services names that are similar or identical to those of legitimate ones.\n\nTasks or services contain other fields, such as a description, that adversaries may attempt to make appear legitimate.(Citation: Palo Alto Shamoon Nov 2016)(Citation: Fysbis Dr Web Analysis)",
+    "tactic": "defense-evasion",
+    "technique_name": "Masquerade Task or Service",
+    "technique_id": "T1036.004",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1036.004: Masquerade Task or Service'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1036.004: Masquerade Task or Service'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1036.004: Masquerade Task or Service'"
+      }
+    ],
+    "ability_id": "attack-pattern--7bdca9d5-d500-4d7d-8c52-5fd47baf4c0c"
+  },
+  {
+    "id": "attack-pattern--970a3432-3237-47ad-bcca-7d8cbb217736",
+    "name": "PowerShell",
+    "description": "Adversaries may abuse PowerShell commands and scripts for execution. PowerShell is a powerful interactive command-line interface and scripting environment included in the Windows operating system.(Citation: TechNet PowerShell) Adversaries can use PowerShell to perform a number of actions, including discovery of information and execution of code. Examples include the <code>Start-Process</code> cmdlet which can be used to run an executable and the <code>Invoke-Command</code> cmdlet which runs a command locally or on a remote computer (though administrator permissions are required to use PowerShell to connect to remote systems).\n\nPowerShell may also be used to download and run executables from the Internet, which can be executed from disk or in memory without touching disk.\n\nA number of PowerShell-based offensive testing tools are available, including [Empire](https://attack.mitre.org/software/S0363),  [PowerSploit](https://attack.mitre.org/software/S0194), [PoshC2](https://attack.mitre.org/software/S0378), and PSAttack.(Citation: Github PSAttack)\n\nPowerShell commands/scripts can also be executed without directly invoking the <code>powershell.exe</code> binary through interfaces to PowerShell's underlying <code>System.Management.Automation</code> assembly DLL exposed through the .NET framework and Windows Common Language Interface (CLI).(Citation: Sixdub PowerPick Jan 2016)(Citation: SilentBreak Offensive PS Dec 2015)(Citation: Microsoft PSfromCsharp APR 2014)",
+    "tactic": "execution",
+    "technique_name": "PowerShell",
+    "technique_id": "T1059.001",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1059.001: PowerShell'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1059.001: PowerShell'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1059.001: PowerShell'"
+      }
+    ],
+    "ability_id": "attack-pattern--970a3432-3237-47ad-bcca-7d8cbb217736"
+  },
+  {
+    "id": "attack-pattern--005a06c6-14bf-4118-afa0-ebcd8aebb0c9",
+    "name": "Scheduled Task",
+    "description": "Adversaries may abuse the Windows Task Scheduler to perform task scheduling for initial or recurring execution of malicious code. There are multiple ways to access the Task Scheduler in Windows. The [schtasks](https://attack.mitre.org/software/S0111) utility can be run directly on the command line, or the Task Scheduler can be opened through the GUI within the Administrator Tools section of the Control Panel.(Citation: Stack Overflow) In some cases, adversaries have used a .NET wrapper for the Windows Task Scheduler, and alternatively, adversaries have used the Windows netapi32 library and [Windows Management Instrumentation](https://attack.mitre.org/techniques/T1047) (WMI) to create a scheduled task. Adversaries may also utilize the Powershell Cmdlet `Invoke-CimMethod`, which leverages WMI class `PS_ScheduledTask` to create a scheduled task via an XML path.(Citation: Red Canary - Atomic Red Team)\n\nAn adversary may use Windows Task Scheduler to execute programs at system startup or on a scheduled basis for persistence. The Windows Task Scheduler can also be abused to conduct remote Execution as part of Lateral Movement and/or to run a process under the context of a specified account (such as SYSTEM). Similar to [System Binary Proxy Execution](https://attack.mitre.org/techniques/T1218), adversaries have also abused the Windows Task Scheduler to potentially mask one-time execution under signed/trusted system processes.(Citation: ProofPoint Serpent)\n\nAdversaries may also create \"hidden\" scheduled tasks (i.e. [Hide Artifacts](https://attack.mitre.org/techniques/T1564)) that may not be visible to defender tools and manual queries used to enumerate tasks. Specifically, an adversary may hide a task from `schtasks /query` and the Task Scheduler by deleting the associated Security Descriptor (SD) registry value (where deletion of this value must be completed using SYSTEM permissions).(Citation: SigmaHQ)(Citation: Tarrask scheduled task) Adversaries may also employ alternate methods to hide tasks, such as altering the metadata (e.g., `Index` value) within associated registry keys.(Citation: Defending Against Scheduled Task Attacks in Windows Environments) ",
+    "tactic": "execution",
+    "technique_name": "Scheduled Task",
+    "technique_id": "T1053.005",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1053.005: Scheduled Task'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1053.005: Scheduled Task'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1053.005: Scheduled Task'"
+      }
+    ],
+    "ability_id": "attack-pattern--005a06c6-14bf-4118-afa0-ebcd8aebb0c9"
+  },
+  {
+    "id": "attack-pattern--dfefe2ed-4389-4318-8762-f0272b350a1b",
+    "name": "Systemd Service",
+    "description": "Adversaries may create or modify systemd services to repeatedly execute malicious payloads as part of persistence. Systemd is a system and service manager commonly used for managing background daemon processes (also known as services) and other system resources.(Citation: Linux man-pages: systemd January 2014) Systemd is the default initialization (init) system on many Linux distributions replacing legacy init systems, including SysVinit and Upstart, while remaining backwards compatible.  \n\nSystemd utilizes unit configuration files with the `.service` file extension to encode information about a service's process. By default, system level unit files are stored in the `/systemd/system` directory of the root owned directories (`/`). User level unit files are stored in the `/systemd/user` directories of the user owned directories (`$HOME`).(Citation: lambert systemd 2022) \n\nInside the `.service` unit files, the following directives are used to execute commands:(Citation: freedesktop systemd.service)  \n\n* `ExecStart`, `ExecStartPre`, and `ExecStartPost` directives execute when a service is started manually by `systemctl` or on system start if the service is set to automatically start.\n* `ExecReload` directive executes when a service restarts. \n* `ExecStop`, `ExecStopPre`, and `ExecStopPost` directives execute when a service is stopped.  \n\nAdversaries have created new service files, altered the commands a `.service` file\u2019s directive executes, and modified the user directive a `.service` file executes as, which could result in privilege escalation. Adversaries may also place symbolic links in these directories, enabling systemd to find these payloads regardless of where they reside on the filesystem.(Citation: Anomali Rocke March 2019)(Citation: airwalk backdoor unix systems)(Citation: Rapid7 Service Persistence 22JUNE2016) \n\nThe `.service` file\u2019s User directive can be used to run service as a specific user, which could result in privilege escalation based on specific user/group permissions. \n\nSystemd services can be created via systemd generators, which support the dynamic generation of unit files. Systemd generators are small executables that run during boot or configuration reloads to dynamically create or modify systemd unit files by converting non-native configurations into services, symlinks, or drop-ins (i.e., [Boot or Logon Initialization Scripts](https://attack.mitre.org/techniques/T1037)).(Citation: Elastic Security Labs Linux Persistence 2024)(Citation: Pepe Berba Systemd 2022)",
+    "tactic": "persistence",
+    "technique_name": "Systemd Service",
+    "technique_id": "T1543.002",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1543.002: Systemd Service'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1543.002: Systemd Service'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1543.002: Systemd Service'"
+      }
+    ],
+    "ability_id": "attack-pattern--dfefe2ed-4389-4318-8762-f0272b350a1b"
+  },
+  {
+    "id": "attack-pattern--5d0d3609-d06d-49e1-b9c9-b544e0c618cb",
+    "name": "Web Shell",
+    "description": "Adversaries may backdoor web servers with web shells to establish persistent access to systems. A Web shell is a Web script that is placed on an openly accessible Web server to allow an adversary to access the Web server as a gateway into a network. A Web shell may provide a set of functions to execute or a command-line interface on the system that hosts the Web server.(Citation: volexity_0day_sophos_FW)\n\nIn addition to a server-side script, a Web shell may have a client interface program that is used to talk to the Web server (e.g. [China Chopper](https://attack.mitre.org/software/S0020) Web shell client).(Citation: Lee 2013)",
+    "tactic": "persistence",
+    "technique_name": "Web Shell",
+    "technique_id": "T1505.003",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1505.003: Web Shell'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1505.003: Web Shell'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1505.003: Web Shell'"
+      }
+    ],
+    "ability_id": "attack-pattern--5d0d3609-d06d-49e1-b9c9-b544e0c618cb"
+  },
+  {
+    "id": "attack-pattern--c21d5a77-d422-4a69-acd7-2c53c1faa34b",
+    "name": "Non-Application Layer Protocol",
+    "description": "Adversaries may use an OSI non-application layer protocol for communication between host and C2 server or among infected hosts within a network. The list of possible protocols is extensive.(Citation: Wikipedia OSI) Specific examples include use of network layer protocols, such as the Internet Control Message Protocol (ICMP), transport layer protocols, such as the User Datagram Protocol (UDP), session layer protocols, such as Socket Secure (SOCKS), as well as redirected/tunneled protocols, such as Serial over LAN (SOL).\n\nICMP communication between hosts is one example.(Citation: Cisco Synful Knock Evolution) Because ICMP is part of the Internet Protocol Suite, it is required to be implemented by all IP-compatible hosts.(Citation: Microsoft ICMP) However, it is not as commonly monitored as other Internet Protocols such as TCP or UDP and may be used by adversaries to hide communications.\n\nIn ESXi environments, adversaries may leverage the Virtual Machine Communication Interface (VMCI) for communication between guest virtual machines and the ESXi host. This traffic is similar to client-server communications on traditional network sockets but is localized to the physical machine running the ESXi host, meaning it does not traverse external networks (routers, switches). This results in communications that are invisible to external monitoring and standard networking tools like tcpdump, netstat, nmap, and Wireshark. By adding a VMCI backdoor to a compromised ESXi host, adversaries may persistently regain access from any guest VM to the compromised ESXi host\u2019s backdoor, regardless of network segmentation or firewall rules in place.(Citation: Google Cloud Threat Intelligence VMWare ESXi Zero-Day 2023)",
+    "tactic": "command-and-control",
+    "technique_name": "Non-Application Layer Protocol",
+    "technique_id": "T1095",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1095: Non-Application Layer Protocol'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1095: Non-Application Layer Protocol'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1095: Non-Application Layer Protocol'"
+      }
+    ],
+    "ability_id": "attack-pattern--c21d5a77-d422-4a69-acd7-2c53c1faa34b"
+  },
+  {
+    "id": "attack-pattern--4fe28b27-b13c-453e-a386-c2ef362a573b",
+    "name": "Protocol Tunneling",
+    "description": "Adversaries may tunnel network communications to and from a victim system within a separate protocol to avoid detection/network filtering and/or enable access to otherwise unreachable systems. Tunneling involves explicitly encapsulating a protocol within another. This behavior may conceal malicious traffic by blending in with existing traffic and/or provide an outer layer of encryption (similar to a VPN). Tunneling could also enable routing of network packets that would otherwise not reach their intended destination, such as SMB, RDP, or other traffic that would be filtered by network appliances or not routed over the Internet. \n\nThere are various means to encapsulate a protocol within another protocol. For example, adversaries may perform SSH tunneling (also known as SSH port forwarding), which involves forwarding arbitrary data over an encrypted SSH tunnel.(Citation: SSH Tunneling)(Citation: Sygnia Abyss Locker 2025) \n\n[Protocol Tunneling](https://attack.mitre.org/techniques/T1572) may also be abused by adversaries during [Dynamic Resolution](https://attack.mitre.org/techniques/T1568). Known as DNS over HTTPS (DoH), queries to resolve C2 infrastructure may be encapsulated within encrypted HTTPS packets.(Citation: BleepingComp Godlua JUL19) \n\nAdversaries may also leverage [Protocol Tunneling](https://attack.mitre.org/techniques/T1572) in conjunction with [Proxy](https://attack.mitre.org/techniques/T1090) and/or [Protocol or Service Impersonation](https://attack.mitre.org/techniques/T1001/003) to further conceal C2 communications and infrastructure. ",
+    "tactic": "command-and-control",
+    "technique_name": "Protocol Tunneling",
+    "technique_id": "T1572",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1572: Protocol Tunneling'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1572: Protocol Tunneling'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1572: Protocol Tunneling'"
+      }
+    ],
+    "ability_id": "attack-pattern--4fe28b27-b13c-453e-a386-c2ef362a573b"
+  },
+  {
+    "id": "attack-pattern--d45a3d09-b3cf-48f4-9f0f-f521ee5cb05c",
+    "name": "Data Destruction",
+    "description": "Adversaries may destroy data and files on specific systems or in large numbers on a network to interrupt availability to systems, services, and network resources. Data destruction is likely to render stored data irrecoverable by forensic techniques through overwriting files or data on local and remote drives.(Citation: Symantec Shamoon 2012)(Citation: FireEye Shamoon Nov 2016)(Citation: Palo Alto Shamoon Nov 2016)(Citation: Kaspersky StoneDrill 2017)(Citation: Unit 42 Shamoon3 2018)(Citation: Talos Olympic Destroyer 2018) Common operating system file deletion commands such as <code>del</code> and <code>rm</code> often only remove pointers to files without wiping the contents of the files themselves, making the files recoverable by proper forensic methodology. This behavior is distinct from [Disk Content Wipe](https://attack.mitre.org/techniques/T1561/001) and [Disk Structure Wipe](https://attack.mitre.org/techniques/T1561/002) because individual files are destroyed rather than sections of a storage disk or the disk's logical structure.\n\nAdversaries may attempt to overwrite files and directories with randomly generated data to make it irrecoverable.(Citation: Kaspersky StoneDrill 2017)(Citation: Unit 42 Shamoon3 2018) In some cases politically oriented image files have been used to overwrite data.(Citation: FireEye Shamoon Nov 2016)(Citation: Palo Alto Shamoon Nov 2016)(Citation: Kaspersky StoneDrill 2017)\n\nTo maximize impact on the target organization in operations where network-wide availability interruption is the goal, malware designed for destroying data may have worm-like features to propagate across a network by leveraging additional techniques like [Valid Accounts](https://attack.mitre.org/techniques/T1078), [OS Credential Dumping](https://attack.mitre.org/techniques/T1003), and [SMB/Windows Admin Shares](https://attack.mitre.org/techniques/T1021/002).(Citation: Symantec Shamoon 2012)(Citation: FireEye Shamoon Nov 2016)(Citation: Palo Alto Shamoon Nov 2016)(Citation: Kaspersky StoneDrill 2017)(Citation: Talos Olympic Destroyer 2018).\n\nIn cloud environments, adversaries may leverage access to delete cloud storage objects, machine images, database instances, and other infrastructure crucial to operations to damage an organization or their customers.(Citation: Data Destruction - Threat Post)(Citation: DOJ  - Cisco Insider) Similarly, they may delete virtual machines from on-prem virtualized environments.",
+    "tactic": "impact",
+    "technique_name": "Data Destruction",
+    "technique_id": "T1485",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1485: Data Destruction'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1485: Data Destruction'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1485: Data Destruction'"
+      }
+    ],
+    "ability_id": "attack-pattern--d45a3d09-b3cf-48f4-9f0f-f521ee5cb05c"
+  },
+  {
+    "id": "attack-pattern--bf90d72c-c00b-45e3-b3aa-68560560d4c5",
+    "name": "Lateral Tool Transfer",
+    "description": "Adversaries may transfer tools or other files between systems in a compromised environment. Once brought into the victim environment (i.e., [Ingress Tool Transfer](https://attack.mitre.org/techniques/T1105)) files may then be copied from one system to another to stage adversary tools or other files over the course of an operation.\n\nAdversaries may copy files between internal victim systems to support lateral movement using inherent file sharing protocols such as file sharing over [SMB/Windows Admin Shares](https://attack.mitre.org/techniques/T1021/002) to connected network shares or with authenticated connections via [Remote Desktop Protocol](https://attack.mitre.org/techniques/T1021/001).(Citation: Unit42 LockerGoga 2019)\n\nFiles can also be transferred using native or otherwise present tools on the victim system, such as scp, rsync, curl, sftp, and [ftp](https://attack.mitre.org/software/S0095). In some cases, adversaries may be able to leverage [Web Service](https://attack.mitre.org/techniques/T1102)s such as Dropbox or OneDrive to copy files from one machine to another via shared, automatically synced folders.(Citation: Dropbox Malware Sync)",
+    "tactic": "lateral-movement",
+    "technique_name": "Lateral Tool Transfer",
+    "technique_id": "T1570",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1570: Lateral Tool Transfer'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1570: Lateral Tool Transfer'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1570: Lateral Tool Transfer'"
+      }
+    ],
+    "ability_id": "attack-pattern--bf90d72c-c00b-45e3-b3aa-68560560d4c5"
+  },
+  {
+    "id": "attack-pattern--5d2be8b9-d24c-4e98-83bf-2f5f79477163",
+    "name": "Group Policy Modification",
+    "description": "Adversaries may modify Group Policy Objects (GPOs) to subvert the intended discretionary access controls for a domain, usually with the intention of escalating privileges on the domain. Group policy allows for centralized management of user and computer settings in Active Directory (AD). GPOs are containers for group policy settings made up of files stored within a predictable network path `\\<DOMAIN>\\SYSVOL\\<DOMAIN>\\Policies\\`.(Citation: TechNet Group Policy Basics)(Citation: ADSecurity GPO Persistence 2016) \n\nLike other objects in AD, GPOs have access controls associated with them. By default all user accounts in the domain have permission to read GPOs. It is possible to delegate GPO access control permissions, e.g. write access, to specific users or groups in the domain.\n\nMalicious GPO modifications can be used to implement many other malicious behaviors such as [Scheduled Task/Job](https://attack.mitre.org/techniques/T1053), [Disable or Modify Tools](https://attack.mitre.org/techniques/T1562/001), [Ingress Tool Transfer](https://attack.mitre.org/techniques/T1105), [Create Account](https://attack.mitre.org/techniques/T1136), [Service Execution](https://attack.mitre.org/techniques/T1569/002),  and more.(Citation: ADSecurity GPO Persistence 2016)(Citation: Wald0 Guide to GPOs)(Citation: Harmj0y Abusing GPO Permissions)(Citation: Mandiant M Trends 2016)(Citation: Microsoft Hacking Team Breach) Since GPOs can control so many user and machine settings in the AD environment, there are a great number of potential attacks that can stem from this GPO abuse.(Citation: Wald0 Guide to GPOs)\n\nFor example, publicly available scripts such as <code>New-GPOImmediateTask</code> can be leveraged to automate the creation of a malicious [Scheduled Task/Job](https://attack.mitre.org/techniques/T1053) by modifying GPO settings, in this case modifying <code>&lt;GPO_PATH&gt;\\Machine\\Preferences\\ScheduledTasks\\ScheduledTasks.xml</code>.(Citation: Wald0 Guide to GPOs)(Citation: Harmj0y Abusing GPO Permissions) In some cases an adversary might modify specific user rights like SeEnableDelegationPrivilege, set in <code>&lt;GPO_PATH&gt;\\MACHINE\\Microsoft\\Windows NT\\SecEdit\\GptTmpl.inf</code>, to achieve a subtle AD backdoor with complete control of the domain because the user account under the adversary's control would then be able to modify GPOs.(Citation: Harmj0y SeEnableDelegationPrivilege Right)",
+    "tactic": "defense-evasion",
+    "technique_name": "Group Policy Modification",
+    "technique_id": "T1484.001",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1484.001: Group Policy Modification'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1484.001: Group Policy Modification'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1484.001: Group Policy Modification'"
+      }
+    ],
+    "ability_id": "attack-pattern--5d2be8b9-d24c-4e98-83bf-2f5f79477163"
+  }
+]

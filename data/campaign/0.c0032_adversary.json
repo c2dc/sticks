@@ -1,0 +1,25 @@
+{
+  "id": "c0032",
+  "name": "0.C0032",
+  "description": "[C0032](https://attack.mitre.org/campaigns/C0032) was an extended campaign suspected to involve the [Triton](https://attack.mitre.org/software/S1009) adversaries with related capabilities and techniques focused on gaining a foothold within IT environments. This campaign occurred in 2019 and was distinctly different from the [Triton Safety Instrumented System Attack](https://attack.mitre.org/campaigns/C0030).(Citation: FireEye TRITON 2019)\n\nAlso known as: C0032",
+  "objective": "495a9828-cab1-44dd-a0ca-66e58177d8cc",
+  "atomic_ordering": [
+    "attack-pattern--a2fdce72-04b2-409a-ac10-cc1695f4fce0",
+    "attack-pattern--4fe28b27-b13c-453e-a386-c2ef362a573b",
+    "attack-pattern--b17a1a56-e99c-403c-8948-561df0cffe81",
+    "attack-pattern--1c34f7aa-9341-4a48-bfab-af22e51aca6c",
+    "attack-pattern--79da0971-3147-4af6-a4f5-e8cd447cd795",
+    "attack-pattern--2db31dcd-54da-405d-acef-b9129b816ed6",
+    "attack-pattern--1c4e5d32-1fe9-4116-9d9d-59e3925bd6a2",
+    "attack-pattern--5d0d3609-d06d-49e1-b9c9-b544e0c618cb",
+    "attack-pattern--eb062747-2193-45de-8fa2-e62549c37ddf",
+    "attack-pattern--b18eae87-b469-4e14-b454-b171b416bc18",
+    "attack-pattern--d63a3fb8-9452-4e9d-a60a-54be68d5998c",
+    "attack-pattern--970a3432-3237-47ad-bcca-7d8cbb217736",
+    "attack-pattern--10d51417-ee35-4589-b1ff-b6df1c334e8d",
+    "attack-pattern--005a06c6-14bf-4118-afa0-ebcd8aebb0c9",
+    "attack-pattern--47f2d673-ca62-47e9-929b-1b0be9657611",
+    "attack-pattern--6d4a7fb3-5a24-42be-ae61-6728a2b581f6",
+    "attack-pattern--65f2d882-3f41-4d48-8a06-29af77ec9f90"
+  ]
+}

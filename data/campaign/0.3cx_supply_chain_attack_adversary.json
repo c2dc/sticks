@@ -1,0 +1,30 @@
+{
+  "id": "3cx_supply_chain_attack",
+  "name": "0.3CX Supply Chain Attack",
+  "description": "The [3CX Supply Chain Attack](https://attack.mitre.org/campaigns/C0057) was the first publicly reported case of one supply chain compromise triggering another, leading to a cascading, two-stage intrusion. The initial supply chain attack began when a 3CX employee downloaded and executed a trojanized, end-of-life version of the X_Trader trading software from Trading Technologies. This provided UNC4736, a threat cluster associated with [AppleJeus](https://attack.mitre.org/groups/G1049), access to the 3CX environment. From there UNC4736 compromised the Windows and macOS build environments used to distribute the 3CX desktop application to their customers.(Citation: Mandiant 3cx UNC4736 2023) While 3CX serves more than 600,000 customers and 12 million users, only a subset of systems were affected. Subsequent targeting focused on victims in the defense and cryptocurrency sectors, where attackers deployed secondary payloads such as Gopuram for credential theft and persistence.(Citation: Kaspersky 3CX Gopuram 2023) The campaign began in late 2022 and was disrupted after security vendors publicly reported the compromise in March 2023.(Citation: 3cx official statement 2023)(Citation: Krebs 3cx overview 2023)\n\nAlso known as: 3CX Supply Chain Attack",
+  "objective": "495a9828-cab1-44dd-a0ca-66e58177d8cc",
+  "atomic_ordering": [
+    "attack-pattern--b3d682b6-98f2-4fb0-aa3b-b4df007ca70a",
+    "attack-pattern--acd0ba37-7ba9-4cc5-ac61-796586cd856d",
+    "attack-pattern--b17a1a56-e99c-403c-8948-561df0cffe81",
+    "attack-pattern--bd369cd9-abb8-41ce-b5bb-fff23ee86c00",
+    "attack-pattern--d742a578-d70e-4d0e-96a6-02a9c30204e6",
+    "attack-pattern--573ad264-1371-4ae0-8482-d2673b719dba",
+    "attack-pattern--a1df809c-7d0e-459f-8fe5-25474bab770b",
+    "attack-pattern--365be77f-fc0e-42ee-bac8-4faf806d9336",
+    "attack-pattern--f7827069-0bf2-4764-af4f-23fae0d181b7",
+    "attack-pattern--2fee9321-3e71-4cf4-af24-d4d40d355b34",
+    "attack-pattern--4933e63b-9b77-476e-ab29-761bc5b7d15a",
+    "attack-pattern--32901740-b42c-4fdd-bc02-345b5dc57082",
+    "attack-pattern--5e4a2073-9643-44cb-a0b5-e7f4048446c7",
+    "attack-pattern--43e7dc91-05b2-474c-b9ac-2ed4fe101f4d",
+    "attack-pattern--0d91b3c0-5e50-47c3-949a-2a796f04d144",
+    "attack-pattern--df8b2a25-8bdf-4856-953c-a04372b1c161",
+    "attack-pattern--0533ab23-3f7d-463f-9bd8-634d27e4dee1",
+    "attack-pattern--24bfaeba-cb0d-4525-b3dc-507c77ecec41",
+    "attack-pattern--da051493-ae9c-4b1b-9760-c009c46c9b56",
+    "attack-pattern--806a49c4-970d-43f9-9acc-ac0ee11e6662",
+    "attack-pattern--561ae9aa-c28a-4144-9eec-e7027a14c8c3",
+    "attack-pattern--be2dcee9-a7a7-4e38-afd6-21b31ecc3d63"
+  ]
+}

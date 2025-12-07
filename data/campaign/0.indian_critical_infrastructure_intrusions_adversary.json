@@ -1,0 +1,16 @@
+{
+  "id": "indian_critical_infrastructure_intrusions",
+  "name": "0.Indian Critical Infrastructure Intrusions",
+  "description": "[Indian Critical Infrastructure Intrusions](https://attack.mitre.org/campaigns/C0043) is a sequence of intrusions from 2021 through early 2022 linked to People\u2019s Republic of China (PRC) threat actors, particularly [RedEcho](https://attack.mitre.org/groups/G1042) and Threat Activity Group 38 (TAG38). The intrusions appear focused on IT system breach in Indian electric utility entities and logistics firms, as well as potentially managed service providers operating within India. Although focused on OT-operating entities, there is no evidence this campaign was able to progress beyond IT breach and information gathering to OT environment access.(Citation: RecordedFuture RedEcho 2021)(Citation: RecordedFuture RedEcho 2022)\n\nAlso known as: Indian Critical Infrastructure Intrusions",
+  "objective": "495a9828-cab1-44dd-a0ca-66e58177d8cc",
+  "atomic_ordering": [
+    "attack-pattern--7e3beebd-8bfe-4e7b-a892-e44ab06a75f9",
+    "attack-pattern--40f5caa0-4cb7-4117-89fc-d421bb493df3",
+    "attack-pattern--19401639-28d0-4c3c-adcc-bc2ba22f6421",
+    "attack-pattern--df8b2a25-8bdf-4856-953c-a04372b1c161",
+    "attack-pattern--7bd9c723-2f78-4309-82c5-47cad406572b",
+    "attack-pattern--b8017880-4b1e-42de-ad10-ae7ac6705166",
+    "attack-pattern--bf176076-b789-408e-8cba-7275e81c0ada",
+    "attack-pattern--b18eae87-b469-4e14-b454-b171b416bc18"
+  ]
+}

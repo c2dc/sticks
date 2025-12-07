@@ -1,0 +1,756 @@
+[
+  {
+    "id": "attack-pattern--f2514ae4-4e9b-4f26-a5ba-c4ae85fe93c3",
+    "name": "Local Storage Discovery",
+    "description": "Adversaries may enumerate local drives, disks, and/or volumes and their attributes like total or free space and volume serial number. This can be done to prepare for ransomware-related encryption, to perform [Lateral Movement](https://attack.mitre.org/tactics/TA0109), or as a precursor to [Direct Volume Access](https://attack.mitre.org/techniques/T1006). \n\nOn ESXi systems, adversaries may use [Hypervisor CLI](https://attack.mitre.org/techniques/T1059/012) commands such as `esxcli` to list storage connected to the host as well as `.vmdk` files.(Citation: TrendMicro)(Citation: TrendMicro ESXI Ransomware)\n\nOn Windows systems, adversaries can use `wmic logicaldisk get` to find information about local network drives. They can also use `Get-PSDrive` in PowerShell to retrieve drives and may additionally use Windows API functions such as `GetDriveType`.(Citation: Trend Micro MUSTANG PANDA PUBLOAD HIUPAN SEPTEMBER 2024)(Citation: Volexity)\n\nLinux has commands such as `parted`, `lsblk`, `fdisk`, `lshw`, and `df` that can list information about disk partitions such as size, type, file system types, and free space. The command `diskutil` on MacOS can be used to list disks while `system_profiler SPStorageDataType` can additionally show information such as a volume\u2019s mount path, file system, and the type of drive in the system. \n\nInfrastructure as a Service (IaaS) cloud providers also have commands for storage discovery such as `describe volume` in AWS, `gcloud compute disks list` in GCP, and `az disk list` in Azure.(Citation: AWS docs describe volumes)(Citation: GCP gcloud compute disks list)(Citation: azure az disk)",
+    "tactic": "discovery",
+    "technique_name": "Local Storage Discovery",
+    "technique_id": "T1680",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1680: Local Storage Discovery'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1680: Local Storage Discovery'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1680: Local Storage Discovery'"
+      }
+    ],
+    "ability_id": "attack-pattern--f2514ae4-4e9b-4f26-a5ba-c4ae85fe93c3"
+  },
+  {
+    "id": "attack-pattern--deb98323-e13f-4b0c-8d94-175379069062",
+    "name": "Software Packing",
+    "description": "Adversaries may perform software packing or virtual machine software protection to conceal their code. Software packing is a method of compressing or encrypting an executable. Packing an executable changes the file signature in an attempt to avoid signature-based detection. Most decompression techniques decompress the executable code in memory. Virtual machine software protection translates an executable's original code into a special format that only a special virtual machine can run. A virtual machine is then called to run this code.(Citation: ESET FinFisher Jan 2018) \n\nUtilities used to perform software packing are called packers. Example packers are MPRESS and UPX. A more comprehensive list of known packers is available, but adversaries may create their own packing techniques that do not leave the same artifacts as well-known packers to evade defenses.(Citation: Awesome Executable Packing)  ",
+    "tactic": "defense-evasion",
+    "technique_name": "Software Packing",
+    "technique_id": "T1027.002",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1027.002: Software Packing'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1027.002: Software Packing'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1027.002: Software Packing'"
+      }
+    ],
+    "ability_id": "attack-pattern--deb98323-e13f-4b0c-8d94-175379069062"
+  },
+  {
+    "id": "attack-pattern--03d7999c-1f4c-42cc-8373-e7690d318104",
+    "name": "System Owner/User Discovery",
+    "description": "Adversaries may attempt to identify the primary user, currently logged in user, set of users that commonly uses a system, or whether a user is actively using the system. They may do this, for example, by retrieving account usernames or by using [OS Credential Dumping](https://attack.mitre.org/techniques/T1003). The information may be collected in a number of different ways using other Discovery techniques, because user and username details are prevalent throughout a system and include running process ownership, file/directory ownership, session information, and system logs. Adversaries may use the information from [System Owner/User Discovery](https://attack.mitre.org/techniques/T1033) during automated discovery to shape follow-on behaviors, including whether or not the adversary fully infects the target and/or attempts specific actions.\n\nVarious utilities and commands may acquire this information, including <code>whoami</code>. In macOS and Linux, the currently logged in user can be identified with <code>w</code> and <code>who</code>. On macOS the <code>dscl . list /Users | grep -v '_'</code> command can also be used to enumerate user accounts. Environment variables, such as <code>%USERNAME%</code> and <code>$USER</code>, may also be used to access this information.\n\nOn network devices, [Network Device CLI](https://attack.mitre.org/techniques/T1059/008) commands such as `show users` and `show ssh` can be used to display users currently logged into the device.(Citation: show_ssh_users_cmd_cisco)(Citation: US-CERT TA18-106A Network Infrastructure Devices 2018)",
+    "tactic": "discovery",
+    "technique_name": "System Owner/User Discovery",
+    "technique_id": "T1033",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1033: System Owner/User Discovery'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1033: System Owner/User Discovery'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1033: System Owner/User Discovery'"
+      }
+    ],
+    "ability_id": "attack-pattern--03d7999c-1f4c-42cc-8373-e7690d318104"
+  },
+  {
+    "id": "attack-pattern--7bdca9d5-d500-4d7d-8c52-5fd47baf4c0c",
+    "name": "Masquerade Task or Service",
+    "description": "Adversaries may attempt to manipulate the name of a task or service to make it appear legitimate or benign. Tasks/services executed by the Task Scheduler or systemd will typically be given a name and/or description.(Citation: TechNet Schtasks)(Citation: Systemd Service Units) Windows services will have a service name as well as a display name. Many benign tasks and services exist that have commonly associated names. Adversaries may give tasks or services names that are similar or identical to those of legitimate ones.\n\nTasks or services contain other fields, such as a description, that adversaries may attempt to make appear legitimate.(Citation: Palo Alto Shamoon Nov 2016)(Citation: Fysbis Dr Web Analysis)",
+    "tactic": "defense-evasion",
+    "technique_name": "Masquerade Task or Service",
+    "technique_id": "T1036.004",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1036.004: Masquerade Task or Service'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1036.004: Masquerade Task or Service'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1036.004: Masquerade Task or Service'"
+      }
+    ],
+    "ability_id": "attack-pattern--7bdca9d5-d500-4d7d-8c52-5fd47baf4c0c"
+  },
+  {
+    "id": "attack-pattern--707399d6-ab3e-4963-9315-d9d3818cd6a0",
+    "name": "System Network Configuration Discovery",
+    "description": "Adversaries may look for details about the network configuration and settings, such as IP and/or MAC addresses, of systems they access or through information discovery of remote systems. Several operating system administration utilities exist that can be used to gather this information. Examples include [Arp](https://attack.mitre.org/software/S0099), [ipconfig](https://attack.mitre.org/software/S0100)/[ifconfig](https://attack.mitre.org/software/S0101), [nbtstat](https://attack.mitre.org/software/S0102), and [route](https://attack.mitre.org/software/S0103).\n\nAdversaries may also leverage a [Network Device CLI](https://attack.mitre.org/techniques/T1059/008) on network devices to gather information about configurations and settings, such as IP addresses of configured interfaces and static/dynamic routes (e.g. <code>show ip route</code>, <code>show ip interface</code>).(Citation: US-CERT-TA18-106A)(Citation: Mandiant APT41 Global Intrusion ) On ESXi, adversaries may leverage esxcli to gather network configuration information. For example, the command `esxcli network nic list` will retrieve the MAC address, while `esxcli network ip interface ipv4 get` will retrieve the local IPv4 address.(Citation: Trellix Rnasomhouse 2024)\n\nAdversaries may use the information from [System Network Configuration Discovery](https://attack.mitre.org/techniques/T1016) during automated discovery to shape follow-on behaviors, including determining certain access within the target network and what actions to do next. ",
+    "tactic": "discovery",
+    "technique_name": "System Network Configuration Discovery",
+    "technique_id": "T1016",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1016: System Network Configuration Discovery'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1016: System Network Configuration Discovery'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1016: System Network Configuration Discovery'"
+      }
+    ],
+    "ability_id": "attack-pattern--707399d6-ab3e-4963-9315-d9d3818cd6a0"
+  },
+  {
+    "id": "attack-pattern--005a06c6-14bf-4118-afa0-ebcd8aebb0c9",
+    "name": "Scheduled Task",
+    "description": "Adversaries may abuse the Windows Task Scheduler to perform task scheduling for initial or recurring execution of malicious code. There are multiple ways to access the Task Scheduler in Windows. The [schtasks](https://attack.mitre.org/software/S0111) utility can be run directly on the command line, or the Task Scheduler can be opened through the GUI within the Administrator Tools section of the Control Panel.(Citation: Stack Overflow) In some cases, adversaries have used a .NET wrapper for the Windows Task Scheduler, and alternatively, adversaries have used the Windows netapi32 library and [Windows Management Instrumentation](https://attack.mitre.org/techniques/T1047) (WMI) to create a scheduled task. Adversaries may also utilize the Powershell Cmdlet `Invoke-CimMethod`, which leverages WMI class `PS_ScheduledTask` to create a scheduled task via an XML path.(Citation: Red Canary - Atomic Red Team)\n\nAn adversary may use Windows Task Scheduler to execute programs at system startup or on a scheduled basis for persistence. The Windows Task Scheduler can also be abused to conduct remote Execution as part of Lateral Movement and/or to run a process under the context of a specified account (such as SYSTEM). Similar to [System Binary Proxy Execution](https://attack.mitre.org/techniques/T1218), adversaries have also abused the Windows Task Scheduler to potentially mask one-time execution under signed/trusted system processes.(Citation: ProofPoint Serpent)\n\nAdversaries may also create \"hidden\" scheduled tasks (i.e. [Hide Artifacts](https://attack.mitre.org/techniques/T1564)) that may not be visible to defender tools and manual queries used to enumerate tasks. Specifically, an adversary may hide a task from `schtasks /query` and the Task Scheduler by deleting the associated Security Descriptor (SD) registry value (where deletion of this value must be completed using SYSTEM permissions).(Citation: SigmaHQ)(Citation: Tarrask scheduled task) Adversaries may also employ alternate methods to hide tasks, such as altering the metadata (e.g., `Index` value) within associated registry keys.(Citation: Defending Against Scheduled Task Attacks in Windows Environments) ",
+    "tactic": "execution",
+    "technique_name": "Scheduled Task",
+    "technique_id": "T1053.005",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1053.005: Scheduled Task'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1053.005: Scheduled Task'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1053.005: Scheduled Task'"
+      }
+    ],
+    "ability_id": "attack-pattern--005a06c6-14bf-4118-afa0-ebcd8aebb0c9"
+  },
+  {
+    "id": "attack-pattern--3f886f2a-874f-4333-b794-aa6075009b1c",
+    "name": "Exploit Public-Facing Application",
+    "description": "Adversaries may attempt to exploit a weakness in an Internet-facing host or system to initially access a network. The weakness in the system can be a software bug, a temporary glitch, or a misconfiguration.\n\nExploited applications are often websites/web servers, but can also include databases (like SQL), standard services (like SMB or SSH), network device administration and management protocols (like SNMP and Smart Install), and any other system with Internet-accessible open sockets.(Citation: NVD CVE-2016-6662)(Citation: CIS Multiple SMB Vulnerabilities)(Citation: US-CERT TA18-106A Network Infrastructure Devices 2018)(Citation: Cisco Blog Legacy Device Attacks)(Citation: NVD CVE-2014-7169) On ESXi infrastructure, adversaries may exploit exposed OpenSLP services; they may alternatively exploit exposed VMware vCenter servers.(Citation: Recorded Future ESXiArgs Ransomware 2023)(Citation: Ars Technica VMWare Code Execution Vulnerability 2021) Depending on the flaw being exploited, this may also involve [Exploitation for Defense Evasion](https://attack.mitre.org/techniques/T1211) or [Exploitation for Client Execution](https://attack.mitre.org/techniques/T1203).\n\nIf an application is hosted on cloud-based infrastructure and/or is containerized, then exploiting it may lead to compromise of the underlying instance or container. This can allow an adversary a path to access the cloud or container APIs (e.g., via the [Cloud Instance Metadata API](https://attack.mitre.org/techniques/T1552/005)), exploit container host access via [Escape to Host](https://attack.mitre.org/techniques/T1611), or take advantage of weak identity and access management policies.\n\nAdversaries may also exploit edge network infrastructure and related appliances, specifically targeting devices that do not support robust host-based defenses.(Citation: Mandiant Fortinet Zero Day)(Citation: Wired Russia Cyberwar)\n\nFor websites and databases, the OWASP top 10 and CWE top 25 highlight the most common web-based vulnerabilities.(Citation: OWASP Top 10)(Citation: CWE top 25)",
+    "tactic": "initial-access",
+    "technique_name": "Exploit Public-Facing Application",
+    "technique_id": "T1190",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1190: Exploit Public-Facing Application'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1190: Exploit Public-Facing Application'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1190: Exploit Public-Facing Application'"
+      }
+    ],
+    "ability_id": "attack-pattern--3f886f2a-874f-4333-b794-aa6075009b1c"
+  },
+  {
+    "id": "attack-pattern--5d0d3609-d06d-49e1-b9c9-b544e0c618cb",
+    "name": "Web Shell",
+    "description": "Adversaries may backdoor web servers with web shells to establish persistent access to systems. A Web shell is a Web script that is placed on an openly accessible Web server to allow an adversary to access the Web server as a gateway into a network. A Web shell may provide a set of functions to execute or a command-line interface on the system that hosts the Web server.(Citation: volexity_0day_sophos_FW)\n\nIn addition to a server-side script, a Web shell may have a client interface program that is used to talk to the Web server (e.g. [China Chopper](https://attack.mitre.org/software/S0020) Web shell client).(Citation: Lee 2013)",
+    "tactic": "persistence",
+    "technique_name": "Web Shell",
+    "technique_id": "T1505.003",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1505.003: Web Shell'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1505.003: Web Shell'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1505.003: Web Shell'"
+      }
+    ],
+    "ability_id": "attack-pattern--5d0d3609-d06d-49e1-b9c9-b544e0c618cb"
+  },
+  {
+    "id": "attack-pattern--3ccef7ae-cb5e-48f6-8302-897105fbf55c",
+    "name": "Deobfuscate/Decode Files or Information",
+    "description": "Adversaries may use [Obfuscated Files or Information](https://attack.mitre.org/techniques/T1027) to hide artifacts of an intrusion from analysis. They may require separate mechanisms to decode or deobfuscate that information depending on how they intend to use it. Methods for doing that include built-in functionality of malware or by using utilities present on the system.\n\nOne such example is the use of [certutil](https://attack.mitre.org/software/S0160) to decode a remote access tool portable executable file that has been hidden inside a certificate file.(Citation: Malwarebytes Targeted Attack against Saudi Arabia) Another example is using the Windows <code>copy /b</code> or <code>type</code> command to reassemble binary fragments into a malicious payload.(Citation: Carbon Black Obfuscation Sept 2016)(Citation: Sentinel One Tainted Love 2023)\n\nSometimes a user's action may be required to open it for deobfuscation or decryption as part of [User Execution](https://attack.mitre.org/techniques/T1204). The user may also be required to input a password to open a password protected compressed/encrypted file that was provided by the adversary.(Citation: Volexity PowerDuke November 2016)",
+    "tactic": "defense-evasion",
+    "technique_name": "Deobfuscate/Decode Files or Information",
+    "technique_id": "T1140",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1140: Deobfuscate/Decode Files or Information'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1140: Deobfuscate/Decode Files or Information'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1140: Deobfuscate/Decode Files or Information'"
+      }
+    ],
+    "ability_id": "attack-pattern--3ccef7ae-cb5e-48f6-8302-897105fbf55c"
+  },
+  {
+    "id": "attack-pattern--1644e709-12d2-41e5-a60f-3470991f5011",
+    "name": "Security Account Manager",
+    "description": "Adversaries may attempt to extract credential material from the Security Account Manager (SAM) database either through in-memory techniques or through the Windows Registry where the SAM database is stored. The SAM is a database file that contains local accounts for the host, typically those found with the <code>net user</code> command. Enumerating the SAM database requires SYSTEM level access.\n\nA number of tools can be used to retrieve the SAM file through in-memory techniques:\n\n* pwdumpx.exe\n* [gsecdump](https://attack.mitre.org/software/S0008)\n* [Mimikatz](https://attack.mitre.org/software/S0002)\n* secretsdump.py\n\nAlternatively, the SAM can be extracted from the Registry with Reg:\n\n* <code>reg save HKLM\\sam sam</code>\n* <code>reg save HKLM\\system system</code>\n\nCreddump7 can then be used to process the SAM database locally to retrieve hashes.(Citation: GitHub Creddump7)\n\nNotes: \n\n* RID 500 account is the local, built-in administrator.\n* RID 501 is the guest account.\n* User accounts start with a RID of 1,000+.\n",
+    "tactic": "credential-access",
+    "technique_name": "Security Account Manager",
+    "technique_id": "T1003.002",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1003.002: Security Account Manager'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1003.002: Security Account Manager'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1003.002: Security Account Manager'"
+      }
+    ],
+    "ability_id": "attack-pattern--1644e709-12d2-41e5-a60f-3470991f5011"
+  },
+  {
+    "id": "attack-pattern--b3d682b6-98f2-4fb0-aa3b-b4df007ca70a",
+    "name": "Obfuscated Files or Information",
+    "description": "Adversaries may attempt to make an executable or file difficult to discover or analyze by encrypting, encoding, or otherwise obfuscating its contents on the system or in transit. This is common behavior that can be used across different platforms and the network to evade defenses. \n\nPayloads may be compressed, archived, or encrypted in order to avoid detection. These payloads may be used during Initial Access or later to mitigate detection. Sometimes a user's action may be required to open and [Deobfuscate/Decode Files or Information](https://attack.mitre.org/techniques/T1140) for [User Execution](https://attack.mitre.org/techniques/T1204). The user may also be required to input a password to open a password protected compressed/encrypted file that was provided by the adversary. (Citation: Volexity PowerDuke November 2016) Adversaries may also use compressed or archived scripts, such as JavaScript. \n\nPortions of files can also be encoded to hide the plain-text strings that would otherwise help defenders with discovery. (Citation: Linux/Cdorked.A We Live Security Analysis) Payloads may also be split into separate, seemingly benign files that only reveal malicious functionality when reassembled. (Citation: Carbon Black Obfuscation Sept 2016)\n\nAdversaries may also abuse [Command Obfuscation](https://attack.mitre.org/techniques/T1027/010) to obscure commands executed from payloads or directly via [Command and Scripting Interpreter](https://attack.mitre.org/techniques/T1059). Environment variables, aliases, characters, and other platform/language specific semantics can be used to evade signature based detections and application control mechanisms. (Citation: FireEye Obfuscation June 2017) (Citation: FireEye Revoke-Obfuscation July 2017)(Citation: PaloAlto EncodedCommand March 2017) ",
+    "tactic": "defense-evasion",
+    "technique_name": "Obfuscated Files or Information",
+    "technique_id": "T1027",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1027: Obfuscated Files or Information'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1027: Obfuscated Files or Information'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1027: Obfuscated Files or Information'"
+      }
+    ],
+    "ability_id": "attack-pattern--b3d682b6-98f2-4fb0-aa3b-b4df007ca70a"
+  },
+  {
+    "id": "attack-pattern--92d7da27-2d91-488e-a00c-059dc162766d",
+    "name": "Exfiltration Over C2 Channel",
+    "description": "Adversaries may steal data by exfiltrating it over an existing command and control channel. Stolen data is encoded into the normal communications channel using the same protocol as command and control communications.",
+    "tactic": "exfiltration",
+    "technique_name": "Exfiltration Over C2 Channel",
+    "technique_id": "T1041",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1041: Exfiltration Over C2 Channel'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1041: Exfiltration Over C2 Channel'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1041: Exfiltration Over C2 Channel'"
+      }
+    ],
+    "ability_id": "attack-pattern--92d7da27-2d91-488e-a00c-059dc162766d"
+  },
+  {
+    "id": "attack-pattern--fb8d023d-45be-47e9-bc51-f56bcae6435b",
+    "name": "Exfiltration Over Unencrypted Non-C2 Protocol",
+    "description": "Adversaries may steal data by exfiltrating it over an un-encrypted network protocol other than that of the existing command and control channel. The data may also be sent to an alternate network location from the main command and control server.(Citation: copy_cmd_cisco)\n\nAdversaries may opt to obfuscate this data, without the use of encryption, within network protocols that are natively unencrypted (such as HTTP, FTP, or DNS). This may include custom or publicly available encoding/compression algorithms (such as base64) as well as embedding data within protocol headers and fields. ",
+    "tactic": "exfiltration",
+    "technique_name": "Exfiltration Over Unencrypted Non-C2 Protocol",
+    "technique_id": "T1048.003",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1048.003: Exfiltration Over Unencrypted Non-C2 Protocol'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1048.003: Exfiltration Over Unencrypted Non-C2 Protocol'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1048.003: Exfiltration Over Unencrypted Non-C2 Protocol'"
+      }
+    ],
+    "ability_id": "attack-pattern--fb8d023d-45be-47e9-bc51-f56bcae6435b"
+  },
+  {
+    "id": "attack-pattern--1c34f7aa-9341-4a48-bfab-af22e51aca6c",
+    "name": "Local Data Staging",
+    "description": "Adversaries may stage collected data in a central location or directory on the local system prior to Exfiltration. Data may be kept in separate files or combined into one file through techniques such as [Archive Collected Data](https://attack.mitre.org/techniques/T1560). Interactive command shells may be used, and common functionality within [cmd](https://attack.mitre.org/software/S0106) and bash may be used to copy data into a staging location.\n\nAdversaries may also stage collected data in various available formats/locations of a system, including local storage databases/repositories or the Windows Registry.(Citation: Prevailion DarkWatchman 2021)",
+    "tactic": "collection",
+    "technique_name": "Local Data Staging",
+    "technique_id": "T1074.001",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1074.001: Local Data Staging'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1074.001: Local Data Staging'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1074.001: Local Data Staging'"
+      }
+    ],
+    "ability_id": "attack-pattern--1c34f7aa-9341-4a48-bfab-af22e51aca6c"
+  },
+  {
+    "id": "attack-pattern--df8b2a25-8bdf-4856-953c-a04372b1c161",
+    "name": "Web Protocols",
+    "description": "Adversaries may communicate using application layer protocols associated with web traffic to avoid detection/network filtering by blending in with existing traffic. Commands to the remote system, and often the results of those commands, will be embedded within the protocol traffic between the client and server. \n\nProtocols such as HTTP/S(Citation: CrowdStrike Putter Panda) and WebSocket(Citation: Brazking-Websockets) that carry web traffic may be very common in environments. HTTP/S packets have many fields and headers in which data can be concealed. An adversary may abuse these protocols to communicate with systems under their control within a victim network while also mimicking normal, expected traffic. ",
+    "tactic": "command-and-control",
+    "technique_name": "Web Protocols",
+    "technique_id": "T1071.001",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1071.001: Web Protocols'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1071.001: Web Protocols'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1071.001: Web Protocols'"
+      }
+    ],
+    "ability_id": "attack-pattern--df8b2a25-8bdf-4856-953c-a04372b1c161"
+  },
+  {
+    "id": "attack-pattern--3c4a2599-71ee-4405-ba1e-0e28414b4bc5",
+    "name": "Data from Local System",
+    "description": "Adversaries may search local system sources, such as file systems, configuration files, local databases, virtual machine files, or process memory, to find files of interest and sensitive data prior to Exfiltration.\n\nAdversaries may do this using a [Command and Scripting Interpreter](https://attack.mitre.org/techniques/T1059), such as [cmd](https://attack.mitre.org/software/S0106) as well as a [Network Device CLI](https://attack.mitre.org/techniques/T1059/008), which have functionality to interact with the file system to gather information.(Citation: show_run_config_cmd_cisco) Adversaries may also use [Automated Collection](https://attack.mitre.org/techniques/T1119) on the local system.\n",
+    "tactic": "collection",
+    "technique_name": "Data from Local System",
+    "technique_id": "T1005",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1005: Data from Local System'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1005: Data from Local System'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1005: Data from Local System'"
+      }
+    ],
+    "ability_id": "attack-pattern--3c4a2599-71ee-4405-ba1e-0e28414b4bc5"
+  },
+  {
+    "id": "attack-pattern--f7827069-0bf2-4764-af4f-23fae0d181b7",
+    "name": "Dead Drop Resolver",
+    "description": "Adversaries may use an existing, legitimate external Web service to host information that points to additional command and control (C2) infrastructure. Adversaries may post content, known as a dead drop resolver, on Web services with embedded (and often obfuscated/encoded) domains or IP addresses. Once infected, victims will reach out to and be redirected by these resolvers.\n\nPopular websites and social media acting as a mechanism for C2 may give a significant amount of cover due to the likelihood that hosts within a network are already communicating with them prior to a compromise. Using common services, such as those offered by Google or Twitter, makes it easier for adversaries to hide in expected noise. Web service providers commonly use SSL/TLS encryption, giving adversaries an added level of protection.\n\nUse of a dead drop resolver may also protect back-end C2 infrastructure from discovery through malware binary analysis while also enabling operational resiliency (since this infrastructure may be dynamically changed).",
+    "tactic": "command-and-control",
+    "technique_name": "Dead Drop Resolver",
+    "technique_id": "T1102.001",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1102.001: Dead Drop Resolver'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1102.001: Dead Drop Resolver'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1102.001: Dead Drop Resolver'"
+      }
+    ],
+    "ability_id": "attack-pattern--f7827069-0bf2-4764-af4f-23fae0d181b7"
+  },
+  {
+    "id": "attack-pattern--0f4a0c76-ab2d-4cb0-85d3-3f0efb8cba0d",
+    "name": "JavaScript",
+    "description": "Adversaries may abuse various implementations of JavaScript for execution. JavaScript (JS) is a platform-independent scripting language (compiled just-in-time at runtime) commonly associated with scripts in webpages, though JS can be executed in runtime environments outside the browser.(Citation: NodeJS)\n\nJScript is the Microsoft implementation of the same scripting standard. JScript is interpreted via the Windows Script engine and thus integrated with many components of Windows such as the [Component Object Model](https://attack.mitre.org/techniques/T1559/001) and Internet Explorer HTML Application (HTA) pages.(Citation: JScrip May 2018)(Citation: Microsoft JScript 2007)(Citation: Microsoft Windows Scripts)\n\nJavaScript for Automation (JXA) is a macOS scripting language based on JavaScript, included as part of Apple\u2019s Open Scripting Architecture (OSA), that was introduced in OSX 10.10. Apple\u2019s OSA provides scripting capabilities to control applications, interface with the operating system, and bridge access into the rest of Apple\u2019s internal APIs. As of OSX 10.10, OSA only supports two languages, JXA and [AppleScript](https://attack.mitre.org/techniques/T1059/002). Scripts can be executed via the command line utility <code>osascript</code>, they can be compiled into applications or script files via <code>osacompile</code>, and they can be compiled and executed in memory of other programs by leveraging the OSAKit Framework.(Citation: Apple About Mac Scripting 2016)(Citation: SpecterOps JXA 2020)(Citation: SentinelOne macOS Red Team)(Citation: Red Canary Silver Sparrow Feb2021)(Citation: MDSec macOS JXA and VSCode)\n\nAdversaries may abuse various implementations of JavaScript to execute various behaviors. Common uses include hosting malicious scripts on websites as part of a [Drive-by Compromise](https://attack.mitre.org/techniques/T1189) or downloading and executing these script files as secondary payloads. Since these payloads are text-based, it is also very common for adversaries to obfuscate their content as part of [Obfuscated Files or Information](https://attack.mitre.org/techniques/T1027).",
+    "tactic": "execution",
+    "technique_name": "JavaScript",
+    "technique_id": "T1059.007",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1059.007: JavaScript'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1059.007: JavaScript'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1059.007: JavaScript'"
+      }
+    ],
+    "ability_id": "attack-pattern--0f4a0c76-ab2d-4cb0-85d3-3f0efb8cba0d"
+  },
+  {
+    "id": "attack-pattern--aedfca76-3b30-4866-b2aa-0f1d7fd1e4b6",
+    "name": "Hijack Execution Flow",
+    "description": "Adversaries may execute their own malicious payloads by hijacking the way operating systems run programs. Hijacking execution flow can be for the purposes of persistence, since this hijacked execution may reoccur over time. Adversaries may also use these mechanisms to elevate privileges or evade defenses, such as application control or other restrictions on execution.\n\nThere are many ways an adversary may hijack the flow of execution, including by manipulating how the operating system locates programs to be executed. How the operating system locates libraries to be used by a program can also be intercepted. Locations where the operating system looks for programs/resources, such as file directories and in the case of Windows the Registry, could also be poisoned to include malicious payloads.",
+    "tactic": "persistence",
+    "technique_name": "Hijack Execution Flow",
+    "technique_id": "T1574",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1574: Hijack Execution Flow'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1574: Hijack Execution Flow'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1574: Hijack Execution Flow'"
+      }
+    ],
+    "ability_id": "attack-pattern--aedfca76-3b30-4866-b2aa-0f1d7fd1e4b6"
+  },
+  {
+    "id": "attack-pattern--731f4f55-b6d0-41d1-a7a9-072a66389aea",
+    "name": "Proxy",
+    "description": "Adversaries may use a connection proxy to direct network traffic between systems or act as an intermediary for network communications to a command and control server to avoid direct connections to their infrastructure. Many tools exist that enable traffic redirection through proxies or port redirection, including [HTRAN](https://attack.mitre.org/software/S0040), ZXProxy, and ZXPortMap. (Citation: Trend Micro APT Attack Tools) Adversaries use these types of proxies to manage command and control communications, reduce the number of simultaneous outbound network connections, provide resiliency in the face of connection loss, or to ride over existing trusted communications paths between victims to avoid suspicion. Adversaries may chain together multiple proxies to further disguise the source of malicious traffic.\n\nAdversaries can also take advantage of routing schemes in Content Delivery Networks (CDNs) to proxy command and control traffic.",
+    "tactic": "command-and-control",
+    "technique_name": "Proxy",
+    "technique_id": "T1090",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1090: Proxy'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1090: Proxy'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1090: Proxy'"
+      }
+    ],
+    "ability_id": "attack-pattern--731f4f55-b6d0-41d1-a7a9-072a66389aea"
+  },
+  {
+    "id": "attack-pattern--1c4e5d32-1fe9-4116-9d9d-59e3925bd6a2",
+    "name": "Match Legitimate Resource Name or Location",
+    "description": "Adversaries may match or approximate the name or location of legitimate files, Registry keys, or other resources when naming/placing them. This is done for the sake of evading defenses and observation. \n\nThis may be done by placing an executable in a commonly trusted directory (ex: under System32) or giving it the name of a legitimate, trusted program (ex: `svchost.exe`). Alternatively, a Windows Registry key may be given a close approximation to a key used by a legitimate program. In containerized environments, a threat actor may create a resource in a trusted namespace or one that matches the naming convention of a container pod or cluster.(Citation: Aquasec Kubernetes Backdoor 2023)",
+    "tactic": "defense-evasion",
+    "technique_name": "Match Legitimate Resource Name or Location",
+    "technique_id": "T1036.005",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1036.005: Match Legitimate Resource Name or Location'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1036.005: Match Legitimate Resource Name or Location'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1036.005: Match Legitimate Resource Name or Location'"
+      }
+    ],
+    "ability_id": "attack-pattern--1c4e5d32-1fe9-4116-9d9d-59e3925bd6a2"
+  },
+  {
+    "id": "attack-pattern--d1fcf083-a721-4223-aedf-bf8960798d62",
+    "name": "Windows Command Shell",
+    "description": "Adversaries may abuse the Windows command shell for execution. The Windows command shell ([cmd](https://attack.mitre.org/software/S0106)) is the primary command prompt on Windows systems. The Windows command prompt can be used to control almost any aspect of a system, with various permission levels required for different subsets of commands. The command prompt can be invoked remotely via [Remote Services](https://attack.mitre.org/techniques/T1021) such as [SSH](https://attack.mitre.org/techniques/T1021/004).(Citation: SSH in Windows)\n\nBatch files (ex: .bat or .cmd) also provide the shell with a list of sequential commands to run, as well as normal scripting operations such as conditionals and loops. Common uses of batch files include long or repetitive tasks, or the need to run the same set of commands on multiple systems.\n\nAdversaries may leverage [cmd](https://attack.mitre.org/software/S0106) to execute various commands and payloads. Common uses include [cmd](https://attack.mitre.org/software/S0106) to execute a single command, or abusing [cmd](https://attack.mitre.org/software/S0106) interactively with input and output forwarded over a command and control channel.",
+    "tactic": "execution",
+    "technique_name": "Windows Command Shell",
+    "technique_id": "T1059.003",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1059.003: Windows Command Shell'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1059.003: Windows Command Shell'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1059.003: Windows Command Shell'"
+      }
+    ],
+    "ability_id": "attack-pattern--d1fcf083-a721-4223-aedf-bf8960798d62"
+  },
+  {
+    "id": "attack-pattern--c325b232-d5bc-4dde-a3ec-71f3db9e8adc",
+    "name": "Protocol or Service Impersonation",
+    "description": "Adversaries may impersonate legitimate protocols or web service traffic to disguise command and control activity and thwart analysis efforts. By impersonating legitimate protocols or web services, adversaries can make their command and control traffic blend in with legitimate network traffic.  \n\nAdversaries may impersonate a fake SSL/TLS handshake to make it look like subsequent traffic is SSL/TLS encrypted, potentially interfering with some security tooling, or to make the traffic look like it is related with a trusted entity. \n\nAdversaries may also leverage legitimate protocols to impersonate expected web traffic or trusted services. For example, adversaries may manipulate HTTP headers, URI endpoints, SSL certificates, and transmitted data to disguise C2 communications or mimic legitimate services such as Gmail, Google Drive, and Yahoo Messenger.(Citation: ESET Okrum July 2019)(Citation: Malleable-C2-U42)",
+    "tactic": "command-and-control",
+    "technique_name": "Protocol or Service Impersonation",
+    "technique_id": "T1001.003",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1001.003: Protocol or Service Impersonation'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1001.003: Protocol or Service Impersonation'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1001.003: Protocol or Service Impersonation'"
+      }
+    ],
+    "ability_id": "attack-pattern--c325b232-d5bc-4dde-a3ec-71f3db9e8adc"
+  },
+  {
+    "id": "attack-pattern--dcaa092b-7de9-4a21-977f-7fcb77e89c48",
+    "name": "Access Token Manipulation",
+    "description": "Adversaries may modify access tokens to operate under a different user or system security context to perform actions and bypass access controls. Windows uses access tokens to determine the ownership of a running process. A user can manipulate access tokens to make a running process appear as though it is the child of a different process or belongs to someone other than the user that started the process. When this occurs, the process also takes on the security context associated with the new token.\n\nAn adversary can use built-in Windows API functions to copy access tokens from existing processes; this is known as token stealing. These token can then be applied to an existing process (i.e. [Token Impersonation/Theft](https://attack.mitre.org/techniques/T1134/001)) or used to spawn a new process (i.e. [Create Process with Token](https://attack.mitre.org/techniques/T1134/002)). An adversary must already be in a privileged user context (i.e. administrator) to steal a token. However, adversaries commonly use token stealing to elevate their security context from the administrator level to the SYSTEM level. An adversary can then use a token to authenticate to a remote system as the account for that token if the account has appropriate permissions on the remote system.(Citation: Pentestlab Token Manipulation)\n\nAny standard user can use the <code>runas</code> command, and the Windows API functions, to create impersonation tokens; it does not require access to an administrator account. There are also other mechanisms, such as Active Directory fields, that can be used to modify access tokens.",
+    "tactic": "defense-evasion",
+    "technique_name": "Access Token Manipulation",
+    "technique_id": "T1134",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1134: Access Token Manipulation'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1134: Access Token Manipulation'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1134: Access Token Manipulation'"
+      }
+    ],
+    "ability_id": "attack-pattern--dcaa092b-7de9-4a21-977f-7fcb77e89c48"
+  },
+  {
+    "id": "attack-pattern--40597f16-0963-4249-bf4c-ac93b7fb9807",
+    "name": "Exfiltration Over Web Service",
+    "description": "Adversaries may use an existing, legitimate external Web service to exfiltrate data rather than their primary command and control channel. Popular Web services acting as an exfiltration mechanism may give a significant amount of cover due to the likelihood that hosts within a network are already communicating with them prior to compromise. Firewall rules may also already exist to permit traffic to these services.\n\nWeb service providers also commonly use SSL/TLS encryption, giving adversaries an added level of protection.",
+    "tactic": "exfiltration",
+    "technique_name": "Exfiltration Over Web Service",
+    "technique_id": "T1567",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1567: Exfiltration Over Web Service'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1567: Exfiltration Over Web Service'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1567: Exfiltration Over Web Service'"
+      }
+    ],
+    "ability_id": "attack-pattern--40597f16-0963-4249-bf4c-ac93b7fb9807"
+  },
+  {
+    "id": "attack-pattern--143c0cbb-a297-4142-9624-87ffc778980b",
+    "name": "Archive via Custom Method",
+    "description": "An adversary may compress or encrypt data that is collected prior to exfiltration using a custom method. Adversaries may choose to use custom archival methods, such as encryption with XOR or stream ciphers implemented with no external library or utility references. Custom implementations of well-known compression algorithms have also been used.(Citation: ESET Sednit Part 2)",
+    "tactic": "collection",
+    "technique_name": "Archive via Custom Method",
+    "technique_id": "T1560.003",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1560.003: Archive via Custom Method'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1560.003: Archive via Custom Method'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1560.003: Archive via Custom Method'"
+      }
+    ],
+    "ability_id": "attack-pattern--143c0cbb-a297-4142-9624-87ffc778980b"
+  },
+  {
+    "id": "attack-pattern--a2fdce72-04b2-409a-ac10-cc1695f4fce0",
+    "name": "Tool",
+    "description": "Adversaries may buy, steal, or download software tools that can be used during targeting. Tools can be open or closed source, free or commercial. A tool can be used for malicious purposes by an adversary, but (unlike malware) were not intended to be used for those purposes (ex: [PsExec](https://attack.mitre.org/software/S0029)). \n\nAdversaries may obtain tools to support their operations, including to support execution of post-compromise behaviors. Tools may also be leveraged for testing \u2013 for example, evaluating malware against commercial antivirus or endpoint detection and response (EDR) applications.(Citation: Forescout Conti Leaks 2022)(Citation: Sentinel Labs Top Tier Target 2025)\n\nTool acquisition may involve the procurement of commercial software licenses, including for red teaming tools such as Cobalt Strike. In addition to freely downloading or purchasing software, adversaries may steal software and/or software licenses from third-party entities (including other adversaries). Threat actors may also crack trial versions of software.(Citation: Recorded Future Beacon 2019)",
+    "tactic": "resource-development",
+    "technique_name": "Tool",
+    "technique_id": "T1588.002",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1588.002: Tool'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1588.002: Tool'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1588.002: Tool'"
+      }
+    ],
+    "ability_id": "attack-pattern--a2fdce72-04b2-409a-ac10-cc1695f4fce0"
+  },
+  {
+    "id": "attack-pattern--e6919abc-99f9-4c6c-95a5-14761e7b2add",
+    "name": "Ingress Tool Transfer",
+    "description": "Adversaries may transfer tools or other files from an external system into a compromised environment. Tools or files may be copied from an external adversary-controlled system to the victim network through the command and control channel or through alternate protocols such as [ftp](https://attack.mitre.org/software/S0095). Once present, adversaries may also transfer/spread tools between victim devices within a compromised environment (i.e. [Lateral Tool Transfer](https://attack.mitre.org/techniques/T1570)). \n\nOn Windows, adversaries may use various utilities to download tools, such as `copy`, `finger`, [certutil](https://attack.mitre.org/software/S0160), and [PowerShell](https://attack.mitre.org/techniques/T1059/001) commands such as <code>IEX(New-Object Net.WebClient).downloadString()</code> and <code>Invoke-WebRequest</code>. On Linux and macOS systems, a variety of utilities also exist, such as `curl`, `scp`, `sftp`, `tftp`, `rsync`, `finger`, and `wget`.(Citation: t1105_lolbas)  A number of these tools, such as `wget`, `curl`, and `scp`, also exist on ESXi. After downloading a file, a threat actor may attempt to verify its integrity by checking its hash value (e.g., via `certutil -hashfile`).(Citation: Google Cloud Threat Intelligence COSCMICENERGY 2023)\n\nAdversaries may also abuse installers and package managers, such as `yum` or `winget`, to download tools to victim hosts. Adversaries have also abused file application features, such as the Windows `search-ms` protocol handler, to deliver malicious files to victims through remote file searches invoked by [User Execution](https://attack.mitre.org/techniques/T1204) (typically after interacting with [Phishing](https://attack.mitre.org/techniques/T1566) lures).(Citation: T1105: Trellix_search-ms)\n\nFiles can also be transferred using various [Web Service](https://attack.mitre.org/techniques/T1102)s as well as native or otherwise present tools on the victim system.(Citation: PTSecurity Cobalt Dec 2016) In some cases, adversaries may be able to leverage services that sync between a web-based and an on-premises client, such as Dropbox or OneDrive, to transfer files onto victim systems. For example, by compromising a cloud account and logging into the service's web portal, an adversary may be able to trigger an automatic syncing process that transfers the file onto the victim's machine.(Citation: Dropbox Malware Sync)",
+    "tactic": "command-and-control",
+    "technique_name": "Ingress Tool Transfer",
+    "technique_id": "T1105",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1105: Ingress Tool Transfer'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1105: Ingress Tool Transfer'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1105: Ingress Tool Transfer'"
+      }
+    ],
+    "ability_id": "attack-pattern--e6919abc-99f9-4c6c-95a5-14761e7b2add"
+  },
+  {
+    "id": "attack-pattern--830c9528-df21-472c-8c14-a036bf17d665",
+    "name": "Web Service",
+    "description": "Adversaries may use an existing, legitimate external Web service as a means for relaying data to/from a compromised system. Popular websites, cloud services, and social media acting as a mechanism for C2 may give a significant amount of cover due to the likelihood that hosts within a network are already communicating with them prior to a compromise. Using common services, such as those offered by Google, Microsoft, or Twitter, makes it easier for adversaries to hide in expected noise.(Citation: Broadcom BirdyClient Microsoft Graph API 2024) Web service providers commonly use SSL/TLS encryption, giving adversaries an added level of protection.\n\nUse of Web services may also protect back-end C2 infrastructure from discovery through malware binary analysis while also enabling operational resiliency (since this infrastructure may be dynamically changed).",
+    "tactic": "command-and-control",
+    "technique_name": "Web Service",
+    "technique_id": "T1102",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1102: Web Service'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1102: Web Service'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1102: Web Service'"
+      }
+    ],
+    "ability_id": "attack-pattern--830c9528-df21-472c-8c14-a036bf17d665"
+  }
+]

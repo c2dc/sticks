@@ -1,0 +1,16 @@
+{
+  "id": "operation_ghost",
+  "name": "0.Operation Ghost",
+  "description": "[Operation Ghost](https://attack.mitre.org/campaigns/C0023) was an [APT29](https://attack.mitre.org/groups/G0016) campaign starting in 2013 that included operations against ministries of foreign affairs in Europe and the Washington, D.C. embassy of a European Union country. During [Operation Ghost](https://attack.mitre.org/campaigns/C0023), [APT29](https://attack.mitre.org/groups/G0016) used new families of malware and leveraged web services, steganography, and unique C2 infrastructure for each victim.(Citation: ESET Dukes October 2019)\n\n\nAlso known as: Operation Ghost",
+  "objective": "495a9828-cab1-44dd-a0ca-66e58177d8cc",
+  "atomic_ordering": [
+    "attack-pattern--c3d4bdd9-2cfe-4a80-9d0c-07a29ecdce8f",
+    "attack-pattern--be055942-6e63-49d7-9fa1-9cb7d8a8f3f4",
+    "attack-pattern--eec23884-3fa1-4d8a-ac50-6f104d51e235",
+    "attack-pattern--40f5caa0-4cb7-4117-89fc-d421bb493df3",
+    "attack-pattern--212306d8-efa4-44c9-8c2d-ed3d2e224aa0",
+    "attack-pattern--910906dd-8c0a-475a-9cc1-5e029e2fad58",
+    "attack-pattern--b1ccd744-3f78-4a0e-9bb2-2002057f7928",
+    "attack-pattern--c2e147a9-d1a8-4074-811a-d8789202d916"
+  ]
+}

@@ -1,0 +1,236 @@
+[
+  {
+    "id": "attack-pattern--f9cc4d06-775f-4ee1-b401-4e2cc0da30ba",
+    "name": "Domains",
+    "description": "Adversaries may hijack domains and/or subdomains that can be used during targeting. Domain registration hijacking is the act of changing the registration of a domain name without the permission of the original registrant.(Citation: ICANNDomainNameHijacking) Adversaries may gain access to an email account for the person listed as the owner of the domain. The adversary can then claim that they forgot their password in order to make changes to the domain registration. Other possibilities include social engineering a domain registration help desk to gain access to an account, taking advantage of renewal process gaps, or compromising a cloud service that enables managing domains (e.g., AWS Route53).(Citation: Krebs DNS Hijack 2019)\n\nSubdomain hijacking can occur when organizations have DNS entries that point to non-existent or deprovisioned resources. In such cases, an adversary may take control of a subdomain to conduct operations with the benefit of the trust associated with that domain.(Citation: Microsoft Sub Takeover 2020)\n\nAdversaries who compromise a domain may also engage in domain shadowing by creating malicious subdomains under their control while keeping any existing DNS records. As service will not be disrupted, the malicious subdomains may go unnoticed for long periods of time.(Citation: Palo Alto Unit 42 Domain Shadowing 2022)",
+    "tactic": "resource-development",
+    "technique_name": "Domains",
+    "technique_id": "T1584.001",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1584.001: Domains'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1584.001: Domains'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1584.001: Domains'"
+      }
+    ],
+    "ability_id": "attack-pattern--f9cc4d06-775f-4ee1-b401-4e2cc0da30ba"
+  },
+  {
+    "id": "attack-pattern--3ee16395-03f0-4690-a32e-69ce9ada0f9e",
+    "name": "Upload Malware",
+    "description": "Adversaries may upload malware to third-party or adversary controlled infrastructure to make it accessible during targeting. Malicious software can include payloads, droppers, post-compromise tools, backdoors, and a variety of other malicious content. Adversaries may upload malware to support their operations, such as making a payload available to a victim network to enable [Ingress Tool Transfer](https://attack.mitre.org/techniques/T1105) by placing it on an Internet accessible web server.\n\nMalware may be placed on infrastructure that was previously purchased/rented by the adversary ([Acquire Infrastructure](https://attack.mitre.org/techniques/T1583)) or was otherwise compromised by them ([Compromise Infrastructure](https://attack.mitre.org/techniques/T1584)). Malware can also be staged on web services, such as GitHub or Pastebin; hosted on the InterPlanetary File System (IPFS), where decentralized content storage makes the removal of malicious files difficult; or saved on the blockchain as smart contracts, which are resilient against takedowns that would affect traditional infrastructure.(Citation: Volexity Ocean Lotus November 2020)(Citation: Talos IPFS 2022)(Citation: Guardio Etherhiding 2023)(Citation: Bleeping Computer Binance Smart Chain 2023)\n\nAdversaries may upload backdoored files, such as software packages, application binaries, virtual machine images, or container images, to third-party software stores, package libraries, extension marketplaces, or repositories (ex: GitHub, CNET, AWS Community AMIs, Docker Hub, PyPi, NPM).(Citation: Datadog Security Labs Malicious PyPi Packages 2024) By chance encounter, victims may directly download/install these backdoored files via [User Execution](https://attack.mitre.org/techniques/T1204). Masquerading, including typo-squatting legitimate software, may increase the chance of users mistakenly executing these files. ",
+    "tactic": "resource-development",
+    "technique_name": "Upload Malware",
+    "technique_id": "T1608.001",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1608.001: Upload Malware'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1608.001: Upload Malware'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1608.001: Upload Malware'"
+      }
+    ],
+    "ability_id": "attack-pattern--3ee16395-03f0-4690-a32e-69ce9ada0f9e"
+  },
+  {
+    "id": "attack-pattern--d742a578-d70e-4d0e-96a6-02a9c30204e6",
+    "name": "Drive-by Compromise",
+    "description": "Adversaries may gain access to a system through a user visiting a website over the normal course of browsing. Multiple ways of delivering exploit code to a browser exist (i.e., [Drive-by Target](https://attack.mitre.org/techniques/T1608/004)), including:\n\n* A legitimate website is compromised, allowing adversaries to inject malicious code\n* Script files served to a legitimate website from a publicly writeable cloud storage bucket are modified by an adversary\n* Malicious ads are paid for and served through legitimate ad providers (i.e., [Malvertising](https://attack.mitre.org/techniques/T1583/008))\n* Built-in web application interfaces that allow user-controllable content are leveraged for the insertion of malicious scripts or iFrames (e.g., cross-site scripting)\n\nBrowser push notifications may also be abused by adversaries and leveraged for malicious code injection via [User Execution](https://attack.mitre.org/techniques/T1204). By clicking \"allow\" on browser push notifications, users may be granting a website permission to run JavaScript code on their browser.(Citation: Push notifications - viruspositive)(Citation: push notification -mcafee)(Citation: push notifications - malwarebytes)\n\nOften the website used by an adversary is one visited by a specific community, such as government, a particular industry, or a particular region, where the goal is to compromise a specific user or set of users based on a shared interest. This kind of targeted campaign is often referred to a strategic web compromise or watering hole attack. There are several known examples of this occurring.(Citation: Shadowserver Strategic Web Compromise)\n\nTypical drive-by compromise process:\n\n1. A user visits a website that is used to host the adversary controlled content.\n2. Scripts automatically execute, typically searching versions of the browser and plugins for a potentially vulnerable version. The user may be required to assist in this process by enabling scripting, notifications, or active website components and ignoring warning dialog boxes.\n3. Upon finding a vulnerable version, exploit code is delivered to the browser.\n4. If exploitation is successful, the adversary will gain code execution on the user's system unless other protections are in place. In some cases, a second visit to the website after the initial scan is required before exploit code is delivered.\n\nUnlike [Exploit Public-Facing Application](https://attack.mitre.org/techniques/T1190), the focus of this technique is to exploit software on a client endpoint upon visiting a website. This will commonly give an adversary access to systems on the internal network instead of external systems that may be in a DMZ.",
+    "tactic": "initial-access",
+    "technique_name": "Drive-by Compromise",
+    "technique_id": "T1189",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1189: Drive-by Compromise'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1189: Drive-by Compromise'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1189: Drive-by Compromise'"
+      }
+    ],
+    "ability_id": "attack-pattern--d742a578-d70e-4d0e-96a6-02a9c30204e6"
+  },
+  {
+    "id": "attack-pattern--31fe0ba2-62fd-4fd9-9293-4043d84f7fe9",
+    "name": "Drive-by Target",
+    "description": "Adversaries may prepare an operational environment to infect systems that visit a website over the normal course of browsing. Endpoint systems may be compromised through browsing to adversary controlled sites, as in [Drive-by Compromise](https://attack.mitre.org/techniques/T1189). In such cases, the user's web browser is typically targeted for exploitation (often not requiring any extra user interaction once landing on the site), but adversaries may also set up websites for non-exploitation behavior such as [Application Access Token](https://attack.mitre.org/techniques/T1550/001). Prior to [Drive-by Compromise](https://attack.mitre.org/techniques/T1189), adversaries must stage resources needed to deliver that exploit to users who browse to an adversary controlled site. Drive-by content can be staged on adversary controlled infrastructure that has been acquired ([Acquire Infrastructure](https://attack.mitre.org/techniques/T1583)) or previously compromised ([Compromise Infrastructure](https://attack.mitre.org/techniques/T1584)).\n\nAdversaries may upload or inject malicious web content, such as [JavaScript](https://attack.mitre.org/techniques/T1059/007), into websites.(Citation: FireEye CFR Watering Hole 2012)(Citation: Gallagher 2015) This may be done in a number of ways, including:\n\n* Inserting malicious scripts into web pages or other user controllable web content such as forum posts\n* Modifying script files served to websites from publicly writeable cloud storage buckets\n* Crafting malicious web advertisements and purchasing ad space on a website through legitimate ad providers (i.e., [Malvertising](https://attack.mitre.org/techniques/T1583/008))\n\nIn addition to staging content to exploit a user's web browser, adversaries may also stage scripting content to profile the user's browser (as in [Gather Victim Host Information](https://attack.mitre.org/techniques/T1592)) to ensure it is vulnerable prior to attempting exploitation.(Citation: ATT ScanBox)\n\nWebsites compromised by an adversary and used to stage a drive-by may be ones visited by a specific community, such as government, a particular industry, or region, where the goal is to compromise a specific user or set of users based on a shared interest. This kind of targeted campaign is referred to a strategic web compromise or watering hole attack.\n\nAdversaries may purchase domains similar to legitimate domains (ex: homoglyphs, typosquatting, different top-level domain, etc.) during acquisition of infrastructure ([Domains](https://attack.mitre.org/techniques/T1583/001)) to help facilitate [Drive-by Compromise](https://attack.mitre.org/techniques/T1189).",
+    "tactic": "resource-development",
+    "technique_name": "Drive-by Target",
+    "technique_id": "T1608.004",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1608.004: Drive-by Target'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1608.004: Drive-by Target'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1608.004: Drive-by Target'"
+      }
+    ],
+    "ability_id": "attack-pattern--31fe0ba2-62fd-4fd9-9293-4043d84f7fe9"
+  },
+  {
+    "id": "attack-pattern--212306d8-efa4-44c9-8c2d-ed3d2e224aa0",
+    "name": "Malware",
+    "description": "Adversaries may develop malware and malware components that can be used during targeting. Building malicious software can include the development of payloads, droppers, post-compromise tools, backdoors (including backdoored images), packers, C2 protocols, and the creation of infected removable media. Adversaries may develop malware to support their operations, creating a means for maintaining control of remote machines, evading defenses, and executing post-compromise behaviors.(Citation: Mandiant APT1)(Citation: Kaspersky Sofacy)(Citation: ActiveMalwareEnergy)(Citation: FBI Flash FIN7 USB)\n\nDuring malware development, adversaries may intentionally include indicators aligned with other known actors in order to mislead attribution by defenders.(Citation: Olympic Destroyer)(Citation: Risky Bulletin Threat actor impersonates FSB APT)(Citation: GamaCopy organization)\n\nAs with legitimate development efforts, different skill sets may be required for developing malware. The skills needed may be located in-house, or may need to be contracted out. Use of a contractor may be considered an extension of that adversary's malware development capabilities, provided the adversary plays a role in shaping requirements and maintains a degree of exclusivity to the malware.\n\nSome aspects of malware development, such as C2 protocol development, may require adversaries to obtain additional infrastructure. For example, malware developed that will communicate with Twitter for C2, may require use of [Web Services](https://attack.mitre.org/techniques/T1583/006).(Citation: FireEye APT29)",
+    "tactic": "resource-development",
+    "technique_name": "Malware",
+    "technique_id": "T1587.001",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1587.001: Malware'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1587.001: Malware'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1587.001: Malware'"
+      }
+    ],
+    "ability_id": "attack-pattern--212306d8-efa4-44c9-8c2d-ed3d2e224aa0"
+  },
+  {
+    "id": "attack-pattern--40f5caa0-4cb7-4117-89fc-d421bb493df3",
+    "name": "Domains",
+    "description": "Adversaries may acquire domains that can be used during targeting. Domain names are the human readable names used to represent one or more IP addresses. They can be purchased or, in some cases, acquired for free.\n\nAdversaries may use acquired domains for a variety of purposes, including for [Phishing](https://attack.mitre.org/techniques/T1566), [Drive-by Compromise](https://attack.mitre.org/techniques/T1189), and Command and Control.(Citation: CISA MSS Sep 2020) Adversaries may choose domains that are similar to legitimate domains, including through use of homoglyphs or use of a different top-level domain (TLD).(Citation: FireEye APT28)(Citation: PaypalScam) Typosquatting may be used to aid in delivery of payloads via [Drive-by Compromise](https://attack.mitre.org/techniques/T1189). Adversaries may also use internationalized domain names (IDNs) and different character sets (e.g. Cyrillic, Greek, etc.) to execute \"IDN homograph attacks,\" creating visually similar lookalike domains used to deliver malware to victim machines.(Citation: CISA IDN ST05-016)(Citation: tt_httrack_fake_domains)(Citation: tt_obliqueRAT)(Citation: httrack_unhcr)(Citation: lazgroup_idn_phishing)\n\nDifferent URIs/URLs may also be dynamically generated to uniquely serve malicious content to victims (including one-time, single use domain names).(Citation: iOS URL Scheme)(Citation: URI)(Citation: URI Use)(Citation: URI Unique)\n\nAdversaries may also acquire and repurpose expired domains, which may be potentially already allowlisted/trusted by defenders based on an existing reputation/history.(Citation: Categorisation_not_boundary)(Citation: Domain_Steal_CC)(Citation: Redirectors_Domain_Fronting)(Citation: bypass_webproxy_filtering)\n\nDomain registrars each maintain a publicly viewable database that displays contact information for every registered domain. Private WHOIS services display alternative information, such as their own company data, rather than the owner of the domain. Adversaries may use such private WHOIS services to obscure information about who owns a purchased domain. Adversaries may further interrupt efforts to track their infrastructure by using varied registration information and purchasing domains with different domain registrars.(Citation: Mandiant APT1)\n\nIn addition to legitimately purchasing a domain, an adversary may register a new domain in a compromised environment. For example, in AWS environments, adversaries may leverage the Route53 domain service to register a domain and create hosted zones pointing to resources of the threat actor\u2019s choosing.(Citation: Invictus IR DangerDev 2024)",
+    "tactic": "resource-development",
+    "technique_name": "Domains",
+    "technique_id": "T1583.001",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1583.001: Domains'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1583.001: Domains'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1583.001: Domains'"
+      }
+    ],
+    "ability_id": "attack-pattern--40f5caa0-4cb7-4117-89fc-d421bb493df3"
+  },
+  {
+    "id": "attack-pattern--e6919abc-99f9-4c6c-95a5-14761e7b2add",
+    "name": "Ingress Tool Transfer",
+    "description": "Adversaries may transfer tools or other files from an external system into a compromised environment. Tools or files may be copied from an external adversary-controlled system to the victim network through the command and control channel or through alternate protocols such as [ftp](https://attack.mitre.org/software/S0095). Once present, adversaries may also transfer/spread tools between victim devices within a compromised environment (i.e. [Lateral Tool Transfer](https://attack.mitre.org/techniques/T1570)). \n\nOn Windows, adversaries may use various utilities to download tools, such as `copy`, `finger`, [certutil](https://attack.mitre.org/software/S0160), and [PowerShell](https://attack.mitre.org/techniques/T1059/001) commands such as <code>IEX(New-Object Net.WebClient).downloadString()</code> and <code>Invoke-WebRequest</code>. On Linux and macOS systems, a variety of utilities also exist, such as `curl`, `scp`, `sftp`, `tftp`, `rsync`, `finger`, and `wget`.(Citation: t1105_lolbas)  A number of these tools, such as `wget`, `curl`, and `scp`, also exist on ESXi. After downloading a file, a threat actor may attempt to verify its integrity by checking its hash value (e.g., via `certutil -hashfile`).(Citation: Google Cloud Threat Intelligence COSCMICENERGY 2023)\n\nAdversaries may also abuse installers and package managers, such as `yum` or `winget`, to download tools to victim hosts. Adversaries have also abused file application features, such as the Windows `search-ms` protocol handler, to deliver malicious files to victims through remote file searches invoked by [User Execution](https://attack.mitre.org/techniques/T1204) (typically after interacting with [Phishing](https://attack.mitre.org/techniques/T1566) lures).(Citation: T1105: Trellix_search-ms)\n\nFiles can also be transferred using various [Web Service](https://attack.mitre.org/techniques/T1102)s as well as native or otherwise present tools on the victim system.(Citation: PTSecurity Cobalt Dec 2016) In some cases, adversaries may be able to leverage services that sync between a web-based and an on-premises client, such as Dropbox or OneDrive, to transfer files onto victim systems. For example, by compromising a cloud account and logging into the service's web portal, an adversary may be able to trigger an automatic syncing process that transfers the file onto the victim's machine.(Citation: Dropbox Malware Sync)",
+    "tactic": "command-and-control",
+    "technique_name": "Ingress Tool Transfer",
+    "technique_id": "T1105",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1105: Ingress Tool Transfer'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1105: Ingress Tool Transfer'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1105: Ingress Tool Transfer'"
+      }
+    ],
+    "ability_id": "attack-pattern--e6919abc-99f9-4c6c-95a5-14761e7b2add"
+  },
+  {
+    "id": "attack-pattern--506f6f49-7045-4156-9007-7474cb44ad6d",
+    "name": "Upload Tool",
+    "description": "Adversaries may upload tools to third-party or adversary controlled infrastructure to make it accessible during targeting. Tools can be open or closed source, free or commercial. Tools can be used for malicious purposes by an adversary, but (unlike malware) were not intended to be used for those purposes (ex: [PsExec](https://attack.mitre.org/software/S0029)). Adversaries may upload tools to support their operations, such as making a tool available to a victim network to enable [Ingress Tool Transfer](https://attack.mitre.org/techniques/T1105) by placing it on an Internet accessible web server.\n\nTools may be placed on infrastructure that was previously purchased/rented by the adversary ([Acquire Infrastructure](https://attack.mitre.org/techniques/T1583)) or was otherwise compromised by them ([Compromise Infrastructure](https://attack.mitre.org/techniques/T1584)).(Citation: Dell TG-3390) Tools can also be staged on web services, such as an adversary controlled GitHub repo, or on Platform-as-a-Service offerings that enable users to easily provision applications.(Citation: Dragos Heroku Watering Hole)(Citation: Malwarebytes Heroku Skimmers)(Citation: Intezer App Service Phishing)\n\nAdversaries can avoid the need to upload a tool by having compromised victim machines download the tool directly from a third-party hosting location (ex: a non-adversary controlled GitHub repo), including the original hosting site of the tool.",
+    "tactic": "resource-development",
+    "technique_name": "Upload Tool",
+    "technique_id": "T1608.002",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1608.002: Upload Tool'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1608.002: Upload Tool'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1608.002: Upload Tool'"
+      }
+    ],
+    "ability_id": "attack-pattern--506f6f49-7045-4156-9007-7474cb44ad6d"
+  },
+  {
+    "id": "attack-pattern--a2fdce72-04b2-409a-ac10-cc1695f4fce0",
+    "name": "Tool",
+    "description": "Adversaries may buy, steal, or download software tools that can be used during targeting. Tools can be open or closed source, free or commercial. A tool can be used for malicious purposes by an adversary, but (unlike malware) were not intended to be used for those purposes (ex: [PsExec](https://attack.mitre.org/software/S0029)). \n\nAdversaries may obtain tools to support their operations, including to support execution of post-compromise behaviors. Tools may also be leveraged for testing \u2013 for example, evaluating malware against commercial antivirus or endpoint detection and response (EDR) applications.(Citation: Forescout Conti Leaks 2022)(Citation: Sentinel Labs Top Tier Target 2025)\n\nTool acquisition may involve the procurement of commercial software licenses, including for red teaming tools such as Cobalt Strike. In addition to freely downloading or purchasing software, adversaries may steal software and/or software licenses from third-party entities (including other adversaries). Threat actors may also crack trial versions of software.(Citation: Recorded Future Beacon 2019)",
+    "tactic": "resource-development",
+    "technique_name": "Tool",
+    "technique_id": "T1588.002",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1588.002: Tool'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1588.002: Tool'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1588.002: Tool'"
+      }
+    ],
+    "ability_id": "attack-pattern--a2fdce72-04b2-409a-ac10-cc1695f4fce0"
+  }
+]

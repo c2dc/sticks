@@ -1,0 +1,262 @@
+[
+  {
+    "id": "attack-pattern--3f886f2a-874f-4333-b794-aa6075009b1c",
+    "name": "Exploit Public-Facing Application",
+    "description": "Adversaries may attempt to exploit a weakness in an Internet-facing host or system to initially access a network. The weakness in the system can be a software bug, a temporary glitch, or a misconfiguration.\n\nExploited applications are often websites/web servers, but can also include databases (like SQL), standard services (like SMB or SSH), network device administration and management protocols (like SNMP and Smart Install), and any other system with Internet-accessible open sockets.(Citation: NVD CVE-2016-6662)(Citation: CIS Multiple SMB Vulnerabilities)(Citation: US-CERT TA18-106A Network Infrastructure Devices 2018)(Citation: Cisco Blog Legacy Device Attacks)(Citation: NVD CVE-2014-7169) On ESXi infrastructure, adversaries may exploit exposed OpenSLP services; they may alternatively exploit exposed VMware vCenter servers.(Citation: Recorded Future ESXiArgs Ransomware 2023)(Citation: Ars Technica VMWare Code Execution Vulnerability 2021) Depending on the flaw being exploited, this may also involve [Exploitation for Defense Evasion](https://attack.mitre.org/techniques/T1211) or [Exploitation for Client Execution](https://attack.mitre.org/techniques/T1203).\n\nIf an application is hosted on cloud-based infrastructure and/or is containerized, then exploiting it may lead to compromise of the underlying instance or container. This can allow an adversary a path to access the cloud or container APIs (e.g., via the [Cloud Instance Metadata API](https://attack.mitre.org/techniques/T1552/005)), exploit container host access via [Escape to Host](https://attack.mitre.org/techniques/T1611), or take advantage of weak identity and access management policies.\n\nAdversaries may also exploit edge network infrastructure and related appliances, specifically targeting devices that do not support robust host-based defenses.(Citation: Mandiant Fortinet Zero Day)(Citation: Wired Russia Cyberwar)\n\nFor websites and databases, the OWASP top 10 and CWE top 25 highlight the most common web-based vulnerabilities.(Citation: OWASP Top 10)(Citation: CWE top 25)",
+    "tactic": "initial-access",
+    "technique_name": "Exploit Public-Facing Application",
+    "technique_id": "T1190",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1190: Exploit Public-Facing Application'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1190: Exploit Public-Facing Application'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1190: Exploit Public-Facing Application'"
+      }
+    ],
+    "ability_id": "attack-pattern--3f886f2a-874f-4333-b794-aa6075009b1c"
+  },
+  {
+    "id": "attack-pattern--0d91b3c0-5e50-47c3-949a-2a796f04d144",
+    "name": "Encrypted/Encoded File",
+    "description": "Adversaries may encrypt or encode files to obfuscate strings, bytes, and other specific patterns to impede detection. Encrypting and/or encoding file content aims to conceal malicious artifacts within a file used in an intrusion. Many other techniques, such as [Software Packing](https://attack.mitre.org/techniques/T1027/002), [Steganography](https://attack.mitre.org/techniques/T1027/003), and [Embedded Payloads](https://attack.mitre.org/techniques/T1027/009), share this same broad objective. Encrypting and/or encoding files could lead to a lapse in detection of static signatures, only for this malicious content to be revealed (i.e., [Deobfuscate/Decode Files or Information](https://attack.mitre.org/techniques/T1140)) at the time of execution/use.\n\nThis type of file obfuscation can be applied to many file artifacts present on victim hosts, such as malware log/configuration and payload files.(Citation: File obfuscation) Files can be encrypted with a hardcoded or user-supplied key, as well as otherwise obfuscated using standard encoding schemes such as Base64.\n\nThe entire content of a file may be obfuscated, or just specific functions or values (such as C2 addresses). Encryption and encoding may also be applied in redundant layers for additional protection.\n\nFor example, adversaries may abuse password-protected Word documents or self-extracting (SFX) archives as a method of encrypting/encoding a file such as a [Phishing](https://attack.mitre.org/techniques/T1566) payload. These files typically function by attaching the intended archived content to a decompressor stub that is executed when the file is invoked (e.g., [User Execution](https://attack.mitre.org/techniques/T1204)).(Citation: SFX - Encrypted/Encoded File) \n\nAdversaries may also abuse file-specific as well as custom encoding schemes. For example, Byte Order Mark (BOM) headers in text files may be abused to manipulate and obfuscate file content until [Command and Scripting Interpreter](https://attack.mitre.org/techniques/T1059) execution.",
+    "tactic": "defense-evasion",
+    "technique_name": "Encrypted/Encoded File",
+    "technique_id": "T1027.013",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1027.013: Encrypted/Encoded File'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1027.013: Encrypted/Encoded File'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1027.013: Encrypted/Encoded File'"
+      }
+    ],
+    "ability_id": "attack-pattern--0d91b3c0-5e50-47c3-949a-2a796f04d144"
+  },
+  {
+    "id": "attack-pattern--d0b4fcdb-d67d-4ed2-99ce-788b12f8c0f4",
+    "name": "/etc/passwd and /etc/shadow",
+    "description": "Adversaries may attempt to dump the contents of <code>/etc/passwd</code> and <code>/etc/shadow</code> to enable offline password cracking. Most modern Linux operating systems use a combination of <code>/etc/passwd</code> and <code>/etc/shadow</code> to store user account information, including password hashes in <code>/etc/shadow</code>. By default, <code>/etc/shadow</code> is only readable by the root user.(Citation: Linux Password and Shadow File Formats)\n\nLinux stores user information such as user ID, group ID, home directory path, and login shell in <code>/etc/passwd</code>. A \"user\" on the system may belong to a person or a service. All password hashes are stored in <code>/etc/shadow</code> - including entries for users with no passwords and users with locked or disabled accounts.(Citation: Linux Password and Shadow File Formats)\n\nAdversaries may attempt to read or dump the <code>/etc/passwd</code> and <code>/etc/shadow</code> files on Linux systems via command line utilities such as the <code>cat</code> command.(Citation: Arctic Wolf) Additionally, the Linux utility <code>unshadow</code> can be used to combine the two files in a format suited for password cracking utilities such as John the Ripper - for example, via the command <code>/usr/bin/unshadow /etc/passwd /etc/shadow > /tmp/crack.password.db</code>(Citation: nixCraft - John the Ripper). Since the user information stored in <code>/etc/passwd</code> are linked to the password hashes in <code>/etc/shadow</code>, an adversary would need to have access to both.",
+    "tactic": "credential-access",
+    "technique_name": "/etc/passwd and /etc/shadow",
+    "technique_id": "T1003.008",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1003.008: /etc/passwd and /etc/shadow'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1003.008: /etc/passwd and /etc/shadow'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1003.008: /etc/passwd and /etc/shadow'"
+      }
+    ],
+    "ability_id": "attack-pattern--d0b4fcdb-d67d-4ed2-99ce-788b12f8c0f4"
+  },
+  {
+    "id": "attack-pattern--b63a34e8-0a61-4c97-a23b-bf8a2ed812e2",
+    "name": "Unix Shell Configuration Modification",
+    "description": "Adversaries may establish persistence through executing malicious commands triggered by a user\u2019s shell. User [Unix Shell](https://attack.mitre.org/techniques/T1059/004)s execute several configuration scripts at different points throughout the session based on events. For example, when a user opens a command-line interface or remotely logs in (such as via SSH) a login shell is initiated. The login shell executes scripts from the system (<code>/etc</code>) and the user\u2019s home directory (<code>~/</code>) to configure the environment. All login shells on a system use /etc/profile when initiated. These configuration scripts run at the permission level of their directory and are often used to set environment variables, create aliases, and customize the user\u2019s environment. When the shell exits or terminates, additional shell scripts are executed to ensure the shell exits appropriately. \n\nAdversaries may attempt to establish persistence by inserting commands into scripts automatically executed by shells. Using bash as an example, the default shell for most GNU/Linux systems, adversaries may add commands that launch malicious binaries into the <code>/etc/profile</code> and <code>/etc/profile.d</code> files.(Citation: intezer-kaiji-malware)(Citation: bencane blog bashrc) These files typically require root permissions to modify and are executed each time any shell on a system launches. For user level permissions, adversaries can insert malicious commands into <code>~/.bash_profile</code>, <code>~/.bash_login</code>, or <code>~/.profile</code> which are sourced when a user opens a command-line interface or connects remotely.(Citation: anomali-rocke-tactics)(Citation: Linux manual bash invocation) Since the system only executes the first existing file in the listed order, adversaries have used <code>~/.bash_profile</code> to ensure execution. Adversaries have also leveraged the <code>~/.bashrc</code> file which is additionally executed if the connection is established remotely or an additional interactive shell is opened, such as a new tab in the command-line interface.(Citation: Tsunami)(Citation: anomali-rocke-tactics)(Citation: anomali-linux-rabbit)(Citation: Magento) Some malware targets the termination of a program to trigger execution, adversaries can use the <code>~/.bash_logout</code> file to execute malicious commands at the end of a session. \n\nFor macOS, the functionality of this technique is similar but may leverage zsh, the default shell for macOS 10.15+. When the Terminal.app is opened, the application launches a zsh login shell and a zsh interactive shell. The login shell configures the system environment using <code>/etc/profile</code>, <code>/etc/zshenv</code>, <code>/etc/zprofile</code>, and <code>/etc/zlogin</code>.(Citation: ScriptingOSX zsh)(Citation: PersistentJXA_leopitt)(Citation: code_persistence_zsh)(Citation: macOS MS office sandbox escape) The login shell then configures the user environment with <code>~/.zprofile</code> and <code>~/.zlogin</code>. The interactive shell uses the <code>~/.zshrc</code> to configure the user environment. Upon exiting, <code>/etc/zlogout</code> and <code>~/.zlogout</code> are executed. For legacy programs, macOS executes <code>/etc/bashrc</code> on startup.",
+    "tactic": "privilege-escalation",
+    "technique_name": "Unix Shell Configuration Modification",
+    "technique_id": "T1546.004",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1546.004: Unix Shell Configuration Modification'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1546.004: Unix Shell Configuration Modification'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1546.004: Unix Shell Configuration Modification'"
+      }
+    ],
+    "ability_id": "attack-pattern--b63a34e8-0a61-4c97-a23b-bf8a2ed812e2"
+  },
+  {
+    "id": "attack-pattern--a2fdce72-04b2-409a-ac10-cc1695f4fce0",
+    "name": "Tool",
+    "description": "Adversaries may buy, steal, or download software tools that can be used during targeting. Tools can be open or closed source, free or commercial. A tool can be used for malicious purposes by an adversary, but (unlike malware) were not intended to be used for those purposes (ex: [PsExec](https://attack.mitre.org/software/S0029)). \n\nAdversaries may obtain tools to support their operations, including to support execution of post-compromise behaviors. Tools may also be leveraged for testing \u2013 for example, evaluating malware against commercial antivirus or endpoint detection and response (EDR) applications.(Citation: Forescout Conti Leaks 2022)(Citation: Sentinel Labs Top Tier Target 2025)\n\nTool acquisition may involve the procurement of commercial software licenses, including for red teaming tools such as Cobalt Strike. In addition to freely downloading or purchasing software, adversaries may steal software and/or software licenses from third-party entities (including other adversaries). Threat actors may also crack trial versions of software.(Citation: Recorded Future Beacon 2019)",
+    "tactic": "resource-development",
+    "technique_name": "Tool",
+    "technique_id": "T1588.002",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1588.002: Tool'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1588.002: Tool'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1588.002: Tool'"
+      }
+    ],
+    "ability_id": "attack-pattern--a2fdce72-04b2-409a-ac10-cc1695f4fce0"
+  },
+  {
+    "id": "attack-pattern--e6919abc-99f9-4c6c-95a5-14761e7b2add",
+    "name": "Ingress Tool Transfer",
+    "description": "Adversaries may transfer tools or other files from an external system into a compromised environment. Tools or files may be copied from an external adversary-controlled system to the victim network through the command and control channel or through alternate protocols such as [ftp](https://attack.mitre.org/software/S0095). Once present, adversaries may also transfer/spread tools between victim devices within a compromised environment (i.e. [Lateral Tool Transfer](https://attack.mitre.org/techniques/T1570)). \n\nOn Windows, adversaries may use various utilities to download tools, such as `copy`, `finger`, [certutil](https://attack.mitre.org/software/S0160), and [PowerShell](https://attack.mitre.org/techniques/T1059/001) commands such as <code>IEX(New-Object Net.WebClient).downloadString()</code> and <code>Invoke-WebRequest</code>. On Linux and macOS systems, a variety of utilities also exist, such as `curl`, `scp`, `sftp`, `tftp`, `rsync`, `finger`, and `wget`.(Citation: t1105_lolbas)  A number of these tools, such as `wget`, `curl`, and `scp`, also exist on ESXi. After downloading a file, a threat actor may attempt to verify its integrity by checking its hash value (e.g., via `certutil -hashfile`).(Citation: Google Cloud Threat Intelligence COSCMICENERGY 2023)\n\nAdversaries may also abuse installers and package managers, such as `yum` or `winget`, to download tools to victim hosts. Adversaries have also abused file application features, such as the Windows `search-ms` protocol handler, to deliver malicious files to victims through remote file searches invoked by [User Execution](https://attack.mitre.org/techniques/T1204) (typically after interacting with [Phishing](https://attack.mitre.org/techniques/T1566) lures).(Citation: T1105: Trellix_search-ms)\n\nFiles can also be transferred using various [Web Service](https://attack.mitre.org/techniques/T1102)s as well as native or otherwise present tools on the victim system.(Citation: PTSecurity Cobalt Dec 2016) In some cases, adversaries may be able to leverage services that sync between a web-based and an on-premises client, such as Dropbox or OneDrive, to transfer files onto victim systems. For example, by compromising a cloud account and logging into the service's web portal, an adversary may be able to trigger an automatic syncing process that transfers the file onto the victim's machine.(Citation: Dropbox Malware Sync)",
+    "tactic": "command-and-control",
+    "technique_name": "Ingress Tool Transfer",
+    "technique_id": "T1105",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1105: Ingress Tool Transfer'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1105: Ingress Tool Transfer'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1105: Ingress Tool Transfer'"
+      }
+    ],
+    "ability_id": "attack-pattern--e6919abc-99f9-4c6c-95a5-14761e7b2add"
+  },
+  {
+    "id": "attack-pattern--cc3502b5-30cc-4473-ad48-42d51a6ef6d1",
+    "name": "Python",
+    "description": "Adversaries may abuse Python commands and scripts for execution. Python is a very popular scripting/programming language, with capabilities to perform many functions. Python can be executed interactively from the command-line (via the <code>python.exe</code> interpreter) or via scripts (.py) that can be written and distributed to different systems. Python code can also be compiled into binary executables.(Citation: Zscaler APT31 Covid-19 October 2020)\n\nPython comes with many built-in packages to interact with the underlying system, such as file operations and device I/O. Adversaries can use these libraries to download and execute commands or other scripts as well as perform various malicious behaviors.",
+    "tactic": "execution",
+    "technique_name": "Python",
+    "technique_id": "T1059.006",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1059.006: Python'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1059.006: Python'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1059.006: Python'"
+      }
+    ],
+    "ability_id": "attack-pattern--cc3502b5-30cc-4473-ad48-42d51a6ef6d1"
+  },
+  {
+    "id": "attack-pattern--707399d6-ab3e-4963-9315-d9d3818cd6a0",
+    "name": "System Network Configuration Discovery",
+    "description": "Adversaries may look for details about the network configuration and settings, such as IP and/or MAC addresses, of systems they access or through information discovery of remote systems. Several operating system administration utilities exist that can be used to gather this information. Examples include [Arp](https://attack.mitre.org/software/S0099), [ipconfig](https://attack.mitre.org/software/S0100)/[ifconfig](https://attack.mitre.org/software/S0101), [nbtstat](https://attack.mitre.org/software/S0102), and [route](https://attack.mitre.org/software/S0103).\n\nAdversaries may also leverage a [Network Device CLI](https://attack.mitre.org/techniques/T1059/008) on network devices to gather information about configurations and settings, such as IP addresses of configured interfaces and static/dynamic routes (e.g. <code>show ip route</code>, <code>show ip interface</code>).(Citation: US-CERT-TA18-106A)(Citation: Mandiant APT41 Global Intrusion ) On ESXi, adversaries may leverage esxcli to gather network configuration information. For example, the command `esxcli network nic list` will retrieve the MAC address, while `esxcli network ip interface ipv4 get` will retrieve the local IPv4 address.(Citation: Trellix Rnasomhouse 2024)\n\nAdversaries may use the information from [System Network Configuration Discovery](https://attack.mitre.org/techniques/T1016) during automated discovery to shape follow-on behaviors, including determining certain access within the target network and what actions to do next. ",
+    "tactic": "discovery",
+    "technique_name": "System Network Configuration Discovery",
+    "technique_id": "T1016",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1016: System Network Configuration Discovery'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1016: System Network Configuration Discovery'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1016: System Network Configuration Discovery'"
+      }
+    ],
+    "ability_id": "attack-pattern--707399d6-ab3e-4963-9315-d9d3818cd6a0"
+  },
+  {
+    "id": "attack-pattern--b21c3b2d-02e6-45b1-980b-e69051040839",
+    "name": "Exploitation for Privilege Escalation",
+    "description": "Adversaries may exploit software vulnerabilities in an attempt to elevate privileges. Exploitation of a software vulnerability occurs when an adversary takes advantage of a programming error in a program, service, or within the operating system software or kernel itself to execute adversary-controlled code. Security constructs such as permission levels will often hinder access to information and use of certain techniques, so adversaries will likely need to perform privilege escalation to include use of software exploitation to circumvent those restrictions.\n\nWhen initially gaining access to a system, an adversary may be operating within a lower privileged process which will prevent them from accessing certain resources on the system. Vulnerabilities may exist, usually in operating system components and software commonly running at higher permissions, that can be exploited to gain higher levels of access on the system. This could enable someone to move from unprivileged or user level permissions to SYSTEM or root permissions depending on the component that is vulnerable. This could also enable an adversary to move from a virtualized environment, such as within a virtual machine or container, onto the underlying host. This may be a necessary step for an adversary compromising an endpoint system that has been properly configured and limits other privilege escalation methods.\n\nAdversaries may bring a signed vulnerable driver onto a compromised machine so that they can exploit the vulnerability to execute code in kernel mode. This process is sometimes referred to as Bring Your Own Vulnerable Driver (BYOVD).(Citation: ESET InvisiMole June 2020)(Citation: Unit42 AcidBox June 2020) Adversaries may include the vulnerable driver with files delivered during Initial Access or download it to a compromised system via [Ingress Tool Transfer](https://attack.mitre.org/techniques/T1105) or [Lateral Tool Transfer](https://attack.mitre.org/techniques/T1570).",
+    "tactic": "privilege-escalation",
+    "technique_name": "Exploitation for Privilege Escalation",
+    "technique_id": "T1068",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1068: Exploitation for Privilege Escalation'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1068: Exploitation for Privilege Escalation'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1068: Exploitation for Privilege Escalation'"
+      }
+    ],
+    "ability_id": "attack-pattern--b21c3b2d-02e6-45b1-980b-e69051040839"
+  },
+  {
+    "id": "attack-pattern--a718a0c8-5768-41a1-9958-a1cc3f995e99",
+    "name": "Compute Hijacking",
+    "description": "Adversaries may leverage the compute resources of co-opted systems to complete resource-intensive tasks, which may impact system and/or hosted service availability. \n\nOne common purpose for [Compute Hijacking](https://attack.mitre.org/techniques/T1496/001) is to validate transactions of cryptocurrency networks and earn virtual currency. Adversaries may consume enough system resources to negatively impact and/or cause affected machines to become unresponsive.(Citation: Kaspersky Lazarus Under The Hood Blog 2017) Servers and cloud-based systems are common targets because of the high potential for available resources, but user endpoint systems may also be compromised and used for [Compute Hijacking](https://attack.mitre.org/techniques/T1496/001) and cryptocurrency mining.(Citation: CloudSploit - Unused AWS Regions) Containerized environments may also be targeted due to the ease of deployment via exposed APIs and the potential for scaling mining activities by deploying or compromising multiple containers within an environment or cluster.(Citation: Unit 42 Hildegard Malware)(Citation: Trend Micro Exposed Docker APIs)\n\nAdditionally, some cryptocurrency mining malware identify then kill off processes for competing malware to ensure it\u2019s not competing for resources.(Citation: Trend Micro War of Crypto Miners)",
+    "tactic": "impact",
+    "technique_name": "Compute Hijacking",
+    "technique_id": "T1496.001",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1496.001: Compute Hijacking'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1496.001: Compute Hijacking'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1496.001: Compute Hijacking'"
+      }
+    ],
+    "ability_id": "attack-pattern--a718a0c8-5768-41a1-9958-a1cc3f995e99"
+  }
+]

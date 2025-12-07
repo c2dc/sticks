@@ -1,0 +1,574 @@
+[
+  {
+    "id": "attack-pattern--970a3432-3237-47ad-bcca-7d8cbb217736",
+    "name": "PowerShell",
+    "description": "Adversaries may abuse PowerShell commands and scripts for execution. PowerShell is a powerful interactive command-line interface and scripting environment included in the Windows operating system.(Citation: TechNet PowerShell) Adversaries can use PowerShell to perform a number of actions, including discovery of information and execution of code. Examples include the <code>Start-Process</code> cmdlet which can be used to run an executable and the <code>Invoke-Command</code> cmdlet which runs a command locally or on a remote computer (though administrator permissions are required to use PowerShell to connect to remote systems).\n\nPowerShell may also be used to download and run executables from the Internet, which can be executed from disk or in memory without touching disk.\n\nA number of PowerShell-based offensive testing tools are available, including [Empire](https://attack.mitre.org/software/S0363),  [PowerSploit](https://attack.mitre.org/software/S0194), [PoshC2](https://attack.mitre.org/software/S0378), and PSAttack.(Citation: Github PSAttack)\n\nPowerShell commands/scripts can also be executed without directly invoking the <code>powershell.exe</code> binary through interfaces to PowerShell's underlying <code>System.Management.Automation</code> assembly DLL exposed through the .NET framework and Windows Common Language Interface (CLI).(Citation: Sixdub PowerPick Jan 2016)(Citation: SilentBreak Offensive PS Dec 2015)(Citation: Microsoft PSfromCsharp APR 2014)",
+    "tactic": "execution",
+    "technique_name": "PowerShell",
+    "technique_id": "T1059.001",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1059.001: PowerShell'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1059.001: PowerShell'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1059.001: PowerShell'"
+      }
+    ],
+    "ability_id": "attack-pattern--970a3432-3237-47ad-bcca-7d8cbb217736"
+  },
+  {
+    "id": "attack-pattern--df8b2a25-8bdf-4856-953c-a04372b1c161",
+    "name": "Web Protocols",
+    "description": "Adversaries may communicate using application layer protocols associated with web traffic to avoid detection/network filtering by blending in with existing traffic. Commands to the remote system, and often the results of those commands, will be embedded within the protocol traffic between the client and server. \n\nProtocols such as HTTP/S(Citation: CrowdStrike Putter Panda) and WebSocket(Citation: Brazking-Websockets) that carry web traffic may be very common in environments. HTTP/S packets have many fields and headers in which data can be concealed. An adversary may abuse these protocols to communicate with systems under their control within a victim network while also mimicking normal, expected traffic. ",
+    "tactic": "command-and-control",
+    "technique_name": "Web Protocols",
+    "technique_id": "T1071.001",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1071.001: Web Protocols'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1071.001: Web Protocols'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1071.001: Web Protocols'"
+      }
+    ],
+    "ability_id": "attack-pattern--df8b2a25-8bdf-4856-953c-a04372b1c161"
+  },
+  {
+    "id": "attack-pattern--32901740-b42c-4fdd-bc02-345b5dc57082",
+    "name": "Code Signing",
+    "description": "Adversaries may create, acquire, or steal code signing materials to sign their malware or tools. Code signing provides a level of authenticity on a binary from the developer and a guarantee that the binary has not been tampered with. (Citation: Wikipedia Code Signing) The certificates used during an operation may be created, acquired, or stolen by the adversary. (Citation: Securelist Digital Certificates) (Citation: Symantec Digital Certificates) Unlike [Invalid Code Signature](https://attack.mitre.org/techniques/T1036/001), this activity will result in a valid signature.\n\nCode signing to verify software on first run can be used on modern Windows and macOS systems. It is not used on Linux due to the decentralized nature of the platform. (Citation: Wikipedia Code Signing)(Citation: EclecticLightChecksonEXECodeSigning)\n\nCode signing certificates may be used to bypass security policies that require signed code to execute on a system. ",
+    "tactic": "defense-evasion",
+    "technique_name": "Code Signing",
+    "technique_id": "T1553.002",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1553.002: Code Signing'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1553.002: Code Signing'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1553.002: Code Signing'"
+      }
+    ],
+    "ability_id": "attack-pattern--32901740-b42c-4fdd-bc02-345b5dc57082"
+  },
+  {
+    "id": "attack-pattern--731f4f55-b6d0-41d1-a7a9-072a66389aea",
+    "name": "Proxy",
+    "description": "Adversaries may use a connection proxy to direct network traffic between systems or act as an intermediary for network communications to a command and control server to avoid direct connections to their infrastructure. Many tools exist that enable traffic redirection through proxies or port redirection, including [HTRAN](https://attack.mitre.org/software/S0040), ZXProxy, and ZXPortMap. (Citation: Trend Micro APT Attack Tools) Adversaries use these types of proxies to manage command and control communications, reduce the number of simultaneous outbound network connections, provide resiliency in the face of connection loss, or to ride over existing trusted communications paths between victims to avoid suspicion. Adversaries may chain together multiple proxies to further disguise the source of malicious traffic.\n\nAdversaries can also take advantage of routing schemes in Content Delivery Networks (CDNs) to proxy command and control traffic.",
+    "tactic": "command-and-control",
+    "technique_name": "Proxy",
+    "technique_id": "T1090",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1090: Proxy'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1090: Proxy'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1090: Proxy'"
+      }
+    ],
+    "ability_id": "attack-pattern--731f4f55-b6d0-41d1-a7a9-072a66389aea"
+  },
+  {
+    "id": "attack-pattern--3ee16395-03f0-4690-a32e-69ce9ada0f9e",
+    "name": "Upload Malware",
+    "description": "Adversaries may upload malware to third-party or adversary controlled infrastructure to make it accessible during targeting. Malicious software can include payloads, droppers, post-compromise tools, backdoors, and a variety of other malicious content. Adversaries may upload malware to support their operations, such as making a payload available to a victim network to enable [Ingress Tool Transfer](https://attack.mitre.org/techniques/T1105) by placing it on an Internet accessible web server.\n\nMalware may be placed on infrastructure that was previously purchased/rented by the adversary ([Acquire Infrastructure](https://attack.mitre.org/techniques/T1583)) or was otherwise compromised by them ([Compromise Infrastructure](https://attack.mitre.org/techniques/T1584)). Malware can also be staged on web services, such as GitHub or Pastebin; hosted on the InterPlanetary File System (IPFS), where decentralized content storage makes the removal of malicious files difficult; or saved on the blockchain as smart contracts, which are resilient against takedowns that would affect traditional infrastructure.(Citation: Volexity Ocean Lotus November 2020)(Citation: Talos IPFS 2022)(Citation: Guardio Etherhiding 2023)(Citation: Bleeping Computer Binance Smart Chain 2023)\n\nAdversaries may upload backdoored files, such as software packages, application binaries, virtual machine images, or container images, to third-party software stores, package libraries, extension marketplaces, or repositories (ex: GitHub, CNET, AWS Community AMIs, Docker Hub, PyPi, NPM).(Citation: Datadog Security Labs Malicious PyPi Packages 2024) By chance encounter, victims may directly download/install these backdoored files via [User Execution](https://attack.mitre.org/techniques/T1204). Masquerading, including typo-squatting legitimate software, may increase the chance of users mistakenly executing these files. ",
+    "tactic": "resource-development",
+    "technique_name": "Upload Malware",
+    "technique_id": "T1608.001",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1608.001: Upload Malware'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1608.001: Upload Malware'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1608.001: Upload Malware'"
+      }
+    ],
+    "ability_id": "attack-pattern--3ee16395-03f0-4690-a32e-69ce9ada0f9e"
+  },
+  {
+    "id": "attack-pattern--2fee9321-3e71-4cf4-af24-d4d40d355b34",
+    "name": "DLL",
+    "description": "Adversaries may abuse dynamic-link library files (DLLs) in order to achieve persistence, escalate privileges, and evade defenses. DLLs are libraries that contain code and data that can be simultaneously utilized by multiple programs. While DLLs are not malicious by nature, they can be abused through mechanisms such as side-loading, hijacking search order, and phantom DLL hijacking.(Citation: unit 42)\n\nSpecific ways DLLs are abused by adversaries include:\n\n### DLL Sideloading\nAdversaries may execute their own malicious payloads by side-loading DLLs. Side-loading involves hijacking which DLL a program loads by planting and then invoking a legitimate application that executes their payload(s).\n\nSide-loading positions both the victim application and malicious payload(s) alongside each other. Adversaries likely use side-loading as a means of masking actions they perform under a legitimate, trusted, and potentially elevated system or software process. Benign executables used to side-load payloads may not be flagged during delivery and/or execution. Adversary payloads may also be encrypted/packed or otherwise obfuscated until loaded into the memory of the trusted process.\n\nAdversaries may also side-load other packages, such as BPLs (Borland Package Library).(Citation: kroll bpl)\n\nAdversaries may chain DLL sideloading multiple times to fragment functionality hindering analysis. Adversaries using multiple DLL files can split the loader functions across different DLLs, with a main DLL loading the separated export functions. (Citation: Virus Bulletin) Spreading loader functions across multiple DLLs makes analysis harder, since all files must be collected to fully understand the malware\u2019s behavior.  Another method implements a \u201cloader-for-a-loader\u201d, where a malicious DLL\u2019s sole role is to load a second DLL (or a chain of DLLs) that contain the real payload. (Citation: Sophos)\n\n### DLL Search Order Hijacking\nAdversaries may execute their own malicious payloads by hijacking the search order that Windows uses to load DLLs. This search order is a sequence of special and standard search locations that a program checks when loading a DLL. An adversary can plant a trojan DLL in a directory that will be prioritized by the DLL search order over the location of a legitimate library. This will cause Windows to load the malicious DLL when it is called for by the victim program.(Citation: unit 42)\n\n### DLL Redirection\nAdversaries may directly modify the search order via DLL redirection, which after being enabled (in the Registry or via the creation of a redirection file) may cause a program to load a DLL from a different location.(Citation: Microsoft redirection)(Citation: Microsoft - manifests/assembly)\n\n### Phantom DLL Hijacking\nAdversaries may leverage phantom DLL hijacking by targeting references to non-existent DLL files. They may be able to load their own malicious DLL by planting it with the correct name in the location of the missing module.(Citation: Hexacorn DLL Hijacking)(Citation: Hijack DLLs CrowdStrike)\n\n### DLL Substitution\nAdversaries may target existing, valid DLL files and substitute them with their own malicious DLLs, planting them with the same name and in the same location as the valid DLL file.(Citation: Wietze Beukema DLL Hijacking)\n\nPrograms that fall victim to DLL hijacking may appear to behave normally because malicious DLLs may be configured to also load the legitimate DLLs they were meant to replace, evading defenses.\n\nRemote DLL hijacking can occur when a program sets its current directory to a remote location, such as a Web share, before loading a DLL.(Citation: dll pre load owasp)(Citation: microsoft remote preloading)\n\nIf a valid DLL is configured to run at a higher privilege level, then the adversary-controlled DLL that is loaded will also be executed at the higher level. In this case, the technique could be used for privilege escalation.",
+    "tactic": "persistence",
+    "technique_name": "DLL",
+    "technique_id": "T1574.001",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1574.001: DLL'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1574.001: DLL'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1574.001: DLL'"
+      }
+    ],
+    "ability_id": "attack-pattern--2fee9321-3e71-4cf4-af24-d4d40d355b34"
+  },
+  {
+    "id": "attack-pattern--c21d5a77-d422-4a69-acd7-2c53c1faa34b",
+    "name": "Non-Application Layer Protocol",
+    "description": "Adversaries may use an OSI non-application layer protocol for communication between host and C2 server or among infected hosts within a network. The list of possible protocols is extensive.(Citation: Wikipedia OSI) Specific examples include use of network layer protocols, such as the Internet Control Message Protocol (ICMP), transport layer protocols, such as the User Datagram Protocol (UDP), session layer protocols, such as Socket Secure (SOCKS), as well as redirected/tunneled protocols, such as Serial over LAN (SOL).\n\nICMP communication between hosts is one example.(Citation: Cisco Synful Knock Evolution) Because ICMP is part of the Internet Protocol Suite, it is required to be implemented by all IP-compatible hosts.(Citation: Microsoft ICMP) However, it is not as commonly monitored as other Internet Protocols such as TCP or UDP and may be used by adversaries to hide communications.\n\nIn ESXi environments, adversaries may leverage the Virtual Machine Communication Interface (VMCI) for communication between guest virtual machines and the ESXi host. This traffic is similar to client-server communications on traditional network sockets but is localized to the physical machine running the ESXi host, meaning it does not traverse external networks (routers, switches). This results in communications that are invisible to external monitoring and standard networking tools like tcpdump, netstat, nmap, and Wireshark. By adding a VMCI backdoor to a compromised ESXi host, adversaries may persistently regain access from any guest VM to the compromised ESXi host\u2019s backdoor, regardless of network segmentation or firewall rules in place.(Citation: Google Cloud Threat Intelligence VMWare ESXi Zero-Day 2023)",
+    "tactic": "command-and-control",
+    "technique_name": "Non-Application Layer Protocol",
+    "technique_id": "T1095",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1095: Non-Application Layer Protocol'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1095: Non-Application Layer Protocol'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1095: Non-Application Layer Protocol'"
+      }
+    ],
+    "ability_id": "attack-pattern--c21d5a77-d422-4a69-acd7-2c53c1faa34b"
+  },
+  {
+    "id": "attack-pattern--853c4192-4311-43e1-bfbb-b11b14911852",
+    "name": "Execution Guardrails",
+    "description": "Adversaries may use execution guardrails to constrain execution or actions based on adversary supplied and environment specific conditions that are expected to be present on the target. Guardrails ensure that a payload only executes against an intended target and reduces collateral damage from an adversary\u2019s campaign.(Citation: FireEye Kevin Mandia Guardrails) Values an adversary can provide about a target system or environment to use as guardrails may include specific network share names, attached physical devices, files, joined Active Directory (AD) domains, and local/external IP addresses.(Citation: FireEye Outlook Dec 2019)\n\nGuardrails can be used to prevent exposure of capabilities in environments that are not intended to be compromised or operated within. This use of guardrails is distinct from typical [Virtualization/Sandbox Evasion](https://attack.mitre.org/techniques/T1497). While use of [Virtualization/Sandbox Evasion](https://attack.mitre.org/techniques/T1497) may involve checking for known sandbox values and continuing with execution only if there is no match, the use of guardrails will involve checking for an expected target-specific value and only continuing with execution if there is such a match.\n\nAdversaries may identify and block certain user-agents to evade defenses and narrow the scope of their attack to victims and platforms on which it will be most effective. A user-agent self-identifies data such as a user's software application, operating system, vendor, and version. Adversaries may check user-agents for operating system identification and then only serve malware for the exploitable software while ignoring all other operating systems.(Citation: Trellix-Qakbot)",
+    "tactic": "defense-evasion",
+    "technique_name": "Execution Guardrails",
+    "technique_id": "T1480",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1480: Execution Guardrails'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1480: Execution Guardrails'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1480: Execution Guardrails'"
+      }
+    ],
+    "ability_id": "attack-pattern--853c4192-4311-43e1-bfbb-b11b14911852"
+  },
+  {
+    "id": "attack-pattern--354a7f88-63fb-41b5-a801-ce3b377b36f1",
+    "name": "System Information Discovery",
+    "description": "An adversary may attempt to get detailed information about the operating system and hardware, including version, patches, hotfixes, service packs, and architecture. Adversaries may use this information to shape follow-on behaviors, including whether or not the adversary fully infects the target and/or attempts specific actions. This behavior is distinct from [Local Storage Discovery](https://attack.mitre.org/techniques/T1680) which is an adversary's discovery of local drive, disks and/or volumes.\n\nTools such as [Systeminfo](https://attack.mitre.org/software/S0096) can be used to gather detailed system information. If running with privileged access, a breakdown of system data can be gathered through the <code>systemsetup</code> configuration tool on macOS. Adversaries may leverage a [Network Device CLI](https://attack.mitre.org/techniques/T1059/008) on network devices to gather detailed system information (e.g. <code>show version</code>).(Citation: US-CERT-TA18-106A) On ESXi servers, threat actors may gather system information from various esxcli utilities, such as `system hostname get` and `system version get`.(Citation: Crowdstrike Hypervisor Jackpotting Pt 2 2021)(Citation: Varonis)\n\nInfrastructure as a Service (IaaS) cloud providers such as AWS, GCP, and Azure allow access to instance and virtual machine information via APIs. Successful authenticated API calls can return data such as the operating system platform and status of a particular instance or the model view of a virtual machine.(Citation: Amazon Describe Instance)(Citation: Google Instances Resource)(Citation: Microsoft Virutal Machine API)\n\n[System Information Discovery](https://attack.mitre.org/techniques/T1082) combined with information gathered from other forms of discovery and reconnaissance can drive payload development and concealment.(Citation: OSX.FairyTale)(Citation: 20 macOS Common Tools and Techniques) ",
+    "tactic": "discovery",
+    "technique_name": "System Information Discovery",
+    "technique_id": "T1082",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1082: System Information Discovery'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1082: System Information Discovery'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1082: System Information Discovery'"
+      }
+    ],
+    "ability_id": "attack-pattern--354a7f88-63fb-41b5-a801-ce3b377b36f1"
+  },
+  {
+    "id": "attack-pattern--9efb1ea7-c37b-4595-9640-b7680cd84279",
+    "name": "Registry Run Keys / Startup Folder",
+    "description": "Adversaries may achieve persistence by adding a program to a startup folder or referencing it with a Registry run key. Adding an entry to the \"run keys\" in the Registry or startup folder will cause the program referenced to be executed when a user logs in.(Citation: Microsoft Run Key) These programs will be executed under the context of the user and will have the account's associated permissions level.\n\nThe following run keys are created by default on Windows systems:\n\n* <code>HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run</code>\n* <code>HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\RunOnce</code>\n* <code>HKEY_LOCAL_MACHINE\\Software\\Microsoft\\Windows\\CurrentVersion\\Run</code>\n* <code>HKEY_LOCAL_MACHINE\\Software\\Microsoft\\Windows\\CurrentVersion\\RunOnce</code>\n\nRun keys may exist under multiple hives.(Citation: Microsoft Wow6432Node 2018)(Citation: Malwarebytes Wow6432Node 2016) The <code>HKEY_LOCAL_MACHINE\\Software\\Microsoft\\Windows\\CurrentVersion\\RunOnceEx</code> is also available but is not created by default on Windows Vista and newer. Registry run key entries can reference programs directly or list them as a dependency.(Citation: Microsoft Run Key) For example, it is possible to load a DLL at logon using a \"Depend\" key with RunOnceEx: <code>reg add HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\RunOnceEx\\0001\\Depend /v 1 /d \"C:\\temp\\evil[.]dll\"</code> (Citation: Oddvar Moe RunOnceEx Mar 2018)\n\nPlacing a program within a startup folder will also cause that program to execute when a user logs in. There is a startup folder location for individual user accounts as well as a system-wide startup folder that will be checked regardless of which user account logs in. The startup folder path for the current user is <code>C:\\Users\\\\[Username]\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup</code>. The startup folder path for all users is <code>C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\StartUp</code>.\n\nThe following Registry keys can be used to set startup folder items for persistence:\n\n* <code>HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\User Shell Folders</code>\n* <code>HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Shell Folders</code>\n* <code>HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Shell Folders</code>\n* <code>HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\User Shell Folders</code>\n\nThe following Registry keys can control automatic startup of services during boot:\n\n* <code>HKEY_LOCAL_MACHINE\\Software\\Microsoft\\Windows\\CurrentVersion\\RunServicesOnce</code>\n* <code>HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\RunServicesOnce</code>\n* <code>HKEY_LOCAL_MACHINE\\Software\\Microsoft\\Windows\\CurrentVersion\\RunServices</code>\n* <code>HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\RunServices</code>\n\nUsing policy settings to specify startup programs creates corresponding values in either of two Registry keys:\n\n* <code>HKEY_LOCAL_MACHINE\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer\\Run</code>\n* <code>HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer\\Run</code>\n\nPrograms listed in the load value of the registry key <code>HKEY_CURRENT_USER\\Software\\Microsoft\\Windows NT\\CurrentVersion\\Windows</code> run automatically for the currently logged-on user.\n\nBy default, the multistring <code>BootExecute</code> value of the registry key <code>HKEY_LOCAL_MACHINE\\System\\CurrentControlSet\\Control\\Session Manager</code> is set to <code>autocheck autochk *</code>. This value causes Windows, at startup, to check the file-system integrity of the hard disks if the system has been shut down abnormally. Adversaries can add other programs or processes to this registry value which will automatically launch at boot.\n\nAdversaries can use these configuration locations to execute malware, such as remote access tools, to maintain persistence through system reboots. Adversaries may also use [Masquerading](https://attack.mitre.org/techniques/T1036) to make the Registry entries look as if they are associated with legitimate programs.",
+    "tactic": "persistence",
+    "technique_name": "Registry Run Keys / Startup Folder",
+    "technique_id": "T1547.001",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1547.001: Registry Run Keys / Startup Folder'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1547.001: Registry Run Keys / Startup Folder'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1547.001: Registry Run Keys / Startup Folder'"
+      }
+    ],
+    "ability_id": "attack-pattern--9efb1ea7-c37b-4595-9640-b7680cd84279"
+  },
+  {
+    "id": "attack-pattern--be2dcee9-a7a7-4e38-afd6-21b31ecc3d63",
+    "name": "Exploitation for Client Execution",
+    "description": "Adversaries may exploit software vulnerabilities in client applications to execute code. Vulnerabilities can exist in software due to unsecure coding practices that can lead to unanticipated behavior. Adversaries can take advantage of certain vulnerabilities through targeted exploitation for the purpose of arbitrary code execution. Oftentimes the most valuable exploits to an offensive toolkit are those that can be used to obtain code execution on a remote system because they can be used to gain access to that system. Users will expect to see files related to the applications they commonly used to do work, so they are a useful target for exploit research and development because of their high utility.\n\nSeveral types exist:\n\n### Browser-based Exploitation\n\nWeb browsers are a common target through [Drive-by Compromise](https://attack.mitre.org/techniques/T1189) and [Spearphishing Link](https://attack.mitre.org/techniques/T1566/002). Endpoint systems may be compromised through normal web browsing or from certain users being targeted by links in spearphishing emails to adversary controlled sites used to exploit the web browser. These often do not require an action by the user for the exploit to be executed.\n\n### Office Applications\n\nCommon office and productivity applications such as Microsoft Office are also targeted through [Phishing](https://attack.mitre.org/techniques/T1566). Malicious files will be transmitted directly as attachments or through links to download them. These require the user to open the document or file for the exploit to run.\n\n### Common Third-party Applications\n\nOther applications that are commonly seen or are part of the software deployed in a target network may also be used for exploitation. Applications such as Adobe Reader and Flash, which are common in enterprise environments, have been routinely targeted by adversaries attempting to gain access to systems. Depending on the software and nature of the vulnerability, some may be exploited in the browser or require the user to open a file. For instance, some Flash exploits have been delivered as objects within Microsoft Office documents.",
+    "tactic": "execution",
+    "technique_name": "Exploitation for Client Execution",
+    "technique_id": "T1203",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1203: Exploitation for Client Execution'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1203: Exploitation for Client Execution'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1203: Exploitation for Client Execution'"
+      }
+    ],
+    "ability_id": "attack-pattern--be2dcee9-a7a7-4e38-afd6-21b31ecc3d63"
+  },
+  {
+    "id": "attack-pattern--2b742742-28c3-4e1b-bab7-8350d6300fa7",
+    "name": "Spearphishing Link",
+    "description": "Adversaries may send spearphishing emails with a malicious link in an attempt to gain access to victim systems. Spearphishing with a link is a specific variant of spearphishing. It is different from other forms of spearphishing in that it employs the use of links to download malware contained in email, instead of attaching malicious files to the email itself, to avoid defenses that may inspect email attachments. Spearphishing may also involve social engineering techniques, such as posing as a trusted source.\n\nAll forms of spearphishing are electronically delivered social engineering targeted at a specific individual, company, or industry. In this case, the malicious emails contain links. Generally, the links will be accompanied by social engineering text and require the user to actively click or copy and paste a URL into a browser, leveraging [User Execution](https://attack.mitre.org/techniques/T1204). The visited website may compromise the web browser using an exploit, or the user will be prompted to download applications, documents, zip files, or even executables depending on the pretext for the email in the first place.\n\nAdversaries may also include links that are intended to interact directly with an email reader, including embedded images intended to exploit the end system directly. Additionally, adversaries may use seemingly benign links that abuse special characters to mimic legitimate websites (known as an \"IDN homograph attack\").(Citation: CISA IDN ST05-016) URLs may also be obfuscated by taking advantage of quirks in the URL schema, such as the acceptance of integer- or hexadecimal-based hostname formats and the automatic discarding of text before an \u201c@\u201d symbol: for example, `hxxp://google.com@1157586937`.(Citation: Mandiant URL Obfuscation 2023)\n\nAdversaries may also utilize links to perform consent phishing/spearphishing campaigns to [Steal Application Access Token](https://attack.mitre.org/techniques/T1528)s that grant immediate access to the victim environment. For example, a user may be lured into granting adversaries permissions/access via a malicious OAuth 2.0 request URL that when accepted by the user provide permissions/access for malicious applications.(Citation: Trend Micro Pawn Storm OAuth 2017)(Citation: Microsoft OAuth 2.0 Consent Phishing 2021) These stolen access tokens allow the adversary to perform various actions on behalf of the user via API calls.(Citation: Microsoft OAuth 2.0 Consent Phishing 2021)\n\nSimilarly, malicious links may also target device-based authorization, such as OAuth 2.0 device authorization grant flow which is typically used to authenticate devices without UIs/browsers. Known as \u201cdevice code phishing,\u201d an adversary may send a link that directs the victim to a malicious authorization page where the user is tricked into entering a code/credentials that produces a device token.(Citation: SecureWorks Device Code Phishing 2021)(Citation: Netskope Device Code Phishing 2021)(Citation: Optiv Device Code Phishing 2021)",
+    "tactic": "initial-access",
+    "technique_name": "Spearphishing Link",
+    "technique_id": "T1566.002",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1566.002: Spearphishing Link'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1566.002: Spearphishing Link'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1566.002: Spearphishing Link'"
+      }
+    ],
+    "ability_id": "attack-pattern--2b742742-28c3-4e1b-bab7-8350d6300fa7"
+  },
+  {
+    "id": "attack-pattern--0d91b3c0-5e50-47c3-949a-2a796f04d144",
+    "name": "Encrypted/Encoded File",
+    "description": "Adversaries may encrypt or encode files to obfuscate strings, bytes, and other specific patterns to impede detection. Encrypting and/or encoding file content aims to conceal malicious artifacts within a file used in an intrusion. Many other techniques, such as [Software Packing](https://attack.mitre.org/techniques/T1027/002), [Steganography](https://attack.mitre.org/techniques/T1027/003), and [Embedded Payloads](https://attack.mitre.org/techniques/T1027/009), share this same broad objective. Encrypting and/or encoding files could lead to a lapse in detection of static signatures, only for this malicious content to be revealed (i.e., [Deobfuscate/Decode Files or Information](https://attack.mitre.org/techniques/T1140)) at the time of execution/use.\n\nThis type of file obfuscation can be applied to many file artifacts present on victim hosts, such as malware log/configuration and payload files.(Citation: File obfuscation) Files can be encrypted with a hardcoded or user-supplied key, as well as otherwise obfuscated using standard encoding schemes such as Base64.\n\nThe entire content of a file may be obfuscated, or just specific functions or values (such as C2 addresses). Encryption and encoding may also be applied in redundant layers for additional protection.\n\nFor example, adversaries may abuse password-protected Word documents or self-extracting (SFX) archives as a method of encrypting/encoding a file such as a [Phishing](https://attack.mitre.org/techniques/T1566) payload. These files typically function by attaching the intended archived content to a decompressor stub that is executed when the file is invoked (e.g., [User Execution](https://attack.mitre.org/techniques/T1204)).(Citation: SFX - Encrypted/Encoded File) \n\nAdversaries may also abuse file-specific as well as custom encoding schemes. For example, Byte Order Mark (BOM) headers in text files may be abused to manipulate and obfuscate file content until [Command and Scripting Interpreter](https://attack.mitre.org/techniques/T1059) execution.",
+    "tactic": "defense-evasion",
+    "technique_name": "Encrypted/Encoded File",
+    "technique_id": "T1027.013",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1027.013: Encrypted/Encoded File'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1027.013: Encrypted/Encoded File'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1027.013: Encrypted/Encoded File'"
+      }
+    ],
+    "ability_id": "attack-pattern--0d91b3c0-5e50-47c3-949a-2a796f04d144"
+  },
+  {
+    "id": "attack-pattern--2e34237d-8574-43f6-aace-ae2915de8597",
+    "name": "Spearphishing Attachment",
+    "description": "Adversaries may send spearphishing emails with a malicious attachment in an attempt to gain access to victim systems. Spearphishing attachment is a specific variant of spearphishing. Spearphishing attachment is different from other forms of spearphishing in that it employs the use of malware attached to an email. All forms of spearphishing are electronically delivered social engineering targeted at a specific individual, company, or industry. In this scenario, adversaries attach a file to the spearphishing email and usually rely upon [User Execution](https://attack.mitre.org/techniques/T1204) to gain execution.(Citation: Unit 42 DarkHydrus July 2018) Spearphishing may also involve social engineering techniques, such as posing as a trusted source.\n\nThere are many options for the attachment such as Microsoft Office documents, executables, PDFs, or archived files. Upon opening the attachment (and potentially clicking past protections), the adversary's payload exploits a vulnerability or directly executes on the user's system. The text of the spearphishing email usually tries to give a plausible reason why the file should be opened, and may explain how to bypass system protections in order to do so. The email may also contain instructions on how to decrypt an attachment, such as a zip file password, in order to evade email boundary defenses. Adversaries frequently manipulate file extensions and icons in order to make attached executables appear to be document files, or files exploiting one application appear to be a file for a different one. ",
+    "tactic": "initial-access",
+    "technique_name": "Spearphishing Attachment",
+    "technique_id": "T1566.001",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1566.001: Spearphishing Attachment'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1566.001: Spearphishing Attachment'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1566.001: Spearphishing Attachment'"
+      }
+    ],
+    "ability_id": "attack-pattern--2e34237d-8574-43f6-aace-ae2915de8597"
+  },
+  {
+    "id": "attack-pattern--232b7f21-adf9-4b42-b936-b9d6f7df856e",
+    "name": "Malicious File",
+    "description": "An adversary may rely upon a user opening a malicious file in order to gain execution. Users may be subjected to social engineering to get them to open a file that will lead to code execution. This user action will typically be observed as follow-on behavior from [Spearphishing Attachment](https://attack.mitre.org/techniques/T1566/001). Adversaries may use several types of files that require a user to execute them, including .doc, .pdf, .xls, .rtf, .scr, .exe, .lnk, .pif, .cpl, .reg, and .iso.(Citation: Mandiant Trojanized Windows 10)\n\nAdversaries may employ various forms of [Masquerading](https://attack.mitre.org/techniques/T1036) and [Obfuscated Files or Information](https://attack.mitre.org/techniques/T1027) to increase the likelihood that a user will open and successfully execute a malicious file. These methods may include using a familiar naming convention and/or password protecting the file and supplying instructions to a user on how to open it.(Citation: Password Protected Word Docs) \n\nWhile [Malicious File](https://attack.mitre.org/techniques/T1204/002) frequently occurs shortly after Initial Access it may occur at other phases of an intrusion, such as when an adversary places a file in a shared directory or on a user's desktop hoping that a user will click on it. This activity may also be seen shortly after [Internal Spearphishing](https://attack.mitre.org/techniques/T1534).",
+    "tactic": "execution",
+    "technique_name": "Malicious File",
+    "technique_id": "T1204.002",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1204.002: Malicious File'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1204.002: Malicious File'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1204.002: Malicious File'"
+      }
+    ],
+    "ability_id": "attack-pattern--232b7f21-adf9-4b42-b936-b9d6f7df856e"
+  },
+  {
+    "id": "attack-pattern--7bdca9d5-d500-4d7d-8c52-5fd47baf4c0c",
+    "name": "Masquerade Task or Service",
+    "description": "Adversaries may attempt to manipulate the name of a task or service to make it appear legitimate or benign. Tasks/services executed by the Task Scheduler or systemd will typically be given a name and/or description.(Citation: TechNet Schtasks)(Citation: Systemd Service Units) Windows services will have a service name as well as a display name. Many benign tasks and services exist that have commonly associated names. Adversaries may give tasks or services names that are similar or identical to those of legitimate ones.\n\nTasks or services contain other fields, such as a description, that adversaries may attempt to make appear legitimate.(Citation: Palo Alto Shamoon Nov 2016)(Citation: Fysbis Dr Web Analysis)",
+    "tactic": "defense-evasion",
+    "technique_name": "Masquerade Task or Service",
+    "technique_id": "T1036.004",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1036.004: Masquerade Task or Service'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1036.004: Masquerade Task or Service'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1036.004: Masquerade Task or Service'"
+      }
+    ],
+    "ability_id": "attack-pattern--7bdca9d5-d500-4d7d-8c52-5fd47baf4c0c"
+  },
+  {
+    "id": "attack-pattern--ec8fc7e2-b356-455c-8db5-2e37be158e7d",
+    "name": "Hidden Files and Directories",
+    "description": "Adversaries may set files and directories to be hidden to evade detection mechanisms. To prevent normal users from accidentally changing special files on a system, most operating systems have the concept of a \u2018hidden\u2019 file. These files don\u2019t show up when a user browses the file system with a GUI or when using normal commands on the command line. Users must explicitly ask to show the hidden files either via a series of Graphical User Interface (GUI) prompts or with command line switches (<code>dir /a</code> for Windows and <code>ls \u2013a</code> for Linux and macOS).\n\nOn Linux and Mac, users can mark specific files as hidden simply by putting a \u201c.\u201d as the first character in the file or folder name  (Citation: Sofacy Komplex Trojan) (Citation: Antiquated Mac Malware). Files and folders that start with a period, \u2018.\u2019, are by default hidden from being viewed in the Finder application and standard command-line utilities like \u201cls\u201d. Users must specifically change settings to have these files viewable.\n\nFiles on macOS can also be marked with the UF_HIDDEN flag which prevents them from being seen in Finder.app, but still allows them to be seen in Terminal.app (Citation: WireLurker). On Windows, users can mark specific files as hidden by using the attrib.exe binary. Many applications create these hidden files and folders to store information so that it doesn\u2019t clutter up the user\u2019s workspace. For example, SSH utilities create a .ssh folder that\u2019s hidden and contains the user\u2019s known hosts and keys.\n\nAdditionally, adversaries may name files in a manner that would allow the file to be hidden such as naming a file only a \u201cspace\u201d character.\n\nAdversaries can use this to their advantage to hide files and folders anywhere on the system and evading a typical user or system analysis that does not incorporate investigation of hidden files.",
+    "tactic": "defense-evasion",
+    "technique_name": "Hidden Files and Directories",
+    "technique_id": "T1564.001",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1564.001: Hidden Files and Directories'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1564.001: Hidden Files and Directories'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1564.001: Hidden Files and Directories'"
+      }
+    ],
+    "ability_id": "attack-pattern--ec8fc7e2-b356-455c-8db5-2e37be158e7d"
+  },
+  {
+    "id": "attack-pattern--19401639-28d0-4c3c-adcc-bc2ba22f6421",
+    "name": "Digital Certificates",
+    "description": "Adversaries may buy and/or steal SSL/TLS certificates that can be used during targeting. SSL/TLS certificates are designed to instill trust. They include information about the key, information about its owner's identity, and the digital signature of an entity that has verified the certificate's contents are correct. If the signature is valid, and the person examining the certificate trusts the signer, then they know they can use that key to communicate with its owner.\n\nAdversaries may purchase or steal SSL/TLS certificates to further their operations, such as encrypting C2 traffic (ex: [Asymmetric Cryptography](https://attack.mitre.org/techniques/T1573/002) with [Web Protocols](https://attack.mitre.org/techniques/T1071/001)) or even enabling [Adversary-in-the-Middle](https://attack.mitre.org/techniques/T1557) if the certificate is trusted or otherwise added to the root of trust (i.e. [Install Root Certificate](https://attack.mitre.org/techniques/T1553/004)). The purchase of digital certificates may be done using a front organization or using information stolen from a previously compromised entity that allows the adversary to validate to a certificate provider as that entity. Adversaries may also steal certificate materials directly from a compromised third-party, including from certificate authorities.(Citation: DiginotarCompromise) Adversaries may register or hijack domains that they will later purchase an SSL/TLS certificate for.\n\nCertificate authorities exist that allow adversaries to acquire SSL/TLS certificates, such as domain validation certificates, for free.(Citation: Let's Encrypt FAQ)\n\nAfter obtaining a digital certificate, an adversary may then install that certificate (see [Install Digital Certificate](https://attack.mitre.org/techniques/T1608/003)) on infrastructure under their control.",
+    "tactic": "resource-development",
+    "technique_name": "Digital Certificates",
+    "technique_id": "T1588.004",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1588.004: Digital Certificates'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1588.004: Digital Certificates'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1588.004: Digital Certificates'"
+      }
+    ],
+    "ability_id": "attack-pattern--19401639-28d0-4c3c-adcc-bc2ba22f6421"
+  },
+  {
+    "id": "attack-pattern--365be77f-fc0e-42ee-bac8-4faf806d9336",
+    "name": "Msiexec",
+    "description": "Adversaries may abuse msiexec.exe to proxy execution of malicious payloads. Msiexec.exe is the command-line utility for the Windows Installer and is thus commonly associated with executing installation packages (.msi).(Citation: Microsoft msiexec) The Msiexec.exe binary may also be digitally signed by Microsoft.\n\nAdversaries may abuse msiexec.exe to launch local or network accessible MSI files. Msiexec.exe can also execute DLLs.(Citation: LOLBAS Msiexec)(Citation: TrendMicro Msiexec Feb 2018) Since it may be signed and native on Windows systems, msiexec.exe can be used to bypass application control solutions that do not account for its potential abuse. Msiexec.exe execution may also be elevated to SYSTEM privileges if the <code>AlwaysInstallElevated</code> policy is enabled.(Citation: Microsoft AlwaysInstallElevated 2018)",
+    "tactic": "defense-evasion",
+    "technique_name": "Msiexec",
+    "technique_id": "T1218.007",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1218.007: Msiexec'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1218.007: Msiexec'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1218.007: Msiexec'"
+      }
+    ],
+    "ability_id": "attack-pattern--365be77f-fc0e-42ee-bac8-4faf806d9336"
+  },
+  {
+    "id": "attack-pattern--40f5caa0-4cb7-4117-89fc-d421bb493df3",
+    "name": "Domains",
+    "description": "Adversaries may acquire domains that can be used during targeting. Domain names are the human readable names used to represent one or more IP addresses. They can be purchased or, in some cases, acquired for free.\n\nAdversaries may use acquired domains for a variety of purposes, including for [Phishing](https://attack.mitre.org/techniques/T1566), [Drive-by Compromise](https://attack.mitre.org/techniques/T1189), and Command and Control.(Citation: CISA MSS Sep 2020) Adversaries may choose domains that are similar to legitimate domains, including through use of homoglyphs or use of a different top-level domain (TLD).(Citation: FireEye APT28)(Citation: PaypalScam) Typosquatting may be used to aid in delivery of payloads via [Drive-by Compromise](https://attack.mitre.org/techniques/T1189). Adversaries may also use internationalized domain names (IDNs) and different character sets (e.g. Cyrillic, Greek, etc.) to execute \"IDN homograph attacks,\" creating visually similar lookalike domains used to deliver malware to victim machines.(Citation: CISA IDN ST05-016)(Citation: tt_httrack_fake_domains)(Citation: tt_obliqueRAT)(Citation: httrack_unhcr)(Citation: lazgroup_idn_phishing)\n\nDifferent URIs/URLs may also be dynamically generated to uniquely serve malicious content to victims (including one-time, single use domain names).(Citation: iOS URL Scheme)(Citation: URI)(Citation: URI Use)(Citation: URI Unique)\n\nAdversaries may also acquire and repurpose expired domains, which may be potentially already allowlisted/trusted by defenders based on an existing reputation/history.(Citation: Categorisation_not_boundary)(Citation: Domain_Steal_CC)(Citation: Redirectors_Domain_Fronting)(Citation: bypass_webproxy_filtering)\n\nDomain registrars each maintain a publicly viewable database that displays contact information for every registered domain. Private WHOIS services display alternative information, such as their own company data, rather than the owner of the domain. Adversaries may use such private WHOIS services to obscure information about who owns a purchased domain. Adversaries may further interrupt efforts to track their infrastructure by using varied registration information and purchasing domains with different domain registrars.(Citation: Mandiant APT1)\n\nIn addition to legitimately purchasing a domain, an adversary may register a new domain in a compromised environment. For example, in AWS environments, adversaries may leverage the Route53 domain service to register a domain and create hosted zones pointing to resources of the threat actor\u2019s choosing.(Citation: Invictus IR DangerDev 2024)",
+    "tactic": "resource-development",
+    "technique_name": "Domains",
+    "technique_id": "T1583.001",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1583.001: Domains'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1583.001: Domains'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1583.001: Domains'"
+      }
+    ],
+    "ability_id": "attack-pattern--40f5caa0-4cb7-4117-89fc-d421bb493df3"
+  },
+  {
+    "id": "attack-pattern--ffbcfdb0-de22-4106-9ed3-fc23c8a01407",
+    "name": "MMC",
+    "description": "Adversaries may abuse mmc.exe to proxy execution of malicious .msc files. Microsoft Management Console (MMC) is a binary that may be signed by Microsoft and is used in several ways in either its GUI or in a command prompt.(Citation: win_mmc)(Citation: what_is_mmc) MMC can be used to create, open, and save custom consoles that contain administrative tools created by Microsoft, called snap-ins. These snap-ins may be used to manage Windows systems locally or remotely. MMC can also be used to open Microsoft created .msc files to manage system configuration.(Citation: win_msc_files_overview)\n\nFor example, <code>mmc C:\\Users\\foo\\admintools.msc /a</code> will open a custom, saved console msc file in author mode.(Citation: win_mmc) Another common example is <code>mmc gpedit.msc</code>, which will open the Group Policy Editor application window. \n\nAdversaries may use MMC commands to perform malicious tasks. For example, <code>mmc wbadmin.msc delete catalog -quiet</code> deletes the backup catalog on the system (i.e. [Inhibit System Recovery](https://attack.mitre.org/techniques/T1490)) without prompts to the user (Note: <code>wbadmin.msc</code> may only be present by default on Windows Server operating systems).(Citation: win_wbadmin_delete_catalog)(Citation: phobos_virustotal)\n\nAdversaries may also abuse MMC to execute malicious .msc files. For example, adversaries may first create a malicious registry Class Identifier (CLSID) subkey, which uniquely identifies a [Component Object Model](https://attack.mitre.org/techniques/T1559/001) class object.(Citation: win_clsid_key) Then, adversaries may create custom consoles with the \u201cLink to Web Address\u201d snap-in that is linked to the malicious CLSID subkey.(Citation: mmc_vulns) Once the .msc file is saved, adversaries may invoke the malicious CLSID payload with the following command: <code>mmc.exe -Embedding C:\\path\\to\\test.msc</code>.(Citation: abusing_com_reg)",
+    "tactic": "defense-evasion",
+    "technique_name": "MMC",
+    "technique_id": "T1218.014",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1218.014: MMC'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1218.014: MMC'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1218.014: MMC'"
+      }
+    ],
+    "ability_id": "attack-pattern--ffbcfdb0-de22-4106-9ed3-fc23c8a01407"
+  },
+  {
+    "id": "attack-pattern--ef67e13e-5598-4adc-bdb2-998225874fa9",
+    "name": "Malicious Link",
+    "description": "An adversary may rely upon a user clicking a malicious link in order to gain execution. Users may be subjected to social engineering to get them to click on a link that will lead to code execution. This user action will typically be observed as follow-on behavior from [Spearphishing Link](https://attack.mitre.org/techniques/T1566/002). Clicking on a link may also lead to other execution techniques such as exploitation of a browser or application vulnerability via [Exploitation for Client Execution](https://attack.mitre.org/techniques/T1203). Links may also lead users to download files that require execution via [Malicious File](https://attack.mitre.org/techniques/T1204/002).",
+    "tactic": "execution",
+    "technique_name": "Malicious Link",
+    "technique_id": "T1204.001",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'Simulated execution of T1204.001: Malicious Link'"
+      },
+      {
+        "name": "psh",
+        "platform": "windows",
+        "command": "Write-Host 'Simulated execution of T1204.001: Malicious Link'"
+      },
+      {
+        "name": "sh",
+        "platform": "darwin",
+        "command": "echo 'Simulated execution of T1204.001: Malicious Link'"
+      }
+    ],
+    "ability_id": "attack-pattern--ef67e13e-5598-4adc-bdb2-998225874fa9"
+  }
+]

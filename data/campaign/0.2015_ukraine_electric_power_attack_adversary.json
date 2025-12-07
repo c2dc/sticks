@@ -1,0 +1,25 @@
+{
+  "id": "2015_ukraine_electric_power_attack",
+  "name": "0.2015 Ukraine Electric Power Attack",
+  "description": "[2015 Ukraine Electric Power Attack](https://attack.mitre.org/campaigns/C0028) was a [Sandworm Team](https://attack.mitre.org/groups/G0034) campaign during which they used [BlackEnergy](https://attack.mitre.org/software/S0089) (specifically BlackEnergy3) and [KillDisk](https://attack.mitre.org/software/S0607) to target and disrupt transmission and distribution substations within the Ukrainian power grid. This campaign was the first major public attack conducted against the Ukrainian power grid by Sandworm Team.\n\nAlso known as: 2015 Ukraine Electric Power Attack",
+  "objective": "495a9828-cab1-44dd-a0ca-66e58177d8cc",
+  "atomic_ordering": [
+    "attack-pattern--2e34237d-8574-43f6-aace-ae2915de8597",
+    "attack-pattern--57340c81-c025-4189-8fa0-fc7ede51bae4",
+    "attack-pattern--d63a3fb8-9452-4e9d-a60a-54be68d5998c",
+    "attack-pattern--e358d692-23c0-4a31-9eb6-ecc13a8d7735",
+    "attack-pattern--10d51417-ee35-4589-b1ff-b6df1c334e8d",
+    "attack-pattern--e6919abc-99f9-4c6c-95a5-14761e7b2add",
+    "attack-pattern--232b7f21-adf9-4b42-b936-b9d6f7df856e",
+    "attack-pattern--b17a1a56-e99c-403c-8948-561df0cffe81",
+    "attack-pattern--3257eb21-f9a7-4430-8de1-d8b6e288f529",
+    "attack-pattern--7610cada-1499-41a4-b3dd-46467b68d177",
+    "attack-pattern--045d0922-2310-4e60-b5e4-3302302cb3c5",
+    "attack-pattern--dfd7cc1d-e1d8-4394-a198-97c4cab8aa67",
+    "attack-pattern--df8b2a25-8bdf-4856-953c-a04372b1c161",
+    "attack-pattern--bf90d72c-c00b-45e3-b3aa-68560560d4c5",
+    "attack-pattern--09a60ea3-a8d1-4ae5-976e-5783248b72a4",
+    "attack-pattern--43e7dc91-05b2-474c-b9ac-2ed4fe101f4d",
+    "attack-pattern--ac08589e-ee59-4935-8667-d845e38fe579"
+  ]
+}
