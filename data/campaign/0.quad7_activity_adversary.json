@@ -1,0 +1,23 @@
+{
+  "id": "quad7_activity",
+  "name": "0.Quad7 Activity",
+  "description": " Quad7 Activity, also known as CovertNetwork-1658 or the 7777 Botnet, is a network of compromised small office/home office (SOHO) routers. (Citation: Bitsight 7777 Botnet) (Citation: Microsoft Storm-0940) The botnet was initially composed primarily of TP-Link routers and was named Quad7 due to compromised devices exposing TCP port 7777 with the distinctive banner <code>xlogin</code>. Later activity showed a significant increase in compromised Asus routers and the addition of new ports and banners, including TCP port 63256 displaying <code>alogin</code>. Quad7 infrastructure functions as a collection of egress IPs that various China-affiliated threat actors have used to conduct password-spraying and brute-force operations. (Citation: Bitsight 7777 Botnet)(Citation: Medium 777-Botnet) Microsoft has reported that Storm-0940 leveraged credentials obtained through Quad7 Activity to target organizations in North America and Europe, including government agencies, non-governmental organizations, think tanks, law firms, energy firms, IT providers, and defense industrial base entities. (Citation: Microsoft Storm-0940)\n\nAlso known as: Quad7 Activity",
+  "objective": "495a9828-cab1-44dd-a0ca-66e58177d8cc",
+  "atomic_ordering": [
+    "attack-pattern--eb897572-8979-4242-a089-56f294f4c91d",
+    "attack-pattern--149b477f-f364-4824-b1b5-aa1d56115869",
+    "attack-pattern--9a60a291-8960-4387-8a4a-2ab5c18bb50b",
+    "attack-pattern--df8b2a25-8bdf-4856-953c-a04372b1c161",
+    "attack-pattern--69f897fd-12a9-4c89-ad6a-46d2f3c38262",
+    "attack-pattern--3f886f2a-874f-4333-b794-aa6075009b1c",
+    "attack-pattern--69b8fd78-40e8-4600-ae4d-662c9d7afdb3",
+    "attack-pattern--692074ae-bb62-4a5e-a735-02cb6bde458c",
+    "attack-pattern--ac08589e-ee59-4935-8667-d845e38fe579",
+    "attack-pattern--a782ebe2-daba-42c7-bc82-e8e9d923162d",
+    "attack-pattern--b18eae87-b469-4e14-b454-b171b416bc18",
+    "attack-pattern--e6919abc-99f9-4c6c-95a5-14761e7b2add",
+    "attack-pattern--02c5abff-30bf-4703-ab92-1f6072fae939",
+    "attack-pattern--a9d4b653-6915-42af-98b2-5758c4ceee56",
+    "attack-pattern--810d8072-afb6-4a56-9ee7-86379ac4a6f3"
+  ]
+}

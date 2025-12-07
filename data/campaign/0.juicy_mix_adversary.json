@@ -1,0 +1,22 @@
+{
+  "id": "juicy_mix",
+  "name": "0.Juicy Mix",
+  "description": "[Juicy Mix](https://attack.mitre.org/campaigns/C0044) was a campaign conducted by [OilRig](https://attack.mitre.org/groups/G0049) throughout 2022 that targeted Israeli organizations with the [Mango](https://attack.mitre.org/software/S1169) backdoor.(Citation: ESET OilRig Campaigns Sep 2023)\n\nAlso known as: Juicy Mix",
+  "objective": "495a9828-cab1-44dd-a0ca-66e58177d8cc",
+  "atomic_ordering": [
+    "attack-pattern--3ccef7ae-cb5e-48f6-8302-897105fbf55c",
+    "attack-pattern--5e4a2073-9643-44cb-a0b5-e7f4048446c7",
+    "attack-pattern--005a06c6-14bf-4118-afa0-ebcd8aebb0c9",
+    "attack-pattern--04fd5427-79c7-44ea-ae13-11b24778ff1c",
+    "attack-pattern--e3b6daca-e963-4a69-aee6-ed4fd653ad58",
+    "attack-pattern--df8b2a25-8bdf-4856-953c-a04372b1c161",
+    "attack-pattern--970a3432-3237-47ad-bcca-7d8cbb217736",
+    "attack-pattern--1c34f7aa-9341-4a48-bfab-af22e51aca6c",
+    "attack-pattern--354a7f88-63fb-41b5-a801-ce3b377b36f1",
+    "attack-pattern--212306d8-efa4-44c9-8c2d-ed3d2e224aa0",
+    "attack-pattern--d336b553-5da9-46ca-98a8-0b23f49fb447",
+    "attack-pattern--dfd7cc1d-e1d8-4394-a198-97c4cab8aa67",
+    "attack-pattern--e196b5c5-8118-4a1c-ab8a-936586ce3db5",
+    "attack-pattern--58a3e6aa-4453-4cc8-a51f-4befe80b31a8"
+  ]
+}

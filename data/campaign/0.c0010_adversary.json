@@ -1,0 +1,17 @@
+{
+  "id": "c0010",
+  "name": "0.C0010",
+  "description": "[C0010](https://attack.mitre.org/campaigns/C0010) was a cyber espionage campaign conducted by UNC3890 that targeted Israeli shipping, government, aviation, energy, and healthcare organizations. Security researcher assess UNC3890 conducts operations in support of Iranian interests, and noted several limited technical connections to Iran, including PDB strings and Farsi language artifacts. [C0010](https://attack.mitre.org/campaigns/C0010) began by at least late 2020, and was still ongoing as of mid-2022.(Citation: Mandiant UNC3890 Aug 2022)\n\nAlso known as: C0010",
+  "objective": "495a9828-cab1-44dd-a0ca-66e58177d8cc",
+  "atomic_ordering": [
+    "attack-pattern--f9cc4d06-775f-4ee1-b401-4e2cc0da30ba",
+    "attack-pattern--3ee16395-03f0-4690-a32e-69ce9ada0f9e",
+    "attack-pattern--d742a578-d70e-4d0e-96a6-02a9c30204e6",
+    "attack-pattern--31fe0ba2-62fd-4fd9-9293-4043d84f7fe9",
+    "attack-pattern--212306d8-efa4-44c9-8c2d-ed3d2e224aa0",
+    "attack-pattern--40f5caa0-4cb7-4117-89fc-d421bb493df3",
+    "attack-pattern--e6919abc-99f9-4c6c-95a5-14761e7b2add",
+    "attack-pattern--506f6f49-7045-4156-9007-7474cb44ad6d",
+    "attack-pattern--a2fdce72-04b2-409a-ac10-cc1695f4fce0"
+  ]
+}

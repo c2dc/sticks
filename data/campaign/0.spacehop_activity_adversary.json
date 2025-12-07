@@ -1,0 +1,12 @@
+{
+  "id": "spacehop_activity",
+  "name": "0.SPACEHOP Activity",
+  "description": "[SPACEHOP Activity](https://attack.mitre.org/campaigns/C0052) is conducted through commercially leased Virtual Private Servers (VPS), otherwise known as provisioned Operational Relay Box (ORB) networks. The network leveraged for SPACEHOP Activity enabled China-nexus cyber threat actors \u2013 such as [APT5](https://attack.mitre.org/groups/G1023) and [Ke3chang](https://attack.mitre.org/groups/G0004) \u2013 to perform network reconnaissance scanning and vulnerability exploitation. SPACEHOP Activity has historically targeted entities in North America, Europe, and the Middle East.(Citation: ORB Mandiant) \n\nAlso known as: SPACEHOP Activity",
+  "objective": "495a9828-cab1-44dd-a0ca-66e58177d8cc",
+  "atomic_ordering": [
+    "attack-pattern--a782ebe2-daba-42c7-bc82-e8e9d923162d",
+    "attack-pattern--3f886f2a-874f-4333-b794-aa6075009b1c",
+    "attack-pattern--79da0971-3147-4af6-a4f5-e8cd447cd795",
+    "attack-pattern--a2fdce72-04b2-409a-ac10-cc1695f4fce0"
+  ]
+}

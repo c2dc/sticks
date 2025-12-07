@@ -1,0 +1,33 @@
+{
+  "id": "arcanedoor",
+  "name": "0.ArcaneDoor",
+  "description": "[ArcaneDoor](https://attack.mitre.org/campaigns/C0046) is a campaign targeting networking devices from Cisco and other vendors between July 2023 and April 2024, primarily focused on government and critical infrastructure networks. [ArcaneDoor](https://attack.mitre.org/campaigns/C0046) is associated with the deployment of the custom backdoors [Line Runner](https://attack.mitre.org/software/S1188) and [Line Dancer](https://attack.mitre.org/software/S1186). [ArcaneDoor](https://attack.mitre.org/campaigns/C0046) is attributed to a group referred to as UAT4356 or STORM-1849, and is assessed to be a state-sponsored campaign.(Citation: Cisco ArcaneDoor 2024)(Citation: CCCS ArcaneDoor 2024)\n\nAlso known as: ArcaneDoor",
+  "objective": "495a9828-cab1-44dd-a0ca-66e58177d8cc",
+  "atomic_ordering": [
+    "attack-pattern--9c99724c-a483-4d60-ad9d-7f004e42e8e8",
+    "attack-pattern--03259939-0b57-482f-8eb5-87c0e0d54334",
+    "attack-pattern--42e8de7b-37b2-4258-905a-6897815e58e0",
+    "attack-pattern--79da0971-3147-4af6-a4f5-e8cd447cd795",
+    "attack-pattern--92d7da27-2d91-488e-a00c-059dc162766d",
+    "attack-pattern--1cec9319-743b-4840-bb65-431547bce82a",
+    "attack-pattern--ea071aa0-8f17-416f-ab0d-2bab7e79003d",
+    "attack-pattern--8f504411-cb96-4dac-a537-8d2bb7679c59",
+    "attack-pattern--88d31120-5bc7-4ce3-a9c0-7cf147be8e54",
+    "attack-pattern--774a3188-6ba9-4dc4-879d-d54ee48a5ce9",
+    "attack-pattern--035bb001-ab69-4a0b-9f6c-2de8b09e1b9d",
+    "attack-pattern--212306d8-efa4-44c9-8c2d-ed3d2e224aa0",
+    "attack-pattern--30208d3e-0d6b-43c8-883e-44462a514619",
+    "attack-pattern--0f20e3cb-245b-4a61-8a91-2d93f7cb0e9b",
+    "attack-pattern--f4c1826f-a322-41cd-9557-562100848c84",
+    "attack-pattern--3257eb21-f9a7-4430-8de1-d8b6e288f529",
+    "attack-pattern--d63a3fb8-9452-4e9d-a60a-54be68d5998c",
+    "attack-pattern--7385dfaf-6886-4229-9ecd-6fd678040830",
+    "attack-pattern--ac08589e-ee59-4935-8667-d845e38fe579",
+    "attack-pattern--3f886f2a-874f-4333-b794-aa6075009b1c",
+    "attack-pattern--354a7f88-63fb-41b5-a801-ce3b377b36f1",
+    "attack-pattern--df8b2a25-8bdf-4856-953c-a04372b1c161",
+    "attack-pattern--10d51417-ee35-4589-b1ff-b6df1c334e8d",
+    "attack-pattern--43e7dc91-05b2-474c-b9ac-2ed4fe101f4d",
+    "attack-pattern--3ccef7ae-cb5e-48f6-8302-897105fbf55c"
+  ]
+}

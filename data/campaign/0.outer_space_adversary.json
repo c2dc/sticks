@@ -1,0 +1,16 @@
+{
+  "id": "outer_space",
+  "name": "0.Outer Space",
+  "description": "[Outer Space](https://attack.mitre.org/campaigns/C0042) was a campaign conducted by [OilRig](https://attack.mitre.org/groups/G0049) throughout 2021 that used the [SampleCheck5000](https://attack.mitre.org/software/S1168) downloader and [Solar](https://attack.mitre.org/software/S1166) backdoor to target Israeli organizations.(Citation: ESET OilRig Campaigns Sep 2023)\n\nAlso known as: Outer Space",
+  "objective": "495a9828-cab1-44dd-a0ca-66e58177d8cc",
+  "atomic_ordering": [
+    "attack-pattern--e6919abc-99f9-4c6c-95a5-14761e7b2add",
+    "attack-pattern--e196b5c5-8118-4a1c-ab8a-936586ce3db5",
+    "attack-pattern--5e4a2073-9643-44cb-a0b5-e7f4048446c7",
+    "attack-pattern--df8b2a25-8bdf-4856-953c-a04372b1c161",
+    "attack-pattern--926d8cfd-1d0d-4da2-ab49-3ca10ec3f3b5",
+    "attack-pattern--0d91b3c0-5e50-47c3-949a-2a796f04d144",
+    "attack-pattern--212306d8-efa4-44c9-8c2d-ed3d2e224aa0",
+    "attack-pattern--dfd7cc1d-e1d8-4394-a198-97c4cab8aa67"
+  ]
+}

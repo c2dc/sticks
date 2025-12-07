@@ -1,0 +1,29 @@
+{
+  "id": "2016_ukraine_electric_power_attack",
+  "name": "0.2016 Ukraine Electric Power Attack",
+  "description": "[2016 Ukraine Electric Power Attack](https://attack.mitre.org/campaigns/C0025) was a [Sandworm Team](https://attack.mitre.org/groups/G0034) campaign during which they used [Industroyer](https://attack.mitre.org/software/S0604) malware to target and disrupt distribution substations within the Ukrainian power grid. This campaign was the second major public attack conducted against Ukraine by [Sandworm Team](https://attack.mitre.org/groups/G0034).(Citation: ESET Industroyer)(Citation: Dragos Crashoverride 2018)\n\nAlso known as: 2016 Ukraine Electric Power Attack",
+  "objective": "495a9828-cab1-44dd-a0ca-66e58177d8cc",
+  "atomic_ordering": [
+    "attack-pattern--dfd7cc1d-e1d8-4394-a198-97c4cab8aa67",
+    "attack-pattern--208884f1-7b83-4473-ac22-4e1cf6c41471",
+    "attack-pattern--970a3432-3237-47ad-bcca-7d8cbb217736",
+    "attack-pattern--1c4e5d32-1fe9-4116-9d9d-59e3925bd6a2",
+    "attack-pattern--f9e9365a-9ca2-4d9c-8e7c-050d73d1101a",
+    "attack-pattern--e01be9c5-e763-4caf-aeb7-000b416aef67",
+    "attack-pattern--bf90d72c-c00b-45e3-b3aa-68560560d4c5",
+    "attack-pattern--d1fcf083-a721-4223-aedf-bf8960798d62",
+    "attack-pattern--b3d682b6-98f2-4fb0-aa3b-b4df007ca70a",
+    "attack-pattern--2959d63f-73fd-46a1-abd2-109d7dcede32",
+    "attack-pattern--deb98323-e13f-4b0c-8d94-175379069062",
+    "attack-pattern--d349c66e-18e1-4d8b-a2d7-65af7cbd2ba0",
+    "attack-pattern--65f2d882-3f41-4d48-8a06-29af77ec9f90",
+    "attack-pattern--01a5a209-b94c-450b-b7f9-946497d91055",
+    "attack-pattern--a10641f4-87b4-45a3-a906-92a149cb2c27",
+    "attack-pattern--a93494bb-4b80-4ea1-8695-3236a49916fd",
+    "attack-pattern--7610cada-1499-41a4-b3dd-46467b68d177",
+    "attack-pattern--e358d692-23c0-4a31-9eb6-ecc13a8d7735",
+    "attack-pattern--960c3c86-1480-4d72-b4e0-8c242e84a5c5",
+    "attack-pattern--4eb28bed-d11a-4641-9863-c2ac017d910a",
+    "attack-pattern--4f9ca633-15c5-463c-9724-bdcd54fde541"
+  ]
+}

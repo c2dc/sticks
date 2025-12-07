@@ -1,0 +1,25 @@
+{
+  "id": "operation_midnighteclipse",
+  "name": "0.Operation MidnightEclipse",
+  "description": "[Operation MidnightEclipse](https://attack.mitre.org/campaigns/C0048) was a campaign conducted in March and April 2024 that involved initial exploit of zero-day vulnerability CVE-2024-3400, a critical command injection vulnerability in the GlobalProtect feature of Palo Alto Networks PAN-OS.(Citation: Volexity UPSTYLE 2024)(Citation: Palo Alto MidnightEclipse APR 2024)\n\nAlso known as: Operation MidnightEclipse",
+  "objective": "495a9828-cab1-44dd-a0ca-66e58177d8cc",
+  "atomic_ordering": [
+    "attack-pattern--3c4a2599-71ee-4405-ba1e-0e28414b4bc5",
+    "attack-pattern--c3d4bdd9-2cfe-4a80-9d0c-07a29ecdce8f",
+    "attack-pattern--edf91964-b26e-4b4a-9600-ccacd7d7df24",
+    "attack-pattern--a9d4b653-6915-42af-98b2-5758c4ceee56",
+    "attack-pattern--731f4f55-b6d0-41d1-a7a9-072a66389aea",
+    "attack-pattern--acd0ba37-7ba9-4cc5-ac61-796586cd856d",
+    "attack-pattern--df8b2a25-8bdf-4856-953c-a04372b1c161",
+    "attack-pattern--b17a1a56-e99c-403c-8948-561df0cffe81",
+    "attack-pattern--3f886f2a-874f-4333-b794-aa6075009b1c",
+    "attack-pattern--39cc9f64-cf74-4a48-a4d8-fe98c54a02e0",
+    "attack-pattern--e6919abc-99f9-4c6c-95a5-14761e7b2add",
+    "attack-pattern--a2fdce72-04b2-409a-ac10-cc1695f4fce0",
+    "attack-pattern--2acf44aa-542f-4366-b4eb-55ef5747759c",
+    "attack-pattern--4f9ca633-15c5-463c-9724-bdcd54fde541",
+    "attack-pattern--1c34f7aa-9341-4a48-bfab-af22e51aca6c",
+    "attack-pattern--60d0c01d-e2bf-49dd-a453-f8a9c9fa6f65",
+    "attack-pattern--ae797531-3219-49a4-bccf-324ad7a4c7b2"
+  ]
+}
