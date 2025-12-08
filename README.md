@@ -5,8 +5,6 @@ Authors:
 
 Sidnei Barbieri
 
-César A. C. Marcondes
-
 Lourenço A. Pereira Júnior
 
 
