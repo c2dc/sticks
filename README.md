@@ -196,6 +196,93 @@ The purpose of this framework is to:
 
 ---
 
+# Experiment Workflow
+
+The framework implements a pipeline that converts **structured CTI (STIX campaigns)** into executable adversary behaviors in a controlled emulation environment.
+
+The workflow is divided into three stages.  
+Stage 1 performs automated structural modeling of CTI data.  
+Stage 2 introduces a human-in-the-loop translation from abstract behavioral descriptions to minimal executable steps.  
+Stage 3 integrates these steps into an adversary emulation environment.
+
+The figure below is **conceptual rather than an implementation diagram** and does not assume any specific serialization.
+
+```
+STIX Campaign Dataset
+        │
+        ▼
+Stage 1 — Structural Modeling
+(automated CTI parsing and technique extraction)
+        │
+        ▼
+Stage 2 — Human-in-the-Loop Translation
+(behavior → minimal executable steps)
+        │
+        ▼
+Stage 3 — Adversary Emulation
+(execution inside the experimental environment)
+```
+
+---
+
+# Stage 1 — Structural Modeling of CTI
+
+In the first stage, the framework performs **automated structural modeling** of cyber threat intelligence data.
+
+The system parses STIX campaign datasets and extracts relevant structural elements, including:
+
+- Techniques
+- Relationships
+- Indicators
+- Infrastructure
+- Malware
+- Campaign metadata
+
+This process constructs an intermediate representation of the campaign by identifying:
+
+- attack techniques  
+- dependencies between actions  
+- structural relationships within the campaign  
+
+The result is a **machine-readable model of adversary activity derived directly from CTI data**.
+
+---
+
+# Stage 2 — Human-in-the-Loop Translation
+
+The second stage introduces a **human-in-the-loop translation process**.
+
+Structured CTI often describes adversary behavior at an abstract level (e.g., techniques or tactics) rather than providing precise execution procedures. In this stage, an analyst translates these abstract behavioral descriptions into **minimal executable steps**.
+
+This step includes:
+
+- identifying the concrete commands required to reproduce a technique  
+- resolving implicit environmental assumptions  
+- defining execution order and dependencies  
+- specifying required privileges or infrastructure  
+
+The outcome is a set of **minimal operational procedures** that can be executed by an adversary emulation platform.
+
+---
+
+# Stage 3 — Adversary Emulation
+
+In the final stage, the translated procedures are integrated into an **adversary emulation environment**.
+
+The generated steps are converted into executable components and deployed within a controlled laboratory infrastructure built with Docker containers.
+
+The environment includes multiple hosts representing a simplified enterprise architecture, such as:
+
+- an attacker node
+- command and control infrastructure
+- intermediary services
+- backend systems
+
+Campaign execution is then orchestrated using an adversary emulation platform, allowing the system to observe whether the CTI-derived behaviors can be successfully reproduced.
+
+This stage enables **empirical evaluation of procedural completeness in structured CTI datasets**.
+
+
 # Citation
 
 If you use this repository in your research, please cite:
