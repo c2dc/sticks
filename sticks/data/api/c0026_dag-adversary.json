@@ -1,0 +1,14 @@
+{
+  "id": "ae311888-2998-5075-9015-ba0508e5f9a3",
+  "name": "C0026",
+  "description": "C0026 emulation plan with 6 techniques",
+  "atomic_ordering": [
+    "ef6472a9-c101-5bd6-9301-0d6bd51597b5",
+    "e517b4ad-9ece-5800-b438-e3ca5f8ae68d",
+    "e21dab0a-0576-5303-9980-f5be46ee99ad",
+    "6ca6d390-31f7-5863-9ecc-0dc13c43e57b",
+    "5ddb8518-3a39-51b5-857f-982be5748f77",
+    "260eff19-ecfa-5407-81a8-9a2eb8cb0ead",
+    "260eff19-ecfa-5407-81a8-roth"
+  ]
+}

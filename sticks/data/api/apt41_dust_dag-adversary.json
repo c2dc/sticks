@@ -1,0 +1,31 @@
+{
+  "id": "777b8931-daa5-544b-af76-a3d8fd5d3d7c",
+  "name": "APT41 DUST",
+  "description": "APT41 DUST emulation plan with 23 techniques",
+  "atomic_ordering": [
+    "e1178d46-9bcf-51d5-83e8-5e04b4880f2a",
+    "68d2e694-9c92-5b92-b116-545a6e698230",
+    "50aead6e-e31e-5311-9a87-40a98aa3d8fe",
+    "45a1b5c8-613f-50fa-a85f-4114d3c320e5",
+    "5ddb8518-3a39-51b5-857f-982be5748f45",
+    "3b0dfc5b-6896-5473-8c79-491414d5ccbd",
+    "28d1bbfe-11e9-5dbb-b7a3-531273eb921c",
+    "d28a43be-6c11-5cd5-928e-6b6f51c82e19",
+    "50547ac3-366a-520f-ace0-137326121072",
+    "e45e550c-6eb4-5885-832e-d4d6205af223",
+    "5a76b3ab-62e8-5c89-88bc-048754070557",
+    "b1f0ec99-37d0-5780-9ea6-dcf9fc371451",
+    "18b2c164-5c90-5a58-bd48-5d83012db14a",
+    "523b5e79-dae3-5b5c-87b6-f0303ddce613",
+    "26969d1e-26c3-5b38-82e9-47bebd388a41",
+    "d6f50b61-3fac-587d-8418-82f297b5ac89",
+    "a2aaed57-e037-5782-a54f-f8d30715b890",
+    "e4e97a8f-0ae8-50ba-8147-a2632a74ca39",
+    "63704f91-346f-57f3-b64e-bfa2a1e61fed",
+    "251d6bc3-40a8-5117-8116-3492c6de3a72",
+    "c7960378-b205-548f-b488-36e032ed9162",
+    "47aaf622-b794-5cb0-8976-f5f4b062eb31",
+    "8a2ddf73-3964-540d-a67c-7a9fdfc3d704",
+    "8a2ddf73-3964-540d-a67c-roth"
+  ]
+}
