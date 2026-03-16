@@ -16,3 +16,4 @@ echo "[*] Initializing campaign environments..."
 
 echo "[*] Environment ready."
 
+sleep infinity

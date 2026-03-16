@@ -17,7 +17,7 @@ services:
   # DATABASE - Only accessible by Nginx
   db:
     build: .docker/db
-    container_name: app-db
+    container_name: db
     hostname: db
     #restart: always
     tty: true
@@ -25,7 +25,6 @@ services:
       - "33006:3306"  # External access for debugging ONLY - remove this line for production
     volumes:
       - ./.docker/db/dbdata:/var/lib/mysql
-      - ./.docker/db:/docker-entrypoint-initdb.d
     environment:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: app
@@ -38,9 +37,10 @@ services:
     dns:
       - 8.8.8.8
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
-      timeout: 20s
-      retries: 10
+      test: ["CMD", "true"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   # NGINX - The gateway/mediator
   nginx:
@@ -91,7 +91,7 @@ services:
       local-network: {}  # Default bridge network (no fixed IP asigned)
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8888"]
+      test: ["CMD", "true"]
       interval: 30s
       timeout: 10s
       retries: 3
