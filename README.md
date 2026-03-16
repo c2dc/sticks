@@ -58,19 +58,26 @@ The environment uses multiple Docker containers connected through static network
 
 ```
 .
-├── docker/                # Docker environment and network configuration
+├── architecture.png        # Network architecture diagram
+│
+├── docker/                 # Docker environment and network configuration
 │   ├── docker-compose.yml
-│   └── architecture.png
+│   ├── kali-data/          # Persistent data for Kali container
+│   └── .docker/            # Container build contexts
+│       ├── caldera/        # MITRE Caldera container
+│       ├── db/             # Database container
+│       ├── kali/           # Kali attacker container
+│       └── nginx/          # Target web server container
 │
-├── sticks/                # STIX analysis and campaign generation tools
-│
-├── config/                # Configuration files
-│
-├── tools/                 # Utility scripts
-│
-└── main.py                # Main entry point
+├── sticks/                 # STIX analysis and campaign generation framework
+│   ├── config/             # Configuration files
+│   ├── data/               # Dataset and intermediate artifacts
+│   ├── lib/                # Core libraries
+│   ├── tools/              # Utility scripts
+│   ├── main.py             # Main execution entry point
+│   ├── requirements.txt    # Python dependencies
+│   └── README.md           # STIX framework documentation
 ```
-
 ---
 
 # Requirements
@@ -163,10 +170,18 @@ password: admin
 Then go to:
 
 ```
-Operations → Active Operations
+Operations
 ```
 
-to observe the running campaigns.
+to observe the running campaigns:
+APT41 – DUST
+ATT&CK Campaign C0010
+ATT&CK Campaign C0026
+CostaRicto
+Operation MidnightEclipse
+Operation Outer Space
+Salesforce Data Exfiltration
+ShadowRay
 
 ---
 
@@ -197,5 +212,4 @@ If you use this repository in your research, please cite:
 ---
 
 # License
-
-Please refer to the repository license file.
+GNU GPLv3.
