@@ -1,0 +1,18 @@
+{
+  "id": "b1a46148-30de-52ff-9984-db67131ff24b",
+  "name": "ShadowRay",
+  "description": "ShadowRay emulation plan with 10 techniques",
+  "atomic_ordering": [
+    "0fa06c9c-fd66-52f1-b94a-83cb37bee900",
+    "1faec135-c77f-5da2-a384-c2d468cc942a",
+    "810c3322-4d43-5152-8d14-b11e78b7b50d",
+    "60684dd3-782f-5675-bca6-d45648687755",
+    "5c0eccee-eee4-5d88-b6e5-c83b25d44eaa",
+    "368d9d4f-6c23-5351-9f74-69dc719886b6",
+    "6a74f881-117b-58f2-aa4f-4e976e204f07",
+    "d6966fcc-0455-51cb-932c-c707f97730f4",
+    "8130dba3-f51c-57d2-9d49-78e9b0bb3c4b",
+    "22545851-970c-5709-bdbc-463e83521af0",
+    "22545851-970c-5709-bdbc-rothshadow"
+  ]
+}

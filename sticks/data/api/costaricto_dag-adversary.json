@@ -1,0 +1,18 @@
+{
+  "id": "b158cc86-bb51-54cc-b4f6-5483fc1efb64",
+  "name": "CostaRicto",
+  "description": "CostaRicto emulation plan with 10 techniques",
+  "atomic_ordering": [
+    "1067ff73-566d-5b59-97b5-36d0aebbe283",
+    "6d16f57a-875a-5c79-bc74-96c744d79d21",
+    "73e1cb59-a495-57bf-9235-76cba14b3113",
+    "708775d0-507e-5b5c-b811-04ccf20f3685",
+    "5c0eccee-eee4-5d88-b6e5-c83b25d44eaa",
+    "53507c5c-0553-5a8a-94b9-e036797af17e",
+    "3f3cb5a5-c06a-5c56-a724-22283ae8bd02",
+    "cb737a7e-db82-50cc-9b06-17d18b1ca5ae",
+    "893ff01b-860d-5144-b719-4139ad885e45",
+    "a6ff75c3-d8e0-5cbf-9ea3-3225ac227aff",
+    "a6ff75c3-d8e0-5cbf-9ea3-roth"
+  ]
+}

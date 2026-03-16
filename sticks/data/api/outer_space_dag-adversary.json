@@ -1,0 +1,16 @@
+{
+  "id": "b4ce9ec0-e11b-5ca3-aabd-55918d747cd7",
+  "name": "Outer Space",
+  "description": "Outer Space emulation plan with 8 techniques",
+  "atomic_ordering": [
+    "00d6f12a-3efe-53c2-b435-183aafb9c335",
+    "8456a3d7-f1fb-50cb-aaf5-409fbd4094c4",
+    "6bb8874a-77a7-5d4d-8263-0b9c3bf82aa0",
+    "12d7e21b-d15b-5bd6-b678-d9ca59d18553",
+    "e61076ac-555c-5418-98d7-e5980f9b37e0",
+    "a9878471-8ad6-5fc9-9aec-cf1e71b7a2ae",
+    "8de921e3-f693-560a-bd8a-ae90ff3689a4",
+    "6afb1856-6e5a-5f9f-8f8c-8f718196d8ef",
+    "6afb1856-6e5a-5f9f-8f8c-rothos"
+  ]
+}

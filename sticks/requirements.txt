@@ -1,0 +1,52 @@
+# Core HTTP/API libraries
+requests>=2.28.0
+
+# STIX/CTI libraries
+stix2>=3.0.0
+ijson>=3.2.0
+
+# Data serialization
+PyYAML>=6.0
+json5>=0.9.0  # if you use JSON5 anywhere (not explicitly seen but common)
+
+# AI/LLM libraries (from run_apt.py, run_campaign.py, run_sticks.py)
+anthropic>=0.7.0
+openai>=1.0.0  # For AzureOpenAI
+
+# System utilities
+python-getch>=1.0.0  # For getch module if used
+keyboard>=0.13.0  # From your earlier error message
+
+# Utility libraries
+typing-extensions>=4.5.0  # For advanced typing
+uuid6>=2023.1.0  # If you need UUID v6/v7 (optional)
+
+# File operations
+pathlib>=1.0.1  # Usually built-in, but listed for completeness
+
+# Cryptographic (built-in but listed for reference)
+hashlib  # Built-in
+base64  # Built-in
+
+# Date/time handling
+python-dateutil>=2.8.2
+pytz>=2023.3
+
+# Networking
+urllib3>=2.0.0
+certifi>=2023.0.0
+
+# Progress bars and CLI improvements (optional but useful)
+tqdm>=4.65.0
+colorama>=0.4.6  # For colored terminal output
+rich>=13.0.0  # Better terminal formatting
+
+# Testing (if applicable)
+pytest>=7.4.0
+pytest-cov>=4.1.0
+
+# Development tools (optional)
+black>=23.0.0  # Code formatting
+isort>=5.12.0  # Import sorting
+flake8>=6.1.0  # Linting
+mypy>=1.5.0  # Type checking

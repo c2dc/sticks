@@ -1,0 +1,17 @@
+{
+  "id": "30aff91c-eb58-5862-af27-d3ccfe777d8e",
+  "name": "C0010",
+  "description": "C0010 emulation plan with 9 techniques",
+  "atomic_ordering": [
+    "543281ce-dbb9-548d-9a1b-d124eb25c0fe",
+    "eae86ac6-f7b1-55cc-9fb3-7a7699c980a7",
+    "b6970795-061f-5af3-9d1a-577567de3cb3",
+    "fdcf47ad-b244-560b-800b-a62005334b0c",
+    "34af5843-02fb-5ebf-a1db-1655499d60fc",
+    "ab57f184-42b1-5f15-be3c-f126ddfd3592",
+    "54e2a639-a5e0-551d-94d0-2ba7963ec095",
+    "f5ba0057-a665-5bd8-8abb-d5e524a61c2f",
+    "5f7f2aa0-c1b4-5567-8054-6de331dda348",
+    "5f7f2aa0-c1b4-5567-8054-roth"
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "id": "096f69b7-f698-579c-82b9-8b013406bd14",
+  "name": "Salesforce Data Exfiltration",
+  "description": "Salesforce Data Exfiltration emulation plan with 18 techniques",
+  "atomic_ordering": [
+    "12917c20-3d06-56f6-920f-e3069f778b5a",
+    "8159d414-b99e-5397-91a9-5f36cbf89964",
+    "f3991dd7-ab99-5f9c-94de-48184558333e",
+    "2d5304bd-6a63-5ca2-976c-f913f6137680",
+    "c309ecb4-b9e4-5871-91c3-893a48b95d8f",
+    "18f9319b-b775-5ebf-b17e-e21a7ab586e6",
+    "c2e8c040-acd8-5e5e-9060-fa2a1101c0f1",
+    "e8b4f102-ec88-5475-85ca-f6ac2105292b",
+    "ee7a720f-a8d4-5ee0-9565-efa047f87a15",
+    "af896dcb-4434-54a2-9543-9607b8082cea",
+    "63b51f2a-add5-53b2-b4bb-b16d8119439f",
+    "2dc1a045-eacd-5913-a859-4ffaa278bb95",
+    "0f9addbf-87ae-5241-bd7f-598572e0f79a",
+    "4f9c0cbe-3451-5f25-ad4c-390050bccca5",
+    "4ee0d3f9-e5b7-5f9c-b056-e6a32b10b390",
+    "d2572d0e-9e91-5838-91eb-2aea2197ea42",
+    "5ef6da68-ae22-5f81-b0b3-6599be6e710c",
+    "8660e027-d92c-5cb3-96d9-dc40a3d28852",
+    "8660e027-d92c-5cb3-96d9-rothsales"
+  ]
+}

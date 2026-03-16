@@ -1,0 +1,25 @@
+{
+  "id": "f7f1aad2-6048-539b-a9f0-4817773897ce",
+  "name": "Operation MidnightEclipse",
+  "description": "Operation MidnightEclipse emulation plan with 17 techniques",
+  "atomic_ordering": [
+    "fd5c0b8f-6a97-5be0-9438-a79e224a40c5",
+    "ec257139-26e2-5ecd-bf1c-dcc1f3074d8d",
+    "ac057959-e74e-5c1f-8f86-67e5b556bf69",
+    "34b6e6ad-685e-5c73-838f-048d43b49f21",
+    "1424dee0-f076-5c11-b725-26b16ecbebd9",
+    "7ba784c6-245c-5b39-b3c4-b5d6b5c6fda2",
+    "7f03073b-5bf7-5581-a977-30fc81f3c5ad",
+    "faf4f21f-517d-53ac-aaa5-83876a1acfe8",
+    "1d124748-96de-5461-85a0-3e80ba9ec61c",
+    "49e1f26e-fb31-5db5-b0ca-e0c2c7a79436",
+    "8bff2fd9-bb91-5f6c-b610-2fe81571a86a",
+    "fc1cbe41-d0a0-5b8c-b3fa-e06a18bed749",
+    "819b5cfe-2794-50b7-8d67-a1a8608a9de8",
+    "5eddd009-0f3e-5c5f-9fe9-3ff35fd2df2a",
+    "4d23172a-dd72-5a9d-aa70-f30b4a57e2d5",
+    "9cf688c4-f4a9-5361-9a47-f204ffd991af",
+    "a8de43be-fcde-5302-9cfd-446e3e5996dc",
+    "a8de43be-fcde-5302-9cfd-roth"
+  ]
+}
