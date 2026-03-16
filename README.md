@@ -200,27 +200,28 @@ The purpose of this framework is to:
 
 The framework implements a pipeline that converts **structured CTI (STIX campaigns)** into executable adversary behaviors in a controlled emulation environment.
 
-The workflow is divided into three stages.  
-Stage 1 performs automated structural modeling of CTI data.  
-Stage 2 introduces a human-in-the-loop translation from abstract behavioral descriptions to minimal executable steps.  
-Stage 3 integrates these steps into an adversary emulation environment.
+The workflow is divided into three stages:
 
-The figure below is **conceptual rather than an implementation diagram** and does not assume any specific serialization.
+- **Stage 1** performs automated structural modeling of CTI data.  
+- **Stage 2** introduces a human-in-the-loop translation from abstract behavioral descriptions to minimal executable steps.  
+- **Stage 3** integrates these steps into an adversary emulation environment.
 
-```
-STIX Campaign Dataset
-        │
-        ▼
-Stage 1 — Structural Modeling
-(automated CTI parsing and technique extraction)
-        │
-        ▼
-Stage 2 — Human-in-the-Loop Translation
-(behavior → minimal executable steps)
-        │
-        ▼
-Stage 3 — Adversary Emulation
-(execution inside the experimental environment)
+The diagram below is **conceptual rather than an implementation diagram** and does not assume any specific serialization.
+
+```mermaid
+flowchart TD
+
+A[STIX Campaign Dataset]
+
+B[Stage 1<br>Structural Modeling<br><br>Automated parsing of CTI data<br>Technique extraction<br>Relationship modeling]
+
+C[Stage 2<br>Human-in-the-Loop Translation<br><br>Abstract behavior → executable steps<br>Command identification<br>Dependency resolution]
+
+D[Stage 3<br>Adversary Emulation<br><br>Integration into emulation environment<br>Campaign execution<br>Experimental evaluation]
+
+A --> B
+B --> C
+C --> D
 ```
 
 ---
@@ -231,12 +232,12 @@ In the first stage, the framework performs **automated structural modeling** of 
 
 The system parses STIX campaign datasets and extracts relevant structural elements, including:
 
-- Techniques
-- Relationships
-- Indicators
-- Infrastructure
-- Malware
-- Campaign metadata
+- Techniques  
+- Relationships  
+- Indicators  
+- Infrastructure  
+- Malware  
+- Campaign metadata  
 
 This process constructs an intermediate representation of the campaign by identifying:
 
@@ -273,15 +274,14 @@ The generated steps are converted into executable components and deployed within
 
 The environment includes multiple hosts representing a simplified enterprise architecture, such as:
 
-- an attacker node
-- command and control infrastructure
-- intermediary services
-- backend systems
+- attacker node  
+- command and control infrastructure  
+- intermediary services  
+- backend systems  
 
 Campaign execution is then orchestrated using an adversary emulation platform, allowing the system to observe whether the CTI-derived behaviors can be successfully reproduced.
 
 This stage enables **empirical evaluation of procedural completeness in structured CTI datasets**.
-
 
 # Citation
 
