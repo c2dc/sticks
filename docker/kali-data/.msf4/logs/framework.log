@@ -1,0 +1,63 @@
+[03/09/2026 23:04:26] [e(0)] core: Failed to connect to the database: No database YAML file
+[03/09/2026 23:04:41] [e(0)] core: Failed to open history file: /root/.msf4/history with error: No such file or directory @ rb_sysopen - /root/.msf4/history
+[03/09/2026 23:04:51] [e(0)] core: Failed to connect to the database: No database YAML file
+[03/09/2026 23:05:31] [e(0)] core: Failed to connect to the database: No database YAML file
+[03/09/2026 23:05:32] [e(0)] core: Module exploit/unix/webapp/ray_cve_2023_48022 not found, and no loading errors found. If you're using a custom module refer to our wiki: https://docs.metasploit.com/docs/using-metasploit/intermediate/running-private-modules.html
+[03/09/2026 23:06:37] [e(0)] core: Failed to connect to the database: No database YAML file
+[03/10/2026 15:54:27] [e(0)] core: Failed to connect to the database: No database YAML file
+[03/10/2026 15:54:44] [e(0)] core: /usr/share/metasploit-framework/modules/auxiliary/scanner/msmail/onprem_enum.go failed to load - RuntimeError Unable to load module as the following runtime was not found on the path: go
+[03/10/2026 15:54:44] [e(0)] core: /usr/share/metasploit-framework/modules/auxiliary/scanner/msmail/host_id.go failed to load - RuntimeError Unable to load module as the following runtime was not found on the path: go
+[03/10/2026 15:54:44] [e(0)] core: /usr/share/metasploit-framework/modules/auxiliary/scanner/msmail/exchange_enum.go failed to load - RuntimeError Unable to load module as the following runtime was not found on the path: go
+[03/10/2026 15:54:49] [w(0)] core: The following modules could not be loaded!
+[03/10/2026 15:54:49] [w(0)] core: 	/usr/share/metasploit-framework/modules/auxiliary/scanner/msmail/onprem_enum.go
+[03/10/2026 15:54:49] [w(0)] core: 	/usr/share/metasploit-framework/modules/auxiliary/scanner/msmail/host_id.go
+[03/10/2026 15:54:49] [w(0)] core: 	/usr/share/metasploit-framework/modules/auxiliary/scanner/msmail/exchange_enum.go
+[03/10/2026 15:55:43] [e(0)] core: Failed to connect to the database: No database YAML file
+[03/10/2026 15:55:53] [e(0)] core: /usr/share/metasploit-framework/modules/auxiliary/scanner/msmail/onprem_enum.go failed to load - RuntimeError Unable to load module as the following runtime was not found on the path: go
+[03/10/2026 15:55:53] [e(0)] core: /usr/share/metasploit-framework/modules/auxiliary/scanner/msmail/host_id.go failed to load - RuntimeError Unable to load module as the following runtime was not found on the path: go
+[03/10/2026 15:55:53] [e(0)] core: /usr/share/metasploit-framework/modules/auxiliary/scanner/msmail/exchange_enum.go failed to load - RuntimeError Unable to load module as the following runtime was not found on the path: go
+[03/10/2026 15:55:56] [w(0)] core: The following modules could not be loaded!
+[03/10/2026 15:55:56] [w(0)] core: 	/usr/share/metasploit-framework/modules/auxiliary/scanner/msmail/onprem_enum.go
+[03/10/2026 15:55:56] [w(0)] core: 	/usr/share/metasploit-framework/modules/auxiliary/scanner/msmail/host_id.go
+[03/10/2026 15:55:56] [w(0)] core: 	/usr/share/metasploit-framework/modules/auxiliary/scanner/msmail/exchange_enum.go
+[03/10/2026 15:57:17] [e(0)] core: /usr/share/metasploit-framework/modules/auxiliary/scanner/msmail/exchange_enum.go failed to load - RuntimeError Unable to load module as the following runtime was not found on the path: go
+[03/10/2026 15:57:17] [w(0)] core: Removing invalid module reference from cache: scanner/msmail/exchange_enum
+[03/10/2026 15:57:17] [e(0)] core: /usr/share/metasploit-framework/modules/auxiliary/scanner/msmail/host_id.go failed to load - RuntimeError Unable to load module as the following runtime was not found on the path: go
+[03/10/2026 15:57:17] [w(0)] core: Removing invalid module reference from cache: scanner/msmail/host_id
+[03/10/2026 15:57:17] [e(0)] core: /usr/share/metasploit-framework/modules/auxiliary/scanner/msmail/onprem_enum.go failed to load - RuntimeError Unable to load module as the following runtime was not found on the path: go
+[03/10/2026 15:57:17] [w(0)] core: Removing invalid module reference from cache: scanner/msmail/onprem_enum
+[03/10/2026 16:04:58] [e(0)] core: Failed to connect to the database: No database YAML file
+[03/10/2026 16:12:18] [e(0)] core: Failed to connect to the database: No database YAML file
+[03/10/2026 16:12:19] [e(0)] core: Module exploit/multi/http/ray_exploit not found, and no loading errors found. If you're using a custom module refer to our wiki: https://docs.metasploit.com/docs/using-metasploit/intermediate/running-private-modules.html
+[03/10/2026 16:12:59] [e(0)] core: Failed to connect to the database: No database YAML file
+[03/10/2026 16:13:34] [e(0)] core: Failed to connect to the database: No database YAML file
+[03/10/2026 16:13:35] [e(0)] core: Module exploit/linux/smb/psexec not found, and no loading errors found. If you're using a custom module refer to our wiki: https://docs.metasploit.com/docs/using-metasploit/intermediate/running-private-modules.html
+[03/10/2026 16:14:08] [e(0)] core: Failed to connect to the database: No database YAML file
+[03/10/2026 16:14:08] [e(0)] core: Module exploit/linux/ssh/sshexec not found, and no loading errors found. If you're using a custom module refer to our wiki: https://docs.metasploit.com/docs/using-metasploit/intermediate/running-private-modules.html
+[03/10/2026 16:14:49] [e(0)] core: Failed to connect to the database: No database YAML file
+[03/10/2026 16:14:49] [e(0)] core: Module exploit/linux/ssh/ssh_login not found, and no loading errors found. If you're using a custom module refer to our wiki: https://docs.metasploit.com/docs/using-metasploit/intermediate/running-private-modules.html
+[03/10/2026 16:14:49] [e(0)] core: Module post/linux/gather/credentials/sshkeyscan not found, and no loading errors found. If you're using a custom module refer to our wiki: https://docs.metasploit.com/docs/using-metasploit/intermediate/running-private-modules.html
+[03/10/2026 16:15:30] [e(0)] core: Failed to connect to the database: No database YAML file
+[03/10/2026 16:16:22] [e(0)] core: Failed to connect to the database: No database YAML file
+[03/10/2026 16:20:56] [e(0)] core: Failed to connect to the database: No database YAML file
+[03/10/2026 16:21:37] [e(0)] core: Failed to connect to the database: No database YAML file
+[03/10/2026 16:22:33] [e(0)] core: Failed to connect to the database: No database YAML file
+[03/10/2026 16:22:33] [e(0)] core: Module exploit/linux/local/dirty_sock_priv_esc not found, and no loading errors found. If you're using a custom module refer to our wiki: https://docs.metasploit.com/docs/using-metasploit/intermediate/running-private-modules.html
+[03/10/2026 16:23:29] [e(0)] core: Failed to connect to the database: No database YAML file
+[03/10/2026 16:34:18] [e(0)] core: Failed to connect to the database: No database YAML file
+[03/10/2026 16:34:18] [e(0)] core: Module exploit/multi/http/ray_remote_code_exec not found, and no loading errors found. If you're using a custom module refer to our wiki: https://docs.metasploit.com/docs/using-metasploit/intermediate/running-private-modules.html
+[03/10/2026 16:34:48] [e(0)] core: Failed to connect to the database: No database YAML file
+[03/10/2026 16:35:21] [e(0)] core: Failed to connect to the database: No database YAML file
+[03/10/2026 16:35:21] [e(0)] core: Module exploit/linux/ssh/sshexec not found, and no loading errors found. If you're using a custom module refer to our wiki: https://docs.metasploit.com/docs/using-metasploit/intermediate/running-private-modules.html
+[03/10/2026 16:35:53] [e(0)] core: Failed to connect to the database: No database YAML file
+[03/10/2026 16:35:53] [e(0)] core: Module exploit/linux/local/bash_env_exec not found, and no loading errors found. If you're using a custom module refer to our wiki: https://docs.metasploit.com/docs/using-metasploit/intermediate/running-private-modules.html
+[03/10/2026 16:36:30] [e(0)] core: Failed to connect to the database: No database YAML file
+[03/10/2026 16:36:30] [e(0)] core: Module exploit/linux/http/apache_mod_cgi_bash_env_exec not found, and no loading errors found. If you're using a custom module refer to our wiki: https://docs.metasploit.com/docs/using-metasploit/intermediate/running-private-modules.html
+[03/10/2026 16:37:30] [e(0)] core: Failed to connect to the database: No database YAML file
+[03/10/2026 16:42:54] [e(0)] core: Failed to connect to the database: No database YAML file
+[03/10/2026 16:47:25] [e(0)] core: Failed to connect to the database: No database YAML file
+[03/10/2026 16:47:25] [e(0)] core: Module exploit/linux/ssh/ssh_login not found, and no loading errors found. If you're using a custom module refer to our wiki: https://docs.metasploit.com/docs/using-metasploit/intermediate/running-private-modules.html
+[03/10/2026 16:47:59] [e(0)] core: Failed to connect to the database: No database YAML file
+[03/10/2026 16:47:59] [e(0)] core: Module exploit/linux/local/dirty_sock not found, and no loading errors found. If you're using a custom module refer to our wiki: https://docs.metasploit.com/docs/using-metasploit/intermediate/running-private-modules.html
+[03/10/2026 16:50:17] [e(0)] core: Failed to connect to the database: No database YAML file
+[03/10/2026 16:50:17] [e(0)] core: Module exploit/linux/http/struts_dmi_rest_exec not found, and no loading errors found. If you're using a custom module refer to our wiki: https://docs.metasploit.com/docs/using-metasploit/intermediate/running-private-modules.html

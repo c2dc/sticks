@@ -1,0 +1,7 @@
+exit
+search type:exploit ray
+search ray_cve
+search type:exploit name:ray
+exit
+quit
+exit
