@@ -36,7 +36,7 @@ The repository includes:
 The environment uses multiple Docker containers connected through static networks.
 
 <p align="center">
-  <img src="docker/architecture.png" alt="Network Architecture" width="85%">
+  <img src="architecture.png" alt="Network Architecture" width="85%">
 </p>
 
 ---
