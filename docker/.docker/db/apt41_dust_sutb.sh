@@ -16,7 +16,7 @@ mysql -u root -pRootPassw0rd -e "INSERT INTO sensitive_data.credentials(username
 
 ## SSH
 apt-get update
-apt-get install -y openssh-server sshpass --force-confnew
+apt-get install -y -o Dpkg::Options::="--force-confnew" openssh-server sshpass
 mkdir -p /var/run/sshd
 echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config
 echo 'PasswordAuthentication yes' >> /etc/ssh/sshd_config

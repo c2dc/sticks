@@ -1,7 +1,7 @@
 ############### SHADOWRAY
 # Global
 apt-get update
-apt-get -y install mariadb-server
+apt-get -y install mariadb-server python3 python3-pip sshpass curl socat wget openssh-server
 
 sed -i 's/^bind-address\s*=.*/bind-address = 0.0.0.0/' /etc/mysql/mariadb.conf.d/50-server.cnf
 pgrep -x "mariadbd-safe" > /dev/null || mariadbd-safe &
