@@ -121,7 +121,7 @@
   },
   {
     "ability_id": "a8de43be-fcde-5302-9cfd-rothos",
-    "name": "END OF EMULATION",
+    "name": "END OF OUTER SPACE",
     "tactic": "impact",
     "technique_name": "System Shutdown",
     "technique_id": "T1529",

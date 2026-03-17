@@ -136,7 +136,7 @@
   },
   {
     "ability_id": "5f7f2aa0-c1b4-5567-8054-roth",
-    "name": "END OF EMULATION",
+    "name": "END OF C0010",
     "tactic": "impact",
     "technique_name": "System Shutdown",
     "technique_id": "T1529",

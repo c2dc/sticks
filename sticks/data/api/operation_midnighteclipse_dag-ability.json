@@ -256,7 +256,7 @@
   },
   {
     "ability_id": "a8de43be-fcde-5302-9cfd-roth",
-    "name": "END OF EMULATION",
+    "name": "END OF OPERATION MIDNIGHT ECLIPSE",
     "tactic": "impact",
     "technique_name": "System Shutdown",
     "technique_id": "T1529",

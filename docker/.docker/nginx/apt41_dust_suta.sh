@@ -36,7 +36,7 @@ echo 'DebianUser:DebianUser' | chpasswd
 
 # T1102 - Web Service
 pip install --break-system-packages flask requests
-cat << 'EOF' > /root/webservice.py
+cat << 'EOF' > /home/sugarush/webservice.py
 from flask import Flask, request, jsonify
 
 app = Flask(__name__)
@@ -66,7 +66,7 @@ def fetch(key):
 app.run(host="0.0.0.0", port=8080)
 EOF
 if ! ss -tuln | grep -q ":8080 "; then
-  su - sugarush -c "python3 /root/webservice.py &"
+  su - sugarush -c "python3 /home/sugarush/webservice.py &"
  else echo "Port 8080 already in use";
 fi
 
@@ -254,7 +254,7 @@ chmod +x /root/nc-listener.sh
 # Start listener in background
 
 if ! ss -tuln | grep -q ":4444 "; then
-  python3 /home/attacker/revshell.py &
+  /root/nc-listener.sh &
  else echo "Port 4444 already in use";
 fi
 

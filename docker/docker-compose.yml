@@ -52,9 +52,6 @@ services:
       - "8443:443"
     volumes:
       - ./.docker/nginx/var/www/html:/var/www/html
-      - ./.docker/nginx/conf.d:/etc/nginx/conf.d
-      - ./.docker/nginx/nginx.conf:/etc/nginx/nginx.conf
-      - ./.docker/nginx/ssl:/etc/nginx/ssl
     networks:
       nginx-db-network:
         ipv4_address: 172.22.0.10  # Fixed IP for DB communication
