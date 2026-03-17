@@ -137,7 +137,9 @@ cd docker
 docker-compose up --build
 ```
 
-Wait until all containers are built and running.
+> [!CAUTION]
+> 🚨 Ensure all containers are fully initialized before executing any campaign.  
+> Premature execution may lead to incomplete setup and unreliable technique results.
 
 ---
 
