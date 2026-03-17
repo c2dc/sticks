@@ -93,6 +93,3 @@ else
     echo "Port 8018 already in use"
 fi
 
-
-
-sleep infinity

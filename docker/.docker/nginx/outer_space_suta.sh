@@ -136,5 +136,4 @@ chmod +x /srv/samba/share/fake_service.sh
 pgrep -x "smbd" > /dev/null || /usr/sbin/smbd --no-process-group --foreground &
 
 
-sleep infinity
 ################################

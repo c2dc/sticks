@@ -45,5 +45,3 @@ cat > /var/www/html/index.html << 'EOF'
 <html><body><h1>Compromised Subdomain Host B</h1></body></html>
 EOF
 
-
-sleep infinity

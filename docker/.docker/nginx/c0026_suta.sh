@@ -118,4 +118,3 @@ fi
 echo "bad file" > /var/www/html/maliciousfile.sh
 
 
-sleep infinity

@@ -195,5 +195,4 @@ fi
 apt-get -y install mailutils
 
 
-sleep infinity
 ################################

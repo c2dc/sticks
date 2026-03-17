@@ -252,5 +252,3 @@ mkdir -p /var/www/html/tools
 cat > /var/www/html/tools/tool.txt << 'EOF'
 This is a test tool file for upload simulation.
 EOF
-
-sleep infinity

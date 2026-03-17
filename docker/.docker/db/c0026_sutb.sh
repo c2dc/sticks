@@ -41,5 +41,3 @@ usermod -aG sudo attacker
 
 # T1030
 # none
-
-sleep infinity

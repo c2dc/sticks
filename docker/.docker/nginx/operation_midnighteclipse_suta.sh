@@ -129,5 +129,4 @@ EOF
 chown attacker:attacker /home/attacker/.aws/config
 
 
-sleep infinity
 ################################

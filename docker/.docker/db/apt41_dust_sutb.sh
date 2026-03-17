@@ -39,5 +39,3 @@ usermod -aG sudo attacker
 # T1105
 apt-get install -y python3 python3-pip
 echo "It's me on hostB" > /tmp/toolfile
-
-sleep infinity

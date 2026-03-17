@@ -179,5 +179,4 @@ if ! ss -tuln | grep -q ":4444 "; then
 fi
 
 
-sleep infinity
 ################################

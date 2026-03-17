@@ -40,6 +40,4 @@ usermod -aG sudo attacker
 
 apt-get -y dnsutils
 
-
-sleep infinity
 ################################

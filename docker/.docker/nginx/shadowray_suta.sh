@@ -66,5 +66,4 @@ fi
 echo 'print("hello")' | base64 > /tmp/encoded_payload.b64
 
 
-sleep infinity
 ################################

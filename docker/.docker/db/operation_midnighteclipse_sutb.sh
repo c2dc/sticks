@@ -39,7 +39,4 @@ mkdir -p /home/attacker
 echo 'attacker:Passw0rd' | chpasswd
 usermod -aG sudo attacker
 
-
-
-sleep infinity
 ################################
