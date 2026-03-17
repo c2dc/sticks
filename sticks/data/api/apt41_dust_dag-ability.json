@@ -346,7 +346,7 @@
   },
   {
     "ability_id": "8a2ddf73-3964-540d-a67c-roth",
-    "name": "END OF EMULATION",
+    "name": "END OF APT 41 DUST",
     "tactic": "impact",
     "technique_name": "System Shutdown",
     "technique_id": "T1529",

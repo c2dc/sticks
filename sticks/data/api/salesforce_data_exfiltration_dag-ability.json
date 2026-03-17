@@ -271,7 +271,7 @@
   },
   {
     "ability_id": "8660e027-d92c-5cb3-96d9-rothsales",
-    "name": "END OF EMULATION",
+    "name": "END OF SALESFORCE DATA EXFILTRATION",
     "tactic": "impact",
     "technique_name": "System Shutdown",
     "technique_id": "T1529",

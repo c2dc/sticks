@@ -91,7 +91,7 @@
   },
   {
     "ability_id": "260eff19-ecfa-5407-81a8-roth",
-    "name": "END OF EMULATION",
+    "name": "END OF C0026",
     "tactic": "impact",
     "technique_name": "System Shutdown",
     "technique_id": "T1529",

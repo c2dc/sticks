@@ -10,7 +10,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "nmap -sS -p 22,80,443 172.21.0.20 && sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@172.21.0.20 'nmap -sS -p 22,80,443 172.22.0.20'"
+        "command": "nmap -sS -p 22,80,443 172.21.0.20 && sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@172.21.0.20 'nmap -sS -p 22,80,443 172.22.0.20 2>&1'"
       }
     ]
   },
@@ -151,7 +151,7 @@
   },
   {
     "ability_id": "a6ff75c3-d8e0-5cbf-9ea3-roth",
-    "name": "END OF EMULATION",
+    "name": "END OF COSTARICTO",
     "tactic": "impact",
     "technique_name": "System Shutdown",
     "technique_id": "T1529",

