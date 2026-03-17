@@ -20,4 +20,9 @@ pgrep -x "nginx" > /dev/null || /usr/sbin/nginx &
 sed -i 's|/usr/share/nginx/html|/var/www/html|g' /etc/nginx/conf.d/default.conf
 service nginx restart
 
+if ! ss -tuln | grep -q ":8080 "; then
+  su - sugarush -c "python3 /home/sugarush/webservice.py &"
+ else echo "Port 8080 already in use";
+fi
+
 sleep infinity
