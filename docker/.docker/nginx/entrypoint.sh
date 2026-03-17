@@ -3,6 +3,8 @@
 echo "[*] Starting services..."
 pgrep -x "php-fpm8.4" > /dev/null || php-fpm8.4 &
 pgrep -x "nginx" > /dev/null || /usr/sbin/nginx &
+sed -i 's|/usr/share/nginx/html|/var/www/html|g' /etc/nginx/conf.d/default.conf
+service nginx restart
 echo "[*] Initializing campaign environments..."
 
 /apt41_dust_suta.sh 

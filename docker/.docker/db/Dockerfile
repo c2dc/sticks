@@ -1,7 +1,7 @@
 FROM nginx:trixie
 
 RUN apt-get update && \
-    apt-get install -y iputils-ping procps lsof net-tools vim iproute2 php-fpm php-mysql php-curl php-gd php-mbstring php-xml php-zip git wget curl  net-tools bind9-dnsutils
+    apt-get install -y iputils-ping procps lsof net-tools vim iproute2 php-fpm php-mysql php-curl php-gd php-mbstring php-xml php-zip git wget curl net-tools bind9-dnsutils
 
 # Copy campaign setup scripts
 COPY apt41_dust_sutb.sh /apt41_dust_sutb.sh
