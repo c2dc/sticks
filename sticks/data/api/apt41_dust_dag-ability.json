@@ -145,7 +145,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "curl http://172.21.0.20/tmp/collected/ -s --fail --retry 3"
+        "command": "curl http://172.21.0.20/crm.php -s --fail --retry 3"
       }
     ]
   },
