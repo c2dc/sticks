@@ -25,4 +25,15 @@ if ! ss -tuln | grep -q ":8080 "; then
  else echo "Port 8080 already in use";
 fi
 
+cat > /var/www/html/tool.bin << 'EOF'
+This is a binary file placeholder
+EOF
+
+cat > /var/www/html/tool.sh << 'EOF'
+#!/bin/bash
+echo "This is a shell script"
+EOF
+
+chmod +x /var/www/html/tool.sh
+
 sleep infinity

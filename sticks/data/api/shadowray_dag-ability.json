@@ -115,7 +115,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "sshpass -p 'Passw0rd' ssh attacker@172.21.0.20 \"ifconfig -a; ip route; arp -a; hostname -I; nslookup $(hostname)\" && sshpass -p 'Passw0rd' ssh attacker@172.21.0.20 \"sshpass -p 'Passw0rd' ssh attacker@172.22.0.20 'ifconfig -a; ip route; arp -a; hostname -I; nslookup \\$(hostname)'\""
+        "command":  "sshpass -p 'Passw0rd' ssh attacker@172.21.0.20 'ip -brief a; ip r; ip neigh; hostname -I; sshpass -p \"Passw0rd\" ssh attacker@172.22.0.20 \"ip -brief a; ip r; ip neigh; hostname -I\"'"
       }
     ]
   },

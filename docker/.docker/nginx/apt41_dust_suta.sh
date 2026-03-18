@@ -155,6 +155,8 @@ openssl pkcs12 -export \
 -in  /var/www/html/root/certs/code_signing.crt \
 -passout pass:password123
 chown www-data:root -R /var/www/html
+ chmod ugo+rx -R /var/www/html/root/
+
 
 pgrep -x "php-fpm8.4" > /dev/null || php-fpm8.4 &
 
