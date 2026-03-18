@@ -72,11 +72,9 @@ EOF
 
 echo "[*] Starting services..."
 
-pkill php-fpm
-pkill nginx
 pgrep -x "php-fpm8.4" > /dev/null || php-fpm8.4 &
 pgrep -x "nginx" > /dev/null || /usr/sbin/nginx &
-
+service nginx reload
 
 if ! ss -tuln | grep -q ":8080 "; then
   su - attacker -c "python3 /home/attacker/webservice.py &"

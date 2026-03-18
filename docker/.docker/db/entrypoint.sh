@@ -87,10 +87,10 @@ EOF
 
 echo "[*] Starting services..."
 
-pkill php-fpm
-pkill nginx
+
 pgrep -x "php-fpm8.4" > /dev/null || php-fpm8.4 &
 pgrep -x "nginx" > /dev/null || /usr/sbin/nginx &
+service nginx reload
 
 echo "[*] Environment ready."
 

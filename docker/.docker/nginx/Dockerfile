@@ -1,7 +1,7 @@
 FROM nginx:trixie
 
 RUN apt-get update && \
-    apt-get install -y iputils-ping procps lsof net-tools vim iproute2 php-fpm php-mysql php-curl php-gd php-mbstring php-xml php-zip git wget curl  && \
+    apt-get install -y iputils-ping procps lsof net-tools vim iproute2 nginx php-fpm php-mysql php-curl php-gd php-mbstring php-xml php-zip git wget curl  && \
     rm -rf /var/lib/apt/lists/*
 
 # Copy campaign setup scripts
