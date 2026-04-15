@@ -1,24 +1,11 @@
-# The Procedural Semantics Gap in Structured CTI  
-### A Measurement-Driven STIX Analysis for APT Emulation
-
-📄 Paper: https://arxiv.org/abs/2512.12078
-
----
-
-## Authors
-
-- **Ágney Lopes Roth Ferraz**  
-- **Sidnei Barbieri**  
-- **Murray Evangelista de Souza**  
-- **Lourenço A. Pereira Júnior**
-
----
+# The Procedural Semantics Gap in ATT\&CK-in-STIX: 
+### Measuring Procedural Sufficiency for APT Emulation
 
 ## Overview
 
 This repository accompanies the paper:
 
-> **The Procedural Semantics Gap in Structured CTI: A Measurement-Driven STIX Analysis for APT Emulation**
+> **The Procedural Semantics Gap in ATT\&CK-in-STIX: Measuring Procedural Sufficiency for APT Emulation**
 
 It provides an experimental environment to evaluate **procedural completeness of STIX-based threat intelligence** and its ability to reproduce **APT campaign behaviors** in a controlled laboratory environment.
 
@@ -282,21 +269,6 @@ The environment includes multiple hosts representing a simplified enterprise arc
 Campaign execution is then orchestrated using an adversary emulation platform, allowing the system to observe whether the CTI-derived behaviors can be successfully reproduced.
 
 This stage enables **empirical evaluation of procedural completeness in structured CTI datasets**.
-
-# Citation
-
-If you use this repository in your research, please cite:
-
-```bibtex
-@article{ferraz2025procedural,
-  title={The Procedural Semantics Gap in Structured CTI: A Measurement-Driven STIX Analysis for APT Emulation},
-  author={Ferraz, Ágney Lopes Roth and Barbieri, Sidnei and de Souza, Murray Evangelista and Pereira Júnior, Lourenço A.},
-  year={2025},
-  journal={arXiv preprint arXiv:2512.12078}
-}
-```
-
----
 
 # License
 GNU GPLv3.
