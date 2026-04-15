@@ -1,8 +1,0 @@
----
-metasploit_framework_version: 6.4.116
-ruby_description: ruby 3.3.8 (2025-04-09 revision b200bad6cd) [x86_64-linux-gnu]
-bundler_lockfile_hash: debb3a3fc81e804caf6caf537944281f
-bootsnap_config:
-  load_path_cache: true
-  compile_cache_iseq: false
-  compile_cache_yaml: false
