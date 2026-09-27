@@ -124,6 +124,97 @@ services:
     tty: true
     restart: unless-stopped
 
+  # ============================================================
+  # APPLICATION LAYER (Pipeline_UI) — NOT part of the attack lab
+  # ------------------------------------------------------------
+  # frontend, backend and banco live on the application-layer bridge
+  # network `app-network` ONLY. They MUST NOT join the internal attack
+  # networks (caldera-kali-network / kali-nginx-network / nginx-db-network,
+  # all `internal: true`). The backend reaches Caldera exclusively via the
+  # host (localhost:8888 -> host.docker.internal:8888) and reads the Docker
+  # Engine API (socket, read-only) purely to inspect container isolation.
+  # ============================================================
+
+  # BANCO - Application database (PostgreSQL) for the Pipeline_UI
+  # Production/portability target. Local dev can still use SQLite.
+  banco:
+    image: postgres:16-alpine
+    container_name: banco
+    hostname: banco
+    environment:
+      POSTGRES_DB: pipeline_ui
+      POSTGRES_USER: pipeline_ui
+      POSTGRES_PASSWORD: pipeline_ui
+    volumes:
+      - banco-data:/var/lib/postgresql/data
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pipeline_ui -d pipeline_ui"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # BACKEND - FastAPI service that orchestrates the pipeline and applies
+  # containment checks. Talks to Caldera ONLY via localhost:8888 and reads the
+  # Docker socket read-only for isolation inspection.
+  backend:
+    build:
+      context: ../pipeline_ui/backend
+      dockerfile: Dockerfile
+    container_name: pipeline-ui-backend
+    hostname: pipeline-ui-backend
+    working_dir: /repo/pipeline_ui/backend
+    command:
+      - uvicorn
+      - app.main:app
+      - --host
+      - "0.0.0.0"
+      - --port
+      - "8000"
+    environment:
+      # Point the backend at the `banco` PostgreSQL service when run via compose.
+      PIPELINE_UI_DATABASE_URL: postgresql+psycopg://pipeline_ui:pipeline_ui@banco:5432/pipeline_ui
+      PIPELINE_UI_ENVIRONMENT: development
+    ports:
+      - "8010:8000"  # host 8010 -> container 8000 (8000 is taken by nginx)
+    volumes:
+      # Mount the repo root read-only so app/core/sticks_config.py can resolve
+      # <repo>/sticks/config/config.py via parents[4] at runtime.
+      - ..:/repo:ro
+      # Docker Engine API, READ-ONLY, for isolation inspection only.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    extra_hosts:
+      # Let `localhost:8888` semantics resolve to the host running Caldera's
+      # published port. The backend uses host.docker.internal:8888.
+      - "host.docker.internal:host-gateway"
+    networks:
+      - app-network
+    depends_on:
+      banco:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # FRONTEND - React + TypeScript SPA (Vite). Application layer only.
+  frontend:
+    build:
+      context: ../pipeline_ui/frontend
+      dockerfile: Dockerfile
+    container_name: pipeline-ui-frontend
+    hostname: pipeline-ui-frontend
+    environment:
+      # Browser reaches the backend via the host-published port (8010).
+      VITE_API_BASE_URL: http://localhost:8010/api
+      VITE_WS_BASE_URL: ws://localhost:8010
+    ports:
+      - "5173:4173"  # host 5173 -> container 4173 (vite preview)
+    networks:
+      - app-network
+    depends_on:
+      - backend
+    restart: unless-stopped
+
 
 # NETWORK CONFIGURATION
 # hierarquical configuration: localhost -> caldera -> kali -> nginx -> db
@@ -132,6 +223,12 @@ networks:
   # 0. Local Network
   local-network:
     driver: bridge  # Default Docker bridge (external reachable if ports exposed)
+
+  # APPLICATION LAYER: frontend <-> backend <-> banco ONLY.
+  # NOT internal, and separate from the three attack networks. The application
+  # services never join caldera-kali/kali-nginx/nginx-db networks.
+  app-network:
+    driver: bridge
 
   # 1. PRIVATE: Caldera ↔ Kali ONLY
   caldera-kali-network:
@@ -159,3 +256,8 @@ networks:
         - subnet: 172.22.0.0/24  # Custom subnet
           gateway: 172.22.0.1    # Network gateway
 
+
+# VOLUMES
+# Named volume for the application-layer PostgreSQL (banco) service.
+volumes:
+  banco-data:
