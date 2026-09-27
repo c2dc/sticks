@@ -1,0 +1,19 @@
+Alembic migrations for the Pipeline_UI backend.
+
+The database URL is resolved at runtime from application settings (env var
+PIPELINE_UI_DATABASE_URL, defaulting to local SQLite). PostgreSQL and SQLite
+both work without code changes.
+
+Common commands (run from pipeline_ui/backend, PowerShell-friendly):
+
+    # apply all migrations
+    alembic upgrade head
+
+    # show current revision
+    alembic current
+
+    # autogenerate a new migration once domain models exist (task 2.x)
+    alembic revision --autogenerate -m "add domain models"
+
+target_metadata is Base.metadata (app.db.base). Import your models so their
+tables register on that metadata before autogenerating.
