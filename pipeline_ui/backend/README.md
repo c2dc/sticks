@@ -43,3 +43,18 @@ forward-compatible com PostgreSQL via variável de ambiente.
 
 Nenhuma Caldera real ou rede Docker de ataque é usada em desenvolvimento;
 tudo usa mocks/fixtures.
+
+## Testes
+
+```powershell
+# a partir de pipeline_ui/backend, com o venv ativo
+pytest
+```
+
+A suíte usa apenas mocks/fixtures e não toca em Caldera nem em rede Docker de
+ataque. O teste de integração ponta a ponta com o **ambiente REAL**
+(`tests/test_e2e_real_lab.py`, Tarefa 15.3) é **pulado por padrão** — ele fica
+sob o marcador `lab` (desmarcado via `-m "not lab"` no `pyproject.toml`) e sob
+`skipif(PIPELINE_UI_LAB != "1")`, então nunca roda em dev/CI. Para rodá-lo na
+**máquina de laboratório** (Caldera real + compose endurecido, contenção
+satisfeita), veja [`LAB.md`](./LAB.md).

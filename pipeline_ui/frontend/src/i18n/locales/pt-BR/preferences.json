@@ -1,1 +1,21 @@
-{}
+{
+  "title": "Preferências",
+  "theme": {
+    "label": "Tema",
+    "light": "Modo Claro",
+    "lightHint": "Tema corporativo com fundo claro.",
+    "dark": "Modo Escuro",
+    "darkHint": "Tema de cultura hacker com fundo escuro."
+  },
+  "palette": {
+    "label": "Paleta de times",
+    "blue": "Blue team — contexto defensivo",
+    "red": "Red team — contexto ofensivo",
+    "purple": "Purple team — contexto combinado"
+  },
+  "language": {
+    "label": "Idioma",
+    "ptBR": "Português (pt-BR)",
+    "en": "English"
+  }
+}

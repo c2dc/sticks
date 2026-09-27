@@ -37,4 +37,11 @@ include = ["app*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
-addopts = "-ra"
+# ``-m "not lab"`` deselects the lab-only end-to-end test (task 15.3) by
+# default, so the full suite stays green in dev/CI without a real Caldera +
+# hardened Docker environment. Run the lab test explicitly on the lab machine
+# with ``PIPELINE_UI_LAB=1`` and ``pytest -m lab`` (see LAB.md).
+addopts = "-ra -m \"not lab\""
+markers = [
+    "lab: end-to-end test requiring the REAL lab Caldera + hardened Docker environment (task 15.3); deselected by default and additionally guarded by the PIPELINE_UI_LAB env var",
+]

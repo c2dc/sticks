@@ -207,7 +207,7 @@ SAVE_FAILED_MESSAGE = (
 
 def _utcnow() -> dt.datetime:
     """Naive UTC timestamp (portable across SQLite dev / PostgreSQL prod)."""
-    return dt.datetime.utcnow()
+    return dt.datetime.now(dt.UTC).replace(tzinfo=None)
 
 
 class SessionStateService:

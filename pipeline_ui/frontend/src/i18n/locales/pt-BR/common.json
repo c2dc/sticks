@@ -1,1 +1,17 @@
-{}
+{
+  "app": {
+    "title": "Pipeline_UI",
+    "subtitle": "STIX → tradução curada → emulação de adversário"
+  },
+  "actions": {
+    "close": "Fechar",
+    "cancel": "Cancelar",
+    "confirm": "Confirmar",
+    "back": "Voltar",
+    "retry": "Tentar novamente"
+  },
+  "status": {
+    "loading": "Carregando…",
+    "error": "Ocorreu um erro."
+  }
+}

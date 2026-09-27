@@ -1,1 +1,167 @@
-{}
+{
+  "overview": {
+    "title": "Visão do Pipeline",
+    "aggregate": {
+      "label": "Progresso de replicação",
+      "summary": "{{concluidos}} de {{total}} casos concluídos",
+      "empty": "Nenhum caso concluído ainda"
+    },
+    "selectCasePrompt": "Selecione um caso para acompanhar seus estágios."
+  },
+  "stages": {
+    "1": {
+      "name": "Estágio 1 — Modelagem Estrutural",
+      "short": "Estágio 1"
+    },
+    "2": {
+      "name": "Estágio 2 — Tradução Curada",
+      "short": "Estágio 2"
+    },
+    "3": {
+      "name": "Estágio 3 — Emulação de Adversário",
+      "short": "Estágio 3"
+    }
+  },
+  "sections": {
+    "entrada": "Entrada",
+    "processamento": "Processamento",
+    "saida": "Saída",
+    "placeholder": "Detalhes disponíveis na tela dedicada do estágio."
+  },
+  "state": {
+    "nao_iniciado": "Não iniciado",
+    "em_andamento": "Em andamento",
+    "concluido": "Concluído",
+    "erro": "Erro",
+    "bloqueado": "Bloqueado"
+  },
+  "progress": {
+    "label": "Progresso",
+    "value": "{{value}}%"
+  },
+  "actions": {
+    "select": "Selecionar estágio",
+    "selected": "Estágio selecionado",
+    "openStage": "Abrir {{stage}}"
+  },
+  "error": {
+    "unknown": "Ocorreu um erro neste estágio.",
+    "loadCases": "Não foi possível carregar os casos."
+  },
+  "stageView": {
+    "loading": "Carregando os dados do estágio…",
+    "loadError": "Não foi possível carregar os dados deste estágio.",
+    "back": "Voltar à visão geral"
+  },
+  "stage1": {
+    "entrada": {
+      "stix": "Referência STIX",
+      "dag": "Arquivo DAG"
+    },
+    "processamento": {
+      "description": "Modelagem estrutural automatizada do dataset STIX.",
+      "failedStep": "Etapa da falha: {{step}}"
+    },
+    "saida": {
+      "empty": "Nenhum elemento estrutural foi extraído para este caso.",
+      "techniques_one": "{{count}} técnica ATT&CK",
+      "techniques_other": "{{count}} técnicas ATT&CK",
+      "noTechniques": "Nenhuma técnica extraída.",
+      "relationships": "Relacionamentos",
+      "indicators": "Indicadores",
+      "infrastructure": "Infraestrutura",
+      "malware": "Malware",
+      "metadata": "Metadados de campanha"
+    }
+  },
+  "stage2": {
+    "entrada": {
+      "noInput": "O Estágio 1 não produziu técnicas; não há Entrada para o Estágio 2."
+    },
+    "processamento": {
+      "description": "Tradução de comportamentos abstratos em passos executáveis."
+    },
+    "translationSource": {
+      "label": "Origem da tradução",
+      "curadoria_humana": "Curadoria humana"
+    },
+    "saida": {
+      "suppressed": "Sem Entrada do Estágio 1; a Saída do Estágio 2 foi suprimida.",
+      "noAbilities": "Este caso não possui Abilities curadas.",
+      "noAdversary": "Não há agrupamento de Abilities em Adversary para este caso.",
+      "abilities_one": "{{count}} Ability curada",
+      "abilities_other": "{{count}} Abilities curadas",
+      "tactic": "Tática",
+      "ordering": "Ordem e dependências",
+      "adversary": "Adversary",
+      "adversaryOrdering_one": "{{count}} Ability no agrupamento",
+      "adversaryOrdering_other": "{{count}} Abilities no agrupamento"
+    }
+  },
+  "stage3": {
+    "entrada": {
+      "adversary": "Adversary",
+      "noAdversary": "Este caso não possui Adversary para emular.",
+      "abilities_one": "{{count}} Ability",
+      "abilities_other": "{{count}} Abilities",
+      "requestEmulation": "Solicitar emulação"
+    },
+    "processamento": {
+      "noOperation": "Nenhuma Operação em andamento para este caso.",
+      "pending": "Aguardando o status das Abilities…"
+    },
+    "status": {
+      "pendente": "Pendente",
+      "em_execucao": "Em execução",
+      "sucesso": "Sucesso",
+      "falha": "Falha"
+    },
+    "saida": {
+      "noResults": "Nenhum resultado de Operação ainda.",
+      "success": "{{count}} com sucesso",
+      "failure": "{{count}} com falha"
+    }
+  },
+  "emulation": {
+    "title": "Confirmar emulação de adversário",
+    "description": "Revise a lista completa dos comandos concretos e o container de destino de cada um antes de confirmar. Nada é executado até a confirmação explícita.",
+    "close": "Fechar",
+    "cancel": "Cancelar",
+    "confirm": "Confirmar execução",
+    "running": "Executando…",
+    "done": "Concluir",
+    "previewLoading": "Carregando os comandos que serão executados…",
+    "previewError": "Não foi possível carregar a prévia dos comandos.",
+    "noCommands": "Não há comandos concretos para emular neste caso.",
+    "targets": "Container de destino",
+    "destinations": "Destinos",
+    "localCommand": "Comando local (sem destino externo)",
+    "noTarget": "Sem container de destino definido",
+    "destinationInternal": "Destino interno (redes internas do laboratório)",
+    "destinationExternal": "Destino externo — a Operação será recusada",
+    "externalBadge": "Destino externo",
+    "externalWarning": "Um ou mais comandos apontam para um destino externo às redes internas. A execução será recusada pela contenção até que sejam corrigidos.",
+    "notStarted": "Nenhuma Operação foi iniciada.",
+    "startedBody": "Emulação iniciada.",
+    "error": {
+      "contencao": {
+        "title": "Contenção não satisfeita",
+        "body": "Um comando aponta para um destino externo às redes internas; a Operação foi recusada.",
+        "destination": "Destino externo: {{destino}}"
+      },
+      "isolamento": {
+        "title": "Isolamento não satisfeito",
+        "body": "Um container de destino não está isolado; a Operação foi abortada.",
+        "containers": "Containers que falharam na verificação"
+      },
+      "indisponivel": {
+        "title": "Ambiente Docker indisponível",
+        "body": "A Caldera não respondeu no endereço configurado dentro de 10 segundos. Nenhuma Operação foi iniciada."
+      },
+      "unknown": {
+        "title": "Falha na emulação",
+        "body": "Não foi possível iniciar a emulação."
+      }
+    }
+  }
+}

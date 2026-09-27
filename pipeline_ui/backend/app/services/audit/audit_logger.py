@@ -78,7 +78,7 @@ def _utcnow() -> dt.datetime:
     round-trip identically on SQLite (dev) and PostgreSQL (production) via the
     portable ``DateTime`` column on ``AuditLogEntry``.
     """
-    return dt.datetime.utcnow()
+    return dt.datetime.now(dt.UTC).replace(tzinfo=None)
 
 
 class AuditLogger:

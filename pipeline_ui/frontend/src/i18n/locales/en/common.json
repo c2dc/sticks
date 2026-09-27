@@ -1,1 +1,17 @@
-{}
+{
+  "app": {
+    "title": "Pipeline_UI",
+    "subtitle": "STIX → curated translation → adversary emulation"
+  },
+  "actions": {
+    "close": "Close",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "back": "Back",
+    "retry": "Retry"
+  },
+  "status": {
+    "loading": "Loading…",
+    "error": "An error occurred."
+  }
+}

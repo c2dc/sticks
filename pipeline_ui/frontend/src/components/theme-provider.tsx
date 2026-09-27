@@ -3,8 +3,16 @@ import * as React from "react"
 /**
  * Class-based theme provider driving Modo_Claro / Modo_Escuro (Req. 7).
  * Toggles the `dark` class on <html>, matching tailwind darkMode: "class".
- * Persistence via the backend (PUT /api/preferencias) is wired in task 13;
- * this scaffold keeps the default Modo_Claro (Req. 7.6).
+ *
+ * Switching is instant: the class is applied synchronously via a layout effect,
+ * so the whole tree re-styles from the CSS variables without reloading the page
+ * and without any intermediate loading state (Req. 7.2). The default theme is
+ * Modo_Claro (Req. 7.6).
+ *
+ * Persistence is delegated to the caller through `onThemeChange`: whenever the
+ * theme changes as a result of a user action, the provider invokes it so the
+ * caller can persist via `PUT /api/preferencias` (Req. 7.4). The `theme` prop
+ * lets the caller restore the last persisted theme on open (Req. 7.5).
  */
 
 export type Theme = "claro" | "escuro"
@@ -20,24 +28,54 @@ const ThemeContext = React.createContext<ThemeContextValue | undefined>(undefine
 export function ThemeProvider({
   children,
   defaultTheme = "claro",
+  theme: controlledTheme,
+  onThemeChange,
 }: {
   children: React.ReactNode
   defaultTheme?: Theme
+  /**
+   * Restored theme to apply (e.g. from persisted preferences). When provided,
+   * it seeds and keeps the internal theme in sync (Req. 7.5).
+   */
+  theme?: Theme
+  /** Called when the user changes the theme, so the caller can persist it. */
+  onThemeChange?: (theme: Theme) => void
 }) {
-  const [theme, setTheme] = React.useState<Theme>(defaultTheme)
+  const [theme, setThemeState] = React.useState<Theme>(controlledTheme ?? defaultTheme)
 
+  // Keep the internal theme in sync with a restored/controlled value so the
+  // last persisted theme is applied on open without a user action (Req. 7.5).
   React.useEffect(() => {
-    const root = document.documentElement
-    root.classList.toggle("dark", theme === "escuro")
+    if (controlledTheme && controlledTheme !== theme) {
+      setThemeState(controlledTheme)
+    }
+    // Only react to changes of the controlled value itself.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [controlledTheme])
+
+  // Apply the theme synchronously before paint so the switch is instant and has
+  // no intermediate loading state (Req. 7.2).
+  React.useLayoutEffect(() => {
+    document.documentElement.classList.toggle("dark", theme === "escuro")
   }, [theme])
+
+  const setTheme = React.useCallback(
+    (next: Theme) => {
+      setThemeState((current) => {
+        if (next !== current) onThemeChange?.(next)
+        return next
+      })
+    },
+    [onThemeChange],
+  )
 
   const value = React.useMemo<ThemeContextValue>(
     () => ({
       theme,
       setTheme,
-      toggleTheme: () => setTheme((t) => (t === "claro" ? "escuro" : "claro")),
+      toggleTheme: () => setTheme(theme === "claro" ? "escuro" : "claro"),
     }),
-    [theme],
+    [theme, setTheme],
   )
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>

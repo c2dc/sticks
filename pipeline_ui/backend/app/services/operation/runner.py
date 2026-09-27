@@ -104,7 +104,7 @@ IsolationVerifier = Callable[[list[str], Optional[ContainerInspector]], Isolatio
 
 def _utcnow() -> dt.datetime:
     """Naive UTC timestamp, consistent with :class:`AuditLogger` and the models."""
-    return dt.datetime.utcnow()
+    return dt.datetime.now(dt.UTC).replace(tzinfo=None)
 
 
 class RunOutcome(str, enum.Enum):

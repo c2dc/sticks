@@ -1,1 +1,167 @@
-{}
+{
+  "overview": {
+    "title": "Pipeline Overview",
+    "aggregate": {
+      "label": "Replication progress",
+      "summary": "{{concluidos}} of {{total}} cases completed",
+      "empty": "No cases completed yet"
+    },
+    "selectCasePrompt": "Select a case to track its stages."
+  },
+  "stages": {
+    "1": {
+      "name": "Stage 1 — Structural Modeling",
+      "short": "Stage 1"
+    },
+    "2": {
+      "name": "Stage 2 — Curated Translation",
+      "short": "Stage 2"
+    },
+    "3": {
+      "name": "Stage 3 — Adversary Emulation",
+      "short": "Stage 3"
+    }
+  },
+  "sections": {
+    "entrada": "Input",
+    "processamento": "Processing",
+    "saida": "Output",
+    "placeholder": "Details available on the dedicated stage screen."
+  },
+  "state": {
+    "nao_iniciado": "Not started",
+    "em_andamento": "In progress",
+    "concluido": "Completed",
+    "erro": "Error",
+    "bloqueado": "Blocked"
+  },
+  "progress": {
+    "label": "Progress",
+    "value": "{{value}}%"
+  },
+  "actions": {
+    "select": "Select stage",
+    "selected": "Stage selected",
+    "openStage": "Open {{stage}}"
+  },
+  "error": {
+    "unknown": "An error occurred in this stage.",
+    "loadCases": "Could not load the cases."
+  },
+  "stageView": {
+    "loading": "Loading stage data…",
+    "loadError": "Could not load this stage's data.",
+    "back": "Back to overview"
+  },
+  "stage1": {
+    "entrada": {
+      "stix": "STIX reference",
+      "dag": "DAG file"
+    },
+    "processamento": {
+      "description": "Automated structural modeling of the STIX dataset.",
+      "failedStep": "Failed step: {{step}}"
+    },
+    "saida": {
+      "empty": "No structural elements were extracted for this case.",
+      "techniques_one": "{{count}} ATT&CK technique",
+      "techniques_other": "{{count}} ATT&CK techniques",
+      "noTechniques": "No techniques extracted.",
+      "relationships": "Relationships",
+      "indicators": "Indicators",
+      "infrastructure": "Infrastructure",
+      "malware": "Malware",
+      "metadata": "Campaign metadata"
+    }
+  },
+  "stage2": {
+    "entrada": {
+      "noInput": "Stage 1 produced no techniques; there is no Stage 2 input."
+    },
+    "processamento": {
+      "description": "Translation of abstract behaviors into executable steps."
+    },
+    "translationSource": {
+      "label": "Translation source",
+      "curadoria_humana": "Human curation"
+    },
+    "saida": {
+      "suppressed": "No Stage 1 input; Stage 2 output is suppressed.",
+      "noAbilities": "This case has no curated Abilities.",
+      "noAdversary": "There is no Adversary grouping of Abilities for this case.",
+      "abilities_one": "{{count}} curated Ability",
+      "abilities_other": "{{count}} curated Abilities",
+      "tactic": "Tactic",
+      "ordering": "Order and dependencies",
+      "adversary": "Adversary",
+      "adversaryOrdering_one": "{{count}} Ability in the grouping",
+      "adversaryOrdering_other": "{{count}} Abilities in the grouping"
+    }
+  },
+  "stage3": {
+    "entrada": {
+      "adversary": "Adversary",
+      "noAdversary": "This case has no Adversary to emulate.",
+      "abilities_one": "{{count}} Ability",
+      "abilities_other": "{{count}} Abilities",
+      "requestEmulation": "Request emulation"
+    },
+    "processamento": {
+      "noOperation": "No Operation is running for this case.",
+      "pending": "Waiting for Ability status…"
+    },
+    "status": {
+      "pendente": "Pending",
+      "em_execucao": "Running",
+      "sucesso": "Success",
+      "falha": "Failure"
+    },
+    "saida": {
+      "noResults": "No Operation results yet.",
+      "success": "{{count}} succeeded",
+      "failure": "{{count}} failed"
+    }
+  },
+  "emulation": {
+    "title": "Confirm adversary emulation",
+    "description": "Review the complete list of concrete commands and each one's target container before confirming. Nothing runs until you explicitly confirm.",
+    "close": "Close",
+    "cancel": "Cancel",
+    "confirm": "Confirm execution",
+    "running": "Running…",
+    "done": "Done",
+    "previewLoading": "Loading the commands that would run…",
+    "previewError": "Could not load the command preview.",
+    "noCommands": "There are no concrete commands to emulate for this case.",
+    "targets": "Target container",
+    "destinations": "Destinations",
+    "localCommand": "Local command (no external destination)",
+    "noTarget": "No target container defined",
+    "destinationInternal": "Internal destination (lab internal networks)",
+    "destinationExternal": "External destination — the Operation will be refused",
+    "externalBadge": "External destination",
+    "externalWarning": "One or more commands target a destination outside the internal networks. Containment will refuse execution until they are fixed.",
+    "notStarted": "No Operation was started.",
+    "startedBody": "Emulation started.",
+    "error": {
+      "contencao": {
+        "title": "Containment not satisfied",
+        "body": "A command targets a destination outside the internal networks; the Operation was refused.",
+        "destination": "External destination: {{destino}}"
+      },
+      "isolamento": {
+        "title": "Isolation not satisfied",
+        "body": "A target container is not isolated; the Operation was aborted.",
+        "containers": "Containers that failed the check"
+      },
+      "indisponivel": {
+        "title": "Docker environment unavailable",
+        "body": "Caldera did not respond at the configured address within 10 seconds. No Operation was started."
+      },
+      "unknown": {
+        "title": "Emulation failed",
+        "body": "Could not start the emulation."
+      }
+    }
+  }
+}
