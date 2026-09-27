@@ -174,6 +174,17 @@ O `ContainmentValidator` valida contra a seguinte configuração-alvo recomendad
 
 Esta é uma recomendação de endurecimento; o design não reescreve o compose nesta entrega, mas especifica as verificações e a meta.
 
+#### Decisão registrada — endurecimento via compose separado (Opção A)
+
+Decisão: o endurecimento da contenção será feito em um arquivo de compose dedicado (por exemplo `docker/docker-compose.hardened.yml`), **sem** modificar o `docker/docker-compose.yml` atual, para não quebrar o fluxo de desenvolvimento dos demais integrantes. O arquivo endurecido deve:
+
+- Remover `local-network` de `kali`, `nginx` e `db` (atacante e alvos), deixando-os apenas nas redes `internal: true` (172.20.0.0/24, 172.21.0.0/24, 172.22.0.0/24).
+- Remover as diretivas `dns: 8.8.8.8` desses containers.
+- Remover as portas expostas dos alvos (`db` 33006, `nginx` 8000/8443); manter exposta apenas `caldera:8888`, usada pelo Backend para falar com a API da Caldera.
+- Pré-satisfazer offline as dependências dos comandos curados que exigem egress (`apt-get install`, `pip install`, `git clone`, `wget`/`curl` externos) por meio de imagens/artefatos preparados previamente, já que a Operação será bloqueada se qualquer destino estiver fora das subnets internas.
+
+Contexto de aplicação: o `docker-compose.hardened.yml` só precisa existir e ser usado na **máquina de laboratório do usuário**, onde a emulação real ocorre (Tarefas 6.4 e 15.3). Durante o desenvolvimento, todo o fluxo usa mocks/fixtures e o `ContainmentValidator` continua se recusando a executar enquanto a contenção não estiver satisfeita. A criação concreta do arquivo endurecido não é uma tarefa de codificação desta entrega; é uma referência operacional para o laboratório.
+
 ### Endpoints REST (contratos em pt-BR)
 
 - `GET /api/casos` — lista os 8 casos curados com estado por estágio e progresso agregado. Erros de leitura de um caso são reportados por caso sem derrubar os demais.
