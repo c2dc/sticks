@@ -86,7 +86,7 @@ fi
 apt-get install -y socat
 cat > /root/ipc_server.sh << 'EOF'
 #!/bin/sh
-while true; do socat UNIX-LISTEN:/tmp/mysocket,fork EXEC:/bin/sh; done &
+while true; do socat UNIX-LISTEN:/tmp/mysocket,fork EXEC:/bin/sh; sleep 1; done &
 EOF
 chmod +x /root/ipc_server.sh
 /root/ipc_server.sh &

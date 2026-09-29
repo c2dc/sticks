@@ -130,7 +130,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "sshpass -p 'Passw0rd' ssh attacker@172.21.0.20 wget https://nmap.org/dist/nmap-7.98.tgz"
+        "command": "sshpass -p 'Passw0rd' ssh attacker@172.21.0.20 wget http://172.21.0.20/dist/nmap-7.98.tgz"
       }
     ]
   },

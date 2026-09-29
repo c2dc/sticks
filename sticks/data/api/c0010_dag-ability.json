@@ -10,7 +10,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "sshpass -p RootPass123 ssh -o StrictHostKeyChecking=no root@172.21.0.20 'curl -s --resolve oldsub.legitshipping.co.il:80:172.22.0.20 http://oldsub.legitshipping.co.il/; nc -vz 172.21.0.20 53; dig @172.21.0.20 oldsub.legitshipping.co.il; curl -s --header 'Host: oldsub.legitshipping.co.il' http://172.22.0.20/'"
+        "command": "sshpass -p RootPass123 ssh -o StrictHostKeyChecking=no root@172.21.0.20 'curl -s --header 'Host: oldsub.legitshipping.co.il' http://172.22.0.20/; nc -vz 172.21.0.20 53; dig @172.21.0.20 oldsub.legitshipping.co.il; curl -s --header 'Host: oldsub.legitshipping.co.il' http://172.22.0.20/'"
       }
     ]
   },

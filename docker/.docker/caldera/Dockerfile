@@ -92,9 +92,10 @@ RUN if [ ! -d "/usr/src/app/plugins/emu/data/adversary-emulation-plans" ] && [ "
             /usr/src/app/plugins/emu/data/adversary-emulation-plans;                  \
 fi
 
-# Download emu payloads
-# emu doesn't seem capable of running this itself - always download
-RUN cd /usr/src/app/plugins/emu; ./download_payloads.sh
+# Download emu payloads (best-effort / optional)
+# These Windows emulation payloads are not used by the contained Linux cases,
+# so this step must never fail the build even if downloads are unavailable.
+RUN cd /usr/src/app/plugins/emu && sh ./download_payloads.sh || echo "emu payload download step reported issues; continuing (payloads are optional for the contained Linux cases). See payloads/DOWNLOAD_REPORT.txt"
 
 # The commands above (git clone) will generate *huge* .git folders - remove them
 RUN (find . -type d -name ".git") | xargs rm -rf

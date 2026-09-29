@@ -13,10 +13,12 @@ COPY outer_space_sutb.sh /outer_space_sutb.sh
 COPY salesforce_data_exfiltration_sutb.sh /salesforce_data_exfiltration_sutb.sh
 COPY shadowray_sutb.sh /shadowray_sutb.sh
 
-RUN chmod +x /*_sutb.sh
+# Normalize line endings (strip CRLF from Windows-cloned repo) and make executable
+RUN sed -i 's/\r$//' /*_sutb.sh && chmod +x /*_sutb.sh
 
 # Copy entrypoint
 COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+# Normalize line endings (strip CRLF from Windows-cloned repo) and make executable
+RUN sed -i 's/\r$//' /entrypoint.sh && chmod +x /entrypoint.sh
 
 CMD ["/entrypoint.sh"]

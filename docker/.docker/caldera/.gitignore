@@ -18,6 +18,8 @@ calderaenv/
 .env
 conf/*.yml
 !conf/default.yml
+!conf/agents.yml
+!conf/payloads.yml
 data/object_store
 data/fact_store
 data/results/*

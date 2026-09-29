@@ -1,16 +1,36 @@
 # ============================================================
-# STATIC NETWORK CONFIGURATION
+# STATIC NETWORK CONFIGURATION  (CONTAINED-BY-DEFAULT)
 # ============================================================
-# NETWORK                SUBNET            HOST        IP
+# The attack/target lab (caldera, kali, nginx, db) lives ONLY on
+# `internal: true` networks. Those networks have no gateway to the host
+# or the internet, so the adversary emulation cannot reach the host or
+# escape to the outside world on ANY machine (including a work laptop).
+# `internal: true` affects RUNTIME only — `docker build` still uses
+# Docker's default build network, so the Dockerfiles build normally.
+#
+# ONLY published host port: caldera 8888 (Caldera UI + API at localhost:8888).
+# db / nginx / kali publish NO host ports. No external DNS on lab services.
+#
+# Caldera ALSO joins `caldera-mgmt-network` (a bridge, NOT internal). Docker
+# only publishes host ports when a container is on at least one non-internal
+# network, so this management bridge is what actually exposes 8888 to the host.
+# It carries only Caldera's control channel; kali/nginx/db remain internal-only
+# with no host or internet access.
+#
+# NETWORK                SUBNET            HOST        IP           (internal)
 # ------------------------------------------------------------
-# caldera-kali-network   172.20.0.0/24     caldera    172.20.0.10
-# caldera-kali-network   172.20.0.0/24     kali       172.20.0.20
+# caldera-kali-network   172.20.0.0/24     caldera    172.20.0.10   yes
+# caldera-kali-network   172.20.0.0/24     kali       172.20.0.20   yes
+# caldera-mgmt-network   (bridge, dynamic) caldera    (dynamic)     no
 #
-# kali-nginx-network     172.21.0.0/24     kali       172.21.0.10
-# kali-nginx-network     172.21.0.0/24     nginx      172.21.0.20
+# kali-nginx-network     172.21.0.0/24     kali       172.21.0.10   yes
+# kali-nginx-network     172.21.0.0/24     nginx      172.21.0.20   yes
 #
-# nginx-db-network       172.22.0.0/24     nginx      172.22.0.10
-# nginx-db-network       172.22.0.0/24     db         172.22.0.20
+# nginx-db-network       172.22.0.0/24     nginx      172.22.0.10   yes
+# nginx-db-network       172.22.0.0/24     db         172.22.0.20   yes
+#
+# APPLICATION LAYER (Pipeline_UI): frontend/backend/banco on `app-network`
+# (bridge) ONLY — unchanged, separate from the attack lab.
 # ============================================================
 
 services:
@@ -21,8 +41,6 @@ services:
     hostname: db
     #restart: always
     tty: true
-    ports:
-      - "33006:3306"  # External access for debugging ONLY - remove this line for production
     volumes:
       - ./.docker/db/dbdata:/var/lib/mysql
     environment:
@@ -32,10 +50,7 @@ services:
       MYSQL_PASSWORD: app
     networks:
       nginx-db-network:
-        ipv4_address: 172.22.0.20  # Fixed IP inside 172.22.0.0/24
-      local-network: {}  # Default bridge network (no fixed IP asigned)
-    dns:
-      - 8.8.8.8
+        ipv4_address: 172.22.0.20  # Fixed IP inside 172.22.0.0/24 (internal-only)
     healthcheck:
       test: ["CMD", "true"]
       interval: 30s
@@ -47,9 +62,6 @@ services:
     build: .docker/nginx
     container_name: nginx
     hostname: nginx
-    ports:
-      - "8000:80"
-      - "8443:443"
     volumes:
       - ./.docker/nginx/var/www/html:/var/www/html
     networks:
@@ -57,9 +69,6 @@ services:
         ipv4_address: 172.22.0.10  # Fixed IP for DB communication
       kali-nginx-network:
         ipv4_address: 172.21.0.20  # Fixed IP for Kali ↔ Nginx communication
-      local-network: {}  # Default bridge network (no fixed IP asigned)
-    dns:
-      - 8.8.8.8
     depends_on:
       db:
         condition: service_healthy
@@ -69,12 +78,11 @@ services:
   caldera:
     build: .docker/caldera
     container_name: caldera
+    # NOTE: no --build — the magma UI is already compiled into the image (ui-build stage). Running the UI build at runtime fails (ENOTEMPTY) due to the source bind-mount.
     entrypoint:
       - python3
       - server.py
-      - --build
       - --insecure
-      - --fresh
     ports:
       - "8888:8888"
     volumes:
@@ -84,8 +92,8 @@ services:
       - CALDERA_SSL=false
     networks:
       caldera-kali-network:
-        ipv4_address: 172.20.0.10  # Fixed IP inside Caldera-Kali network
-      local-network: {}  # Default bridge network (no fixed IP asigned)
+        ipv4_address: 172.20.0.10  # Fixed IP inside Caldera-Kali network (attack plane)
+      caldera-mgmt-network: {}     # Management plane: lets 8888 publish to the host
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "true"]
@@ -104,22 +112,17 @@ services:
       - ./kali-data:/root
     networks:
       caldera-kali-network:
-        ipv4_address: 172.20.0.20  # Fixed IP for communication with Caldera
+        ipv4_address: 172.20.0.20  # Fixed IP for communication with Caldera (internal-only)
       kali-nginx-network:
-        ipv4_address: 172.21.0.10  # Fixed IP for communication with Nginx
-      local-network: {}  # Default bridge network (no fixed IP asigned)
-    dns:
-      - 8.8.8.8
-    privileged: true
+        ipv4_address: 172.21.0.10  # Fixed IP for communication with Nginx (internal-only)
+    # Minimal capabilities for contained emulation: NET_RAW lets nmap/ping use
+    # raw sockets. NET_ADMIN/SYS_ADMIN and privileged mode removed — not needed
+    # for scanning the target inside the internal networks, and dropping them
+    # shrinks the blast radius if the attacker container is compromised.
     cap_add:
-      - NET_ADMIN
-      - SYS_ADMIN
       - NET_RAW
     sysctls:
       - net.ipv6.conf.all.disable_ipv6=0
-    security_opt:
-      - seccomp:unconfined
-      - apparmor:unconfined
     stdin_open: true
     tty: true
     restart: unless-stopped
@@ -220,14 +223,18 @@ services:
 # hierarquical configuration: localhost -> caldera -> kali -> nginx -> db
 
 networks:
-  # 0. Local Network
-  local-network:
-    driver: bridge  # Default Docker bridge (external reachable if ports exposed)
-
   # APPLICATION LAYER: frontend <-> backend <-> banco ONLY.
   # NOT internal, and separate from the three attack networks. The application
   # services never join caldera-kali/kali-nginx/nginx-db networks.
   app-network:
+    driver: bridge
+
+  # C2 MANAGEMENT PLANE: publishes Caldera's UI/API (8888) to the host.
+  # This is NOT internal, so the host (browser + backend on Windows) can reach
+  # Caldera. It carries ONLY the Caldera control channel — the attacker (kali)
+  # and targets (nginx, db) stay on their internal-only networks with no host
+  # or internet access. Only Caldera joins this bridge.
+  caldera-mgmt-network:
     driver: bridge
 
   # 1. PRIVATE: Caldera ↔ Kali ONLY
