@@ -130,7 +130,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@172.21.0.20 'echo \"Test email from attacker\" | mail -s \"Test Subject\" shinycorp@tuta.com'"
+        "command": "sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@172.21.0.20 'echo \"Test email from attacker\" | mail -s \"Test Subject\" shinycorp@172.22.0.20'"
       }
     ]
   },
@@ -265,7 +265,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@172.21.0.20 'echo \"Click here and give me your password\" | mail -s \"Password Expired\" victim@labcdcfake.com'"
+        "command": "sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@172.21.0.20 'echo \"Click here and give me your password\" | mail -s \"Password Expired\" victim@172.22.0.20'"
       }
     ]
   },
