@@ -16,3 +16,7 @@ lerna-debug.log*
 .env
 .env.*
 !.env.example
+
+# Artefatos de compilação Python (não devem ser versionados).
+__pycache__/
+*.py[cod]
