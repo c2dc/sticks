@@ -118,6 +118,18 @@ class OperationResultView(BaseModel):
     resultados: list[AbilityResultView] = Field(default_factory=list)
 
 
+class PreferenciasView(BaseModel):
+    """Persisted theme/language preferences echoed in the session state.
+
+    Carries the persisted enum *values* (the pt-BR strings ``"claro"/"escuro"``
+    and ``"pt-BR"/"en"``) so the frontend can restore them on open (Req. 7.5,
+    8.5). Defined before :class:`SessionStateView` so it can reference it.
+    """
+
+    tema: str
+    idioma: str
+
+
 class SessionStateView(BaseModel):
     """The retrieved Estado_de_Sessão on open (Req. 9.4/9.5/9.6).
 
@@ -152,6 +164,11 @@ class SessionStateView(BaseModel):
     exists: bool = False
     restore_failed: bool = False
     mensagem: Optional[str] = None
+    # Persisted theme/language preferences (Req. 7.5, 8.5). ``None`` when nothing
+    # was persisted yet (first visit) so the frontend falls back to its defaults
+    # (Modo_Claro / pt-BR). Preferences are owned at the API layer; this field is
+    # populated by the estado-sessao endpoint, not by the service itself.
+    preferencias: Optional[PreferenciasView] = None
 
 
 class StageCompletionResult(BaseModel):

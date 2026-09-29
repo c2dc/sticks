@@ -1,0 +1,18 @@
+# Dependências instaladas na raiz para o comando único de dev (concurrently).
+# As dependências do frontend têm seu próprio .gitignore em pipeline_ui/frontend.
+node_modules/
+
+# Logs de execução do npm / ferramentas de dev.
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Artefatos e caches diversos.
+.DS_Store
+.env
+.env.*
+!.env.example

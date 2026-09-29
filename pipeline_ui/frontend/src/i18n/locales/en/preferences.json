@@ -7,15 +7,17 @@
     "dark": "Dark Mode",
     "darkHint": "Hacker-culture theme with a dark background."
   },
-  "palette": {
-    "label": "Team palette",
-    "blue": "Blue team — defensive context",
-    "red": "Red team — offensive context",
-    "purple": "Purple team — combined context"
-  },
   "language": {
     "label": "Language",
     "ptBR": "Português (pt-BR)",
     "en": "English"
+  },
+  "navbar": {
+    "toggleTheme": "Toggle theme",
+    "toThemeLight": "Switch to Light Mode",
+    "toThemeDark": "Switch to Dark Mode",
+    "toggleLanguage": "Toggle language",
+    "toLanguagePtBR": "Switch to Portuguese (Brazil)",
+    "toLanguageEn": "Switch to English (United States)"
   }
 }

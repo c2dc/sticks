@@ -62,6 +62,14 @@
 }
 
 @layer base {
+  /* Aumenta a escala tipográfica geral do site. Como o Tailwind usa unidades
+     `rem`, subir o `font-size` do `html` escala texto, espaçamentos e paddings
+     de forma proporcional — deixando a leitura mais confortável sem quebrar o
+     layout. Padrão do navegador é 16px; 18px dá um respiro perceptível. */
+  html {
+    font-size: 18px;
+  }
+
   * {
     @apply border-border;
   }
