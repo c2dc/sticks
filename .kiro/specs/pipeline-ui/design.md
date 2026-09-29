@@ -174,16 +174,22 @@ O `ContainmentValidator` valida contra a seguinte configuração-alvo recomendad
 
 Esta é uma recomendação de endurecimento; o design não reescreve o compose nesta entrega, mas especifica as verificações e a meta.
 
-#### Decisão registrada — endurecimento via compose separado (Opção A)
+#### Decisão registrada (revisada) — endurecimento no compose real, seguro por padrão
 
-Decisão: o endurecimento da contenção será feito em um arquivo de compose dedicado (por exemplo `docker/docker-compose.hardened.yml`), **sem** modificar o `docker/docker-compose.yml` atual, para não quebrar o fluxo de desenvolvimento dos demais integrantes. O arquivo endurecido deve:
+Decisão (revisada, substitui a Opção A anterior): o endurecimento da contenção é aplicado **diretamente no `docker/docker-compose.yml` real do projeto**, tornando o ambiente **seguro por padrão** para todos os integrantes, em vez de um arquivo de compose separado. Motivação: a Pipeline_UI será integrada à `main` e distribuída como ferramenta; um compose paralelo geraria divergência entre o que cada pessoa executa e a pergunta "qual arquivo eu uso?". Um único compose endurecido é mais simples de manter e de explicar no Pull Request.
 
-- Remover `local-network` de `kali`, `nginx` e `db` (atacante e alvos), deixando-os apenas nas redes `internal: true` (172.20.0.0/24, 172.21.0.0/24, 172.22.0.0/24).
-- Remover as diretivas `dns: 8.8.8.8` desses containers.
-- Remover as portas expostas dos alvos (`db` 33006, `nginx` 8000/8443); manter exposta apenas `caldera:8888`, usada pelo Backend para falar com a API da Caldera.
-- Pré-satisfazer offline as dependências dos comandos curados que exigem egress (`apt-get install`, `pip install`, `git clone`, `wget`/`curl` externos) por meio de imagens/artefatos preparados previamente, já que a Operação será bloqueada se qualquer destino estiver fora das subnets internas.
+O `docker/docker-compose.yml` endurecido deve:
 
-Contexto de aplicação: o `docker-compose.hardened.yml` só precisa existir e ser usado na **máquina de laboratório do usuário**, onde a emulação real ocorre (Tarefas 6.4 e 15.3). Durante o desenvolvimento, todo o fluxo usa mocks/fixtures e o `ContainmentValidator` continua se recusando a executar enquanto a contenção não estiver satisfeita. A criação concreta do arquivo endurecido não é uma tarefa de codificação desta entrega; é uma referência operacional para o laboratório.
+- Remover a `local-network` (bridge) de `kali`, `nginx` e `db` (atacante e alvos), deixando-os **exclusivamente** nas redes `internal: true` (172.20.0.0/24, 172.21.0.0/24, 172.22.0.0/24). A `caldera` mantém acesso de gestão apenas o necessário para expor a API em `localhost:8888`.
+- Remover as diretivas `dns` externas (`8.8.8.8`) desses containers.
+- Remover as portas expostas dos alvos (`db` 33006, `nginx` 8000/8443); manter exposta **apenas** `caldera:8888`, usada pelo Pesquisador (UI da Caldera) e pelo Backend (API da Caldera).
+- Remover `privileged: true` do `kali` e reduzir as capabilities ao mínimo necessário para a emulação contida.
+
+Build vs. runtime: `internal: true` afeta apenas o runtime, não o `docker build`. Os Dockerfiles (Kali baixa nmap/metasploit; Caldera baixa Go/Node/atomic) continuam podendo baixar dependências durante o build pela rede default do Docker; o endurecimento só remove o egress em tempo de execução.
+
+Casos curados adaptados para contenção total: os comandos curados que apontavam para destinos externos foram adaptados **in-place** nos arquivos dos casos (`sticks/data/api/*_dag-ability.json`) para alvos internos do laboratório, preservando a técnica ATT&CK. O antes/depois de cada comando adaptado está documentado em `docker/CONTAINMENT_CHANGES.md` para rastreabilidade e para o Pull Request. Assim os 8 casos rodam de ponta a ponta de forma contida, e o `ContainmentValidator` continua sendo a rede de segurança que recusa qualquer destino externo que venha a ser reintroduzido.
+
+Aplicação: o objetivo é permitir que **qualquer usuário rode o fluxo completo com segurança em sua própria máquina** (inclusive um notebook de trabalho), não apenas numa máquina de laboratório dedicada. A execução real ocorre sob Docker Desktop com o compose endurecido; nenhum comando de adversário alcança o host nem a internet.
 
 ### Endpoints REST (contratos em pt-BR)
 
