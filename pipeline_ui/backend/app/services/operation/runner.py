@@ -544,7 +544,13 @@ class OperationRunner:
             ability_id = getattr(ability, "ability_id", None)
             if ability_id:
                 payload["ability_id"] = ability_id
-            for attr in ("name", "tactic", "technique_id", "description"):
+            for attr in (
+                "name",
+                "tactic",
+                "technique_name",
+                "technique_id",
+                "description",
+            ):
                 value = getattr(ability, attr, None)
                 if value is not None:
                     payload[attr] = value

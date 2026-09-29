@@ -11,15 +11,15 @@ export default defineConfig({
     },
   },
   server: {
-    port: 5173,
+    port: 15173,
     proxy: {
       // Proxy REST + WebSocket to the FastAPI backend during dev.
       "/api": {
-        target: "http://localhost:8000",
+        target: "http://localhost:8010",
         changeOrigin: true,
       },
       "/ws": {
-        target: "ws://localhost:8000",
+        target: "ws://localhost:8010",
         ws: true,
         changeOrigin: true,
       },

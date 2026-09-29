@@ -253,9 +253,8 @@ def test_shadowray_internal_ability_is_allowed() -> None:
     assert report.allowed is True
 
 
-def test_shadowray_nmap_download_ability_is_refused() -> None:
-    """The T1068 'wget https://nmap.org/...' ability is refused and identified.
-    _Requisitos: 6.1, 6.2_"""
+def test_shadowray_t1068_internal_ability_is_allowed() -> None:
+    """The current T1068 command targets only the contained nginx host."""
     abilities = _load_shadowray_abilities()
     t1068 = next(a for a in abilities if a["technique_id"] == "T1068")
     report = validate_commands(
@@ -263,22 +262,18 @@ def test_shadowray_nmap_download_ability_is_refused() -> None:
         ability_id=t1068["ability_id"],
         ability_name=t1068["name"],
     )
-    assert report.refused is True
-    violations = report.describe_violations()
-    assert any("nmap.org" in line for line in violations)
-    assert any("T1068" in line for line in violations)
+    assert report.allowed is True
+    assert report.describe_violations() == []
 
 
-def test_shadowray_full_operation_is_refused_by_single_external_ability() -> None:
-    """Across all 11 ShadowRay abilities, the single external one refuses the op."""
+def test_shadowray_full_operation_is_contained() -> None:
+    """All 11 current ShadowRay abilities stay inside the contained lab."""
     abilities = _load_shadowray_abilities()
     op_report = validate_abilities(
         [type("A", (), {"ability_id": a["ability_id"], "name": a["name"], "executors": a["executors"]})() for a in abilities]
     )
-    assert op_report.refused is True
-    refused_names = [r.ability_name for r in op_report.refused_abilities]
-    # Only the nmap.org download ability should be refused.
-    assert refused_names == ["T1068 - Exploitation for Privilege Escalation"]
+    assert op_report.allowed is True
+    assert op_report.refused_abilities == []
 
 
 def test_shadowray_nested_double_ssh_stays_internal() -> None:

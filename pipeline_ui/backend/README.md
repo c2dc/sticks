@@ -31,10 +31,10 @@ python -m venv .venv
 pip install -e ".[dev]"
 
 # rodar o servidor de desenvolvimento
-uvicorn app.main:app --reload
+uvicorn app.main:app --reload --port 8010
 
 # health-check
-# GET http://localhost:8000/health  ->  {"status": "ok"}
+# GET http://localhost:8010/health  ->  {"status": "ok"}
 ```
 
 O banco padrão em desenvolvimento é **SQLite** (arquivo local). A configuração

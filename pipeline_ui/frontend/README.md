@@ -8,7 +8,7 @@ shadcn/ui (New York) e i18next (pt-BR padrão, fallback pt-BR).
 
 ```powershell
 npm install      # instala dependências
-npm run dev      # dev server em http://localhost:5173 (proxy /api -> :8000)
+npm run dev      # dev server em http://localhost:15173 (proxy /api -> :8010)
 npm run build    # type-check + build de produção em dist/
 npm run preview  # serve o build de produção
 npm run lint     # type-check sem emitir
@@ -22,9 +22,9 @@ npm run lint     # type-check sem emitir
 - `src/lib/ws.ts` — utilitário de WebSocket (canais de tempo real).
 - `src/components/theme-provider.tsx` — tema Modo_Claro/Modo_Escuro (classe `dark`).
 - `src/components/AppLayout.tsx` — layout base.
-- `src/components/PipelineOverview.tsx` — placeholder da visão de pipeline.
-- `src/components/PreferencesPanel.tsx` — placeholder do painel de preferências.
+- `src/components/PipelineOverview.tsx` — visão em tempo real dos três estágios.
+- `src/components/PreferencesPanel.tsx` — tema e idioma persistidos.
 - `src/components/ui/` — componentes shadcn/ui.
 
-Telas reais (estágios, seletor de casos, emulação) são implementadas em tarefas
-posteriores.
+As telas de estágios, o seletor de casos e a confirmação da emulação já estão
+implementados. O andamento detalhado está em `../../docs/status-projeto.md`.

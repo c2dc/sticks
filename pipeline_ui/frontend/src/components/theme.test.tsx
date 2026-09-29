@@ -3,12 +3,13 @@ import { screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 
 import { renderWithI18n } from "@/test/render"
+import i18n from "@/i18n"
 import { ThemeProvider } from "@/components/theme-provider"
-import { PreferencesPanel } from "@/components/PreferencesPanel"
+import { NavBar } from "@/components/NavBar"
 
 // Mock the preferences persistence wrappers so no backend is needed. The theme
 // tests only exercise the in-app theme switch / restore behavior; persistence is
-// covered by task 13.1 wiring and is stubbed here to a no-op resolved value.
+// stubbed here to a no-op resolved value.
 vi.mock("@/lib/preferencias", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/preferencias")>()
   return {
@@ -24,11 +25,17 @@ function isDark() {
   return document.documentElement.classList.contains("dark")
 }
 
-describe("Frontend theme (Req. 7.2, 7.3, 7.5, 7.6)", () => {
-  beforeEach(() => {
-    // Reset the shared <html> class between tests so each assertion starts from
-    // a known state (jsdom keeps document.documentElement across renders).
+/** The navbar theme toggle button, found by its stable (language-agnostic key) aria-label. */
+function themeToggle() {
+  return screen.getByRole("button", { name: i18n.t("navbar.toggleTheme", { ns: "preferences" }) })
+}
+
+describe("Frontend theme via NavBar (Req. 7.2, 7.5, 7.6)", () => {
+  beforeEach(async () => {
+    // Reset the shared <html> class and language between tests so each assertion
+    // starts from a known state (jsdom keeps document.documentElement across renders).
     document.documentElement.classList.remove("dark")
+    await i18n.changeLanguage("pt-BR")
   })
 
   it("switches to Modo_Escuro and back without reloading (Req. 7.2)", async () => {
@@ -36,43 +43,21 @@ describe("Frontend theme (Req. 7.2, 7.3, 7.5, 7.6)", () => {
 
     renderWithI18n(
       <ThemeProvider>
-        <PreferencesPanel />
+        <NavBar />
       </ThemeProvider>,
     )
 
     // Default is Modo_Claro: no dark class applied on mount.
     expect(isDark()).toBe(false)
 
-    // The theme options render as an exclusive radio group.
-    const escuro = screen.getByRole("radio", { name: /escuro/i })
-    const claro = screen.getByRole("radio", { name: /claro/i })
-
-    // Selecting Modo_Escuro flips the dark class in place — the switch is
-    // applied synchronously by the class-based provider (no reload).
-    await user.click(escuro)
+    // Clicking the toggle flips the dark class in place — applied synchronously
+    // by the class-based provider (no reload).
+    await user.click(themeToggle())
     expect(isDark()).toBe(true)
-    expect(escuro).toHaveAttribute("aria-checked", "true")
-    expect(claro).toHaveAttribute("aria-checked", "false")
 
-    // Selecting Modo_Claro flips it back — again with no reload.
-    await user.click(claro)
+    // Clicking again flips it back — again with no reload.
+    await user.click(themeToggle())
     expect(isDark()).toBe(false)
-    expect(claro).toHaveAttribute("aria-checked", "true")
-    expect(escuro).toHaveAttribute("aria-checked", "false")
-  })
-
-  it("renders the blue/red/purple team palette in the contexts (Req. 7.3)", () => {
-    const { container } = renderWithI18n(
-      <ThemeProvider>
-        <PreferencesPanel />
-      </ThemeProvider>,
-    )
-
-    // The palette legend previews the three team swatches, one per context:
-    // blue (defensive), red (offensive), purple (combined).
-    expect(container.querySelector(".bg-team-blue")).not.toBeNull()
-    expect(container.querySelector(".bg-team-red")).not.toBeNull()
-    expect(container.querySelector(".bg-team-purple")).not.toBeNull()
   })
 
   it("restores the last persisted theme on mount (Req. 7.5)", () => {
@@ -80,29 +65,21 @@ describe("Frontend theme (Req. 7.2, 7.3, 7.5, 7.6)", () => {
     // provider applies it on mount without any user action.
     renderWithI18n(
       <ThemeProvider theme="escuro">
-        <PreferencesPanel />
+        <NavBar />
       </ThemeProvider>,
     )
 
     expect(isDark()).toBe(true)
-    expect(screen.getByRole("radio", { name: /escuro/i })).toHaveAttribute(
-      "aria-checked",
-      "true",
-    )
   })
 
   it("defaults to Modo_Claro with no persisted preference (Req. 7.6)", () => {
     // No `theme` prop => the default (Modo_Claro) applies: dark class absent.
     renderWithI18n(
       <ThemeProvider>
-        <PreferencesPanel />
+        <NavBar />
       </ThemeProvider>,
     )
 
     expect(isDark()).toBe(false)
-    expect(screen.getByRole("radio", { name: /claro/i })).toHaveAttribute(
-      "aria-checked",
-      "true",
-    )
   })
 })

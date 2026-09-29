@@ -21,7 +21,7 @@
 # ------------------------------------------------------------
 # caldera-kali-network   172.20.0.0/24     caldera    172.20.0.10   yes
 # caldera-kali-network   172.20.0.0/24     kali       172.20.0.20   yes
-# caldera-mgmt-network   (bridge, dynamic) caldera    (dynamic)     no
+# caldera-mgmt-network   172.23.0.0/24     caldera    (dynamic)     no
 #
 # kali-nginx-network     172.21.0.0/24     kali       172.21.0.10   yes
 # kali-nginx-network     172.21.0.0/24     nginx      172.21.0.20   yes
@@ -52,7 +52,7 @@ services:
       nginx-db-network:
         ipv4_address: 172.22.0.20  # Fixed IP inside 172.22.0.0/24 (internal-only)
     healthcheck:
-      test: ["CMD", "true"]
+      test: ["CMD-SHELL", "curl -fsS http://localhost/ >/dev/null || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -96,10 +96,11 @@ services:
       caldera-mgmt-network: {}     # Management plane: lets 8888 publish to the host
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "true"]
+      test: ["CMD-SHELL", "curl -fsS -H 'KEY: ADMIN123' http://localhost:8888/api/v2/health >/dev/null || exit 1"]
       interval: 30s
       timeout: 10s
-      retries: 3
+      retries: 10
+      start_period: 5m
 
   # KALI LINUX - Penetration Testing
   kali:
@@ -211,7 +212,7 @@ services:
       VITE_API_BASE_URL: http://localhost:8010/api
       VITE_WS_BASE_URL: ws://localhost:8010
     ports:
-      - "5173:4173"  # host 5173 -> container 4173 (vite preview)
+      - "15173:4173"  # host 15173 -> container 4173 (avoids other local projects)
     networks:
       - app-network
     depends_on:
@@ -236,6 +237,10 @@ networks:
   # or internet access. Only Caldera joins this bridge.
   caldera-mgmt-network:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.23.0.0/24
+          gateway: 172.23.0.1
 
   # 1. PRIVATE: Caldera ↔ Kali ONLY
   caldera-kali-network:

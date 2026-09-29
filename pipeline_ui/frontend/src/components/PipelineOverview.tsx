@@ -105,19 +105,36 @@ export function PipelineOverview({
 
   useEffect(() => {
     if (!activeCaseId) return
-    const connection = connectEstagios(activeCaseId, (frame) => {
-      setLiveStages((prev) => ({
-        ...prev,
-        [frame.estagio]: {
-          estagio: frame.estagio,
-          estado: frame.estado,
-          progresso: frame.progresso,
-          bloqueado: prev[frame.estagio]?.bloqueado ?? false,
-          erro: frame.erro ?? null,
-        },
-      }))
-    })
-    return () => connection.close()
+    const connections = STAGE_NUMBERS.map((estagio) =>
+      connectEstagios(activeCaseId, estagio, (frame) => {
+        setLiveStages((prev) => {
+          const next: Record<number, EstagioEstado> = {
+            ...prev,
+            [frame.estagio]: {
+              estagio: frame.estagio,
+              estado: frame.estado,
+              progresso: frame.progresso,
+              bloqueado: false,
+              erro: frame.erro ?? null,
+            },
+          }
+
+          // Sequential blocking is derived from the latest state snapshot;
+          // never retain a stale REST value after a WebSocket transition.
+          for (const stageNumber of STAGE_NUMBERS) {
+            const stage = next[stageNumber]
+            if (!stage) continue
+            next[stageNumber] = {
+              ...stage,
+              bloqueado:
+                stageNumber > 1 && next[stageNumber - 1]?.estado !== "concluido",
+            }
+          }
+          return next
+        })
+      }),
+    )
+    return () => connections.forEach((connection) => connection.close())
   }, [activeCaseId])
 
   const handleSelectStage = useCallback(

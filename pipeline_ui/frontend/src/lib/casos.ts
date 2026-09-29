@@ -104,11 +104,13 @@ export interface EstagioProgressoFrame {
  */
 export function connectEstagios(
   caso: string,
+  estagio: NumeroEstagio,
   onFrame: (frame: EstagioProgressoFrame) => void,
 ): WsConnection {
-  return connectWs<EstagioProgressoFrame>(`/ws/estagios/${encodeURIComponent(caso)}`, {
-    onMessage: onFrame,
-  })
+  return connectWs<EstagioProgressoFrame>(
+    `/ws/estagios/${encodeURIComponent(caso)}?estagio=${estagio}`,
+    { onMessage: onFrame },
+  )
 }
 
 // ===========================================================================

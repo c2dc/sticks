@@ -1,7 +1,7 @@
 /**
  * Minimal typed HTTP client for the FastAPI backend.
  *
- * In dev, requests to `/api/*` are proxied to http://localhost:8000 by Vite
+ * In dev, requests to `/api/*` are proxied to http://localhost:8010 by Vite
  * (see vite.config.ts). VITE_API_BASE_URL can override the base if needed.
  * Real endpoint wrappers are added in later tasks (task 11+).
  */

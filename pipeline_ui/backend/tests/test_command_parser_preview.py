@@ -455,16 +455,15 @@ def test_build_ability_preview_reuses_a_shared_report() -> None:
 
 def test_preview_real_shadowray_operation() -> None:
     """Previewing all real ShadowRay abilities resolves the internal containers,
-    flags the single nmap.org ability, and never crashes on local commands."""
+    keeps every destination contained, and handles local commands."""
     abilities = _load_shadowray_abilities()
     emulation = preview_abilities(abilities)
 
-    # The nmap.org (T1068) ability makes the whole preview external-flagged.
-    assert emulation.has_external is True
+    # The curated dataset no longer downloads from nmap.org; every network
+    # destination belongs to the contained 172.20/21/22 lab.
+    assert emulation.has_external is False
     external_abilities = [a for a in emulation.abilities if a.has_external]
-    assert [a.ability_name for a in external_abilities] == [
-        "T1068 - Exploitation for Privilege Escalation"
-    ]
+    assert external_abilities == []
 
     # nginx (172.21.0.20) shows up as a resolved target somewhere in the preview.
     all_containers = {

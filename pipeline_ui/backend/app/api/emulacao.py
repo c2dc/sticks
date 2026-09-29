@@ -65,7 +65,7 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.models.enums import AbilityResultStatus, OperationState
 from app.services.audit import AuditLogger
-from app.services.caldera import CalderaClient, CalderaUnavailable
+from app.services.caldera import CalderaApiError, CalderaClient, CalderaUnavailable
 from app.services.case_service import AbilityData, CaseData, CaseService
 from app.services.containment import EmulationPreview, preview_abilities
 from app.services.operation.runner import (
@@ -92,6 +92,7 @@ class _RunnerAbility:
     ability_id: str
     name: str | None
     tactic: str | None
+    technique_name: str | None
     technique_id: str | None
     description: str | None
     executors: tuple[dict[str, object], ...]
@@ -108,6 +109,7 @@ def _runner_abilities(abilities: list[AbilityData]) -> list[_RunnerAbility]:
             ability_id=a.ability_id,
             name=a.name,
             tactic=a.tactic,
+            technique_name=a.technique_name,
             technique_id=a.technique_id,
             description=a.description,
             executors=tuple(e.model_dump() for e in a.executors),
@@ -395,6 +397,9 @@ def preview_emulacao(
         status.HTTP_503_SERVICE_UNAVAILABLE: {
             "description": "Caldera não respondeu em 10s (Req. 4.6). Nada foi executado."
         },
+        status.HTTP_502_BAD_GATEWAY: {
+            "description": "Caldera respondeu com erro ao receber a operação."
+        },
     },
 )
 def executar_emulacao(
@@ -437,6 +442,18 @@ def executar_emulacao(
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=str(exc),
+        ) from exc
+    except CalderaApiError as exc:
+        # Caldera respondeu, mas recusou/fracassou ao processar o payload. Isso
+        # é uma falha do upstream (502), não um erro interno genérico da API.
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail={
+                "motivo": "caldera_api_error",
+                "mensagem": str(exc),
+                "endpoint": exc.path,
+                "status_caldera": exc.status_code,
+            },
         ) from exc
 
     if result.outcome is RunOutcome.CONTAINMENT_REFUSED:

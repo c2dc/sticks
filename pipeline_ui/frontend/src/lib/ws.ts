@@ -69,7 +69,10 @@ export function connectWs<TMessage = unknown>(
 
     socket.onclose = (event) => {
       onClose?.(event)
-      if (!closedByCaller && reconnect) {
+      // The backend closes terminal stage/operation streams normally (1000).
+      // Reconnect only after an abnormal/network close, otherwise every
+      // completed stage creates an endless reconnect loop.
+      if (!closedByCaller && reconnect && event.code !== 1000) {
         attempts += 1
         const delay = reconnectDelayMs * Math.min(attempts, 5)
         reconnectTimer = setTimeout(open, delay)
