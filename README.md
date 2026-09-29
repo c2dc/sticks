@@ -9,6 +9,12 @@ This repository accompanies the paper:
 
 It provides an experimental environment to evaluate **procedural completeness of STIX-based threat intelligence** and its ability to reproduce **APT campaign behaviors** in a controlled laboratory environment.
 
+## Acompanhamento do desenvolvimento
+
+- [Status atual e roteiro para a reunião](docs/status-projeto.md)
+- [Diário de desenvolvimento](docs/diario/README.md)
+- [Checklist executável do Kiro](.kiro/specs/pipeline-ui/tasks.md)
+
 The repository includes:
 
 - A **Docker-based adversary emulation environment**

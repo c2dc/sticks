@@ -1,7 +1,15 @@
 import json
 import requests
 import argparse
+import sys
 from pathlib import Path
+
+# Windows may default to cp1252, which cannot print the status symbols below.
+# Force UTF-8 so a successful restore never crashes while reporting success.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8")
 
 CALDERA_URL = "http://127.0.0.1:8888"
 API_KEY = "ADMIN123"   # change if you use a different key
