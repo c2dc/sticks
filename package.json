@@ -1,0 +1,17 @@
+{
+  "name": "sticks-pipeline-ui",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Comando único de desenvolvimento: sobe backend (FastAPI), frontend (Vite) e prepara o banco (SQLite via Alembic) de uma vez. Usa npm workspaces para manter um único node_modules na raiz.",
+  "workspaces": [
+    "pipeline_ui/frontend"
+  ],
+  "scripts": {
+    "dev": "concurrently --names \"backend,frontend\" --prefix-colors \"cyan,magenta\" --kill-others-on-fail \"cd pipeline_ui/backend && .venv\\Scripts\\alembic.exe upgrade head && .venv\\Scripts\\uvicorn.exe app.main:app --reload --port 8010 --log-level warning --no-access-log\" \"npm --silent run dev --workspace pipeline_ui/frontend\"",
+    "db:migrate": "cd pipeline_ui/backend && .venv\\Scripts\\alembic.exe upgrade head",
+    "setup": "npm install"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
