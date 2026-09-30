@@ -3,7 +3,104 @@
     "7.4 Escrever property test da Property 6 (confirmação explícita)": {
       "status": "passed",
       "lastRunTimestamp": 1790546562153
+    },
+    "7.7 Escrever property test da Property 10 (agregação consistente)": {
+      "status": "passed",
+      "lastRunTimestamp": 1790803482115
+    },
+    "8.4 Escrever property test da Property 3 (estágio bloqueado não inicia)": {
+      "status": "passed",
+      "lastRunTimestamp": 1790803732586
+    },
+    "8.5 Escrever property test da Property 4 (progresso agregado)": {
+      "status": "passed",
+      "lastRunTimestamp": 1790803983980
     }
   },
-  "executionHistory": {}
+  "executionHistory": {
+    "7.6 Escrever property test da Property 7 (falha de auditoria aborta)": [
+      {
+        "executionId": "808ff801-0e62-4093-b767-5f5abbbe4b38",
+        "chatSessionId": "sess_be6d5d6e-8b67-415a-86ae-f89cc3f9b6a0",
+        "timestamp": 1790803031846
+      },
+      {
+        "executionId": "808ff801-0e62-4093-b767-5f5abbbe4b38",
+        "chatSessionId": "sess_be6d5d6e-8b67-415a-86ae-f89cc3f9b6a0",
+        "timestamp": 1790803261695
+      }
+    ],
+    "7.7 Escrever property test da Property 10 (agregação consistente)": [
+      {
+        "executionId": "808ff801-0e62-4093-b767-5f5abbbe4b38",
+        "chatSessionId": "sess_be6d5d6e-8b67-415a-86ae-f89cc3f9b6a0",
+        "timestamp": 1790803265540
+      },
+      {
+        "executionId": "808ff801-0e62-4093-b767-5f5abbbe4b38",
+        "chatSessionId": "sess_be6d5d6e-8b67-415a-86ae-f89cc3f9b6a0",
+        "timestamp": 1790803502366
+      }
+    ],
+    "8.4 Escrever property test da Property 3 (estágio bloqueado não inicia)": [
+      {
+        "executionId": "808ff801-0e62-4093-b767-5f5abbbe4b38",
+        "chatSessionId": "sess_be6d5d6e-8b67-415a-86ae-f89cc3f9b6a0",
+        "timestamp": 1790803506411
+      },
+      {
+        "executionId": "808ff801-0e62-4093-b767-5f5abbbe4b38",
+        "chatSessionId": "sess_be6d5d6e-8b67-415a-86ae-f89cc3f9b6a0",
+        "timestamp": 1790803750365
+      }
+    ],
+    "8.5 Escrever property test da Property 4 (progresso agregado)": [
+      {
+        "executionId": "808ff801-0e62-4093-b767-5f5abbbe4b38",
+        "chatSessionId": "sess_be6d5d6e-8b67-415a-86ae-f89cc3f9b6a0",
+        "timestamp": 1790803754233
+      },
+      {
+        "executionId": "808ff801-0e62-4093-b767-5f5abbbe4b38",
+        "chatSessionId": "sess_be6d5d6e-8b67-415a-86ae-f89cc3f9b6a0",
+        "timestamp": 1790804081327
+      }
+    ],
+    "8.6 Escrever teste de integração do Estágio 1 real (com fixtures locais)": [
+      {
+        "executionId": "808ff801-0e62-4093-b767-5f5abbbe4b38",
+        "chatSessionId": "sess_be6d5d6e-8b67-415a-86ae-f89cc3f9b6a0",
+        "timestamp": 1790804085708
+      },
+      {
+        "executionId": "808ff801-0e62-4093-b767-5f5abbbe4b38",
+        "chatSessionId": "sess_be6d5d6e-8b67-415a-86ae-f89cc3f9b6a0",
+        "timestamp": 1790804351987
+      }
+    ],
+    "9.3 Escrever property test da Property 8 (round-trip do estado)": [
+      {
+        "executionId": "808ff801-0e62-4093-b767-5f5abbbe4b38",
+        "chatSessionId": "sess_be6d5d6e-8b67-415a-86ae-f89cc3f9b6a0",
+        "timestamp": 1790804356116
+      },
+      {
+        "executionId": "808ff801-0e62-4093-b767-5f5abbbe4b38",
+        "chatSessionId": "sess_be6d5d6e-8b67-415a-86ae-f89cc3f9b6a0",
+        "timestamp": 1790804657891
+      }
+    ],
+    "9.4 Escrever property test da Property 9 (falha preserva estado anterior)": [
+      {
+        "executionId": "808ff801-0e62-4093-b767-5f5abbbe4b38",
+        "chatSessionId": "sess_be6d5d6e-8b67-415a-86ae-f89cc3f9b6a0",
+        "timestamp": 1790804661821
+      },
+      {
+        "executionId": "808ff801-0e62-4093-b767-5f5abbbe4b38",
+        "chatSessionId": "sess_be6d5d6e-8b67-415a-86ae-f89cc3f9b6a0",
+        "timestamp": 1790804948844
+      }
+    ]
+  }
 }
