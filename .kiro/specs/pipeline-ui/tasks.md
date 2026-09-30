@@ -161,13 +161,13 @@ Convenções deste plano:
     - Se a persistência de um `AuditLogEntry` falhar durante a Operação, abortar a partir desse ponto sem executar comandos adicionais e sinalizar à UI.
     - _Requisitos: 6.9_
 
-  - [ ]* 7.6 Escrever property test da Property 7 (falha de auditoria aborta)
+  - [x]* 7.6 Escrever property test da Property 7 (falha de auditoria aborta)
     - **Property 7: Falha de auditoria aborta a Operação**
     - **Feature: pipeline-ui, Property 7**
     - **Validates: Requisitos 6.9**
     - Geradores que injetam falha de persistência em um passo arbitrário; verificar que nenhum comando posterior é executado; mínimo de 100 iterações; execução mockada.
 
-  - [ ]* 7.7 Escrever property test da Property 10 (agregação consistente)
+  - [x]* 7.7 Escrever property test da Property 10 (agregação consistente)
     - **Property 10: Agregação da Operação é consistente com os resultados por Ability**
     - **Feature: pipeline-ui, Property 10**
     - **Validates: Requisitos 4.5**
@@ -190,19 +190,19 @@ Convenções deste plano:
     - Emitir eventos de progresso/transição de estado (para os canais em tempo real).
     - _Requisitos: 5.2, 5.3, 5.4, 5.5, 1.4, 1.5, 1.6_
 
-  - [ ]* 8.4 Escrever property test da Property 3 (estágio bloqueado não inicia)
+  - [x]* 8.4 Escrever property test da Property 3 (estágio bloqueado não inicia)
     - **Property 3: A UI nunca permite iniciar um estágio bloqueado**
     - **Feature: pipeline-ui, Property 3**
     - **Validates: Requisitos 5.4**
     - Geradores de combinações de estados dos três estágios; mínimo de 100 iterações.
 
-  - [ ]* 8.5 Escrever property test da Property 4 (progresso agregado)
+  - [x]* 8.5 Escrever property test da Property 4 (progresso agregado)
     - **Property 4: O progresso agregado conta exatamente os casos totalmente concluídos**
     - **Feature: pipeline-ui, Property 4**
     - **Validates: Requisitos 5.5**
     - Geradores de distribuições de estados de estágio entre os 8 casos; mínimo de 100 iterações.
 
-  - [ ]* 8.6 Escrever teste de integração do Estágio 1 real (com fixtures locais)
+  - [x]* 8.6 Escrever teste de integração do Estágio 1 real (com fixtures locais)
     - Executar a modelagem estrutural existente para 1–2 casos usando os arquivos locais em `data/` e verificar extração não-vazia. Não requer Caldera nem ambiente Docker de ataque.
     - _Requisitos: 2.2, 2.3_
 
@@ -216,13 +216,13 @@ Convenções deste plano:
     - Se a persistência da conclusão de um estágio falhar, preservar o estado anteriormente persistido sem alteração parcial e sinalizar que a conclusão não foi salva.
     - _Requisitos: 9.3_
 
-  - [ ]* 9.3 Escrever property test da Property 8 (round-trip do estado)
+  - [x]* 9.3 Escrever property test da Property 8 (round-trip do estado)
     - **Property 8: Round-trip do Estado_de_Sessão**
     - **Feature: pipeline-ui, Property 8**
     - **Validates: Requisitos 9.1, 9.4**
     - Geradores de Estados_de_Sessão arbitrários; persistir e recuperar produz estado estruturalmente igual; mínimo de 100 iterações.
 
-  - [ ]* 9.4 Escrever property test da Property 9 (falha preserva estado anterior)
+  - [x]* 9.4 Escrever property test da Property 9 (falha preserva estado anterior)
     - **Property 9: Falha de persistência preserva o estado anterior**
     - **Feature: pipeline-ui, Property 9**
     - **Validates: Requisitos 9.3**
