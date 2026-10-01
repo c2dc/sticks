@@ -165,8 +165,8 @@ def test_adversary_origem_traducao_defaults_to_human_curation(
 def _valid_audit_kwargs() -> dict[str, object]:
     """Return kwargs for a fully valid AuditLogEntry (all NOT NULL set)."""
     return {
-        "comando": "wget http://172.21.0.20/payload",
-        "container_destino": "nginx (172.21.0.20)",
+        "comando": "wget http://192.168.20.30/payload",
+        "container_destino": "nginx (192.168.20.30)",
         "registrado_em": dt.datetime(2024, 1, 1, 12, 0, 0),
     }
 
@@ -179,8 +179,8 @@ def test_audit_log_entry_accepts_all_required_fields(db_session: Session) -> Non
     db_session.refresh(entry)
 
     assert entry.id is not None
-    assert entry.comando == "wget http://172.21.0.20/payload"
-    assert entry.container_destino == "nginx (172.21.0.20)"
+    assert entry.comando == "wget http://192.168.20.30/payload"
+    assert entry.container_destino == "nginx (192.168.20.30)"
     assert entry.registrado_em == dt.datetime(2024, 1, 1, 12, 0, 0)
 
 

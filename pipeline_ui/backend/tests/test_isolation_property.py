@@ -98,7 +98,7 @@ _INTERNAL_NETWORK_NAMES = tuple(INTERNAL_NETWORK_SUBNETS.keys())
 
 # DNS pools: internal/loopback are acceptable; the external pool must break
 # isolation (mirrors the "no external DNS" rule).
-_ACCEPTABLE_DNS = ("127.0.0.1", "172.20.0.10", "172.21.0.10", "172.22.0.10")
+_ACCEPTABLE_DNS = ("127.0.0.1", "192.168.10.10", "192.168.20.20", "192.168.30.30")
 _EXTERNAL_DNS = ("8.8.8.8", "1.1.1.1", "9.9.9.9", "resolver.example.com")
 
 

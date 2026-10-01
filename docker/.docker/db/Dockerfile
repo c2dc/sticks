@@ -1,5 +1,5 @@
 # ============================================================
-# SUT-B — alvo backend (172.22.0.20)
+# SUT-B — alvo backend (192.168.30.40)
 # ============================================================
 # Mesma motivação do SUT-A (nginx): os scripts *_sutb.sh instalavam pacotes em
 # runtime via apt-get, o que falha nas redes `internal: true` (sem internet).

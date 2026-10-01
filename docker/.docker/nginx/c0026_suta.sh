@@ -58,8 +58,8 @@ $TTL 604800
     604800 )    ; Negative Cache TTL
 ;
 @ IN NS ns1.dynamic.local.
-ns1 IN A 172.21.0.20
-hostb IN A 172.22.0.20
+ns1 IN A 192.168.20.30
+hostb IN A 192.168.30.40
 EOF
 if pgrep -x "named" > /dev/null; then
     echo "✅ named is running. Restarting..."
@@ -99,8 +99,8 @@ $TTL    604800
                          604800 )       ; Negative Cache TTL
 ;
 @       IN      NS      ns.malicious.example.
-ns      IN      A       172.21.0.20
-@       IN      A       172.21.0.20
+ns      IN      A       192.168.20.30
+@       IN      A       192.168.20.30
 EOF
 if pgrep -x "named" > /dev/null; then
     echo "✅ named is running. Restarting..."

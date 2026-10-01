@@ -3,7 +3,7 @@
 # Feature: pipeline-ui, Property 1: Nenhuma emulação inicia com destino externo.
 # Para qualquer Adversary com qualquer conjunto de Abilities e comandos, se pelo
 # menos um comando tem endereço de destino que não pertence às subnets internas
-# (172.20.0.0/24, 172.21.0.0/24, 172.22.0.0/24), então o Backend recusa a Ability
+# (192.168.10.0/24, 192.168.20.0/24, 192.168.30.0/24), então o Backend recusa a Ability
 # e não inicia a Operação, identificando a Ability e o comando com destino externo.
 
 Validates: Requisitos 6.1, 6.2

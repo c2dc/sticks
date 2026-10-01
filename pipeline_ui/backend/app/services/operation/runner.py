@@ -142,7 +142,7 @@ class AbilityRunResult:
             ("pendente"/"em_execucao"/"sucesso"/"falha").
         command: The concrete command executed (decoded), if known.
         container_destino: The resolved target container label used for the audit
-            row (e.g. ``"nginx (172.21.0.20)"``), or a neutral local label.
+            row (e.g. ``"nginx (192.168.20.30)"``), or a neutral local label.
         output: The command's stdout/stderr, if collected.
     """
 
@@ -602,7 +602,7 @@ class OperationRunner:
         """Pick a human-readable target label for the audit ``container_destino``.
 
         Prefers the first resolved internal destination label from the preview
-        (e.g. ``"nginx (172.21.0.20)"``, matching the design's audit convention).
+        (e.g. ``"nginx (192.168.20.30)"``, matching the design's audit convention).
         Falls back to the first verified container name, then to a neutral local
         label so the NOT NULL ``container_destino`` is always populated.
         """

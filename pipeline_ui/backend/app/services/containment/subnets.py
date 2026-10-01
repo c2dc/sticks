@@ -4,9 +4,9 @@ The Pipeline_UI lab defines three Docker networks marked ``internal: true`` in
 ``docker/docker-compose.yml``. Every legitimate adversary destination and every
 target container must live **exclusively** inside these subnets:
 
-- ``caldera-kali-network`` — 172.20.0.0/24
-- ``kali-nginx-network``   — 172.21.0.0/24
-- ``nginx-db-network``     — 172.22.0.0/24
+- ``caldera-kali-network`` — 192.168.10.0/24
+- ``kali-nginx-network``   — 192.168.20.0/24
+- ``nginx-db-network``     — 192.168.30.0/24
 
 This module is the single source of truth for those subnets. Task 4.2 (destination
 subnet validation) and task 4.4 (container isolation) both consume it: 4.2 to
@@ -29,37 +29,37 @@ from collections.abc import Iterable
 # The three lab subnets, in ascending order. Named so error messages and the
 # preview can refer to the compose network each range belongs to.
 INTERNAL_SUBNET_CIDRS: tuple[str, ...] = (
-    "172.20.0.0/24",  # caldera-kali-network
-    "172.21.0.0/24",  # kali-nginx-network
-    "172.22.0.0/24",  # nginx-db-network
+    "192.168.10.0/24",  # caldera-kali-network
+    "192.168.20.0/24",  # kali-nginx-network
+    "192.168.30.0/24",  # nginx-db-network
 )
 
 # Map compose network name -> its internal subnet, for cross-checking a
 # container's attached networks by name when the Docker API exposes IPAM data.
 INTERNAL_NETWORK_SUBNETS: dict[str, str] = {
-    "caldera-kali-network": "172.20.0.0/24",
-    "kali-nginx-network": "172.21.0.0/24",
-    "nginx-db-network": "172.22.0.0/24",
+    "caldera-kali-network": "192.168.10.0/24",
+    "kali-nginx-network": "192.168.20.0/24",
+    "nginx-db-network": "192.168.30.0/24",
 }
 
 # Static IPv4 -> container-name map from the docker-compose lab layout. Each of
 # the three internal networks assigns two fixed addresses (``.10`` and ``.20``),
 # and containers that bridge two networks appear under both of their addresses
-# (kali is 172.20.0.20 and 172.21.0.10; nginx is 172.21.0.20 and 172.22.0.10).
+# (kali is 192.168.10.20 and 192.168.20.20; nginx is 192.168.20.30 and 192.168.30.30).
 # Task 4.6 (command/destination preview) uses this to resolve an internal
 # destination IP to the concrete target container for the confirmation modal.
 # This is an IP->name lookup, NOT a second subnet source of truth: it complements
 # INTERNAL_SUBNET_CIDRS / INTERNAL_NETWORK_SUBNETS rather than duplicating them.
 STATIC_IP_CONTAINERS: dict[str, str] = {
-    # caldera-kali-network (172.20.0.0/24)
-    "172.20.0.10": "caldera",
-    "172.20.0.20": "kali",
-    # kali-nginx-network (172.21.0.0/24)
-    "172.21.0.10": "kali",
-    "172.21.0.20": "nginx",
-    # nginx-db-network (172.22.0.0/24)
-    "172.22.0.10": "nginx",
-    "172.22.0.20": "db",
+    # caldera-kali-network (192.168.10.0/24)
+    "192.168.10.10": "caldera",
+    "192.168.10.20": "kali",
+    # kali-nginx-network (192.168.20.0/24)
+    "192.168.20.20": "kali",
+    "192.168.20.30": "nginx",
+    # nginx-db-network (192.168.30.0/24)
+    "192.168.30.30": "nginx",
+    "192.168.30.40": "db",
 }
 
 
@@ -67,7 +67,7 @@ def container_for_ip(address: str) -> str | None:
     """Resolve a static lab IPv4 literal to its container name, if known.
 
     Args:
-        address: An IPv4 literal (e.g. ``"172.21.0.20"``).
+        address: An IPv4 literal (e.g. ``"192.168.20.30"``).
 
     Returns:
         The container name from :data:`STATIC_IP_CONTAINERS` when ``address`` is
@@ -87,15 +87,15 @@ INTERNAL_NETWORKS: tuple[ipaddress.IPv4Network, ...] = tuple(
 # Individual named networks, resolved from INTERNAL_NETWORK_SUBNETS by compose
 # network name so error messages and task 4.4 can refer to a specific subnet.
 # Derived (not re-typed) from the same CIDR strings above.
-#: caldera-kali-network (internal: true) — 172.20.0.0/24.
+#: caldera-kali-network (internal: true) — 192.168.10.0/24.
 CALDERA_KALI_SUBNET: ipaddress.IPv4Network = ipaddress.ip_network(
     INTERNAL_NETWORK_SUBNETS["caldera-kali-network"]
 )
-#: kali-nginx-network (internal: true) — 172.21.0.0/24.
+#: kali-nginx-network (internal: true) — 192.168.20.0/24.
 KALI_NGINX_SUBNET: ipaddress.IPv4Network = ipaddress.ip_network(
     INTERNAL_NETWORK_SUBNETS["kali-nginx-network"]
 )
-#: nginx-db-network (internal: true) — 172.22.0.0/24.
+#: nginx-db-network (internal: true) — 192.168.30.0/24.
 NGINX_DB_SUBNET: ipaddress.IPv4Network = ipaddress.ip_network(
     INTERNAL_NETWORK_SUBNETS["nginx-db-network"]
 )
@@ -112,7 +112,7 @@ def is_internal_ip(address: str) -> bool:
     non-internal destination as external.
 
     Args:
-        address: An IPv4 literal (e.g. ``"172.21.0.20"``) or any other string.
+        address: An IPv4 literal (e.g. ``"192.168.20.30"``) or any other string.
 
     Returns:
         True only when ``address`` parses as an IPv4 address contained in one of
@@ -135,7 +135,7 @@ def is_internal_subnet(cidr: str) -> bool:
     equal to, or a subnet of, one of :data:`INTERNAL_SUBNET_CIDRS`.
 
     Args:
-        cidr: A network in CIDR notation (e.g. ``"172.20.0.0/24"``).
+        cidr: A network in CIDR notation (e.g. ``"192.168.10.0/24"``).
 
     Returns:
         True when the network is one of / within the known internal subnets.

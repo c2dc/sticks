@@ -14,8 +14,8 @@ Parser (``command_parser``):
 
 Preview (``preview``):
 6. The preview resolves internal destination IPs to their lab container
-   (172.21.0.20 -> nginx; nested -> nginx + db) and builds a ``target_label``
-   like ``"nginx (172.21.0.20)"``.
+   (192.168.20.30 -> nginx; nested -> nginx + db) and builds a ``target_label``
+   like ``"nginx (192.168.20.30)"``.
 7. An external destination (``nmap.org``) sets ``has_external`` at every level.
 8. Purely-local commands are represented with a ``local_target`` (no crash on an
    empty destination list).
@@ -86,24 +86,24 @@ def _load_shadowray_abilities() -> list[dict]:
 def test_ssh_extracts_host_with_user_stripped() -> None:
     """``ssh user@host`` yields the host only; ``value`` drops the user, ``raw``
     keeps the ``user@host`` token."""
-    parsed = parse_command("ssh attacker@172.21.0.20 'whoami'")
+    parsed = parse_command("ssh attacker@192.168.20.30 'whoami'")
     assert len(parsed.destinations) == 1
     dest = parsed.destinations[0]
-    assert dest.value == "172.21.0.20"
+    assert dest.value == "192.168.20.30"
     assert dest.kind is DestinationKind.IP
-    assert dest.raw == "attacker@172.21.0.20"
+    assert dest.raw == "attacker@192.168.20.30"
     assert parsed.is_local is False
 
 
 def test_sshpass_user_at_host_extracts_internal_ip() -> None:
     """A real ShadowRay-style ``sshpass ... user@host`` extracts the host IP."""
     parsed = parse_command(
-        "sshpass -p Passw0rd ssh -o StrictHostKeyChecking=no attacker@172.21.0.20 'whoami'"
+        "sshpass -p Passw0rd ssh -o StrictHostKeyChecking=no attacker@192.168.20.30 'whoami'"
     )
-    assert _values(parsed) == {"172.21.0.20"}
-    dest = next(d for d in parsed.destinations if d.value == "172.21.0.20")
+    assert _values(parsed) == {"192.168.20.30"}
+    dest = next(d for d in parsed.destinations if d.value == "192.168.20.30")
     assert dest.kind is DestinationKind.IP
-    assert dest.raw == "attacker@172.21.0.20"
+    assert dest.raw == "attacker@192.168.20.30"
 
 
 def test_ssh_to_external_hostname_is_a_host_kind() -> None:
@@ -134,13 +134,13 @@ def test_curl_https_url_reduced_to_host() -> None:
 
 def test_curl_http_url_with_ip_host_and_port() -> None:
     """A ShadowRay ``curl ... http://IP:port/exec`` reduces to the bare IP."""
-    parsed = parse_command("curl -X POST -F 'cmd=whoami' http://172.21.0.20:5055/exec")
+    parsed = parse_command("curl -X POST -F 'cmd=whoami' http://192.168.20.30:5055/exec")
     assert len(parsed.destinations) == 1
     dest = parsed.destinations[0]
-    assert dest.value == "172.21.0.20"
+    assert dest.value == "192.168.20.30"
     # URL reduced to a bare IP host => IP kind; raw keeps scheme+host:port.
     assert dest.kind is DestinationKind.IP
-    assert dest.raw == "http://172.21.0.20:5055"
+    assert dest.raw == "http://192.168.20.30:5055"
 
 
 def test_wget_external_url_is_host_kind() -> None:
@@ -158,18 +158,18 @@ def test_wget_external_url_is_host_kind() -> None:
 
 
 def test_nested_double_ssh_yields_both_hosts() -> None:
-    """The real ShadowRay T1016 nested ssh reaches BOTH 172.21.0.20 (outer) and
-    172.22.0.20 (inner)."""
+    """The real ShadowRay T1016 nested ssh reaches BOTH 192.168.20.30 (outer) and
+    192.168.30.40 (inner)."""
     command = (
         "sshpass -p 'Passw0rd' ssh -T -o StrictHostKeyChecking=no "
-        "-o UserKnownHostsFile=/dev/null attacker@172.21.0.20 "
+        "-o UserKnownHostsFile=/dev/null attacker@192.168.20.30 "
         "'ip -brief a; ip r; ip neigh; hostname -I; "
         'sshpass -p "Passw0rd" ssh -T -o StrictHostKeyChecking=no '
-        '-o UserKnownHostsFile=/dev/null attacker@172.22.0.20 '
+        '-o UserKnownHostsFile=/dev/null attacker@192.168.30.40 '
         '"ip -brief a; ip r; ip neigh; hostname -I"\''
     )
     parsed = parse_command(command)
-    assert {"172.21.0.20", "172.22.0.20"} <= _values(parsed)
+    assert {"192.168.20.30", "192.168.30.40"} <= _values(parsed)
 
 
 # --- 4. git clone ----------------------------------------------------------
@@ -223,13 +223,13 @@ def test_extract_destinations_batches_in_order() -> None:
     """``extract_destinations`` returns one result per input, in order."""
     commands = [
         "whoami",
-        "curl http://172.21.0.20:5055/exec",
+        "curl http://192.168.20.30:5055/exec",
         "wget https://nmap.org/dist/nmap.tgz",
     ]
     results = extract_destinations(commands)
     assert [r.command for r in results] == commands
     assert results[0].is_local is True
-    assert _values(results[1]) == {"172.21.0.20"}
+    assert _values(results[1]) == {"192.168.20.30"}
     assert _values(results[2]) == {"nmap.org"}
 
 
@@ -242,10 +242,10 @@ def test_extract_destinations_batches_in_order() -> None:
 
 
 def test_preview_resolves_internal_ip_to_nginx_container() -> None:
-    """172.21.0.20 resolves to the ``nginx`` container with a
-    ``"nginx (172.21.0.20)"`` label."""
+    """192.168.20.30 resolves to the ``nginx`` container with a
+    ``"nginx (192.168.20.30)"`` label."""
     preview = preview_commands(
-        ["curl -X POST -F 'cmd=whoami' http://172.21.0.20:5055/exec"],
+        ["curl -X POST -F 'cmd=whoami' http://192.168.20.30:5055/exec"],
         ability_id="0fa06c9c-fd66-52f1-b94a-83cb37bee900",
         ability_name="T1190 - Exploit Public-Facing Application",
     )
@@ -259,27 +259,27 @@ def test_preview_resolves_internal_ip_to_nginx_container() -> None:
     assert cmd.target_containers == ["nginx"]
 
     dest = cmd.destinations[0]
-    assert dest.value == "172.21.0.20"
+    assert dest.value == "192.168.20.30"
     assert dest.classification is DestinationClass.INTERNAL
     assert dest.container == "nginx"
     assert dest.is_external is False
-    assert dest.target_label == "nginx (172.21.0.20)"
-    assert cmd.target_labels == ["nginx (172.21.0.20)"]
+    assert dest.target_label == "nginx (192.168.20.30)"
+    assert cmd.target_labels == ["nginx (192.168.20.30)"]
 
 
 def test_preview_nested_double_ssh_resolves_nginx_and_db() -> None:
-    """The nested ssh (172.21.0.20 -> 172.22.0.20) resolves to nginx AND db."""
+    """The nested ssh (192.168.20.30 -> 192.168.30.40) resolves to nginx AND db."""
     command = (
-        "sshpass -p 'Passw0rd' ssh attacker@172.21.0.20 "
-        "'sshpass -p \"Passw0rd\" ssh attacker@172.22.0.20 \"hostname -I\"'"
+        "sshpass -p 'Passw0rd' ssh attacker@192.168.20.30 "
+        "'sshpass -p \"Passw0rd\" ssh attacker@192.168.30.40 \"hostname -I\"'"
     )
     preview = preview_commands([command])
     cmd = preview.commands[0]
     assert cmd.has_external is False
     assert cmd.target_containers == ["nginx", "db"]
     labels = set(cmd.target_labels)
-    assert "nginx (172.21.0.20)" in labels
-    assert "db (172.22.0.20)" in labels
+    assert "nginx (192.168.20.30)" in labels
+    assert "db (192.168.30.40)" in labels
 
 
 # --- 7. External destination flags has_external at every level -------------
@@ -289,7 +289,7 @@ def test_preview_flags_external_destination() -> None:
     """A ``wget https://nmap.org/...`` sets ``has_external`` on the destination,
     command, ability and full emulation preview, with no lab container."""
     preview = preview_commands(
-        ["sshpass -p 'Passw0rd' ssh attacker@172.21.0.20 wget https://nmap.org/dist/nmap-7.98.tgz"],
+        ["sshpass -p 'Passw0rd' ssh attacker@192.168.20.30 wget https://nmap.org/dist/nmap-7.98.tgz"],
         ability_id="8130dba3-f51c-57d2-9d49-78e9b0bb3c4b",
         ability_name="T1068 - Exploitation for Privilege Escalation",
     )
@@ -331,12 +331,12 @@ def test_preview_local_command_honours_custom_local_target() -> None:
     """A caller-supplied ``local_target`` is used for local commands."""
     preview = preview_commands(
         ["cat /etc/passwd"],
-        local_target="kali (172.20.0.20)",
+        local_target="kali (192.168.10.20)",
     )
     cmd = preview.commands[0]
     assert cmd.is_local is True
-    assert cmd.local_target == "kali (172.20.0.20)"
-    assert cmd.target_labels == ["kali (172.20.0.20)"]
+    assert cmd.local_target == "kali (192.168.10.20)"
+    assert cmd.target_labels == ["kali (192.168.10.20)"]
 
 
 # --- 9. Both raw-dict abilities and object-like abilities ------------------
@@ -351,7 +351,7 @@ def test_preview_ability_from_raw_dict() -> None:
             {
                 "name": "sh",
                 "platform": "linux",
-                "command": "curl -X POST -F 'cmd=whoami' http://172.21.0.20:5055/exec",
+                "command": "curl -X POST -F 'cmd=whoami' http://192.168.20.30:5055/exec",
             }
         ],
     }
@@ -407,7 +407,7 @@ def test_preview_abilities_mixed_operation_flags_external_and_flattens() -> None
             "ability_id": "a-internal",
             "name": "Internal",
             "executors": [
-                {"command": "curl http://172.20.0.10:5055/exec"},
+                {"command": "curl http://192.168.10.10:5055/exec"},
             ],
         },
         {
@@ -427,7 +427,7 @@ def test_preview_abilities_mixed_operation_flags_external_and_flattens() -> None
     assert len(emulation.abilities) == 3
     # Flattened commands: one per ability here.
     assert len(emulation.commands) == 3
-    # caldera resolved for 172.20.0.10.
+    # caldera resolved for 192.168.10.10.
     internal_cmd = emulation.abilities[0].commands[0]
     assert internal_cmd.target_containers == ["caldera"]
     # Local ability represented by a local target row.
@@ -440,7 +440,7 @@ def test_build_ability_preview_reuses_a_shared_report() -> None:
     """``build_ability_preview`` builds a preview from an existing task-4.2 report
     so the pre-flight and the preview can share one parse+classify pass."""
     report = validate_commands(
-        ["curl http://172.21.0.20:5055/exec"],
+        ["curl http://192.168.20.30:5055/exec"],
         ability_id="shared",
         ability_name="Shared",
     )
@@ -465,12 +465,12 @@ def test_preview_real_shadowray_operation() -> None:
     external_abilities = [a for a in emulation.abilities if a.has_external]
     assert external_abilities == []
 
-    # nginx (172.21.0.20) shows up as a resolved target somewhere in the preview.
+    # nginx (192.168.20.30) shows up as a resolved target somewhere in the preview.
     all_containers = {
         c for a in emulation.abilities for cmd in a.commands for c in cmd.target_containers
     }
     assert "nginx" in all_containers
-    # The nested T1016 ability also reaches db (172.22.0.20).
+    # The nested T1016 ability also reaches db (192.168.30.40).
     assert "db" in all_containers
 
     # Local abilities (T1496.001 'echo', END OF SHADOWRAY 'echo') render a local

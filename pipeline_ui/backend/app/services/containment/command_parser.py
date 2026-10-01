@@ -23,10 +23,10 @@ Nested / compound commands:
 Real ShadowRay commands nest a second ``ssh`` inside the remote payload of the
 first, targeting a *different* host, e.g.::
 
-    sshpass ... ssh attacker@172.21.0.20 '... sshpass ... ssh attacker@172.22.0.20 "..."'
+    sshpass ... ssh attacker@192.168.20.30 '... sshpass ... ssh attacker@192.168.30.40 "..."'
 
 The parser recursively descends into quoted argument strings so **both** the
-outer host (172.21.0.20) and the inner host (172.22.0.20) are detected. It also
+outer host (192.168.20.30) and the inner host (192.168.30.40) are detected. It also
 splits on shell operators (``&&``, ``||``, ``;``, ``|``) so each sub-command of a
 compound line contributes its own destinations.
 
@@ -49,9 +49,9 @@ class DestinationKind(str, enum.Enum):
     domain enums in :mod:`app.models.enums`.
     """
 
-    IP = "ip"          # bare IPv4 literal, e.g. 172.21.0.20
+    IP = "ip"          # bare IPv4 literal, e.g. 192.168.20.30
     HOST = "host"      # hostname, e.g. nmap.org or the host part of user@host
-    URL = "url"        # full URL, e.g. http://172.21.0.20:5055/exec
+    URL = "url"        # full URL, e.g. http://192.168.20.30:5055/exec
 
 
 @dataclass(frozen=True)
@@ -119,8 +119,8 @@ _USER_AT_HOST_RE = re.compile(
     rf"(?P<user>[A-Za-z0-9._-]+)@(?P<host>{_IPV4}|{_HOSTNAME})"
 )
 
-# Bare IPv4 anywhere in a token (e.g. ``http://172.21.0.20:5055`` already
-# handled by the URL rule; this catches ``ping 172.21.0.20`` style bare IPs).
+# Bare IPv4 anywhere in a token (e.g. ``http://192.168.20.30:5055`` already
+# handled by the URL rule; this catches ``ping 192.168.20.30`` style bare IPs).
 _BARE_IP_RE = re.compile(rf"(?<![\w.]){_IPV4}(?![\w.])")
 
 # Shell operators that separate sub-commands on a single line.

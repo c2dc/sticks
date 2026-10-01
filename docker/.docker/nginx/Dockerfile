@@ -1,5 +1,5 @@
 # ============================================================
-# SUT-A — alvo primário (172.21.0.20)
+# SUT-A — alvo primário (192.168.20.30)
 # ============================================================
 # Os pacotes abaixo eram instalados em RUNTIME pelos scripts *_suta.sh via
 # apt-get/pip. Como os alvos rodam em redes `internal: true` (sem internet —

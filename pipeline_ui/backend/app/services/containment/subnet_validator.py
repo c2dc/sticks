@@ -9,7 +9,7 @@ then applies the containment rule of the design:
     Property 1 — Nenhuma emulação inicia com destino externo.
     For any Adversary with any set of Abilities and commands, if at least one
     command has a destination that is not within the internal subnets
-    (172.20.0.0/24, 172.21.0.0/24, 172.22.0.0/24), the Backend refuses the
+    (192.168.10.0/24, 192.168.20.0/24, 192.168.30.0/24), the Backend refuses the
     Ability and does not start the Operation, identifying the Ability and the
     command with the external destination.
 

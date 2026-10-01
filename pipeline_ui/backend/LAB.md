@@ -30,8 +30,8 @@ Por decisão de design (*"Decisão registrada — endurecimento via compose sepa
 usado no desenvolvimento pelos demais integrantes. O compose endurecido deve:
 
 - remover `local-network` (bridge) de `kali`, `nginx` e `db`, deixando-os
-  **somente** nas redes `internal: true` — `172.20.0.0/24`, `172.21.0.0/24`,
-  `172.22.0.0/24`;
+  **somente** nas redes `internal: true` — `192.168.10.0/24`, `192.168.20.0/24`,
+  `192.168.30.0/24`;
 - não configurar DNS externo nesses containers;
 - pré-satisfazer offline dependências de egress dos comandos curados
   (`apt-get`, `pip install`, `git clone`, `wget`/`curl` externos), já que a

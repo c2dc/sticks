@@ -19,15 +19,15 @@
 #
 # NETWORK                SUBNET            HOST        IP           (internal)
 # ------------------------------------------------------------
-# caldera-kali-network   172.20.0.0/24     caldera    172.20.0.10   yes
-# caldera-kali-network   172.20.0.0/24     kali       172.20.0.20   yes
-# caldera-mgmt-network   172.23.0.0/24     caldera    (dynamic)     no
+# caldera-kali-network   192.168.10.0/24     caldera    192.168.10.10   yes
+# caldera-kali-network   192.168.10.0/24     kali       192.168.10.20   yes
+# caldera-mgmt-network   192.168.40.0/24     caldera    (dynamic)     no
 #
-# kali-nginx-network     172.21.0.0/24     kali       172.21.0.10   yes
-# kali-nginx-network     172.21.0.0/24     nginx      172.21.0.20   yes
+# kali-nginx-network     192.168.20.0/24     kali       192.168.20.20   yes
+# kali-nginx-network     192.168.20.0/24     nginx      192.168.20.30   yes
 #
-# nginx-db-network       172.22.0.0/24     nginx      172.22.0.10   yes
-# nginx-db-network       172.22.0.0/24     db         172.22.0.20   yes
+# nginx-db-network       192.168.30.0/24     nginx      192.168.30.30   yes
+# nginx-db-network       192.168.30.0/24     db         192.168.30.40   yes
 #
 # APPLICATION LAYER (Pipeline_UI): frontend/backend/banco on `app-network`
 # (bridge) ONLY — unchanged, separate from the attack lab.
@@ -50,7 +50,7 @@ services:
       MYSQL_PASSWORD: app
     networks:
       nginx-db-network:
-        ipv4_address: 172.22.0.20  # Fixed IP inside 172.22.0.0/24 (internal-only)
+        ipv4_address: 192.168.30.40  # Fixed IP inside 192.168.30.0/24 (internal-only)
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost/ >/dev/null || exit 1"]
       interval: 15s
@@ -67,9 +67,9 @@ services:
       - ./.docker/nginx/var/www/html:/var/www/html
     networks:
       nginx-db-network:
-        ipv4_address: 172.22.0.10  # Fixed IP for DB communication
+        ipv4_address: 192.168.30.30  # Fixed IP for DB communication
       kali-nginx-network:
-        ipv4_address: 172.21.0.20  # Fixed IP for Kali ↔ Nginx communication
+        ipv4_address: 192.168.20.30  # Fixed IP for Kali ↔ Nginx communication
     depends_on:
       db:
         condition: service_healthy
@@ -98,7 +98,7 @@ services:
       - CALDERA_SSL=false
     networks:
       caldera-kali-network:
-        ipv4_address: 172.20.0.10  # Fixed IP inside Caldera-Kali network (attack plane)
+        ipv4_address: 192.168.10.10  # Fixed IP inside Caldera-Kali network (attack plane)
       caldera-mgmt-network: {}     # Management plane: lets 8888 publish to the host
     restart: unless-stopped
     healthcheck:
@@ -119,9 +119,9 @@ services:
       - ./kali-data:/root
     networks:
       caldera-kali-network:
-        ipv4_address: 172.20.0.20  # Fixed IP for communication with Caldera (internal-only)
+        ipv4_address: 192.168.10.20  # Fixed IP for communication with Caldera (internal-only)
       kali-nginx-network:
-        ipv4_address: 172.21.0.10  # Fixed IP for communication with Nginx (internal-only)
+        ipv4_address: 192.168.20.20  # Fixed IP for communication with Nginx (internal-only)
     # Minimal capabilities for contained emulation: NET_RAW lets nmap/ping use
     # raw sockets. NET_ADMIN/SYS_ADMIN and privileged mode removed — not needed
     # for scanning the target inside the internal networks, and dropping them
@@ -245,8 +245,8 @@ networks:
     driver: bridge
     ipam:
       config:
-        - subnet: 172.23.0.0/24
-          gateway: 172.23.0.1
+        - subnet: 192.168.40.0/24
+          gateway: 192.168.40.1
 
   # 1. PRIVATE: Caldera ↔ Kali ONLY
   caldera-kali-network:
@@ -254,16 +254,16 @@ networks:
     internal: true  # No external access
     ipam:
       config:
-        - subnet: 172.20.0.0/24  # Custom subnet
-          gateway: 172.20.0.1
+        - subnet: 192.168.10.0/24  # Custom subnet
+          gateway: 192.168.10.1
   # 2. PRIVATE: Kali ↔ Nginx
   kali-nginx-network:
     driver: bridge
     internal: true
     ipam:
       config:
-        - subnet: 172.21.0.0/24  # Custom subnet
-          gateway: 172.21.0.1    # Network gateway
+        - subnet: 192.168.20.0/24  # Custom subnet
+          gateway: 192.168.20.1    # Network gateway
 
   # 3. PRIVATE: Nginx ↔ DB
   nginx-db-network:
@@ -271,8 +271,8 @@ networks:
     internal: true  # No external access
     ipam:
       config:
-        - subnet: 172.22.0.0/24  # Custom subnet
-          gateway: 172.22.0.1    # Network gateway
+        - subnet: 192.168.30.0/24  # Custom subnet
+          gateway: 192.168.30.1    # Network gateway
 
 
 # VOLUMES

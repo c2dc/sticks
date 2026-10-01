@@ -49,13 +49,13 @@ from app.services.containment.subnet_validator import (
 @pytest.mark.parametrize(
     "ip",
     [
-        "172.20.0.10",  # caldera
-        "172.20.0.20",  # kali
-        "172.20.0.0",   # network address (boundary)
-        "172.20.0.255",  # broadcast (boundary)
-        "172.21.0.20",  # nginx (most common ShadowRay hop)
-        "172.22.0.20",  # db
-        "172.22.0.1",
+        "192.168.10.10",  # caldera
+        "192.168.10.20",  # kali
+        "192.168.10.0",   # network address (boundary)
+        "192.168.10.255",  # broadcast (boundary)
+        "192.168.20.30",  # nginx (most common ShadowRay hop)
+        "192.168.30.40",  # db
+        "192.168.30.1",
     ],
 )
 def test_internal_ips_are_internal(ip: str) -> None:
@@ -67,8 +67,8 @@ def test_internal_ips_are_internal(ip: str) -> None:
     "ip",
     [
         "172.19.0.20",   # just below the first subnet
-        "172.23.0.20",   # just above the last subnet
-        "172.20.1.10",   # right /24 base but wrong third octet
+        "192.168.40.20",   # just above the last subnet
+        "192.168.11.10",   # right /24 base but wrong third octet
         "8.8.8.8",       # public DNS
         "10.0.0.5",      # different private range
         "192.168.1.1",   # different private range
@@ -87,9 +87,9 @@ def test_external_or_invalid_ips_are_not_internal(ip: str) -> None:
 def test_internal_subnets_constant_is_the_three_lab_networks() -> None:
     """The named constant exposes exactly the three internal /24s (task 4.4)."""
     assert [str(net) for net in INTERNAL_SUBNETS] == [
-        "172.20.0.0/24",
-        "172.21.0.0/24",
-        "172.22.0.0/24",
+        "192.168.10.0/24",
+        "192.168.20.0/24",
+        "192.168.30.0/24",
     ]
 
 
@@ -99,7 +99,7 @@ def test_internal_subnets_constant_is_the_three_lab_networks() -> None:
 
 
 def test_internal_ip_destination_is_internal() -> None:
-    dest = Destination(value="172.21.0.20", kind=DestinationKind.IP, raw="172.21.0.20")
+    dest = Destination(value="192.168.20.30", kind=DestinationKind.IP, raw="192.168.20.30")
     assert classify_destination(dest) is DestinationClass.INTERNAL
 
 
@@ -117,9 +117,9 @@ def test_hostname_destination_is_external_without_dns() -> None:
 def test_url_reduced_to_internal_ip_is_internal() -> None:
     """The parser reduces a URL to its host/IP; internal IP host => internal."""
     dest = Destination(
-        value="172.21.0.20",
+        value="192.168.20.30",
         kind=DestinationKind.URL,
-        raw="http://172.21.0.20:5055/exec",
+        raw="http://192.168.20.30:5055/exec",
     )
     assert classify_destination(dest) is DestinationClass.INTERNAL
 
@@ -132,8 +132,8 @@ def test_url_reduced_to_internal_ip_is_internal() -> None:
 def test_ability_with_only_internal_commands_is_allowed() -> None:
     report = validate_commands(
         [
-            "curl -X POST -F 'cmd=whoami' http://172.21.0.20:5055/exec",
-            "sshpass -p Passw0rd ssh attacker@172.21.0.20 'whoami'",
+            "curl -X POST -F 'cmd=whoami' http://192.168.20.30:5055/exec",
+            "sshpass -p Passw0rd ssh attacker@192.168.20.30 'whoami'",
             "echo 'mining crypto'",  # purely local
         ],
         ability_id="ability-internal",
@@ -149,7 +149,7 @@ def test_ability_with_external_host_is_refused_and_identified() -> None:
     """An external host refuses the Ability and names command + destination.
     _Requisitos: 6.1, 6.2_"""
     report = validate_commands(
-        ["sshpass -p 'Passw0rd' ssh attacker@172.21.0.20 wget https://nmap.org/dist/nmap-7.98.tgz"],
+        ["sshpass -p 'Passw0rd' ssh attacker@192.168.20.30 wget https://nmap.org/dist/nmap-7.98.tgz"],
         ability_id="8130dba3-f51c-57d2-9d49-78e9b0bb3c4b",
         ability_name="T1068 - Exploitation for Privilege Escalation",
     )
@@ -187,8 +187,8 @@ def test_operation_refused_when_any_ability_has_external_destination() -> None:
             self.executors = [{"name": "sh", "platform": "linux", "command": command}]
 
     abilities = [
-        _Ability("a1", "Internal A", "curl http://172.20.0.10/x"),
-        _Ability("a2", "Internal B", "ssh attacker@172.21.0.20 'ls'"),
+        _Ability("a1", "Internal A", "curl http://192.168.10.10/x"),
+        _Ability("a2", "Internal B", "ssh attacker@192.168.20.30 'ls'"),
         _Ability("a3", "External", "wget https://nmap.org/dist/nmap.tgz"),
     ]
 
@@ -208,8 +208,8 @@ def test_operation_allowed_when_all_abilities_internal() -> None:
             self.executors = [{"name": "sh", "platform": "linux", "command": command}]
 
     abilities = [
-        _Ability("a1", "curl http://172.20.0.10/x"),
-        _Ability("a2", "ssh attacker@172.22.0.20 'ls'"),
+        _Ability("a1", "curl http://192.168.10.10/x"),
+        _Ability("a2", "ssh attacker@192.168.30.40 'ls'"),
     ]
     op_report = validate_abilities(abilities)
     assert op_report.allowed is True
@@ -242,7 +242,7 @@ def _load_shadowray_abilities() -> list[dict]:
 
 
 def test_shadowray_internal_ability_is_allowed() -> None:
-    """The T1190 curl-to-172.21.0.20 ability is internal-only => allowed."""
+    """The T1190 curl-to-192.168.20.30 ability is internal-only => allowed."""
     abilities = _load_shadowray_abilities()
     t1190 = next(a for a in abilities if a["technique_id"] == "T1190")
     report = validate_commands(
@@ -277,11 +277,11 @@ def test_shadowray_full_operation_is_contained() -> None:
 
 
 def test_shadowray_nested_double_ssh_stays_internal() -> None:
-    """The T1016 nested ssh (172.21.0.20 -> 172.22.0.20) is fully internal."""
+    """The T1016 nested ssh (192.168.20.30 -> 192.168.30.40) is fully internal."""
     abilities = _load_shadowray_abilities()
     t1016 = next(a for a in abilities if a["technique_id"] == "T1016")
     parsed = parse_command(t1016["executors"][0]["command"])
     values = {d.value for d in parsed.destinations}
-    assert {"172.21.0.20", "172.22.0.20"} <= values
+    assert {"192.168.20.30", "192.168.30.40"} <= values
     report = validate_commands([t1016["executors"][0]["command"]])
     assert report.allowed is True

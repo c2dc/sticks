@@ -2,7 +2,7 @@
 
 Every command executed during an Operation must produce **exactly one**
 ``AuditLogEntry`` row (Req. 6.8): the concrete command, the target container
-(``container_destino``, e.g. ``"nginx (172.21.0.20)"``), the result
+(``container_destino``, e.g. ``"nginx (192.168.20.30)"``), the result
 (``resultado``), plus ``operacao_id`` / ``ability_id`` and a ``registrado_em``
 timestamp. This 1:1 invariant is the foundation for Property 5 (task 7.2:
 exactly K rows for K executed commands).
@@ -115,7 +115,7 @@ class AuditLogger:
         comando:
             The concrete command that was executed (NOT NULL).
         container_destino:
-            The target container, e.g. ``"nginx (172.21.0.20)"`` (NOT NULL).
+            The target container, e.g. ``"nginx (192.168.20.30)"`` (NOT NULL).
         resultado:
             The command result (success/failure + output), optional per the
             model.

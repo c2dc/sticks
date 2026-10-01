@@ -50,9 +50,9 @@ apt-get install -y tinyproxy 2>/dev/null || true
 cat > /etc/tinyproxy/tinyproxy.conf << 'EOF'
 Port 8888
 Listen 0.0.0.0
-Allow 172.22.0.20
-ALLOW 172.21.0.10
-Allow 172.21.0.20
+Allow 192.168.30.40
+ALLOW 192.168.20.20
+Allow 192.168.20.30
 EOF
 if ! ss -tuln | grep -q ":8888 "; 
  then /usr/bin/tinyproxy -c /etc/tinyproxy/tinyproxy.conf &

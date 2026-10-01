@@ -62,22 +62,22 @@ from app.services.audit.audit_logger import AuditLogger
 # Curated-style concrete commands (targets are lab-internal here; Property 5 is
 # about the 1:1 audit invariant, not containment — containment is Property 1).
 _COMMAND_TEMPLATES: list[str] = [
-    "curl -X POST -F 'cmd=whoami' http://172.21.0.20:5055/exec",
-    "wget http://172.21.0.20/payload.sh",
-    "sshpass -p Passw0rd ssh attacker@172.20.0.20 'whoami'",
-    "ssh attacker@172.22.0.20 'id'",
+    "curl -X POST -F 'cmd=whoami' http://192.168.20.30:5055/exec",
+    "wget http://192.168.20.30/payload.sh",
+    "sshpass -p Passw0rd ssh attacker@192.168.10.20 'whoami'",
+    "ssh attacker@192.168.30.40 'id'",
     "cat /etc/passwd",
     "uname -a",
-    "mysql -h 172.22.0.20 -u root -e 'show databases;'",
-    "nmap -sT 172.21.0.0/24",
+    "mysql -h 192.168.30.40 -u root -e 'show databases;'",
+    "nmap -sT 192.168.20.0/24",
 ]
 
 # Lab container labels in the "name (ip)" style used by the design.
 _CONTAINER_LABELS: list[str] = [
-    "kali (172.20.0.20)",
-    "nginx (172.21.0.20)",
-    "db (172.22.0.20)",
-    "caldera (172.20.0.10)",
+    "kali (192.168.10.20)",
+    "nginx (192.168.20.30)",
+    "db (192.168.30.40)",
+    "caldera (192.168.10.10)",
 ]
 
 comando_strategy = st.sampled_from(_COMMAND_TEMPLATES)

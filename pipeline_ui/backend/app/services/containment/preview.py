@@ -29,9 +29,9 @@ Container resolution
 Each internal destination IP is mapped to the container it targets using the
 compose static-IP layout (``STATIC_IP_CONTAINERS`` in :mod:`.subnets`):
 
-- 172.20.0.10 = caldera, 172.20.0.20 = kali
-- 172.21.0.10 = kali,    172.21.0.20 = nginx
-- 172.22.0.10 = nginx,   172.22.0.20 = db
+- 192.168.10.10 = caldera, 192.168.10.20 = kali
+- 192.168.20.20 = kali,    192.168.20.30 = nginx
+- 192.168.30.30 = nginx,   192.168.30.40 = db
 
 An external destination has no lab container (``container=None``) and is flagged
 via :attr:`PreviewDestination.is_external`. A command with **no destination**
@@ -75,7 +75,7 @@ class PreviewDestination:
 
     Attributes:
         value: The bare host/IP the parser reduced the destination to
-            (e.g. ``"172.21.0.20"`` for ``http://172.21.0.20:5055/exec``).
+            (e.g. ``"192.168.20.30"`` for ``http://192.168.20.30:5055/exec``).
         raw: The original token the destination came from (URL, ``user@host``…),
             preserved for display in the modal.
         classification: INTERNAL or EXTERNAL, from task 4.2.
@@ -96,10 +96,10 @@ class PreviewDestination:
 
     @property
     def target_label(self) -> str:
-        """Human-readable target for the modal (``"nginx (172.21.0.20)"`` style).
+        """Human-readable target for the modal (``"nginx (192.168.20.30)"`` style).
 
         Mirrors the ``AuditLogEntry.container_destino`` convention in the design
-        (e.g. ``"nginx (172.21.0.20)"``). External destinations are labelled as
+        (e.g. ``"nginx (192.168.20.30)"``). External destinations are labelled as
         such since they resolve to no lab container.
         """
         if self.is_external:

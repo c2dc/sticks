@@ -26,7 +26,7 @@
 FROM kalilinux/kali-rolling
 
 ENV DEBIAN_FRONTEND=noninteractive
-ENV SERVER=http://172.20.0.10:8888
+ENV SERVER=http://192.168.10.10:8888
 
 # Retry transient mirror failures a few times instead of aborting the whole
 # build on the first hiccup (the 403s were intermittent, not permanent).

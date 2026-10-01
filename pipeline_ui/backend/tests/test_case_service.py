@@ -69,7 +69,7 @@ def _seed_valid_case(data_dir: Path, slug: str) -> None:
                     {
                         "name": "sh",
                         "platform": "linux",
-                        "command": "curl http://172.21.0.20/x",
+                        "command": "curl http://192.168.20.30/x",
                     }
                 ],
             }

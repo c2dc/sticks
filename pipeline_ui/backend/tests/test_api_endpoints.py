@@ -271,7 +271,7 @@ def _internal_only_case(caso: str) -> object:
                     Executor(
                         name="sh",
                         platform="linux",
-                        command="curl http://172.21.0.20/x",
+                        command="curl http://192.168.20.30/x",
                     )
                 ],
             )
@@ -609,7 +609,7 @@ def test_get_auditoria_returns_persisted_trail_oldest_first(
                 AuditLogEntry(
                     operacao_id=op.id,
                     ability_id="a-1",
-                    comando="curl http://172.21.0.20/a",
+                    comando="curl http://192.168.20.30/a",
                     container_destino="target-a",
                     resultado="sucesso",
                     registrado_em=now,
@@ -617,7 +617,7 @@ def test_get_auditoria_returns_persisted_trail_oldest_first(
                 AuditLogEntry(
                     operacao_id=op.id,
                     ability_id="a-2",
-                    comando="curl http://172.21.0.21/b",
+                    comando="curl http://192.168.20.31/b",
                     container_destino="target-b",
                     resultado="falha",
                     registrado_em=now + dt.timedelta(seconds=1),
@@ -638,7 +638,7 @@ def test_get_auditoria_returns_persisted_trail_oldest_first(
     # Oldest first: ids strictly ascending, one row per executed command.
     ids = [r["id"] for r in body["registros"]]
     assert ids == sorted(ids)
-    assert body["registros"][0]["comando"] == "curl http://172.21.0.20/a"
+    assert body["registros"][0]["comando"] == "curl http://192.168.20.30/a"
     assert body["registros"][0]["container_destino"] == "target-a"
 
 

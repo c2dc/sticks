@@ -307,7 +307,7 @@ def test_emulacao_external_destination_returns_409(
 def _internal_only_case(caso: str) -> object:
     """A curated-case stand-in with a single internal-only ability.
 
-    Containment passes (destination ⊆ 172.21.0.0/24) so the isolation and
+    Containment passes (destination ⊆ 192.168.20.0/24) so the isolation and
     availability gates can be exercised in isolation from the destination gate.
     """
     from app.services.case_service import (
@@ -333,7 +333,7 @@ def _internal_only_case(caso: str) -> object:
                     Executor(
                         name="sh",
                         platform="linux",
-                        command="curl http://172.21.0.20/x",
+                        command="curl http://192.168.20.30/x",
                     )
                 ],
             )
