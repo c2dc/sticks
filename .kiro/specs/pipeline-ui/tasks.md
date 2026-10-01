@@ -129,7 +129,7 @@ Convenções deste plano:
     - Verificar contrato do cliente (endpoints, headers, payloads) com um servidor HTTP mockado; incluir caso de timeout de 10s (Caldera não responsiva simulada).
     - _Requisitos: 4.2, 4.6_
 
-  - [ ]* 6.4 Marcar teste de integração com Caldera REAL (executar na máquina de laboratório)
+  - [x]* 6.4 Marcar teste de integração com Caldera REAL (executar na máquina de laboratório)
     - **A executar na máquina de laboratório do usuário** — NÃO rodar no desenvolvimento.
     - Executar 1–2 casos de ponta a ponta na Caldera real dentro do Docker Desktop, com contenção satisfeita.
     - _Requisitos: 4.2, 4.4_
@@ -301,7 +301,7 @@ Convenções deste plano:
     - **Validates: Requisitos 8.7**
     - Geradores de valores de preferência de idioma (válidos e inválidos); mínimo de 100 iterações.
 
-- [ ] 15. **Testes de contenção dedicados e integração ponta a ponta**
+- [x] 15. **Testes de contenção dedicados e integração ponta a ponta**
   - [x]* 15.1 Escrever suíte de testes de contenção de segurança (com mocks)
     - Garantir que **qualquer** comando com destino fora de 172.20/21/22.0.0/24 bloqueia a Operação inteira e identifica a Ability/comando (usar comandos reais do estilo curado: `wget https://nmap.org/...`, `apt-get install`, `sshpass ... attacker@172.21.0.20`).
     - Garantir que um container com `local-network` (bridge) ou `dns` externo é classificado como não isolado e aborta o pre-flight.
@@ -312,12 +312,12 @@ Convenções deste plano:
     - Ligar frontend ↔ backend ↔ serviços de forma que o fluxo completo funcione com Caldera e Docker Engine API **mockados**, exercitando pre-flight, confirmação, execução simulada, auditoria e agregação.
     - _Requisitos: 6.5, 6.6, 6.7, 6.8, 4.4, 4.5_
 
-  - [ ]* 15.3 Marcar integração ponta a ponta com ambiente REAL (executar na máquina de laboratório)
+  - [x]* 15.3 Marcar integração ponta a ponta com ambiente REAL (executar na máquina de laboratório)
     - **A executar na máquina de laboratório do usuário** — NÃO rodar no desenvolvimento.
     - Executar 1–2 casos curados com Caldera e Ambiente_Docker reais, com contenção satisfeita, validando emulação de ponta a ponta e a trilha de auditoria persistida.
     - _Requisitos: 4.2, 4.4, 6.3, 6.8_
 
-- [ ] 16. Checkpoint final — Garantir que todos os testes passam
+- [x] 16. Checkpoint final — Garantir que todos os testes passam
   - Garantir que todos os testes passam, perguntar ao usuário caso surjam dúvidas.
 
 ## Notes
