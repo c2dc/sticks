@@ -32,12 +32,12 @@ The environment uses multiple Docker containers connected through static network
 
 | Network | Subnet | Host | IP |
 |------|------|------|------|
-| caldera-kali-network | 172.20.0.0/24 | caldera | 172.20.0.10 |
-| caldera-kali-network | 172.20.0.0/24 | kali | 172.20.0.20 |
-| kali-nginx-network | 172.21.0.0/24 | kali | 172.21.0.10 |
-| kali-nginx-network | 172.21.0.0/24 | nginx | 172.21.0.20 |
-| nginx-db-network | 172.22.0.0/24 | nginx | 172.22.0.10 |
-| nginx-db-network | 172.22.0.0/24 | db | 172.22.0.20 |
+| caldera-kali-network | 192.168.10.0/24 | caldera | 192.168.10.10 |
+| caldera-kali-network | 192.168.10.0/24 | kali | 192.168.10.20 |
+| kali-nginx-network | 192.168.20.0/24 | kali | 192.168.20.20 |
+| kali-nginx-network | 192.168.20.0/24 | nginx | 192.168.20.30 |
+| nginx-db-network | 192.168.30.0/24 | nginx | 192.168.30.30 |
+| nginx-db-network | 192.168.30.0/24 | db | 192.168.30.40 |
 
 ---
 
