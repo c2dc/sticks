@@ -3,11 +3,11 @@
 #
 ## Global commands
 #
-apt-get update
-apt-get install -y python3 python3-pip sshpass curl socat
+: # apt-get update (offline: pacotes ja instalados no build)
+apt-get install -y python3 python3-pip sshpass curl socat 2>/dev/null || true
 
 ## SSH
-apt-get install -y openssh-server
+apt-get install -y openssh-server 2>/dev/null || true
 mkdir -p /var/run/sshd
 echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config
 echo 'PasswordAuthentication yes' >> /etc/ssh/sshd_config
@@ -83,7 +83,7 @@ fi
 
 
 # T1027.013
-pip install --break-system-packages pycryptodome
+pip install --break-system-packages pycryptodome 2>/dev/null || true
 cat > /root/encrypt_payload.py << 'EOF'
 from Crypto.Cipher import AES
 import base64
@@ -98,7 +98,7 @@ print(base64.b64encode(encrypted).decode())
 EOF
 
 # T1587.001
-pip3 install --break-system-packages flask flask-cors requests
+pip3 install --break-system-packages flask flask-cors requests 2>/dev/null || true
 mkdir -p /home/attacker/malware
 cat > /home/attacker/malware/backdoor.py << 'EOF'
 #!/usr/bin/env python3
@@ -127,7 +127,7 @@ if ! ss -tuln | grep -q ":5055 "; then
 fi
 
 # T1059.005
-apt-get install -y samba samba-common-bin
+apt-get install -y samba samba-common-bin 2>/dev/null || true
 printf '[global]\n   workgroup = WORKGROUP\n   server string = Samba Server\n   netbios name = debianA\n   security = user\n   map to guest = Bad User\n\n[share]\n   path = /srv/samba/share\n   browsable =yes\n   writable = yes\n   guest ok = yes\n   read only = no\n' > /etc/samba/smb.conf
 mkdir -p /srv/samba/share
 chmod -R 0777 /srv/samba/share

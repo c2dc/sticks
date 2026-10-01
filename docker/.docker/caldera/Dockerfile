@@ -76,6 +76,11 @@ RUN apt-get update && \
 # Install pip requirements
 RUN pip3 install --break-system-packages --no-cache-dir -r requirements.txt
 
+# The 'builder' plugin imports the python 'docker' SDK; without it the plugin
+# fails to load ('No module named docker') and leaves a broken plugin reference
+# that stalls data loading. Install it so every enabled plugin loads cleanly.
+RUN pip3 install --break-system-packages --no-cache-dir docker
+
 # For offline atomic (disable it by default in slim image)
 # Disable atomic if this is not downloaded
 RUN if [ ! -d "/usr/src/app/plugins/atomic/data/atomic-red-team" ] && [ "$VARIANT" = "full" ]; then   \

@@ -53,6 +53,7 @@ from app.db.session import create_db_engine, get_db
 from app.main import create_app
 from app.services.audit import AuditLogger
 from app.services.caldera import (
+    ADVERSARIES_PATH,
     ABILITIES_PATH,
     HEALTH_PATH,
     OPERATIONS_PATH,
@@ -77,6 +78,8 @@ def _healthy_router(request: httpx.Request) -> httpx.Response:
     if method == "GET" and path == HEALTH_PATH:
         return httpx.Response(200, json={"status": "ok"})
     if method == "POST" and path == ABILITIES_PATH:
+        return httpx.Response(200, json=json.loads(request.content.decode("utf-8")))
+    if method == "POST" and path == ADVERSARIES_PATH:
         return httpx.Response(200, json=json.loads(request.content.decode("utf-8")))
     if method == "POST" and path == OPERATIONS_PATH:
         return httpx.Response(

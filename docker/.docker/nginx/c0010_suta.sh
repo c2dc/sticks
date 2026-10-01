@@ -3,11 +3,11 @@
 #
 ## Global commands
 #
-apt-get update
-apt-get install -y python3 python3-pip sshpass curl socat
+: # apt-get update (offline: pacotes ja instalados no build)
+apt-get install -y python3 python3-pip sshpass curl socat 2>/dev/null || true
 
 ## SSH
-apt-get install -y openssh-server
+apt-get install -y openssh-server 2>/dev/null || true
 mkdir -p /var/run/sshd
 echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config
 echo 'PasswordAuthentication yes' >> /etc/ssh/sshd_config
@@ -37,7 +37,7 @@ pgrep -x "php-fpm8.4" > /dev/null || php-fpm8.4 &
 
 # T1584.001
 
-apt-get install -y bind9 dnsutils
+apt-get install -y bind9 dnsutils 2>/dev/null || true
 
 # Check if zone already defined
 if ! grep -q "zone \"legitshipping.co.il\"" /etc/bind/named.conf.options; then
@@ -99,9 +99,9 @@ fi
 
 # T1608.001
 
-apt-get install -y python3 python3-pip python3-venv
+apt-get install -y python3 python3-pip python3-venv 2>/dev/null || true
 python3 -m venv /opt/webserver-venv
-pip install --break-system-packages flask
+pip install --break-system-packages flask 2>/dev/null || true
 cat > /opt/webserver-venv/app.py << 'EOF'
 from flask import Flask, request, abort
 app=Flask(__name__)
@@ -123,8 +123,8 @@ fi
 
 # T1189
 
-apt-get install -y  wget curl python3 python3-pip
-pip install --break-system-packages flask
+apt-get install -y  wget curl python3 python3-pip 2>/dev/null || true
+pip install --break-system-packages flask 2>/dev/null || true
 useradd -m -p $(openssl passwd -1 Passw0rd) victim
 
 cat > /var/www/html/foca.php << "EOF"
@@ -175,7 +175,7 @@ EOF
 
 # T1587.001
 
-pip3 install --break-system-packages flask requests
+pip3 install --break-system-packages flask requests 2>/dev/null || true
 useradd -m sugarush
 cat > /home/sugarush/malware_server.py << 'EOF'
 #!/usr/bin/env python3
@@ -202,7 +202,7 @@ fi
 
 # T1583.001
 
-apt-get install -y bind9 dnsutils
+apt-get install -y bind9 dnsutils 2>/dev/null || true
 
 # Check if zone already defined
 if ! grep -q "zone \"malicious-example.com\"" /etc/bind/named.conf.options; then

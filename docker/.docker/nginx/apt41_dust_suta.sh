@@ -3,11 +3,11 @@
 #
 ## Global commands
 #
-apt-get update
-apt-get install -y python3 python3-pip sshpass curl socat
+: # apt-get update (offline: pacotes ja instalados no build)
+apt-get install -y python3 python3-pip sshpass curl socat 2>/dev/null || true
 
 ## SSH
-apt-get install -y openssh-server
+apt-get install -y openssh-server 2>/dev/null || true
 mkdir -p /var/run/sshd
 echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config
 echo 'PasswordAuthentication yes' >> /etc/ssh/sshd_config
@@ -35,7 +35,7 @@ echo 'DebianUser:DebianUser' | chpasswd
 ################################################ End of Global Section
 
 # T1102 - Web Service
-pip install --break-system-packages flask requests
+pip install --break-system-packages flask requests 2>/dev/null || true
 cat << 'EOF' > /home/attacker/webservice.py
 from flask import Flask, request, jsonify
 
@@ -75,7 +75,7 @@ fi
 
 # T1213.006 - Databases
 
-apt-get install -y mariadb-server
+apt-get install -y mariadb-server 2>/dev/null || true
 sed -i 's/^bind-address\s*=.*/bind-address = 0.0.0.0/' /etc/mysql/mariadb.conf.d/50-server.cnf
 pgrep -x "mariadbd-safe" > /dev/null || mariadbd-safe &
 sleep 5
@@ -89,7 +89,7 @@ mysql -u root -pRootPassw0rd -e "INSERT INTO sensitive_data.credentials(username
 
 
 # 1543.003 - Windows Service
-apt-get install -y samba samba-common-bin
+apt-get install -y samba samba-common-bin 2>/dev/null || true
 printf '[global]\n   workgroup = WORKGROUP\n   server string = Samba Server\n   netbios name = debianA\n   security = user\n   map to guest = Bad User\n\n[share]\n   path = /srv/samba/share\n   browsable =yes\n   writable = yes\n   guest ok = yes\n   read only = no\n' > /etc/samba/smb.conf
 mkdir -p /srv/samba/share
 chmod -R 0777 /srv/samba/share
@@ -98,8 +98,8 @@ chmod +x /srv/samba/share/fake_service.sh
 pgrep -x "smbd" > /dev/null || /usr/sbin/smbd --no-process-group --foreground &
 
 # T1070.004
-apt-get install -y sudo wget
-pip install --break-system-packages paramiko
+apt-get install -y sudo wget 2>/dev/null || true
+pip install --break-system-packages paramiko 2>/dev/null || true
 cat << 'EOF' > /root/exec.py
 #!/usr/bin/env python3
 import paramiko
@@ -143,7 +143,7 @@ printf '<?php phpinfo(); ?>' > /var/www/html/server-status.php
 
 # T1588.003
 
-apt-get install -y openssl wget
+apt-get install -y openssl wget 2>/dev/null || true
 mkdir -p  /var/www/html/root/certs
 openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
 -keyout  /var/www/html/root/certs/code_signing.key \
@@ -162,11 +162,11 @@ pgrep -x "php-fpm8.4" > /dev/null || php-fpm8.4 &
 
 # T1586.003
 
-apt-get install -y unzip
-pip install --break-system-packages boto3
-curl -fsSL https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip -o /tmp/awscliv2.zip
-unzip -o /tmp/awscliv2.zip -d /tmp
-/tmp/aws/install --update
+apt-get install -y unzip 2>/dev/null || true
+pip install --break-system-packages boto3 2>/dev/null || true
+curl -fsSL https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip -o /tmp/awscliv2.zip || true
+unzip -o /tmp/awscliv2.zip -d /tmp 2>/dev/null || true
+/tmp/aws/install --update 2>/dev/null || true
 mkdir -p /home/attacker/.aws
 cat <<EOF > /home/attacker/.aws/credentials
 [default]
@@ -184,7 +184,7 @@ chown attacker:attacker /home/attacker/.aws/config
 
 # T1119
 
-pip3 install --break-system-packages psutil schedule requests
+pip3 install --break-system-packages psutil schedule requests 2>/dev/null || true
 cat <<'EOF' > /root/auto_collect.py
 import psutil, schedule, time, shutil
 import os
@@ -231,7 +231,7 @@ pgrep -x "nginx" > /dev/null || /usr/sbin/nginx &
 
 # T1027.013
 
-pip install --break-system-packages pycryptodome
+pip install --break-system-packages pycryptodome 2>/dev/null || true
 chown attacker:attacker /home/attacker
 cat << 'EOF' > /home/attacker/reverse.py
 import sys
@@ -242,7 +242,7 @@ chmod +x /home/attacker/reverse.py
 
 # T1074.001
 
-apt-get install -y netcat-openbsd
+apt-get install -y netcat-openbsd 2>/dev/null || true
 cat << 'EOF' > /root/nc-listener.sh
 # Alternative using named pipe
 #!/bin/sh
@@ -296,7 +296,7 @@ chown devops:devops /home/devops/ls
 
 #!/bin/bash
 
-pip3 install --break-system-packages flask
+pip3 install --break-system-packages flask 2>/dev/null || true
 cat > /home/attacker/server.py << 'EOF'
 from flask import Flask, request
 app = Flask(__name__)
@@ -320,12 +320,12 @@ fi
 # T1560.001
 sed -i '/^Components:/ {/non-free/! s/$/ non-free/}' /etc/apt/sources.list.d/debian.sources
 chmod go+r /var/log/*.log
-apt-get update
-apt-get install -y rar
+: # apt-get update (offline: pacotes ja instalados no build)
+apt-get install -y rar 2>/dev/null || true
 
 # T1071.001
 
-pip install --break-system-packages flask requests
+pip install --break-system-packages flask requests 2>/dev/null || true
 cat > /root/webshell.py << 'EOF'
 from flask import Flask, request, jsonify
 app=Flask(__name__)
@@ -359,7 +359,7 @@ echo '<html><body><h1>Secret Directory</h1><p>Internal project details here</p><
 
 # T1583.007
 
-pip install --break-system-packages flask
+pip install --break-system-packages flask 2>/dev/null || true
 cat > /home/attacker/serverless.py << 'EOF'
 from flask import Flask, request
 import subprocess
@@ -382,7 +382,7 @@ fi
 
 # T1573.002
 
-apt-get install -y  openssl
+apt-get install -y  openssl 2>/dev/null || true
 cat > /root/decrypt_and_execute.sh << 'EOF'
 #!/bin/sh
 
@@ -429,7 +429,7 @@ chmod +x /root/decrypt_and_execute.sh
 
 # T1553.002
 
-apt-get install -y openssl
+apt-get install -y openssl 2>/dev/null || true
 cat > /root/openssl.cnf << 'EOF'
 [ req ]
 distinguished_name=req_distinguished_name

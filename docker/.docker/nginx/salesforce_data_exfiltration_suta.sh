@@ -3,11 +3,11 @@
 #
 ## Global commands
 #
-apt-get update
-apt-get install -y python3 python3-pip sshpass curl socat
+: # apt-get update (offline: pacotes ja instalados no build)
+apt-get install -y python3 python3-pip sshpass curl socat 2>/dev/null || true
 
 ## SSH
-apt-get install -y openssh-server
+apt-get install -y openssh-server 2>/dev/null || true
 mkdir -p /var/run/sshd
 echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config
 echo 'PasswordAuthentication yes' >> /etc/ssh/sshd_config
@@ -35,7 +35,7 @@ echo 'DebianUser:DebianUser' | chpasswd
 pgrep -x "php-fpm8.4" > /dev/null || php-fpm8.4 &
 
 
-apt-get install -y mariadb-server
+apt-get install -y mariadb-server 2>/dev/null || true
 sed -i 's/^bind-address\s*=.*/bind-address = 0.0.0.0/' /etc/mysql/mariadb.conf.d/50-server.cnf
 pgrep -x "mariadbd-safe" > /dev/null || mariadbd-safe &
 sleep 5
@@ -46,7 +46,7 @@ mysql -u root -pRootPassw0rd -e "GRANT ALL PRIVILEGES ON sensitive_data.* TO 'at
 mysql -u root -pRootPassw0rd -e "USE sensitive_data; CREATE TABLE credentials(id INT AUTO_INCREMENT PRIMARY KEY, username VARCHAR(50), password VARCHAR(255));"
 mysql -u root -pRootPassw0rd -e "INSERT INTO sensitive_data.credentials(username,password) VALUES ('admin','5f4dcc3b5aa765d61d8327deb882cf99');"
 
-apt-get install -y samba samba-common-bin
+apt-get install -y samba samba-common-bin 2>/dev/null || true
 printf '[global]\n   workgroup = WORKGROUP\n   server string = Samba Server\n   netbios name = debianA\n   security = user\n   map to guest = Bad User\n\n[share]\n   path = /srv/samba/share\n   browsable =yes\n   writable = yes\n   guest ok = yes\n   read only = no\n' > /etc/samba/smb.conf
 mkdir -p /srv/samba/share
 chmod -R 0777 /srv/samba/share
@@ -58,7 +58,7 @@ pgrep -x "smbd" > /dev/null || /usr/sbin/smbd --no-process-group --foreground &
 
 
 # T1059.006
-pip3 install --break-system-packages flask flask-cors requests
+pip3 install --break-system-packages flask flask-cors requests 2>/dev/null || true
 mkdir -p /home/attacker/malware
 cat > /home/attacker/malware/backdoor.py << 'EOF'
 #!/usr/bin/env python3
@@ -106,8 +106,8 @@ EOF
 
 # T1671
 
-apt-get install -y python3 python3-pip wget curl
-pip install --break-system-packages flask requests
+apt-get install -y python3 python3-pip wget curl 2>/dev/null || true
+pip install --break-system-packages flask requests 2>/dev/null || true
 useradd -m -s /bin/bash oauthapp
 mkdir -p /home/oauthapp/app
 cat > /home/oauthapp/app/server.py << 'EOF'
@@ -146,7 +146,7 @@ mkdir -p /var/www/html/exfil
 cat > /var/www/html/exfil/index.html << 'EOF'
 <html><body><h1>Exfiltration Endpoint</h1></body></html>
 EOF
-python3 -m pip install --break-system-packages flask requests
+python3 -m pip install --break-system-packages flask requests 2>/dev/null || true
 cat > /root/exfil_server.py << 'EOF'
 from flask import Flask, request
 app=Flask(__name__)
@@ -163,7 +163,7 @@ python3 /root/exfil_server.py &
 fi
 
 # T1036
-pip3 install --break-system-packages flask flask-cors requests
+pip3 install --break-system-packages flask flask-cors requests 2>/dev/null || true
 mkdir -p /home/attacker/malware
 cat > /home/attacker/malware/backdoor.py << 'EOF'
 #!/usr/bin/env python3
@@ -192,7 +192,7 @@ if ! ss -tuln | grep -q ":5055 "; then
 fi
 
 # T1585.002
-apt-get -y install mailutils
+apt-get -y install mailutils 2>/dev/null || true
 
 
 ################################

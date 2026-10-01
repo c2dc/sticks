@@ -428,6 +428,19 @@ def executar_emulacao(
     case = _load_case_or_error(caso, case_service)
 
     adversary_id = case.adversary.id if case.adversary else ""
+    # Build the raw Adversary payload for Caldera's `POST /api/v2/adversaries`
+    # (v2 expects `adversary_id`, not `id`). Loading it before the Operation
+    # is what gives the Operation a non-empty chain to execute (Req. 4.2).
+    adversary_payload = (
+        {
+            "adversary_id": case.adversary.id,
+            "name": case.adversary.name or case.adversary.id,
+            "description": case.adversary.description or "",
+            "atomic_ordering": list(case.adversary.atomic_ordering),
+        }
+        if case.adversary
+        else None
+    )
 
     runner = runner_factory(db)
     try:
@@ -436,6 +449,7 @@ def executar_emulacao(
             abilities=_runner_abilities(case.abilities),
             adversary_id=adversary_id,
             confirmado=body.confirmado,
+            adversary_payload=adversary_payload,
         )
     except CalderaUnavailable as exc:
         # Gate 4 (Req. 4.6): Caldera silent within 10s -> 503. Nothing started.

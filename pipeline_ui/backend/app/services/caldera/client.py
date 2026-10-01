@@ -42,6 +42,7 @@ from __future__ import annotations
 
 import base64
 import binascii
+import time
 from dataclasses import dataclass, field
 from typing import Any, Mapping
 
@@ -666,7 +667,20 @@ class CalderaClient:
             CalderaUnavailable: on timeout / connection failure.
             CalderaApiError: on a non-2xx HTTP status.
         """
-        payload = self._request_json("POST", ABILITIES_PATH, json=dict(ability))
+        body = dict(ability)
+        try:
+            payload = self._request_json("POST", ABILITIES_PATH, json=body)
+        except CalderaApiError as exc:
+            # Idempotency: on a re-run the Ability id already exists in Caldera.
+            # Treat "already exists" as success by updating it in place (PUT),
+            # so loading the curated set is repeatable across lab runs.
+            ability_id = str(body.get("ability_id", ""))
+            if exc.status_code == 400 and "already exists" in exc.body and ability_id:
+                payload = self._request_json(
+                    "PUT", f"{ABILITIES_PATH}/{ability_id}", json=body
+                )
+            else:
+                raise
         return AbilityRef.from_payload(payload or {})
 
     def load_abilities(
@@ -699,6 +713,38 @@ class CalderaClient:
             for item in items
             if isinstance(item, Mapping)
         ]
+
+    def load_adversary(self, adversary: Mapping[str, Any]) -> AdversaryRef:
+        """Create/load a curated Adversary via `POST /api/v2/adversaries` (Req. 4.2).
+
+        The curated Adversary comes from `data/api/{caso}_dag-adversary.json` and
+        must be pushed into Caldera **before** an Operation references it; without
+        it, the Operation runs with an empty chain (zero links). Mirrors the
+        `sticks/tools/load_adversary.py` utility over the v2 API. The payload is
+        sent as-is (its shape already matches the v2 Adversary schema).
+
+        Args:
+            adversary: The Adversary payload (v2 schema) to create/load.
+
+        Returns:
+            The created Adversary as a typed :class:AdversaryRef.
+
+        Raises:
+            CalderaUnavailable: on timeout / connection failure.
+            CalderaApiError: on a non-2xx HTTP status.
+        """
+        body = dict(adversary)
+        try:
+            payload = self._request_json("POST", ADVERSARIES_PATH, json=body)
+        except CalderaApiError as exc:
+            adversary_id = str(body.get("adversary_id", ""))
+            if exc.status_code == 400 and "already exists" in exc.body and adversary_id:
+                payload = self._request_json(
+                    "PUT", f"{ADVERSARIES_PATH}/{adversary_id}", json=body
+                )
+            else:
+                raise
+        return AdversaryRef.from_payload(payload or {})
 
     def adversary_exists(self, adversary_id: str) -> bool:
         """Return True iff an Adversary with ``adversary_id`` exists.
@@ -790,3 +836,45 @@ class CalderaClient:
         is a thin, well-named wrapper so the polling call-site reads clearly.
         """
         return self.get_operation(operation_id)
+
+    def poll_until_complete(
+        self,
+        operation_id: str,
+        *,
+        timeout: float = 300.0,
+        interval: float = 3.0,
+    ) -> OperationStateResult:
+        """Poll an Operation until it reaches a final state or `timeout` elapses.
+
+        A real Operation does not finish instantly: Caldera dispatches each link
+        to the agent, waits for the beacon, collects the result, then advances.
+        A single immediate poll (`poll_operation`) therefore sees an empty/early
+        chain. This method polls every `interval` seconds until the Caldera
+        operation `state` is terminal (`finished` / `out_of_time` /
+        `cleanup`) or `timeout` seconds have elapsed, returning the **last**
+        observed :class:OperationStateResult (with its per-Ability links).
+
+        The mocked dev/CI flow is unaffected: a MockTransport that already returns
+        `state == "finished"` with its chain satisfies the terminal check on the
+        first poll, so the loop exits immediately without any real waiting.
+
+        Args:
+            operation_id: The Caldera operation id to poll.
+            timeout: Maximum seconds to wait for a terminal state (default 120s).
+            interval: Seconds between polls (default 3s).
+
+        Returns:
+            The last :class:OperationStateResult observed (terminal when the
+            operation finished in time; otherwise the latest in-flight snapshot).
+        """
+        terminal_states = {"finished", "out_of_time", "cleanup"}
+        deadline = time.monotonic() + max(0.0, float(timeout))
+        last = self.get_operation(operation_id)
+        while True:
+            state = (last.state or "").lower()
+            if state in terminal_states:
+                return last
+            if time.monotonic() >= deadline:
+                return last
+            time.sleep(max(0.0, float(interval)))
+            last = self.get_operation(operation_id)

@@ -243,6 +243,7 @@ class OperationRunner:
         confirmado: bool,
         operation_name: str | None = None,
         target_containers: Sequence[str] | None = None,
+        adversary_payload: object | None = None,
     ) -> OperationRunResult:
         """Run one emulation, gating on confirmation + pre-flight, then aggregate.
 
@@ -330,6 +331,7 @@ class OperationRunner:
             operation_name=operation_name,
             containment=containment,
             isolation=isolation,
+            adversary_payload=adversary_payload,
         )
 
     # -- execution (post-confirmation, post-pre-flight) ----------------------
@@ -343,6 +345,7 @@ class OperationRunner:
         operation_name: str | None,
         containment: OperationContainmentReport,
         isolation: IsolationResult,
+        adversary_payload: object | None = None,
     ) -> OperationRunResult:
         """Create the Caldera Operation, run the loop and aggregate results.
 
@@ -366,16 +369,28 @@ class OperationRunner:
         self._session.commit()
         self._session.refresh(operation)
 
-        # Load the curated abilities and create the Caldera Operation (Req. 4.2).
+        # Load the curated abilities AND the adversary into Caldera before the
+        # Operation references it (Req. 4.2). Without the adversary (and its
+        # `atomic_ordering`) loaded, the Operation would run with an empty
+        # chain (zero links) — the real-lab failure this fixes.
         self._caldera.load_abilities(self._ability_payloads(abilities))
-        created = self._caldera.create_operation(name, adversary_id)
+        if adversary_payload is not None:
+            self._caldera.load_adversary(dict(adversary_payload))  # type: ignore[arg-type]
+
+        # Create the Operation with the `batch` planner and the `red` group,
+        # matching the lab agent registration and sticks/lib/operation.py.
+        created = self._caldera.create_operation(
+            name, adversary_id, group="red", planner="batch"
+        )
         operation.caldera_operation_id = created.operation_id or None
         self._session.commit()
 
-        # Poll the Operation for its per-Ability links (Req. 4.3/4.4). A single
-        # poll is sufficient here for the mocked dev flow; the WebSocket channel
-        # (task 11.3) drives repeated polling for live progress.
-        state_result = self._caldera.poll_operation(created.operation_id)
+        # Poll the Operation until it reaches a terminal state (Req. 4.3/4.4).
+        # A real Operation needs time for each link to dispatch, beacon and
+        # collect; a single immediate poll would see an empty chain. The mocked
+        # dev/CI flow returns `finished` immediately, so the wait is a no-op
+        # there. The WebSocket channel (task 11.3) drives live progress updates.
+        state_result = self._caldera.poll_until_complete(created.operation_id)
         target_label = self._primary_target_label(abilities, isolation)
 
         ability_results: list[AbilityRunResult] = []

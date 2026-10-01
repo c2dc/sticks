@@ -1,7 +1,7 @@
 ############### COSTARICTO
 # Global
-apt-get update
-apt-get -y install mariadb-server
+: # apt-get update (offline: pacotes ja instalados no build)
+apt-get -y install mariadb-server 2>/dev/null || true
 
 sed -i 's/^bind-address\s*=.*/bind-address = 0.0.0.0/' /etc/mysql/mariadb.conf.d/50-server.cnf
 pgrep -x "mariadbd-safe" > /dev/null || mariadbd-safe &
@@ -15,13 +15,13 @@ mysql -u root -pRootPassw0rd -e "INSERT INTO sensitive_data.credentials(username
 
 
 # nginx
-apt-get install -y nginx php8.4-fpm
+apt-get install -y nginx php8.4-fpm 2>/dev/null || true
 pgrep -x "php-fpm8.4" > /dev/null || php-fpm8.4 &
 pgrep -x "nginx" > /dev/null || /usr/sbin/nginx &
 
 ## SSH
-apt-get update
-apt-get install -y -o Dpkg::Options::="--force-confnew" openssh-server sshpass
+: # apt-get update (offline: pacotes ja instalados no build)
+apt-get install -y -o Dpkg::Options::="--force-confnew" openssh-server sshpass 2>/dev/null || true
 mkdir -p /var/run/sshd
 echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config
 echo 'PasswordAuthentication yes' >> /etc/ssh/sshd_config
@@ -40,13 +40,13 @@ echo 'attacker:Passw0rd' | chpasswd
 usermod -aG sudo attacker
 
 # T1046
-apt-get install -y python3
+apt-get install -y python3 2>/dev/null || true
 mkdir -p /tmp/tools
 chown root:root /tmp/tools
 
 # T1090.003
 
-apt-get install -y tinyproxy
+apt-get install -y tinyproxy 2>/dev/null || true
 cat > /etc/tinyproxy/tinyproxy.conf << 'EOF'
 Port 8888
 Listen 0.0.0.0
@@ -60,7 +60,7 @@ if ! ss -tuln | grep -q ":8888 ";
  fi
 
 # T1105
-apt-get install -y python3 python3-pip python3-venv curl netcat-openbsd
+apt-get install -y python3 python3-pip python3-venv curl netcat-openbsd 2>/dev/null || true
 mkdir -p /home/attacker/tools
 chown attacker:attacker /home/attacker/tools
 cat > /home/attacker/tools/simple_http_server.py << 'EOF'

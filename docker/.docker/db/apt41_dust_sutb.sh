@@ -1,7 +1,7 @@
 ############### APT 41 DUST
 # Global
-apt-get update
-apt-get -y install mariadb-server
+: # apt-get update (offline: pacotes ja instalados no build)
+apt-get -y install mariadb-server 2>/dev/null || true
 
 sed -i 's/^bind-address\s*=.*/bind-address = 0.0.0.0/' /etc/mysql/mariadb.conf.d/50-server.cnf
 pgrep -x "mariadbd-safe" > /dev/null || mariadbd-safe &
@@ -15,8 +15,8 @@ mysql -u root -pRootPassw0rd -e "INSERT INTO sensitive_data.credentials(username
 
 
 ## SSH
-apt-get update
-apt-get install -y -o Dpkg::Options::="--force-confnew" openssh-server sshpass
+: # apt-get update (offline: pacotes ja instalados no build)
+apt-get install -y -o Dpkg::Options::="--force-confnew" openssh-server sshpass 2>/dev/null || true
 mkdir -p /var/run/sshd
 echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config
 echo 'PasswordAuthentication yes' >> /etc/ssh/sshd_config
@@ -37,5 +37,5 @@ usermod -aG sudo attacker
 
 
 # T1105
-apt-get install -y python3 python3-pip
+apt-get install -y python3 python3-pip 2>/dev/null || true
 echo "It's me on hostB" > /tmp/toolfile

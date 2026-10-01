@@ -53,9 +53,10 @@ services:
         ipv4_address: 172.22.0.20  # Fixed IP inside 172.22.0.0/24 (internal-only)
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost/ >/dev/null || exit 1"]
-      interval: 30s
+      interval: 15s
       timeout: 10s
-      retries: 3
+      retries: 20
+      start_period: 4m
 
   # NGINX - The gateway/mediator
   nginx:
@@ -85,8 +86,13 @@ services:
       - --insecure
     ports:
       - "8888:8888"
-    volumes:
-      - ./.docker/caldera:/usr/src/app
+    # NOTE: the previous bind-mount (./.docker/caldera:/usr/src/app) was REMOVED.
+    # It overlaid the image's /usr/src/app with the host dir, which (a) hid the
+    # UI compiled into the image (magma/dist) so the 8888 web server never
+    # started, and (b) forced os.walk over the huge atomic-red-team tree through
+    # Docker Desktop's slow Windows->Linux FS layer, stalling ability
+    # verification at boot. The image already contains the code, the compiled UI
+    # and the plugin data, so no mount is needed.
     environment:
       - TZ=America/New_York
       - CALDERA_SSL=false
