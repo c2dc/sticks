@@ -43,3 +43,20 @@ docker/.docker/nginx/var/www/html/50x.html
 docker/.docker/nginx/var/www/html/tool.bin
 docker/.docker/nginx/var/www/html/tool.sh
 docker/kali-data/.ssh/
+
+# ── Artefatos de build/runtime da Caldera (reconstruidos pelo docker build) ──
+# O atomic-red-team e os planos de emulacao sao CLONADOS no build (ver o
+# Dockerfile da caldera); nao devem ser versionados nem ocupar a pasta.
+docker/.docker/caldera/plugins/atomic/data/atomic-red-team/
+docker/.docker/caldera/plugins/emu/data/adversary-emulation-plans/
+docker/.docker/caldera/plugins/magma/dist/
+**/node_modules/
+
+# ── Caches de teste/ferramentas Python ──
+.pytest_cache/
+.hypothesis/
+.mypy_cache/
+.ruff_cache/
+
+# ── Banco de desenvolvimento (SQLite) ──
+pipeline_ui/backend/pipeline_ui.db
