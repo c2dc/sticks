@@ -50,7 +50,7 @@ payload enviado à Caldera.
 ## Riscos e decisões
 
 - O laboratório permanece contido nas redes `172.20/21/22.0.0/24`; a rede
-  `172.23.0.0/24` é exclusiva do plano de gerenciamento da Caldera.
+  `192.168.40.0/24` é exclusiva do plano de gerenciamento da Caldera.
 - A porta 8000 não será usada por este projeto. A aplicação usa 15173/8010.
 - O teste real é opt-in e não roda automaticamente em desenvolvimento ou CI.
 - O checklist detalhado e retomável está em `.kiro/specs/pipeline-ui/tasks.md`.

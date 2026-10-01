@@ -84,7 +84,7 @@ Convenções deste plano:
     - _Requisitos: 6.1, 6.2_
 
   - [x] 4.2 Implementar a validação de destinos contra as subnets internas
-    - Classificar cada destino como interno (∈ 172.20.0.0/24, 172.21.0.0/24, 172.22.0.0/24) ou externo.
+    - Classificar cada destino como interno (∈ 192.168.10.0/24, 192.168.20.0/24, 192.168.30.0/24) ou externo.
     - Se qualquer comando tiver destino externo, recusar a Ability e sinalizar que a Operação não pode iniciar, identificando a Ability e o comando.
     - _Requisitos: 6.1, 6.2_
 
@@ -92,7 +92,7 @@ Convenções deste plano:
     - **Property 1: Nenhuma emulação inicia com destino externo**
     - **Feature: pipeline-ui, Property 1**
     - **Validates: Requisitos 6.1, 6.2**
-    - Geradores com comandos internos e externos misturados (ex.: `wget https://nmap.org/...`, `sshpass ... attacker@172.21.0.20`); mínimo de 100 iterações; sem ambiente real (fixtures/mocks).
+    - Geradores com comandos internos e externos misturados (ex.: `wget https://nmap.org/...`, `sshpass ... attacker@192.168.20.30`); mínimo de 100 iterações; sem ambiente real (fixtures/mocks).
 
   - [x] 4.4 Implementar a verificação de isolamento de containers via Docker Engine API (leitura)
     - Inspecionar (somente leitura) cada container-alvo e classificá-lo como isolado se e somente se conectado exclusivamente a redes `internal: true`, sem `local-network` (bridge) e sem `dns` externo.
@@ -303,7 +303,7 @@ Convenções deste plano:
 
 - [x] 15. **Testes de contenção dedicados e integração ponta a ponta**
   - [x]* 15.1 Escrever suíte de testes de contenção de segurança (com mocks)
-    - Garantir que **qualquer** comando com destino fora de 172.20/21/22.0.0/24 bloqueia a Operação inteira e identifica a Ability/comando (usar comandos reais do estilo curado: `wget https://nmap.org/...`, `apt-get install`, `sshpass ... attacker@172.21.0.20`).
+    - Garantir que **qualquer** comando com destino fora de 172.20/21/22.0.0/24 bloqueia a Operação inteira e identifica a Ability/comando (usar comandos reais do estilo curado: `wget https://nmap.org/...`, `apt-get install`, `sshpass ... attacker@192.168.20.30`).
     - Garantir que um container com `local-network` (bridge) ou `dns` externo é classificado como não isolado e aborta o pre-flight.
     - Confirmar que nenhuma execução ocorre sem confirmação explícita. Tudo com fixtures/mocks, sem ambiente real.
     - _Requisitos: 6.1, 6.2, 6.3, 6.4, 6.6, 6.7_

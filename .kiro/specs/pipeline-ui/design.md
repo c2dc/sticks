@@ -25,7 +25,7 @@ O backend reutiliza diretamente o pipeline Python existente (`sticks/lib/`, `sti
 
 ### Decisão de design destacada — o vazamento de contenção atual
 
-A inspeção do `docker/docker-compose.yml` revelou um risco concreto que o design **deve** endereçar: embora existam três redes marcadas `internal: true` (172.20.0.0/24, 172.21.0.0/24, 172.22.0.0/24), **todos** os containers (caldera, kali, nginx, db) também estão conectados a uma `local-network` do tipo `bridge` (com rota externa quando há portas expostas) e vários declaram `dns: 8.8.8.8`. Os comandos curados incluem egress real para a internet (por exemplo `wget https://nmap.org/dist/nmap-7.98.tgz`, `apt-get install`, `pip install`, `git clone`). Portanto, no estado atual, o ambiente **não** satisfaz o Requisito 6. O design trata isso como decisão explícita: define as verificações de contenção (pre-flight), a análise de destino dos comandos e a **configuração-alvo endurecida** recomendada. O objetivo desta entrega não é reescrever o compose, mas garantir que a Pipeline_UI **se recuse a executar** enquanto a contenção não estiver satisfeita.
+A inspeção do `docker/docker-compose.yml` revelou um risco concreto que o design **deve** endereçar: embora existam três redes marcadas `internal: true` (192.168.10.0/24, 192.168.20.0/24, 192.168.30.0/24), **todos** os containers (caldera, kali, nginx, db) também estão conectados a uma `local-network` do tipo `bridge` (com rota externa quando há portas expostas) e vários declaram `dns: 8.8.8.8`. Os comandos curados incluem egress real para a internet (por exemplo `wget https://nmap.org/dist/nmap-7.98.tgz`, `apt-get install`, `pip install`, `git clone`). Portanto, no estado atual, o ambiente **não** satisfaz o Requisito 6. O design trata isso como decisão explícita: define as verificações de contenção (pre-flight), a análise de destino dos comandos e a **configuração-alvo endurecida** recomendada. O objetivo desta entrega não é reescrever o compose, mas garantir que a Pipeline_UI **se recuse a executar** enquanto a contenção não estiver satisfeita.
 
 ## Architecture
 
@@ -41,16 +41,16 @@ flowchart TB
         end
 
         subgraph Lab["Ambiente_Docker (laboratório)"]
-            CAL["Caldera<br/>172.20.0.10<br/>API :8888"]
-            KALI["kali (atacante)<br/>172.20.0.20 / 172.21.0.10"]
-            NGX["nginx (alvo A)<br/>172.21.0.20 / 172.22.0.10"]
-            DBLAB["db (alvo B)<br/>172.22.0.20"]
+            CAL["Caldera<br/>192.168.10.10<br/>API :8888"]
+            KALI["kali (atacante)<br/>192.168.10.20 / 192.168.20.20"]
+            NGX["nginx (alvo A)<br/>192.168.20.30 / 192.168.30.30"]
+            DBLAB["db (alvo B)<br/>192.168.30.40"]
         end
 
         subgraph Nets["Redes internas (internal: true)"]
-            N1["caldera-kali-network<br/>172.20.0.0/24"]
-            N2["kali-nginx-network<br/>172.21.0.0/24"]
-            N3["nginx-db-network<br/>172.22.0.0/24"]
+            N1["caldera-kali-network<br/>192.168.10.0/24"]
+            N2["kali-nginx-network<br/>192.168.20.0/24"]
+            N3["nginx-db-network<br/>192.168.30.0/24"]
         end
     end
 
@@ -158,7 +158,7 @@ O Requisito 10 exige tecnologias em suporte oficial, com release nos últimos 24
 - **CaseService**: lê e valida os pares `data/api/{caso}_dag-ability.json` e `{caso}_dag-adversary.json` e o grafo `data/dag/{caso}_dag.json`. Expõe metadados dos casos, Abilities, Adversary e ordenação. Trata ausência/erro de leitura de arquivos por caso, mantendo os demais disponíveis (Req. 5.6).
 - **StageService**: orquestra cada estágio. Estágio 1 invoca a modelagem estrutural do pipeline existente (`lib/stix.py`, `lib/ability.py`) e persiste os elementos extraídos. Estágio 2 monta a Entrada/Saída a partir dos arquivos curados. Estágio 3 delega à emulação. Emite eventos de progresso e transições de estado.
 - **CalderaClient**: encapsula a API da Caldera reutilizando a configuração de `config.py` (`CALDERA_URL`, header `KEY: ADMIN123`). Verifica disponibilidade (timeout 10s), carrega abilities (`POST /api/v2/abilities`), lista/gerencia adversaries (`GET /api/v2/adversaries`) e cria/consulta Operações (compatível com `lib/operation.py`, planner "atomic", group "red", jitter). Faz polling do estado da Operação e dos links para status por Ability.
-- **ContainmentValidator**: núcleo de segurança. (a) **Parser de comandos**: extrai endereços de destino dos comandos (IPs, URLs, hosts em `ssh`, `curl`, `wget`, `sshpass ... user@host`, etc.). (b) **Validação de subnets**: confirma que todo destino pertence às subnets internas 172.20.0.0/24, 172.21.0.0/24 ou 172.22.0.0/24; qualquer destino externo (por exemplo `https://nmap.org`) recusa a Ability e impede a Operação. (c) **Verificação de isolamento**: inspeciona, via Docker Engine API (leitura), cada container-alvo para confirmar que está conectado somente a redes `internal: true`, sem `local-network` e sem `dns` externo; caso contrário, aborta. (d) **Preview**: produz a lista de comandos e destinos para o modal de confirmação.
+- **ContainmentValidator**: núcleo de segurança. (a) **Parser de comandos**: extrai endereços de destino dos comandos (IPs, URLs, hosts em `ssh`, `curl`, `wget`, `sshpass ... user@host`, etc.). (b) **Validação de subnets**: confirma que todo destino pertence às subnets internas 192.168.10.0/24, 192.168.20.0/24 ou 192.168.30.0/24; qualquer destino externo (por exemplo `https://nmap.org`) recusa a Ability e impede a Operação. (c) **Verificação de isolamento**: inspeciona, via Docker Engine API (leitura), cada container-alvo para confirmar que está conectado somente a redes `internal: true`, sem `local-network` e sem `dns` externo; caso contrário, aborta. (d) **Preview**: produz a lista de comandos e destinos para o modal de confirmação.
 - **OperationRunner**: conduz a Operação após aprovação da contenção e confirmação do Pesquisador. Aciona o `CalderaClient`, acompanha o progresso, agrega sucessos/falhas e coordena a auditoria a cada comando.
 - **AuditLogger**: registra, para cada comando executado, o comando, o container de destino e o resultado, persistindo um `AuditLogEntry` na Base_de_Dados. Se a persistência falhar durante a Operação, sinaliza o `OperationRunner` para abortar (Req. 6.8–6.9).
 - **SessionStateService**: lê e grava o Estado_de_Sessão (caso atual, estágios concluídos por caso, resultados de operações, preferências de tema/idioma), garantindo continuidade entre máquinas (Req. 9).
@@ -180,7 +180,7 @@ Decisão (revisada, substitui a Opção A anterior): o endurecimento da contenç
 
 O `docker/docker-compose.yml` endurecido deve:
 
-- Remover a `local-network` (bridge) de `kali`, `nginx` e `db` (atacante e alvos), deixando-os **exclusivamente** nas redes `internal: true` (172.20.0.0/24, 172.21.0.0/24, 172.22.0.0/24). A `caldera` mantém acesso de gestão apenas o necessário para expor a API em `localhost:8888`.
+- Remover a `local-network` (bridge) de `kali`, `nginx` e `db` (atacante e alvos), deixando-os **exclusivamente** nas redes `internal: true` (192.168.10.0/24, 192.168.20.0/24, 192.168.30.0/24). A `caldera` mantém acesso de gestão apenas o necessário para expor a API em `localhost:8888`.
 - Remover as diretivas `dns` externas (`8.8.8.8`) desses containers.
 - Remover as portas expostas dos alvos (`db` 33006, `nginx` 8000/8443); manter exposta **apenas** `caldera:8888`, usada pelo Pesquisador (UI da Caldera) e pelo Backend (API da Caldera).
 - Remover `privileged: true` do `kali` e reduzir as capabilities ao mínimo necessário para a emulação contida.
@@ -338,7 +338,7 @@ class AuditLogEntry(Base):
     operacao_id = Column(Integer, ForeignKey("operacoes.id"))
     ability_id = Column(String)
     comando = Column(Text, nullable=False)          # comando concreto executado
-    container_destino = Column(String, nullable=False)  # ex "nginx (172.21.0.20)"
+    container_destino = Column(String, nullable=False)  # ex "nginx (192.168.20.30)"
     resultado = Column(Text)                        # sucesso/falha + saída
     registrado_em = Column(DateTime, nullable=False)
 ```
@@ -387,7 +387,7 @@ As propriedades abaixo priorizam **contenção e segurança**, a maior preocupa�
 
 ### Property 1: Nenhuma emulação inicia com destino externo
 
-*Para qualquer* Adversary com qualquer conjunto de Abilities e comandos, se pelo menos um comando tem endereço de destino que não pertence às subnets internas (172.20.0.0/24, 172.21.0.0/24, 172.22.0.0/24), então o Backend recusa a Ability e não inicia a Operação, identificando a Ability e o comando com destino externo.
+*Para qualquer* Adversary com qualquer conjunto de Abilities e comandos, se pelo menos um comando tem endereço de destino que não pertence às subnets internas (192.168.10.0/24, 192.168.20.0/24, 192.168.30.0/24), então o Backend recusa a Ability e não inicia a Operação, identificando a Ability e o comando com destino externo.
 
 **Validates: Requirements 6.1, 6.2**
 
@@ -480,7 +480,7 @@ A abordagem combina testes unitários, de integração, baseados em propriedades
 - Cada teste é anotado com um comentário referenciando a propriedade, no formato:
   **Feature: pipeline-ui, Property {número}: {texto da propriedade}**.
 - Geradores relevantes: comandos com destinos internos e externos misturados (para as propriedades de contenção), configurações de rede de containers (isoladas e não isoladas), distribuições de estados de estágio para os 8 casos, chaves de tradução e idiomas (válidos e inválidos), e Estados_de_Sessão arbitrários para round-trip.
-- Foco especial de contenção: a Property 1 e a Property 2 devem ser exercitadas com comandos reais do estilo dos casos curados (por exemplo `wget https://nmap.org/...`, `apt-get install`, `sshpass ... attacker@172.21.0.20`), garantindo que destinos externos são bloqueados e destinos internos passam.
+- Foco especial de contenção: a Property 1 e a Property 2 devem ser exercitadas com comandos reais do estilo dos casos curados (por exemplo `wget https://nmap.org/...`, `apt-get install`, `sshpass ... attacker@192.168.20.30`), garantindo que destinos externos são bloqueados e destinos internos passam.
 
 ### Testes de contenção (segurança)
 
