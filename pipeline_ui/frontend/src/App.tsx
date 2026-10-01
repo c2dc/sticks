@@ -99,6 +99,9 @@ function App() {
           }}
           selectedStage={selectedStage}
           onSelectStage={setSelectedStage}
+          /* Com uma campanha selecionada, o wizard abaixo mostra os estágios em
+             detalhe — ocultamos os cards de resumo para não duplicar o painel. */
+          hideStageCards={Boolean(selectedCaseId)}
         />
         {/* Fluxo guiado (wizard): conduz os 3 estágios da campanha selecionada
             (Avançar → Avançar → Executar/Finish). O pedido de emulação do

@@ -42,6 +42,12 @@ export interface PipelineOverviewProps {
   onSelectStage?: (selection: StageSelection) => void
   /** The active {case, stage} selection, for visual highlight. */
   selectedStage?: StageSelection | null
+  /**
+   * When true, hide the three per-stage cards (the guided ExecutionWizard owns
+   * the detailed stage view in that case), keeping only the aggregate progress
+   * and the campaign selector so there is no duplicated stage panel.
+   */
+  hideStageCards?: boolean
 }
 
 /**
@@ -61,6 +67,7 @@ export function PipelineOverview({
   onSelectCase,
   onSelectStage,
   selectedStage,
+  hideStageCards = false,
 }: PipelineOverviewProps) {
   const { t } = useTranslation("pipeline")
 
@@ -164,7 +171,9 @@ export function PipelineOverview({
         <p className="text-sm text-muted-foreground">{t("overview.selectCasePrompt")}</p>
       ) : null}
 
-      {/* Three stages presented simultaneously, separated and named (Req. 1.1). */}
+      {/* Three stages presented simultaneously, separated and named (Req. 1.1).
+          Hidden when the guided wizard is active to avoid a duplicated panel. */}
+      {!hideStageCards ? (
       <div className="grid gap-4 md:grid-cols-3">
         {STAGE_NUMBERS.map((estagio) => {
           const stageState =
@@ -185,6 +194,7 @@ export function PipelineOverview({
           )
         })}
       </div>
+      ) : null}
 
       {/* Kept for potential host-driven case switching without a CaseSelector
           yet (task 12.3 replaces this with the real selector). */}
