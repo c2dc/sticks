@@ -163,5 +163,17 @@
         "body": "Could not start the emulation."
       }
     }
+  },
+  "wizard": {
+    "stepIndicator": "Step {{atual}} of {{total}}",
+    "back": "Back",
+    "next": "Advance to the next stage",
+    "runStage1": "Run modeling",
+    "runEmulation": "Run emulation",
+    "restart": "Restart",
+    "running": "Running...",
+    "blockedHint": "Complete the previous stage to advance.",
+    "stage1ErrorHint": "Modeling failed. Fix the issue to advance.",
+    "openWizard": "Start guided run"
   }
 }

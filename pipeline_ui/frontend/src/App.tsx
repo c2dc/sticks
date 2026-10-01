@@ -6,7 +6,7 @@ import {
   PipelineOverview,
   type StageSelection,
 } from "@/components/PipelineOverview"
-import { StageViewHost } from "@/components/StageViewHost"
+import { ExecutionWizard } from "@/components/ExecutionWizard"
 import { ThemeProvider, type Theme } from "@/components/theme-provider"
 import { applyLanguage } from "@/i18n"
 import { getPreferencias, putPreferencias } from "@/lib/preferencias"
@@ -100,13 +100,15 @@ function App() {
           selectedStage={selectedStage}
           onSelectStage={setSelectedStage}
         />
-        {/* When a stage is selected, render its dedicated view (Req. 1.3). The
-            Stage-3 emulation request opens the confirm modal below. */}
-        <StageViewHost
-          selection={selectedStage}
-          onClose={() => setSelectedStage(null)}
-          onRequestEmulation={setEmulationCaseId}
-        />
+        {/* Fluxo guiado (wizard): conduz os 3 estágios da campanha selecionada
+            (Avançar → Avançar → Executar/Finish). O pedido de emulação do
+            Estágio 3 abre o modal de confirmação abaixo. */}
+        {selectedCaseId ? (
+          <ExecutionWizard
+            casoId={selectedCaseId}
+            onRequestEmulation={setEmulationCaseId}
+          />
+        ) : null}
       </AppLayout>
 
       {/* Pre-confirmation command/target list + explicit confirmation gate

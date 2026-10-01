@@ -163,5 +163,17 @@
         "body": "Não foi possível iniciar a emulação."
       }
     }
+  },
+  "wizard": {
+    "stepIndicator": "Passo {{atual}} de {{total}}",
+    "back": "Voltar",
+    "next": "Avançar para o próximo estágio",
+    "runStage1": "Executar modelagem",
+    "runEmulation": "Executar emulação",
+    "restart": "Reiniciar",
+    "running": "Executando...",
+    "blockedHint": "Conclua o estágio anterior para avançar.",
+    "stage1ErrorHint": "A modelagem falhou. Corrija o problema para avançar.",
+    "openWizard": "Iniciar execução guiada"
   }
 }

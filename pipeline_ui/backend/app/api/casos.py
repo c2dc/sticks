@@ -380,3 +380,116 @@ def obter_operacao(
     _known_slug_or_404(caso, case_service)
     operacoes = SessionStateService(db).get_operation_results(caso)
     return OperationResponse(caso_id=caso, operacoes=operacoes)
+
+
+# ---------------------------------------------------------------------------
+# Wizard de Execução Guiada — conclusão de estágio e reset de campanha
+# (spec: wizard-execucao-guiada). Toda conclusão passa pelo
+# SessionStateService.persist_stage_completion (atomicidade + preservação de
+# estado já garantidas); o reset limpa o estado persistido para repetir a demo.
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/casos/{caso}/estagio/2/concluir",
+    response_model=CaseStageStates,
+    summary="Conclui o Estágio 2 (tradução curada) e destrava o Estágio 3",
+    responses={
+        status.HTTP_409_CONFLICT: {
+            "description": "Estágio 1 ainda não concluído (bloqueio sequencial)."
+        },
+    },
+)
+def concluir_estagio2(
+    caso: str = Path(..., description="Slug do caso curado"),
+    db: Session = Depends(get_db),
+) -> CaseStageStates:
+    """Persiste a conclusão do Estágio 2 (Req. 3).
+
+    A tradução do Estágio 2 é curada (os artefatos já existem), então "avançar
+    do 2" é, semanticamente, "concluir o 2". Respeita o bloqueio sequencial: só
+    conclui o 2 se o 1 já estiver ``concluido`` (senão 409, sem persistir).
+    """
+    from app.models.enums import StageState  # local import: evita ciclo no topo
+
+    case_service = CaseService()
+    _known_slug_or_404(caso, case_service)
+
+    stage_service = StageService(db, case_service=case_service)
+    estados = stage_service.get_stage_states(caso)
+
+    # Bloqueio sequencial (Req. 3.3): o Estágio 2 só conclui se o 1 está concluido.
+    estagio1 = next((e for e in estados.estagios if e.estagio == 1), None)
+    if estagio1 is None or estagio1.estado is not StageState.COMPLETED:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "motivo": "bloqueio_sequencial",
+                "mensagem": (
+                    "O Estágio 2 não pode ser concluído enquanto o Estágio 1 "
+                    "não estiver concluído."
+                ),
+            },
+        )
+
+    resultado = SessionStateService(db).persist_stage_completion(caso, 2)
+    if not resultado.saved:
+        # Falha de persistência: estado anterior preservado (Req. 3.6).
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "motivo": "falha_persistencia",
+                "mensagem": resultado.mensagem or "Conclusão não foi salva.",
+            },
+        )
+
+    # Reler o estado por estágio já com o 2 concluído (3 destravado).
+    return stage_service.get_stage_states(caso)
+
+
+@router.post(
+    "/casos/{caso}/reset",
+    response_model=CaseStageStates,
+    summary="Reinicia o estado da campanha (para repetir a demonstração)",
+)
+def reset_caso(
+    caso: str = Path(..., description="Slug do caso curado"),
+    db: Session = Depends(get_db),
+) -> CaseStageStates:
+    """Remove estágios concluídos e resultados de operação da campanha (Req. 6).
+
+    Em uma única transação, apaga os ``StageRun`` da campanha e as ``Operation``
+    (com seus ``AbilityResult`` e registros de auditoria) associadas, voltando a
+    campanha ao estado inicial (Estágio 1 ``nao_iniciado``, 2 e 3 ``bloqueado``).
+    """
+    from app.models.domain import (  # local import: evita ciclo no topo
+        AbilityResult,
+        AuditLogEntry,
+        Operation,
+        StageRun,
+    )
+
+    case_service = CaseService()
+    _known_slug_or_404(caso, case_service)
+
+    # Ids das operações da campanha, para limpar resultados/auditoria dependentes.
+    op_ids = [
+        row[0]
+        for row in db.query(Operation.id).filter(Operation.caso_id == caso).all()
+    ]
+    if op_ids:
+        db.query(AbilityResult).filter(
+            AbilityResult.operacao_id.in_(op_ids)
+        ).delete(synchronize_session=False)
+        db.query(AuditLogEntry).filter(
+            AuditLogEntry.operacao_id.in_(op_ids)
+        ).delete(synchronize_session=False)
+    db.query(Operation).filter(Operation.caso_id == caso).delete(
+        synchronize_session=False
+    )
+    db.query(StageRun).filter(StageRun.caso_id == caso).delete(
+        synchronize_session=False
+    )
+    db.commit()
+
+    return StageService(db, case_service=case_service).get_stage_states(caso)

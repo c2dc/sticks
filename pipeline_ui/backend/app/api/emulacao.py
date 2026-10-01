@@ -502,6 +502,19 @@ def executar_emulacao(
             },
         )
 
+    # Wizard (spec wizard-execucao-guiada, Req. 4.4/4.5): quando a emulação
+    # conclui com sucesso, o Estágio 3 passa a `concluido` — persistido pela
+    # única via de conclusão (persist_stage_completion). Somente COMPLETED +
+    # OperationState.FINISHED persiste; ABORTED/NOT_CONFIRMED/409/503 não. Uma
+    # falha ao marcar a conclusão NÃO derruba a emulação já executada.
+    if result.outcome is RunOutcome.COMPLETED and result.state is OperationState.FINISHED:
+        try:
+            from app.services.session.session_state_service import SessionStateService
+
+            SessionStateService(db).persist_stage_completion(caso, 3)
+        except Exception:  # noqa: BLE001 - best-effort; não falha a resposta de sucesso
+            pass
+
     # NOT_CONFIRMED (Req. 6.6/6.7): nothing ran — 200 with a "not started" body.
     # COMPLETED / ABORTED: the operation result (ABORTED surfaces its message).
     return _success_view(caso, result)
