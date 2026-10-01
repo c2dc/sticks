@@ -20,3 +20,26 @@ lerna-debug.log*
 # Artefatos de compilação Python (não devem ser versionados).
 __pycache__/
 *.py[cod]
+
+# Override local do Compose (específico da máquina; remapeia subnets p/ evitar
+# conflito com outros projetos). NÃO versionar.
+docker/docker-compose.override.yml
+docker/docker-compose.diag.yml
+
+# Backups e logs de diagnóstico criados durante troubleshooting do laboratório.
+*.orig.bak
+*.prebind.bak
+*.full.bak
+docker/.docker/_sut_backup/
+docker/*.log
+docker/*.out
+
+# Artefatos de RUNTIME gerados pela execução real do laboratório (não são código):
+# dados do MySQL do container db, arquivos coletados/gerados pela emulação nos
+# alvos, chaves ssh efêmeras do kali, e payloads de teste criados em runtime.
+docker/.docker/db/dbdata/
+docker/.docker/nginx/var/www/html/tmp/
+docker/.docker/nginx/var/www/html/50x.html
+docker/.docker/nginx/var/www/html/tool.bin
+docker/.docker/nginx/var/www/html/tool.sh
+docker/kali-data/.ssh/
