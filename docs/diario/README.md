@@ -9,6 +9,7 @@ o desenvolvimento seja retomado no Codex, no Kiro ou manualmente.
 
 - [2026-09-29 — auditoria completa do fluxo ShadowRay](2026-09-29.md)
 - [2026-09-30 — sessão autônoma: slim do Kali + property tests + integração Estágio 1](2026-09-30.md)
+- [2026-10-01 — laboratório real de pé + E2E do ShadowRay comprovado](2026-10-01.md)
 
 ## Convenção para os próximos dias
 
