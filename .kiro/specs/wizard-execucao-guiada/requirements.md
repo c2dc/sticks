@@ -15,7 +15,7 @@ PostgreSQL é fase futura (fora de escopo); o design não deve exigir mudança n
 - **Wizard**: Componente de frontend que conduz o Pesquisador sequencialmente pelos 3 estágios de uma campanha, com controles "Avançar" e "Voltar".
 - **Campanha**: Caso curado do pipeline (ex.: ShadowRay), identificado por um slug.
 - **Estágio**: Uma das 3 etapas do pipeline por campanha (1 = Modelagem Estrutural, 2 = Tradução Curada, 3 = Emulação de Adversário).
-- **Backend**: A API FastAPI em `pipeline_ui/backend` que expõe os endpoints de casos, estágios e emulação.
+- **Backend**: A API FastAPI em `ui/backend` que expõe os endpoints de casos, estágios e emulação.
 - **Estado_de_Sessão**: Registro persistido no SQLite (via `SessionStateService`) do caso atual e dos estágios concluídos por caso.
 - **Estado_do_Estágio**: Estado derivado de um estágio para um caso: `nao_iniciado`, `em_execucao`, `concluido`, `erro` ou `bloqueado`.
 - **Bloqueio_Sequencial**: Regra pela qual o Estágio N só pode iniciar se o Estágio N-1 estiver `concluido`.

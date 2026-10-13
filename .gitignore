@@ -1,5 +1,5 @@
 # Dependências instaladas na raiz para o comando único de dev (concurrently).
-# As dependências do frontend têm seu próprio .gitignore em pipeline_ui/frontend.
+# As dependências do frontend têm seu próprio .gitignore em ui/frontend.
 node_modules/
 
 # Logs de execução do npm / ferramentas de dev.
@@ -59,4 +59,4 @@ docker/.docker/caldera/plugins/magma/dist/
 .ruff_cache/
 
 # ── Banco de desenvolvimento (SQLite) ──
-pipeline_ui/backend/pipeline_ui.db
+ui/backend/pipeline_ui.db
