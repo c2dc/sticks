@@ -1,0 +1,820 @@
+{
+  "pbtResults": {
+    "4.3 Escrever property test do gerador de curadoria": {
+      "status": "passed",
+      "lastRunTimestamp": 1791755567264
+    },
+    "2.2 Escrever property test da renumeração do upgrade": {
+      "status": "passed",
+      "lastRunTimestamp": 1791755823986
+    },
+    "2.3 Escrever property test do round-trip up∘down": {
+      "status": "passed",
+      "lastRunTimestamp": 1791755959461
+    },
+    "2.4 Escrever property test da guarda da migração": {
+      "status": "passed",
+      "lastRunTimestamp": 1791756041176
+    },
+    "5.3 Escrever property test da entidade DAG multi-origem": {
+      "status": "passed",
+      "lastRunTimestamp": 1791756674543
+    },
+    "5.4 Escrever property test do backfill idempotente": {
+      "status": "passed",
+      "lastRunTimestamp": 1791756682056
+    },
+    "7.4 Escrever property test do progresso agregado sobre 4 Estágios": {
+      "status": "passed",
+      "lastRunTimestamp": 1791757116901
+    },
+    "7.3 Escrever property test do bloqueio sequencial em 1..4": {
+      "status": "passed",
+      "lastRunTimestamp": 1791757129760
+    },
+    "5.5 Escrever property tests da escolha de DAG e gate do Estágio 1": {
+      "status": "passed",
+      "lastRunTimestamp": 1791757137799
+    },
+    "7.5 Escrever property test da derivação de estado por StageRun em 1..4": {
+      "status": "passed",
+      "lastRunTimestamp": 1791757182180
+    }
+  },
+  "executionHistory": {
+    "1.1 Adicionar o enum `OrigemDag` em `ui/backend/app/models/enums.py`": [
+      {
+        "executionId": "457ffb63-1ef8-4b4b-8844-fe22875e1636",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791753168841
+      },
+      {
+        "executionId": "457ffb63-1ef8-4b4b-8844-fe22875e1636",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791753179420
+      },
+      {
+        "executionId": "457ffb63-1ef8-4b4b-8844-fe22875e1636",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791753233207
+      }
+    ],
+    "1.2 Adicionar o modelo `Dag` em `ui/backend/app/models/domain.py`": [
+      {
+        "executionId": "457ffb63-1ef8-4b4b-8844-fe22875e1636",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791753168899
+      },
+      {
+        "executionId": "457ffb63-1ef8-4b4b-8844-fe22875e1636",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791753239502
+      },
+      {
+        "executionId": "457ffb63-1ef8-4b4b-8844-fe22875e1636",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791753354623
+      }
+    ],
+    "1.3 Adicionar a coluna `dag_escolhido_id` ao modelo `StageRun` em `ui/backend/app/models/domain.py`": [
+      {
+        "executionId": "457ffb63-1ef8-4b4b-8844-fe22875e1636",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791753168939
+      },
+      {
+        "executionId": "457ffb63-1ef8-4b4b-8844-fe22875e1636",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791753359324
+      },
+      {
+        "executionId": "457ffb63-1ef8-4b4b-8844-fe22875e1636",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791754106616
+      }
+    ],
+    "1.4 Escrever testes de exemplo para enum e modelos": [
+      {
+        "executionId": "457ffb63-1ef8-4b4b-8844-fe22875e1636",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791753168970
+      },
+      {
+        "executionId": "457ffb63-1ef8-4b4b-8844-fe22875e1636",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791754111261
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791754892796
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791754898566
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791755275586
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791755376943
+      }
+    ],
+    "2.1 Criar a migração encadeada em `ui/backend/alembic/versions`": [
+      {
+        "executionId": "457ffb63-1ef8-4b4b-8844-fe22875e1636",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791753169030
+      },
+      {
+        "executionId": "457ffb63-1ef8-4b4b-8844-fe22875e1636",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791754114320
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791754894104
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791754898647
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791754904047
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791755262062
+      }
+    ],
+    "2.2 Escrever property test da renumeração do upgrade": [
+      {
+        "executionId": "457ffb63-1ef8-4b4b-8844-fe22875e1636",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791753169088
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791755588808
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791755855780
+      }
+    ],
+    "2.3 Escrever property test do round-trip up∘down": [
+      {
+        "executionId": "457ffb63-1ef8-4b4b-8844-fe22875e1636",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791753169120
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791755589751
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791756084237
+      }
+    ],
+    "2.4 Escrever property test da guarda da migração": [
+      {
+        "executionId": "457ffb63-1ef8-4b4b-8844-fe22875e1636",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791753169149
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791755594582
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791756084969
+      }
+    ],
+    "3. Checkpoint - garantir base de dados e migração verdes": [
+      {
+        "executionId": "457ffb63-1ef8-4b4b-8844-fe22875e1636",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791753169215
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791760380954
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791760479720
+      }
+    ],
+    "4.1 Definir a costura `GeradorDeDag` e o DTO `DagProduzido` no pacote `ui/backend/app/services/dag`": [
+      {
+        "executionId": "457ffb63-1ef8-4b4b-8844-fe22875e1636",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791753169268
+      },
+      {
+        "executionId": "457ffb63-1ef8-4b4b-8844-fe22875e1636",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791753239803
+      },
+      {
+        "executionId": "457ffb63-1ef8-4b4b-8844-fe22875e1636",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791753355636
+      }
+    ],
+    "4.2 Implementar `CuradoriaGeradorDeDag` no pacote `ui/backend/app/services/dag`": [
+      {
+        "executionId": "457ffb63-1ef8-4b4b-8844-fe22875e1636",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791753169292
+      },
+      {
+        "executionId": "457ffb63-1ef8-4b4b-8844-fe22875e1636",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791753360397
+      },
+      {
+        "executionId": "457ffb63-1ef8-4b4b-8844-fe22875e1636",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791754107460
+      }
+    ],
+    "4.3 Escrever property test do gerador de curadoria": [
+      {
+        "executionId": "457ffb63-1ef8-4b4b-8844-fe22875e1636",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791753169318
+      },
+      {
+        "executionId": "457ffb63-1ef8-4b4b-8844-fe22875e1636",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791754114711
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791754895018
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791754898681
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791755391364
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791755583068
+      }
+    ],
+    "4.4 Escrever teste de exemplo de conformidade com o Protocol": [
+      {
+        "executionId": "457ffb63-1ef8-4b4b-8844-fe22875e1636",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791753169349
+      },
+      {
+        "executionId": "457ffb63-1ef8-4b4b-8844-fe22875e1636",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791754114777
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791754898708
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791755274735
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791755377562
+      }
+    ],
+    "5.1 Refatorar `ui/backend/app/services/dag/dag_service.py` para injetar `GeradorDeDag` e persistir/listar DAGs": [
+      {
+        "executionId": "457ffb63-1ef8-4b4b-8844-fe22875e1636",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791753169377
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791756105451
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791756301885
+      }
+    ],
+    "5.2 Implementar `escolher_dag(caso, dag_id)` no `DagService`": [
+      {
+        "executionId": "457ffb63-1ef8-4b4b-8844-fe22875e1636",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791753169411
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791756328364
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791756546920
+      }
+    ],
+    "5.3 Escrever property test da entidade DAG multi-origem": [
+      {
+        "executionId": "457ffb63-1ef8-4b4b-8844-fe22875e1636",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791753169442
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791756563553
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791756702810
+      }
+    ],
+    "5.4 Escrever property test do backfill idempotente": [
+      {
+        "executionId": "457ffb63-1ef8-4b4b-8844-fe22875e1636",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791753169474
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791756562956
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791756702065
+      }
+    ],
+    "5.5 Escrever property tests da escolha de DAG e gate do Estágio 1": [
+      {
+        "executionId": "457ffb63-1ef8-4b4b-8844-fe22875e1636",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791753169524
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791756715834
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791757202071
+      }
+    ],
+    "6. Checkpoint - garantir serviços de DAG verdes": [
+      {
+        "executionId": "457ffb63-1ef8-4b4b-8844-fe22875e1636",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791753169561
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791760493234
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791760561978
+      }
+    ],
+    "7.1 Generalizar as constantes de Estágio em `ui/backend/app/services/stage/stage_service.py`": [
+      {
+        "executionId": "457ffb63-1ef8-4b4b-8844-fe22875e1636",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791753169600
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791756714778
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791756973877
+      }
+    ],
+    "7.2 Atualizar `SessionStateService` para derivar Estágios concluídos em 1..4": [
+      {
+        "executionId": "457ffb63-1ef8-4b4b-8844-fe22875e1636",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791753169632
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791756329161
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791756548870
+      }
+    ],
+    "7.3 Escrever property test do bloqueio sequencial em 1..4": [
+      {
+        "executionId": "457ffb63-1ef8-4b4b-8844-fe22875e1636",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791753169662
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791756991449
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791757203372
+      }
+    ],
+    "7.4 Escrever property test do progresso agregado sobre 4 Estágios": [
+      {
+        "executionId": "457ffb63-1ef8-4b4b-8844-fe22875e1636",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791753169696
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791756991855
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791757204480
+      }
+    ],
+    "7.5 Escrever property test da derivação de estado por StageRun em 1..4": [
+      {
+        "executionId": "457ffb63-1ef8-4b4b-8844-fe22875e1636",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791753169729
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791756992076
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791757205703
+      }
+    ],
+    "7.6 Escrever testes de exemplo de constantes e nomes de Estágio": [
+      {
+        "executionId": "457ffb63-1ef8-4b4b-8844-fe22875e1636",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791753169762
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791756992269
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791757209459
+      }
+    ],
+    "8.1 Renumerar os endpoints de Estágio para 1..4 em `ui/backend/app/api/casos.py`": [
+      {
+        "executionId": "457ffb63-1ef8-4b4b-8844-fe22875e1636",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791753169800
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791757216770
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791757462814
+      }
+    ],
+    "8.2 Adicionar os endpoints de DAG em `ui/backend/app/api/casos.py`": [
+      {
+        "executionId": "457ffb63-1ef8-4b4b-8844-fe22875e1636",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791753169836
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791757645205
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791757814829
+      }
+    ],
+    "8.3 Habilitar o canal WebSocket de Estágios em 1..4": [
+      {
+        "executionId": "457ffb63-1ef8-4b4b-8844-fe22875e1636",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791753169870
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791757499597
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791757640450
+      }
+    ],
+    "8.4 Escrever testes de integração dos contratos REST": [
+      {
+        "executionId": "457ffb63-1ef8-4b4b-8844-fe22875e1636",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791753169901
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791757819708
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791758414575
+      }
+    ],
+    "9. Checkpoint - garantir backend verde ponta a ponta": [
+      {
+        "executionId": "457ffb63-1ef8-4b4b-8844-fe22875e1636",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791753169926
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791758800568
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791759256347
+      }
+    ],
+    "10.1 Atualizar tipos e wrappers em `ui/frontend/src/lib/casos.ts`, `estagios.ts` e `dag.ts`": [
+      {
+        "executionId": "457ffb63-1ef8-4b4b-8844-fe22875e1636",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791753169959
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791757820911
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791758415345
+      }
+    ],
+    "10.2 Remover a view `\"dag\"` do fluxo em `ui/frontend/src/lib/flow.ts`": [
+      {
+        "executionId": "457ffb63-1ef8-4b4b-8844-fe22875e1636",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791753169993
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791759267905
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791759513464
+      }
+    ],
+    "10.3 Atualizar o property test do reducer de fluxo": [
+      {
+        "executionId": "457ffb63-1ef8-4b4b-8844-fe22875e1636",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791753170028
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791759529412
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791759755159
+      }
+    ],
+    "11.1 Transformar `DagStageView.tsx` no corpo do Estágio 1": [
+      {
+        "executionId": "457ffb63-1ef8-4b4b-8844-fe22875e1636",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791753170083
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791759528635
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791759756203
+      }
+    ],
+    "11.2 Expandir `ExecutionWizard.tsx` para 4 Estágios e costurar os componentes": [
+      {
+        "executionId": "457ffb63-1ef8-4b4b-8844-fe22875e1636",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791753170140
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791759761607
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791760040283
+      }
+    ],
+    "11.3 Unificar as chaves i18n para \"Estágio\" em `ui/frontend/src/i18n`": [
+      {
+        "executionId": "457ffb63-1ef8-4b4b-8844-fe22875e1636",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791753170168
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791759268499
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791759514550
+      }
+    ],
+    "11.4 Escrever testes de UI (Vitest) do Estágio 1 e i18n": [
+      {
+        "executionId": "457ffb63-1ef8-4b4b-8844-fe22875e1636",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791753170195
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791760046239
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791760360984
+      }
+    ],
+    "11.5 Escrever teste e2e (Playwright) do fluxo de 4 Estágios": [
+      {
+        "executionId": "457ffb63-1ef8-4b4b-8844-fe22875e1636",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791753170227
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791760047103
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791760361873
+      }
+    ],
+    "12. Final checkpoint - garantir todas as suítes verdes": [
+      {
+        "executionId": "457ffb63-1ef8-4b4b-8844-fe22875e1636",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791753170259
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791760568450
+      },
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791760687496
+      }
+    ],
+    "1. Modelo de dados: enum `OrigemDag`, entidade `Dag` e FK `dag_escolhido_id`": [
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791755377004
+      }
+    ],
+    "4. Costura `GeradorDeDag` e implementação de curadoria": [
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791755583271
+      }
+    ],
+    "2. Migração Alembic: renumerar Estágios e criar esquema do DAG": [
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791756085022
+      }
+    ],
+    "5. `DagService` refatorado sobre o DAG persistido": [
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791757202112
+      }
+    ],
+    "7. `StageService` e serviços dependentes renumerados para 1..4": [
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791757209493
+      }
+    ],
+    "8. Endpoints REST renumerados e de DAG em `casos.py`": [
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791758414649
+      }
+    ],
+    "10. Frontend: tipos, wrappers de API e fluxo renumerado": [
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791759755248
+      }
+    ],
+    "11. Frontend: Estágio 1 (DAG) dentro do wizard de 4 Estágios": [
+      {
+        "executionId": "09e4bcab-c179-4cfe-8ae4-701c6d6066da",
+        "chatSessionId": "sess_4d6a511d-6afc-48f6-9be3-3bfe45ec9afb",
+        "timestamp": 1791760361927
+      }
+    ]
+  }
+}

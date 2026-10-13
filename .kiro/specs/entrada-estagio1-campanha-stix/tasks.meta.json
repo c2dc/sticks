@@ -1,0 +1,302 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1.1 Implementar `obter_campanha_por_slug(versao, slug)` em `app/services/stix/stix_service.py`": [
+      {
+        "executionId": "ac800b81-13e0-4526-946b-4dc2c72122ed",
+        "chatSessionId": "sess_0a6b96f7-160e-473d-9866-744b4cf7bdc8",
+        "timestamp": 1791806726816
+      },
+      {
+        "executionId": "ac800b81-13e0-4526-946b-4dc2c72122ed",
+        "chatSessionId": "sess_0a6b96f7-160e-473d-9866-744b4cf7bdc8",
+        "timestamp": 1791806736420
+      },
+      {
+        "executionId": "ac800b81-13e0-4526-946b-4dc2c72122ed",
+        "chatSessionId": "sess_0a6b96f7-160e-473d-9866-744b4cf7bdc8",
+        "timestamp": 1791806840577
+      }
+    ],
+    "1.2 Property/unit tests da resolução": [
+      {
+        "executionId": "ac800b81-13e0-4526-946b-4dc2c72122ed",
+        "chatSessionId": "sess_0a6b96f7-160e-473d-9866-744b4cf7bdc8",
+        "timestamp": 1791806726889
+      },
+      {
+        "executionId": "ac800b81-13e0-4526-946b-4dc2c72122ed",
+        "chatSessionId": "sess_0a6b96f7-160e-473d-9866-744b4cf7bdc8",
+        "timestamp": 1791806843846
+      },
+      {
+        "executionId": "ac800b81-13e0-4526-946b-4dc2c72122ed",
+        "chatSessionId": "sess_0a6b96f7-160e-473d-9866-744b4cf7bdc8",
+        "timestamp": 1791807021814
+      }
+    ],
+    "2.1 Adicionar o DTO e o campo `campanha_stix` em `Stage1Input` (`app/services/stage/stage_service.py`)": [
+      {
+        "executionId": "ac800b81-13e0-4526-946b-4dc2c72122ed",
+        "chatSessionId": "sess_0a6b96f7-160e-473d-9866-744b4cf7bdc8",
+        "timestamp": 1791806726919
+      },
+      {
+        "executionId": "ac800b81-13e0-4526-946b-4dc2c72122ed",
+        "chatSessionId": "sess_0a6b96f7-160e-473d-9866-744b4cf7bdc8",
+        "timestamp": 1791807027725
+      },
+      {
+        "executionId": "ac800b81-13e0-4526-946b-4dc2c72122ed",
+        "chatSessionId": "sess_0a6b96f7-160e-473d-9866-744b4cf7bdc8",
+        "timestamp": 1791807097692
+      }
+    ],
+    "2.2 Preencher `campanha_stix` em `read_stage1`/`run_stage1` com os quatro cenários": [
+      {
+        "executionId": "ac800b81-13e0-4526-946b-4dc2c72122ed",
+        "chatSessionId": "sess_0a6b96f7-160e-473d-9866-744b4cf7bdc8",
+        "timestamp": 1791806726946
+      },
+      {
+        "executionId": "ac800b81-13e0-4526-946b-4dc2c72122ed",
+        "chatSessionId": "sess_0a6b96f7-160e-473d-9866-744b4cf7bdc8",
+        "timestamp": 1791807100776
+      },
+      {
+        "executionId": "ac800b81-13e0-4526-946b-4dc2c72122ed",
+        "chatSessionId": "sess_0a6b96f7-160e-473d-9866-744b4cf7bdc8",
+        "timestamp": 1791807347373
+      }
+    ],
+    "3.1 Adicionar o query param `versao` opcional em `GET /api/casos/{caso}/estagio/1` e no `POST .../estagio/1/executar` (`app/api/casos.py`)": [
+      {
+        "executionId": "ac800b81-13e0-4526-946b-4dc2c72122ed",
+        "chatSessionId": "sess_0a6b96f7-160e-473d-9866-744b4cf7bdc8",
+        "timestamp": 1791806726981
+      },
+      {
+        "executionId": "ac800b81-13e0-4526-946b-4dc2c72122ed",
+        "chatSessionId": "sess_0a6b96f7-160e-473d-9866-744b4cf7bdc8",
+        "timestamp": 1791807351164
+      },
+      {
+        "executionId": "ac800b81-13e0-4526-946b-4dc2c72122ed",
+        "chatSessionId": "sess_0a6b96f7-160e-473d-9866-744b4cf7bdc8",
+        "timestamp": 1791807419128
+      }
+    ],
+    "3.2 Testes de contrato do endpoint": [
+      {
+        "executionId": "ac800b81-13e0-4526-946b-4dc2c72122ed",
+        "chatSessionId": "sess_0a6b96f7-160e-473d-9866-744b4cf7bdc8",
+        "timestamp": 1791806727011
+      },
+      {
+        "executionId": "ac800b81-13e0-4526-946b-4dc2c72122ed",
+        "chatSessionId": "sess_0a6b96f7-160e-473d-9866-744b4cf7bdc8",
+        "timestamp": 1791807424377
+      },
+      {
+        "executionId": "ac800b81-13e0-4526-946b-4dc2c72122ed",
+        "chatSessionId": "sess_0a6b96f7-160e-473d-9866-744b4cf7bdc8",
+        "timestamp": 1791807662798
+      }
+    ],
+    "4. Checkpoint - backend verde": [
+      {
+        "executionId": "ac800b81-13e0-4526-946b-4dc2c72122ed",
+        "chatSessionId": "sess_0a6b96f7-160e-473d-9866-744b4cf7bdc8",
+        "timestamp": 1791806727038
+      },
+      {
+        "executionId": "ac800b81-13e0-4526-946b-4dc2c72122ed",
+        "chatSessionId": "sess_0a6b96f7-160e-473d-9866-744b4cf7bdc8",
+        "timestamp": 1791807668440
+      },
+      {
+        "executionId": "ac800b81-13e0-4526-946b-4dc2c72122ed",
+        "chatSessionId": "sess_0a6b96f7-160e-473d-9866-744b4cf7bdc8",
+        "timestamp": 1791807792872
+      }
+    ],
+    "5.1 Tipar `CampanhaStixEntrada` e estender `Stage1Entrada` em `src/lib/estagios.ts`; `getEstagio1(caso, versao?)` acrescenta `?versao=`": [
+      {
+        "executionId": "ac800b81-13e0-4526-946b-4dc2c72122ed",
+        "chatSessionId": "sess_0a6b96f7-160e-473d-9866-744b4cf7bdc8",
+        "timestamp": 1791806727073
+      },
+      {
+        "executionId": "ac800b81-13e0-4526-946b-4dc2c72122ed",
+        "chatSessionId": "sess_0a6b96f7-160e-473d-9866-744b4cf7bdc8",
+        "timestamp": 1791807798129
+      },
+      {
+        "executionId": "ac800b81-13e0-4526-946b-4dc2c72122ed",
+        "chatSessionId": "sess_0a6b96f7-160e-473d-9866-744b4cf7bdc8",
+        "timestamp": 1791807883823
+      }
+    ],
+    "5.2 Teste do wrapper": [
+      {
+        "executionId": "ac800b81-13e0-4526-946b-4dc2c72122ed",
+        "chatSessionId": "sess_0a6b96f7-160e-473d-9866-744b4cf7bdc8",
+        "timestamp": 1791806727124
+      },
+      {
+        "executionId": "ac800b81-13e0-4526-946b-4dc2c72122ed",
+        "chatSessionId": "sess_0a6b96f7-160e-473d-9866-744b4cf7bdc8",
+        "timestamp": 1791807887153
+      },
+      {
+        "executionId": "ac800b81-13e0-4526-946b-4dc2c72122ed",
+        "chatSessionId": "sess_0a6b96f7-160e-473d-9866-744b4cf7bdc8",
+        "timestamp": 1791807947652
+      }
+    ],
+    "6.1 `App.tsx` passa `versao={estado.versaoSelecionada}` ao `ExecutionWizard`; `ExecutionWizard` repassa ao `Stage1View`": [
+      {
+        "executionId": "ac800b81-13e0-4526-946b-4dc2c72122ed",
+        "chatSessionId": "sess_0a6b96f7-160e-473d-9866-744b4cf7bdc8",
+        "timestamp": 1791806727153
+      },
+      {
+        "executionId": "ac800b81-13e0-4526-946b-4dc2c72122ed",
+        "chatSessionId": "sess_0a6b96f7-160e-473d-9866-744b4cf7bdc8",
+        "timestamp": 1791807951284
+      },
+      {
+        "executionId": "ac800b81-13e0-4526-946b-4dc2c72122ed",
+        "chatSessionId": "sess_0a6b96f7-160e-473d-9866-744b4cf7bdc8",
+        "timestamp": 1791808066415
+      }
+    ],
+    "6.2 Testes de propagação": [
+      {
+        "executionId": "ac800b81-13e0-4526-946b-4dc2c72122ed",
+        "chatSessionId": "sess_0a6b96f7-160e-473d-9866-744b4cf7bdc8",
+        "timestamp": 1791806727182
+      },
+      {
+        "executionId": "ac800b81-13e0-4526-946b-4dc2c72122ed",
+        "chatSessionId": "sess_0a6b96f7-160e-473d-9866-744b4cf7bdc8",
+        "timestamp": 1791808069516
+      },
+      {
+        "executionId": "ac800b81-13e0-4526-946b-4dc2c72122ed",
+        "chatSessionId": "sess_0a6b96f7-160e-473d-9866-744b4cf7bdc8",
+        "timestamp": 1791808175095
+      }
+    ],
+    "7.1 Atualizar a seção Entrada do `Stage1View` para renderizar `campanha_stix`": [
+      {
+        "executionId": "ac800b81-13e0-4526-946b-4dc2c72122ed",
+        "chatSessionId": "sess_0a6b96f7-160e-473d-9866-744b4cf7bdc8",
+        "timestamp": 1791806727214
+      },
+      {
+        "executionId": "ac800b81-13e0-4526-946b-4dc2c72122ed",
+        "chatSessionId": "sess_0a6b96f7-160e-473d-9866-744b4cf7bdc8",
+        "timestamp": 1791808178856
+      },
+      {
+        "executionId": "ac800b81-13e0-4526-946b-4dc2c72122ed",
+        "chatSessionId": "sess_0a6b96f7-160e-473d-9866-744b4cf7bdc8",
+        "timestamp": 1791808278308
+      }
+    ],
+    "7.2 Chaves i18n (pt-BR/en) com paridade": [
+      {
+        "executionId": "ac800b81-13e0-4526-946b-4dc2c72122ed",
+        "chatSessionId": "sess_0a6b96f7-160e-473d-9866-744b4cf7bdc8",
+        "timestamp": 1791806727254
+      },
+      {
+        "executionId": "ac800b81-13e0-4526-946b-4dc2c72122ed",
+        "chatSessionId": "sess_0a6b96f7-160e-473d-9866-744b4cf7bdc8",
+        "timestamp": 1791808283583
+      },
+      {
+        "executionId": "59d6af8a-ea5d-4fbd-a87d-a46674de3b73",
+        "chatSessionId": "sess_0a6b96f7-160e-473d-9866-744b4cf7bdc8",
+        "timestamp": 1791858005525
+      }
+    ],
+    "7.3 Testes de UI do `Stage1View`": [
+      {
+        "executionId": "ac800b81-13e0-4526-946b-4dc2c72122ed",
+        "chatSessionId": "sess_0a6b96f7-160e-473d-9866-744b4cf7bdc8",
+        "timestamp": 1791806727281
+      },
+      {
+        "executionId": "59d6af8a-ea5d-4fbd-a87d-a46674de3b73",
+        "chatSessionId": "sess_0a6b96f7-160e-473d-9866-744b4cf7bdc8",
+        "timestamp": 1791858009550
+      },
+      {
+        "executionId": "59d6af8a-ea5d-4fbd-a87d-a46674de3b73",
+        "chatSessionId": "sess_0a6b96f7-160e-473d-9866-744b4cf7bdc8",
+        "timestamp": 1791858185971
+      }
+    ],
+    "8. Checkpoint final - todas as suítes verdes": [
+      {
+        "executionId": "ac800b81-13e0-4526-946b-4dc2c72122ed",
+        "chatSessionId": "sess_0a6b96f7-160e-473d-9866-744b4cf7bdc8",
+        "timestamp": 1791806727313
+      },
+      {
+        "executionId": "59d6af8a-ea5d-4fbd-a87d-a46674de3b73",
+        "chatSessionId": "sess_0a6b96f7-160e-473d-9866-744b4cf7bdc8",
+        "timestamp": 1791858191850
+      },
+      {
+        "executionId": "59d6af8a-ea5d-4fbd-a87d-a46674de3b73",
+        "chatSessionId": "sess_0a6b96f7-160e-473d-9866-744b4cf7bdc8",
+        "timestamp": 1791858319459
+      }
+    ],
+    "1. Backend: resolver o objeto `campaign` por slug no `StixService`": [
+      {
+        "executionId": "ac800b81-13e0-4526-946b-4dc2c72122ed",
+        "chatSessionId": "sess_0a6b96f7-160e-473d-9866-744b4cf7bdc8",
+        "timestamp": 1791807021898
+      }
+    ],
+    "2. Backend: DTO `CampanhaStixEntrada` e preenchimento da Entrada": [
+      {
+        "executionId": "ac800b81-13e0-4526-946b-4dc2c72122ed",
+        "chatSessionId": "sess_0a6b96f7-160e-473d-9866-744b4cf7bdc8",
+        "timestamp": 1791807347458
+      }
+    ],
+    "3. Backend: endpoint `estagio/1` aceita `versao`": [
+      {
+        "executionId": "ac800b81-13e0-4526-946b-4dc2c72122ed",
+        "chatSessionId": "sess_0a6b96f7-160e-473d-9866-744b4cf7bdc8",
+        "timestamp": 1791807662890
+      }
+    ],
+    "5. Frontend: tipos e wrapper": [
+      {
+        "executionId": "ac800b81-13e0-4526-946b-4dc2c72122ed",
+        "chatSessionId": "sess_0a6b96f7-160e-473d-9866-744b4cf7bdc8",
+        "timestamp": 1791807947696
+      }
+    ],
+    "6. Frontend: propagar a versão selecionada até o Estágio 1": [
+      {
+        "executionId": "ac800b81-13e0-4526-946b-4dc2c72122ed",
+        "chatSessionId": "sess_0a6b96f7-160e-473d-9866-744b4cf7bdc8",
+        "timestamp": 1791808175150
+      }
+    ],
+    "7. Frontend: render do bloco `campanha_stix` + i18n": [
+      {
+        "executionId": "59d6af8a-ea5d-4fbd-a87d-a46674de3b73",
+        "chatSessionId": "sess_0a6b96f7-160e-473d-9866-744b4cf7bdc8",
+        "timestamp": 1791858186043
+      }
+    ]
+  }
+}

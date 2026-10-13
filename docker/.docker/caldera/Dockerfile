@@ -109,7 +109,9 @@ RUN (find . -type d -name ".git") | xargs rm -rf
 RUN cd /usr/src/app/plugins/sandcat/gocat; go mod tidy && go mod download
 
 # Update sandcat agents
-RUN cd /usr/src/app/plugins/sandcat; ./update-agents.sh
+# Invoke via `bash` explicitly so the build does not depend on the executable
+# bit being preserved on checkout (it is not, on some platforms).
+RUN cd /usr/src/app/plugins/sandcat; bash ./update-agents.sh
 
 # Make sure emu can always be used in container (even if not enabled right now)
 RUN cd /usr/src/app/plugins/emu; \

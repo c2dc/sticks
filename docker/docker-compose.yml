@@ -1,48 +1,61 @@
+# Compose project name. This is the prefix Docker applies to every resource it
+# creates for this stack (networks, volumes, default container names). Setting
+# it here pins the prefix to `sticks` regardless of the folder name, so every
+# resource shows up as `sticks-*` / `sticks_*` in `docker ps` and the Desktop UI.
+name: sticks
+
 # ============================================================
 # STATIC NETWORK CONFIGURATION  (CONTAINED-BY-DEFAULT)
 # ============================================================
-# The attack/target lab (caldera, kali, nginx, db) lives ONLY on
-# `internal: true` networks. Those networks have no gateway to the host
-# or the internet, so the adversary emulation cannot reach the host or
-# escape to the outside world on ANY machine (including a work laptop).
-# `internal: true` affects RUNTIME only — `docker build` still uses
+# The attack/target lab lives ONLY on `internal: true` networks. Those networks
+# have no gateway to the host or the internet, so the adversary emulation cannot
+# reach the host or escape to the outside world on ANY machine (including a work
+# laptop). `internal: true` affects RUNTIME only — `docker build` still uses
 # Docker's default build network, so the Dockerfiles build normally.
 #
-# ONLY published host port: caldera 8888 (Caldera UI + API at localhost:8888).
-# db / nginx / kali publish NO host ports. No external DNS on lab services.
+# Naming convention:
+#   -attacker  -> adversary side (caldera-attacker C2, kali-attacker node)
+#   -target    -> victim side (nginx-target web, mariadb-target backend)
 #
-# Caldera ALSO joins `caldera-mgmt-network` (a bridge, NOT internal). Docker
-# only publishes host ports when a container is on at least one non-internal
-# network, so this management bridge is what actually exposes 8888 to the host.
-# It carries only Caldera's control channel; kali/nginx/db remain internal-only
-# with no host or internet access.
+# ONLY published host port on the lab: caldera-attacker 8888 (UI + API at
+# localhost:8888). mariadb-target / nginx-target / kali-attacker publish NO host
+# ports. No external DNS on lab services.
 #
-# NETWORK                SUBNET            HOST        IP           (internal)
+# caldera-attacker ALSO joins `caldera-mgmt-network` (a bridge, NOT internal).
+# Docker only publishes host ports when a container is on at least one
+# non-internal network, so this management bridge is what actually exposes 8888
+# to the host. It carries only Caldera's control channel; the other lab services
+# remain internal-only with no host or internet access. The service keeps the
+# network alias `caldera` so the kali agent's `http://caldera:8888` still works.
+#
+# NETWORK                SUBNET            HOST               IP           (internal)
 # ------------------------------------------------------------
-# caldera-kali-network   192.168.10.0/24     caldera    192.168.10.10   yes
-# caldera-kali-network   192.168.10.0/24     kali       192.168.10.20   yes
-# caldera-mgmt-network   192.168.40.0/24     caldera    (dynamic)     no
+# caldera-kali-network   192.168.10.0/24   caldera-attacker   192.168.10.10   yes
+# caldera-kali-network   192.168.10.0/24   kali-attacker      192.168.10.20   yes
+# caldera-mgmt-network   192.168.40.0/24   caldera-attacker   (dynamic)       no
 #
-# kali-nginx-network     192.168.20.0/24     kali       192.168.20.20   yes
-# kali-nginx-network     192.168.20.0/24     nginx      192.168.20.30   yes
+# kali-nginx-network     192.168.20.0/24   kali-attacker      192.168.20.20   yes
+# kali-nginx-network     192.168.20.0/24   nginx-target       192.168.20.30   yes
 #
-# nginx-db-network       192.168.30.0/24     nginx      192.168.30.30   yes
-# nginx-db-network       192.168.30.0/24     db         192.168.30.40   yes
+# nginx-db-network       192.168.30.0/24   nginx-target       192.168.30.30   yes
+# nginx-db-network       192.168.30.0/24   mariadb-target     192.168.30.40   yes
 #
-# APPLICATION LAYER (Pipeline_UI): frontend/backend/banco on `app-network`
+# APPLICATION LAYER (Pipeline_UI): frontend/backend/postgres on `app-network`
 # (bridge) ONLY — unchanged, separate from the attack lab.
 # ============================================================
 
 services:
   # DATABASE - Only accessible by Nginx
-  db:
+  # Lab TARGET backend (SUT-B). Despite the legacy "db" name, the engine is
+  # MariaDB (not MySQL) and the container also serves web content on :80.
+  mariadb-target:
     build: .docker/db
-    container_name: db
-    hostname: db
+    container_name: sticks-mariadb-target
+    hostname: db  # keep internal hostname `db`; attack scripts target it by fixed IP
     #restart: always
     tty: true
     volumes:
-      - ./.docker/db/dbdata:/var/lib/mysql
+      - sticks-mariadb-target-data:/var/lib/mysql
     environment:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: app
@@ -58,11 +71,11 @@ services:
       retries: 20
       start_period: 4m
 
-  # NGINX - The gateway/mediator
-  nginx:
+  # NGINX - Lab TARGET web server (SUT-A). The primary web attack target.
+  nginx-target:
     build: .docker/nginx
-    container_name: nginx
-    hostname: nginx
+    container_name: sticks-nginx-target
+    hostname: nginx  # keep internal hostname `nginx`; nothing resolves it, but harmless
     volumes:
       - ./.docker/nginx/var/www/html:/var/www/html
     networks:
@@ -71,21 +84,23 @@ services:
       kali-nginx-network:
         ipv4_address: 192.168.20.30  # Fixed IP for Kali ↔ Nginx communication
     depends_on:
-      db:
+      mariadb-target:
         condition: service_healthy
     restart: unless-stopped
 
-  # CALDERA - Red Team Platform
-  caldera:
+  # CALDERA - Red Team C2 Platform (attacker-side: orchestrates the emulation).
+  caldera-attacker:
     build: .docker/caldera
-    container_name: caldera
+    container_name: sticks-caldera-attacker
     # NOTE: no --build — the magma UI is already compiled into the image (ui-build stage). Running the UI build at runtime fails (ENOTEMPTY) due to the source bind-mount.
     entrypoint:
       - python3
       - server.py
       - --insecure
     ports:
-      - "8888:8888"
+      # Bound to 127.0.0.1 so ONLY this machine can reach Caldera's UI/API.
+      # Other hosts on the LAN cannot connect.
+      - "127.0.0.1:8888:8888"
     # NOTE: the previous bind-mount (./.docker/caldera:/usr/src/app) was REMOVED.
     # It overlaid the image's /usr/src/app with the host dir, which (a) hid the
     # UI compiled into the image (magma/dist) so the 8888 web server never
@@ -99,6 +114,10 @@ services:
     networks:
       caldera-kali-network:
         ipv4_address: 192.168.10.10  # Fixed IP inside Caldera-Kali network (attack plane)
+        # Keep the DNS name `caldera` on this network so the kali agent's
+        # `http://caldera:8888` beacon keeps resolving after the service rename.
+        aliases:
+          - caldera
       caldera-mgmt-network: {}     # Management plane: lets 8888 publish to the host
     restart: unless-stopped
     healthcheck:
@@ -108,14 +127,17 @@ services:
       retries: 10
       start_period: 5m
 
-  # KALI LINUX - Penetration Testing
-  kali:
+  # KALI LINUX - Attacker node (runs the sandcat agent that beacons to Caldera).
+  kali-attacker:
     build:
       context: .docker/kali
       dockerfile: Dockerfile
-    container_name: kali
+    container_name: sticks-kali-attacker
     hostname: kali-attacker
     volumes:
+      # Bind-mount (NOT a named volume): kali-data/ is version-controlled in the
+      # repo and ships attack artifacts (e.g. malware.bin) that the campaigns
+      # expect under /root. A named volume would hide those tracked files.
       - ./kali-data:/root
     networks:
       caldera-kali-network:
@@ -145,18 +167,24 @@ services:
   # Engine API (socket, read-only) purely to inspect container isolation.
   # ============================================================
 
-  # BANCO - Application database (PostgreSQL) for the Pipeline_UI
-  # Production/portability target. Local dev can still use SQLite.
-  banco:
+  # BANCO - Application database (PostgreSQL) for the Pipeline_UI.
+  # PostgreSQL is the ONLY database the project uses (no SQLite). Native host
+  # dev reaches it via the published loopback port below; the containerized
+  # `backend` service reaches it over the compose network at `postgres:5432`.
+  postgres:
     image: postgres:16-alpine
-    container_name: banco
-    hostname: banco
+    container_name: sticks-postgres
+    hostname: postgres
     environment:
       POSTGRES_DB: pipeline_ui
       POSTGRES_USER: pipeline_ui
       POSTGRES_PASSWORD: pipeline_ui
+    ports:
+      # Bound to 127.0.0.1 so ONLY this machine can reach Postgres. This lets
+      # the native (host) backend dev server connect at localhost:5432.
+      - "127.0.0.1:5432:5432"
     volumes:
-      - banco-data:/var/lib/postgresql/data
+      - sticks-postgres-data:/var/lib/postgresql/data
     networks:
       - app-network
     healthcheck:
@@ -169,30 +197,40 @@ services:
   # BACKEND - FastAPI service that orchestrates the pipeline and applies
   # containment checks. Talks to Caldera ONLY via localhost:8888 and reads the
   # Docker socket read-only for isolation inspection.
+  #
+  # OPT-IN (containerized fallback): assigned to the `containers` profile, so a
+  # plain `docker compose up -d` does NOT start it. The default dev workflow
+  # runs the backend natively on the host with hot-reload (uvicorn --reload).
+  # Start the containerized version explicitly with:
+  #   docker compose --profile containers up -d frontend backend
   backend:
+    profiles: ["containers"]
     build:
-      context: ../pipeline_ui/backend
+      context: ../ui/backend
       dockerfile: Dockerfile
-    container_name: pipeline-ui-backend
+    container_name: sticks-backend
     hostname: pipeline-ui-backend
-    working_dir: /repo/pipeline_ui/backend
+    working_dir: /repo/ui/backend
+    # Apply DB migrations before serving, so a fresh Postgres volume always has
+    # the schema (otherwise `GET /api/casos` 500s on a missing table).
     command:
-      - uvicorn
-      - app.main:app
-      - --host
-      - "0.0.0.0"
-      - --port
-      - "8000"
+      - sh
+      - -c
+      - "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir /repo/ui/backend/app"
     environment:
-      # Point the backend at the `banco` PostgreSQL service when run via compose.
-      PIPELINE_UI_DATABASE_URL: postgresql+psycopg://pipeline_ui:pipeline_ui@banco:5432/pipeline_ui
+      # Point the backend at the `postgres` PostgreSQL service when run via compose.
+      PIPELINE_UI_DATABASE_URL: postgresql+psycopg://pipeline_ui:pipeline_ui@postgres:5432/pipeline_ui
       PIPELINE_UI_ENVIRONMENT: development
     ports:
-      - "8010:8000"  # host 8010 -> container 8000 (8000 is taken by nginx)
+      # Bound to 127.0.0.1 so ONLY this machine can reach the backend API.
+      # host 8010 -> container 8000 (8000 is taken by nginx inside the lab).
+      - "127.0.0.1:8010:8000"
     volumes:
       # Mount the repo root read-only so app/core/sticks_config.py can resolve
       # <repo>/sticks/config/config.py via parents[4] at runtime.
       - ..:/repo:ro
+      # Download is the ONLY write; keep the data dir writable while the rest of /repo stays :ro.
+      - ../sticks/data/stix:/repo/sticks/data/stix
       # Docker Engine API, READ-ONLY, for isolation inspection only.
       - /var/run/docker.sock:/var/run/docker.sock:ro
     extra_hosts:
@@ -202,23 +240,44 @@ services:
     networks:
       - app-network
     depends_on:
-      banco:
+      postgres:
         condition: service_healthy
     restart: unless-stopped
 
-  # FRONTEND - React + TypeScript SPA (Vite). Application layer only.
+  # FRONTEND - React + TypeScript SPA (Vite DEV server with HMR). Application
+  # layer only. Instead of baking a production bundle and serving it with
+  # `vite preview` (which required an image rebuild on every edit), this runs
+  # the Vite dev server directly against the bind-mounted source so edits
+  # hot-reload in the browser. VITE_* are read at dev-server start, so the
+  # browser still calls the backend at the host port :8010.
+  #
+  # OPT-IN (containerized fallback): assigned to the `containers` profile, so a
+  # plain `docker compose up -d` does NOT start it. The default dev workflow
+  # runs the frontend natively on the host with hot-reload (vite dev server).
+  # Start the containerized version explicitly with:
+  #   docker compose --profile containers up -d frontend backend
   frontend:
-    build:
-      context: ../pipeline_ui/frontend
-      dockerfile: Dockerfile
-    container_name: pipeline-ui-frontend
-    hostname: pipeline-ui-frontend
+    profiles: ["containers"]
+    image: node:20-slim
+    container_name: sticks-frontend
+    working_dir: /app
+    # Install deps on first boot (into the named node_modules volume) then start
+    # the Vite dev server. --host 0.0.0.0 so the published port is reachable;
+    # --port 4173 keeps the existing 8080:4173 host mapping valid.
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 4173"
     environment:
-      # Browser reaches the backend via the host-published port (8010).
       VITE_API_BASE_URL: http://localhost:8010/api
       VITE_WS_BASE_URL: ws://localhost:8010
     ports:
-      - "15173:4173"  # host 15173 -> container 4173 (avoids other local projects)
+      # Bound to 127.0.0.1 so ONLY this machine can open the UI.
+      # host 8080 -> container 4173 (vite dev server).
+      - "127.0.0.1:8080:4173"
+    volumes:
+      # Bind-mount the frontend source so edits hot-reload without a rebuild.
+      - ../ui/frontend:/app
+      # Named volume for node_modules so the container's installed deps are not
+      # shadowed by the (dep-free) host source mount.
+      - sticks-frontend-node-modules:/app/node_modules
     networks:
       - app-network
     depends_on:
@@ -234,6 +293,7 @@ networks:
   # NOT internal, and separate from the three attack networks. The application
   # services never join caldera-kali/kali-nginx/nginx-db networks.
   app-network:
+    name: sticks-app-network
     driver: bridge
 
   # C2 MANAGEMENT PLANE: publishes Caldera's UI/API (8888) to the host.
@@ -242,6 +302,7 @@ networks:
   # and targets (nginx, db) stay on their internal-only networks with no host
   # or internet access. Only Caldera joins this bridge.
   caldera-mgmt-network:
+    name: sticks-caldera-mgmt-network
     driver: bridge
     ipam:
       config:
@@ -250,6 +311,7 @@ networks:
 
   # 1. PRIVATE: Caldera ↔ Kali ONLY
   caldera-kali-network:
+    name: sticks-caldera-kali-network
     driver: bridge
     internal: true  # No external access
     ipam:
@@ -258,6 +320,7 @@ networks:
           gateway: 192.168.10.1
   # 2. PRIVATE: Kali ↔ Nginx
   kali-nginx-network:
+    name: sticks-kali-nginx-network
     driver: bridge
     internal: true
     ipam:
@@ -267,6 +330,7 @@ networks:
 
   # 3. PRIVATE: Nginx ↔ DB
   nginx-db-network:
+    name: sticks-nginx-db-network
     driver: bridge
     internal: true  # No external access
     ipam:
@@ -276,6 +340,19 @@ networks:
 
 
 # VOLUMES
-# Named volume for the application-layer PostgreSQL (banco) service.
+# Each named volume is prefixed with the container that owns it, so it is
+# obvious at a glance which service a volume belongs to in `docker volume ls`.
 volumes:
-  banco-data:
+  # PostgreSQL data for the application-layer `sticks-postgres` service.
+  # Explicit `name:` pins the volume name so it is not prefixed twice by the
+  # project name (would otherwise become `sticks_sticks-postgres-data`).
+  sticks-postgres-data:
+    name: sticks-postgres-data
+  # MariaDB data for the lab target `sticks-mariadb-target` service
+  # (was a bind-mount before).
+  sticks-mariadb-target-data:
+    name: sticks-mariadb-target-data
+  # node_modules for the frontend Vite dev server. Keeps the container's
+  # installed dependencies from being shadowed by the host source bind-mount.
+  sticks-frontend-node-modules:
+    name: sticks-frontend-node-modules

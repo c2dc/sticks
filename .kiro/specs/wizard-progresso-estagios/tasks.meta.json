@@ -1,0 +1,313 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1. Adicionar a derivação pura `derivarApresentacao` em `lib/wizard.ts`": [
+      {
+        "executionId": "da981bfb-a821-4379-a510-e720ac9992c2",
+        "chatSessionId": "sess_1b523dd1-c6e2-4d01-93e5-c0895804d6ad",
+        "timestamp": 1791888722321
+      },
+      {
+        "executionId": "da981bfb-a821-4379-a510-e720ac9992c2",
+        "chatSessionId": "sess_1b523dd1-c6e2-4d01-93e5-c0895804d6ad",
+        "timestamp": 1791888728853
+      },
+      {
+        "executionId": "da981bfb-a821-4379-a510-e720ac9992c2",
+        "chatSessionId": "sess_1b523dd1-c6e2-4d01-93e5-c0895804d6ad",
+        "timestamp": 1791888797596
+      }
+    ],
+    "2.1 Property 1 — \"concluído\" exige conclusão real E alcance": [
+      {
+        "executionId": "da981bfb-a821-4379-a510-e720ac9992c2",
+        "chatSessionId": "sess_1b523dd1-c6e2-4d01-93e5-c0895804d6ad",
+        "timestamp": 1791888722412
+      },
+      {
+        "executionId": "da981bfb-a821-4379-a510-e720ac9992c2",
+        "chatSessionId": "sess_1b523dd1-c6e2-4d01-93e5-c0895804d6ad",
+        "timestamp": 1791888806777
+      },
+      {
+        "executionId": "da981bfb-a821-4379-a510-e720ac9992c2",
+        "chatSessionId": "sess_1b523dd1-c6e2-4d01-93e5-c0895804d6ad",
+        "timestamp": 1791888919976
+      }
+    ],
+    "2.2 Property 2 — revelação monotônica ao avançar": [
+      {
+        "executionId": "da981bfb-a821-4379-a510-e720ac9992c2",
+        "chatSessionId": "sess_1b523dd1-c6e2-4d01-93e5-c0895804d6ad",
+        "timestamp": 1791888722446
+      },
+      {
+        "executionId": "da981bfb-a821-4379-a510-e720ac9992c2",
+        "chatSessionId": "sess_1b523dd1-c6e2-4d01-93e5-c0895804d6ad",
+        "timestamp": 1791888923430
+      },
+      {
+        "executionId": "da981bfb-a821-4379-a510-e720ac9992c2",
+        "chatSessionId": "sess_1b523dd1-c6e2-4d01-93e5-c0895804d6ad",
+        "timestamp": 1791888986208
+      }
+    ],
+    "2.3 Property 3 — avanço governado pelo Estado_Real": [
+      {
+        "executionId": "da981bfb-a821-4379-a510-e720ac9992c2",
+        "chatSessionId": "sess_1b523dd1-c6e2-4d01-93e5-c0895804d6ad",
+        "timestamp": 1791888722473
+      },
+      {
+        "executionId": "da981bfb-a821-4379-a510-e720ac9992c2",
+        "chatSessionId": "sess_1b523dd1-c6e2-4d01-93e5-c0895804d6ad",
+        "timestamp": 1791888989226
+      },
+      {
+        "executionId": "da981bfb-a821-4379-a510-e720ac9992c2",
+        "chatSessionId": "sess_1b523dd1-c6e2-4d01-93e5-c0895804d6ad",
+        "timestamp": 1791889045975
+      }
+    ],
+    "2.4 Property 4 — `preConcluido` só marca conclusões automáticas": [
+      {
+        "executionId": "da981bfb-a821-4379-a510-e720ac9992c2",
+        "chatSessionId": "sess_1b523dd1-c6e2-4d01-93e5-c0895804d6ad",
+        "timestamp": 1791888722507
+      },
+      {
+        "executionId": "da981bfb-a821-4379-a510-e720ac9992c2",
+        "chatSessionId": "sess_1b523dd1-c6e2-4d01-93e5-c0895804d6ad",
+        "timestamp": 1791889049117
+      },
+      {
+        "executionId": "da981bfb-a821-4379-a510-e720ac9992c2",
+        "chatSessionId": "sess_1b523dd1-c6e2-4d01-93e5-c0895804d6ad",
+        "timestamp": 1791889116985
+      }
+    ],
+    "2.5 Property 5 — pureza e determinismo": [
+      {
+        "executionId": "da981bfb-a821-4379-a510-e720ac9992c2",
+        "chatSessionId": "sess_1b523dd1-c6e2-4d01-93e5-c0895804d6ad",
+        "timestamp": 1791888722544
+      },
+      {
+        "executionId": "da981bfb-a821-4379-a510-e720ac9992c2",
+        "chatSessionId": "sess_1b523dd1-c6e2-4d01-93e5-c0895804d6ad",
+        "timestamp": 1791889120507
+      },
+      {
+        "executionId": "da981bfb-a821-4379-a510-e720ac9992c2",
+        "chatSessionId": "sess_1b523dd1-c6e2-4d01-93e5-c0895804d6ad",
+        "timestamp": 1791889180636
+      }
+    ],
+    "3. Testes de exemplo/unitários da derivação": [
+      {
+        "executionId": "da981bfb-a821-4379-a510-e720ac9992c2",
+        "chatSessionId": "sess_1b523dd1-c6e2-4d01-93e5-c0895804d6ad",
+        "timestamp": 1791888722574
+      },
+      {
+        "executionId": "da981bfb-a821-4379-a510-e720ac9992c2",
+        "chatSessionId": "sess_1b523dd1-c6e2-4d01-93e5-c0895804d6ad",
+        "timestamp": 1791889183835
+      },
+      {
+        "executionId": "da981bfb-a821-4379-a510-e720ac9992c2",
+        "chatSessionId": "sess_1b523dd1-c6e2-4d01-93e5-c0895804d6ad",
+        "timestamp": 1791889241735
+      }
+    ],
+    "4. Adicionar o adorno \"pré-concluído\" em `StageStateBadge.tsx`": [
+      {
+        "executionId": "da981bfb-a821-4379-a510-e720ac9992c2",
+        "chatSessionId": "sess_1b523dd1-c6e2-4d01-93e5-c0895804d6ad",
+        "timestamp": 1791888722605
+      },
+      {
+        "executionId": "da981bfb-a821-4379-a510-e720ac9992c2",
+        "chatSessionId": "sess_1b523dd1-c6e2-4d01-93e5-c0895804d6ad",
+        "timestamp": 1791889246378
+      },
+      {
+        "executionId": "da981bfb-a821-4379-a510-e720ac9992c2",
+        "chatSessionId": "sess_1b523dd1-c6e2-4d01-93e5-c0895804d6ad",
+        "timestamp": 1791889313315
+      }
+    ],
+    "5. Rastrear o avanço do pesquisador no `ExecutionWizard.tsx`": [
+      {
+        "executionId": "da981bfb-a821-4379-a510-e720ac9992c2",
+        "chatSessionId": "sess_1b523dd1-c6e2-4d01-93e5-c0895804d6ad",
+        "timestamp": 1791888722634
+      },
+      {
+        "executionId": "da981bfb-a821-4379-a510-e720ac9992c2",
+        "chatSessionId": "sess_1b523dd1-c6e2-4d01-93e5-c0895804d6ad",
+        "timestamp": 1791889317133
+      },
+      {
+        "executionId": "da981bfb-a821-4379-a510-e720ac9992c2",
+        "chatSessionId": "sess_1b523dd1-c6e2-4d01-93e5-c0895804d6ad",
+        "timestamp": 1791889397563
+      }
+    ],
+    "6. Consumir a apresentação na trilha de badges e na janela do estágio": [
+      {
+        "executionId": "da981bfb-a821-4379-a510-e720ac9992c2",
+        "chatSessionId": "sess_1b523dd1-c6e2-4d01-93e5-c0895804d6ad",
+        "timestamp": 1791888722665
+      },
+      {
+        "executionId": "da981bfb-a821-4379-a510-e720ac9992c2",
+        "chatSessionId": "sess_1b523dd1-c6e2-4d01-93e5-c0895804d6ad",
+        "timestamp": 1791889401040
+      },
+      {
+        "executionId": "da981bfb-a821-4379-a510-e720ac9992c2",
+        "chatSessionId": "sess_1b523dd1-c6e2-4d01-93e5-c0895804d6ad",
+        "timestamp": 1791890102097
+      }
+    ],
+    "7. Adicionar as chaves i18n com paridade pt-BR/en": [
+      {
+        "executionId": "da981bfb-a821-4379-a510-e720ac9992c2",
+        "chatSessionId": "sess_1b523dd1-c6e2-4d01-93e5-c0895804d6ad",
+        "timestamp": 1791888722699
+      },
+      {
+        "executionId": "da981bfb-a821-4379-a510-e720ac9992c2",
+        "chatSessionId": "sess_1b523dd1-c6e2-4d01-93e5-c0895804d6ad",
+        "timestamp": 1791890105629
+      },
+      {
+        "executionId": "ccade2e8-5701-4074-9e3e-531c86536e64",
+        "chatSessionId": "sess_1b523dd1-c6e2-4d01-93e5-c0895804d6ad",
+        "timestamp": 1791907516031
+      },
+      {
+        "executionId": "ccade2e8-5701-4074-9e3e-531c86536e64",
+        "chatSessionId": "sess_1b523dd1-c6e2-4d01-93e5-c0895804d6ad",
+        "timestamp": 1791907519433
+      }
+    ],
+    "8.1 Badge pré-concluída distinta (R2.1): `data-state=\"pre_concluido\"`,": [
+      {
+        "executionId": "da981bfb-a821-4379-a510-e720ac9992c2",
+        "chatSessionId": "sess_1b523dd1-c6e2-4d01-93e5-c0895804d6ad",
+        "timestamp": 1791888722730
+      },
+      {
+        "executionId": "ccade2e8-5701-4074-9e3e-531c86536e64",
+        "chatSessionId": "sess_1b523dd1-c6e2-4d01-93e5-c0895804d6ad",
+        "timestamp": 1791907552175
+      },
+      {
+        "executionId": "ccade2e8-5701-4074-9e3e-531c86536e64",
+        "chatSessionId": "sess_1b523dd1-c6e2-4d01-93e5-c0895804d6ad",
+        "timestamp": 1791907616260
+      }
+    ],
+    "8.2 Nota explicativa (R2.2): abrir Estágio 2 pré-concluído mostra": [
+      {
+        "executionId": "da981bfb-a821-4379-a510-e720ac9992c2",
+        "chatSessionId": "sess_1b523dd1-c6e2-4d01-93e5-c0895804d6ad",
+        "timestamp": 1791888722763
+      },
+      {
+        "executionId": "ccade2e8-5701-4074-9e3e-531c86536e64",
+        "chatSessionId": "sess_1b523dd1-c6e2-4d01-93e5-c0895804d6ad",
+        "timestamp": 1791907619952
+      },
+      {
+        "executionId": "ccade2e8-5701-4074-9e3e-531c86536e64",
+        "chatSessionId": "sess_1b523dd1-c6e2-4d01-93e5-c0895804d6ad",
+        "timestamp": 1791907694293
+      }
+    ],
+    "8.3 Gate governado pelo real (R3.4): com `maxEstagioVisitado=1` e": [
+      {
+        "executionId": "da981bfb-a821-4379-a510-e720ac9992c2",
+        "chatSessionId": "sess_1b523dd1-c6e2-4d01-93e5-c0895804d6ad",
+        "timestamp": 1791888722791
+      },
+      {
+        "executionId": "ccade2e8-5701-4074-9e3e-531c86536e64",
+        "chatSessionId": "sess_1b523dd1-c6e2-4d01-93e5-c0895804d6ad",
+        "timestamp": 1791907697474
+      },
+      {
+        "executionId": "ccade2e8-5701-4074-9e3e-531c86536e64",
+        "chatSessionId": "sess_1b523dd1-c6e2-4d01-93e5-c0895804d6ad",
+        "timestamp": 1791907752567
+      }
+    ],
+    "8.4 Recomputação na releitura (R6.1): mock de `getCaso` muda": [
+      {
+        "executionId": "da981bfb-a821-4379-a510-e720ac9992c2",
+        "chatSessionId": "sess_1b523dd1-c6e2-4d01-93e5-c0895804d6ad",
+        "timestamp": 1791888722830
+      },
+      {
+        "executionId": "ccade2e8-5701-4074-9e3e-531c86536e64",
+        "chatSessionId": "sess_1b523dd1-c6e2-4d01-93e5-c0895804d6ad",
+        "timestamp": 1791907759769
+      },
+      {
+        "executionId": "ccade2e8-5701-4074-9e3e-531c86536e64",
+        "chatSessionId": "sess_1b523dd1-c6e2-4d01-93e5-c0895804d6ad",
+        "timestamp": 1791907860057
+      }
+    ],
+    "8.5 Reset na troca de caso e no reinício (R6.2, R6.3): mudar `casoId` e": [
+      {
+        "executionId": "da981bfb-a821-4379-a510-e720ac9992c2",
+        "chatSessionId": "sess_1b523dd1-c6e2-4d01-93e5-c0895804d6ad",
+        "timestamp": 1791888722867
+      },
+      {
+        "executionId": "ccade2e8-5701-4074-9e3e-531c86536e64",
+        "chatSessionId": "sess_1b523dd1-c6e2-4d01-93e5-c0895804d6ad",
+        "timestamp": 1791907863772
+      },
+      {
+        "executionId": "ccade2e8-5701-4074-9e3e-531c86536e64",
+        "chatSessionId": "sess_1b523dd1-c6e2-4d01-93e5-c0895804d6ad",
+        "timestamp": 1791907955790
+      }
+    ],
+    "9. Teste de paridade i18n e verificação final": [
+      {
+        "executionId": "da981bfb-a821-4379-a510-e720ac9992c2",
+        "chatSessionId": "sess_1b523dd1-c6e2-4d01-93e5-c0895804d6ad",
+        "timestamp": 1791888722902
+      },
+      {
+        "executionId": "ccade2e8-5701-4074-9e3e-531c86536e64",
+        "chatSessionId": "sess_1b523dd1-c6e2-4d01-93e5-c0895804d6ad",
+        "timestamp": 1791907977990
+      },
+      {
+        "executionId": "ccade2e8-5701-4074-9e3e-531c86536e64",
+        "chatSessionId": "sess_1b523dd1-c6e2-4d01-93e5-c0895804d6ad",
+        "timestamp": 1791908083569
+      }
+    ],
+    "2. Testes de propriedade da derivação (fast-check, ≥100 iterações)": [
+      {
+        "executionId": "da981bfb-a821-4379-a510-e720ac9992c2",
+        "chatSessionId": "sess_1b523dd1-c6e2-4d01-93e5-c0895804d6ad",
+        "timestamp": 1791889180707
+      }
+    ],
+    "8. Testes de componente do wizard e da badge": [
+      {
+        "executionId": "ccade2e8-5701-4074-9e3e-531c86536e64",
+        "chatSessionId": "sess_1b523dd1-c6e2-4d01-93e5-c0895804d6ad",
+        "timestamp": 1791907955877
+      }
+    ]
+  }
+}

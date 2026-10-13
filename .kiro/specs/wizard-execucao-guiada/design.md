@@ -11,7 +11,7 @@ Duas pontas de backend faltam hoje:
 
 Além disso, um endpoint de **reset** por campanha (`POST /api/casos/{caso}/reset`) permite reexecutar a demo do zero.
 
-O SQLite (`pipeline_ui.db`) permanece a fonte da verdade. Todas as transições passam por `SessionStateService.persist_stage_completion`, que já garante atomicidade e preservação de estado em falha. O bloqueio sequencial (Estágio N só inicia se N-1 concluído) continua derivado do estado persistido — o Wizard nunca mantém estado de progresso próprio.
+O PostgreSQL permanece a fonte da verdade. Todas as transições passam por `SessionStateService.persist_stage_completion`, que já garante atomicidade e preservação de estado em falha. O bloqueio sequencial (Estágio N só inicia se N-1 concluído) continua derivado do estado persistido — o Wizard nunca mantém estado de progresso próprio.
 
 ### Pesquisa / decisões de contexto
 
@@ -40,7 +40,7 @@ flowchart LR
     EPR[POST reset  *novo*]
     GET[GET casos / estagio/N]
   end
-  subgraph DB[(SQLite pipeline_ui.db)]
+  subgraph DB[(PostgreSQL)]
     SR[StageRun]
     OP[Operation/AbilityResult]
   end
