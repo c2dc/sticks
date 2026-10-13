@@ -2,14 +2,14 @@
   "name": "sticks-pipeline-ui",
   "private": true,
   "version": "0.0.0",
-  "description": "Comando único de desenvolvimento: sobe backend (FastAPI), frontend (Vite) e prepara o banco (SQLite via Alembic) de uma vez. Usa npm workspaces para manter um único node_modules na raiz.",
+  "description": "Comando único de desenvolvimento: sobe backend (FastAPI), frontend (Vite) e aplica as migrações do banco (PostgreSQL via Alembic) de uma vez, apontando para o Postgres containerizado em localhost:5432. Usa npm workspaces para manter um único node_modules na raiz.",
   "workspaces": [
-    "pipeline_ui/frontend"
+    "ui/frontend"
   ],
   "scripts": {
-    "dev": "concurrently --names \"backend,frontend\" --prefix-colors \"cyan,magenta\" --kill-others-on-fail \"cd pipeline_ui/backend && .venv\\Scripts\\alembic.exe upgrade head && .venv\\Scripts\\uvicorn.exe app.main:app --reload --port 8010 --log-level warning --no-access-log\" \"npm --silent run dev --workspace pipeline_ui/frontend\"",
-    "db:migrate": "cd pipeline_ui/backend && .venv\\Scripts\\alembic.exe upgrade head",
-    "setup": "npm install"
+    "dev": "concurrently --names \"backend,frontend\" --prefix-colors \"cyan,magenta\" --kill-others-on-fail \"cd ui/backend && PIPELINE_UI_DATABASE_URL=postgresql+psycopg://pipeline_ui:pipeline_ui@localhost:5432/pipeline_ui .venv/bin/alembic upgrade head && PIPELINE_UI_DATABASE_URL=postgresql+psycopg://pipeline_ui:pipeline_ui@localhost:5432/pipeline_ui .venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8010 --reload\" \"npm --silent run dev --workspace ui/frontend\"",
+    "db:migrate": "cd ui/backend && PIPELINE_UI_DATABASE_URL=postgresql+psycopg://pipeline_ui:pipeline_ui@localhost:5432/pipeline_ui .venv/bin/alembic upgrade head",
+    "setup": "cd ui/backend && python3 -m venv .venv && .venv/bin/pip install -e \".[dev]\" && cd ../.. && npm install"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"
