@@ -2,14 +2,14 @@
   "name": "sticks-pipeline-ui",
   "private": true,
   "version": "0.0.0",
-  "description": "Comando único de desenvolvimento: sobe backend (FastAPI), frontend (Vite) e aplica as migrações do banco (PostgreSQL via Alembic) de uma vez, apontando para o Postgres containerizado em localhost:5432. Usa npm workspaces para manter um único node_modules na raiz.",
+  "description": "Comando unico de desenvolvimento: sobe backend (FastAPI), frontend (Vite) e aplica as migracoes do banco (PostgreSQL via Alembic) de uma vez. Os scripts sao multiplataforma (Node), funcionando em Windows, Linux e macOS. Usa npm workspaces para manter um unico node_modules na raiz.",
   "workspaces": [
     "ui/frontend"
   ],
   "scripts": {
-    "dev": "concurrently --names \"backend,frontend\" --prefix-colors \"cyan,magenta\" --kill-others-on-fail \"cd ui/backend && PIPELINE_UI_DATABASE_URL=postgresql+psycopg://pipeline_ui:pipeline_ui@localhost:5432/pipeline_ui .venv/bin/alembic upgrade head && PIPELINE_UI_DATABASE_URL=postgresql+psycopg://pipeline_ui:pipeline_ui@localhost:5432/pipeline_ui .venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8010 --reload\" \"npm --silent run dev --workspace ui/frontend\"",
-    "db:migrate": "cd ui/backend && PIPELINE_UI_DATABASE_URL=postgresql+psycopg://pipeline_ui:pipeline_ui@localhost:5432/pipeline_ui .venv/bin/alembic upgrade head",
-    "setup": "cd ui/backend && python3 -m venv .venv && .venv/bin/pip install -e \".[dev]\" && cd ../.. && npm install"
+    "dev": "node scripts/dev.mjs",
+    "setup": "node scripts/setup.mjs",
+    "db:migrate": "node scripts/migrate.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"

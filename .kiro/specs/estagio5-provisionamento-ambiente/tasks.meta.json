@@ -1,0 +1,626 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1.1 Definir os DTOs `LinhaLog`, `ResultadoComando` e o Protocol `ComposeExecutor` em `app/services/environment/compose_executor.py`": [
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792084428275
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792084440410
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792084557123
+      }
+    ],
+    "1.2 Implementar `DockerComposeExecutor` (subprocess, forma de lista de argumentos, sem shell)": [
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792084428424
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792084560700
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792084660819
+      }
+    ],
+    "1.3 Testes do executor com um fake de subprocess (linhas roteadas + exit code configurável): sucesso, falha ao subir, ordem do streaming, asserção de que a lista de argumentos não inclui serviços da camada de aplicação": [
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792084428543
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792084664385
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792084807538
+      }
+    ],
+    "2.1 Criar `app/services/environment/saude.py` com `VereditoSaude`/`ResumoSaude` e uma função que inspeciona (read-only) `running` + `healthy` por contêiner-alvo, reusando o inspector Docker read-only": [
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792084428648
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792084813267
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792084990771
+      }
+    ],
+    "2.2 Testes com inspector fake: todos saudáveis → aprovado; um não `running` ou `unhealthy` → reprovado com razão; serviço sem healthcheck → `saudavel=None` não reprova": [
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792084428739
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792084994369
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792085082448
+      }
+    ],
+    "3.1 Injetar `ComposeExecutor` (default lazy = `DockerComposeExecutor`) e o inspector de saúde no construtor": [
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792084428829
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792085086440
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792085181907
+      }
+    ],
+    "3.2 Reescrever `provisionar(params, *, on_log=no-op)` como pipeline de etapas emitindo `LinhaLog`: subir_conteineres → aguardar_saude → carregar_abilities → verificar_isolamento → montar Saída": [
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792084428944
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792085186246
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792085798995
+      }
+    ],
+    "3.3 Atualizar `desprovisionar` para chamar `ComposeExecutor.derrubar` no laboratório curado e mapear falha → `recursos_remanescentes`": [
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792084429054
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792085802552
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792085930763
+      }
+    ],
+    "3.4 Testes de `provisionar`/`desprovisionar` com todos os colaboradores fakes: caminho feliz conclui com os três pré-requisitos; cada etapa falhando isoladamente produz o `etapa_falha` correto e bloqueia a conclusão; nenhum acesso à rede pública": [
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792084429164
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792085934965
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792086941640
+      }
+    ],
+    "4.1 Adicionar `LinhaLogView` e o campo `logs: list[LinhaLogView]` (default vazio) em `StageProgressEvent` (`stage_service.py`); garantir compatibilidade dos Estágios 1–4 e 6 (campo vazio)": [
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792084429261
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792086946428
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792087040336
+      }
+    ],
+    "4.2 Implementar o buffer de logs por caso no serviço (lista limitada, `seq` monotônico, naive-UTC); API para anexar e para ler o buffer completo": [
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792084429365
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792087044254
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792087216837
+      }
+    ],
+    "4.3 Estender `ws/channels.py` para enviar as linhas novas desde o último frame e o buffer completo no connect": [
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792084429465
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792087221010
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792087381378
+      }
+    ],
+    "5.1 Disparar o provisionamento automaticamente ao iniciar o Estágio 5 (sem ação manual), encaminhando `on_log` ao buffer e ao canal; atualizar `StageRun` (progresso por etapa; `etapa_falha` + `mensagem_erro` em falha)": [
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792084429633
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792087386353
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792087807980
+      }
+    ],
+    "5.2 Idempotência: reusar `AmbienteProvisionado` pronto existente; persistir a Saída como JSON portável associado ao caso": [
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792084429741
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792087811871
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792088262445
+      }
+    ],
+    "5.3 Concluir o Estágio 5 somente quando saúde + Abilities + isolamento passam; manter bloqueio do Estágio 6 enquanto não `concluido`": [
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792084429844
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792088266334
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792088483041
+      }
+    ],
+    "5.4 Derivar `mensagem_erro` do `StageRun` da última `LinhaLog` de erro da etapa que falhou (consistência tela ↔ console)": [
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792084429945
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792088487178
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792088818875
+      }
+    ],
+    "5.5 Testes de serviço: provisionamento automático; idempotência; buffer e recuperação; conclusão só com os três pré-requisitos; falha bloqueia o Estágio 6": [
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792084430044
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792088822903
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792089122229
+      }
+    ],
+    "6.1 `GET /api/casos/{caso}/estagio/5` devolvendo estado + topologia + isolamento + saúde + buffer de logs": [
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792084430141
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792089128941
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792089415879
+      }
+    ],
+    "6.2 `POST /api/casos/{caso}/estagio/5/provisionar` idempotente (garante/inicia) e `GET /api/casos/{caso}/estagio/5/logs` (buffer corrente)": [
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792084430243
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792089420442
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792089761602
+      }
+    ],
+    "6.3 Testes de API (contratos JSON pt-BR): shape do payload, idempotência, logs no retorno": [
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792084430343
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792089765504
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792090062289
+      }
+    ],
+    "7.1 Wrapper tipado em `src/lib/estagios` para o payload do Estágio 5 (topologia + isolamento + saúde + logs) e para `GET .../estagio/5/logs`": [
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792084430454
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792090067335
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792090271693
+      }
+    ],
+    "7.2 Componente `ProvisioningConsole`: assina o `useEstagioChannel`, acumula `event.logs` por `seq`, renderiza em ordem com rótulo de etapa e cor por `fluxo`, auto-scroll; recupera o buffer ao montar": [
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792084430558
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792090276223
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792090480268
+      }
+    ],
+    "7.3 Testes (vitest/testing-library): ordem por `seq`, cores por fluxo, auto-scroll, recuperação do buffer, reconexão": [
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792084430677
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792090484609
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792090621275
+      }
+    ],
+    "8.1 Componente `PrereqChecklist`: três itens (contêineres saudáveis, Abilities carregadas, isolamento aprovado) com estado pendente/ok/falha; em falha mostra a causa (`mensagem_erro`/`etapa_falha`) e indica o Estágio 6 bloqueado": [
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792084430776
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792090630938
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792090796217
+      }
+    ],
+    "8.2 Integrar os três blocos na tela do Estágio 5 (reuso de `EnvironmentStageView` + `ProvisioningConsole` + `PrereqChecklist`); \"Próximo\" bloqueado enquanto não `concluido`, liberado na conclusão": [
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792084430880
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792090801066
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792091040727
+      }
+    ],
+    "8.3 Testes do checklist: três estados por item; mensagem de falha; bloqueio/liberação do \"Próximo\"": [
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792084430976
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792091045968
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792091179474
+      }
+    ],
+    "9.1 Adicionar as chaves `stage5.provisionamento.console.*`, `stage5.provisionamento.prerequisitos.*` e `stage5.provisionamento.falha.*` em pt-BR e en": [
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792084431093
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792091186639
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792091290299
+      }
+    ],
+    "9.2 Garantir o property test de paridade de chaves pt-BR/en passando": [
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792084431190
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792091295008
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792091369850
+      }
+    ],
+    "10.1 Garantir que a conclusão do Estágio 6 chame `desprovisionar` (compose down) via a mesma costura, reportando `recursos_remanescentes` em falha": [
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792084431294
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792091374675
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792091499421
+      }
+    ],
+    "10.2 Teste end-to-end (fakes): provisionar (ShadowRay) → três pré-requisitos ok → executar (mock do runner) → desprovisionar com sucesso; e o caminho de falha de teardown reportando recursos remanescentes": [
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792084431398
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792091505075
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792091739426
+      }
+    ],
+    "11.1 Rodar a suíte do backend (`pytest`) e do frontend (`vitest --run`), além do lint, garantindo verde": [
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792084431493
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792091744152
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792092513001
+      }
+    ],
+    "11.2 Conferir que, para ShadowRay, o Estágio 5 sobe o laboratório via `docker/docker-compose.yml`, exibe logs ao vivo, confirma os três pré-requisitos e libera o Estágio 6; e que a falha de qualquer etapa bloqueia o avanço com mensagem na tela": [
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792084431595
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792092519734
+      },
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792092687191
+      }
+    ],
+    "1. ComposeExecutor — subir/derrubar o laboratório em streaming": [
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792084807675
+      }
+    ],
+    "2. Verificação de saúde dos contêineres (read-only)": [
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792085082589
+      }
+    ],
+    "3. Evoluir `CuradoriaProvisionadorDeAmbiente.provisionar` para subir + verificar": [
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792086941762
+      }
+    ],
+    "4. Frame `StageProgressEvent` estendido + buffer de logs": [
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792087381480
+      }
+    ],
+    "5. Orquestração do Estágio 5 em `EnvironmentStageService`": [
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792089122355
+      }
+    ],
+    "6. Endpoints REST do Estágio 5": [
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792090062434
+      }
+    ],
+    "7. Terminal de logs ao vivo no frontend — `ProvisioningConsole`": [
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792090621454
+      }
+    ],
+    "8. Confirmação de pré-requisitos no frontend — `PrereqChecklist`": [
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792091179605
+      }
+    ],
+    "9. i18n (namespace `pipeline`)": [
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792091369960
+      }
+    ],
+    "10. Desprovisionamento integrado ao término do Estágio 6": [
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792091739570
+      }
+    ],
+    "11. Verificação final (ShadowRay, caminho curado)": [
+      {
+        "executionId": "88ba3d78-48d2-4683-8b37-8027b3564216",
+        "chatSessionId": "sess_f5f69462-539e-4f7b-ac27-f16f167f52a7",
+        "timestamp": 1792092687365
+      }
+    ]
+  }
+}
