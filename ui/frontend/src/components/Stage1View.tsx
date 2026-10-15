@@ -159,7 +159,7 @@ export function Stage1View({
  *
  * Nunca exibe caminhos/arquivos da Caldera (Property 3).
  */
-function CampanhaStixBlock({
+export function CampanhaStixBlock({
   campanha,
 }: {
   campanha?: CampanhaStixEntrada | null

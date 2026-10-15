@@ -141,65 +141,75 @@ def construir_redes() -> list[NetworkView]:
 
 
 def montar_mermaid(hosts: list[HostView], redes: list[NetworkView]) -> str:
-    """Render a Mermaid flowchart of the topology.
+    """Render a Mermaid flowchart of the contained-lab topology.
 
-    Hosts are grouped by their internal network (subgraph per network). Each
-    node is labelled with its role, container and fixed IP(s). Edges connect the
-    hosts that share a network, so the attacker->target path is visible.
+    Each host appears as a **single node** (no duplication for multi-homed hosts),
+    labelled with its role, container and every IP/interface. Networks are separate
+    nodes (hexagonal shape) and edges labelled with the host's IP on that network
+    connect them — so a host that bridges two networks has one node with two edges,
+    each annotated with the corresponding interface address.
     """
-    ip_by_host = {h.nome: (h.ips[0] if h.ips else "?") for h in hosts}
     role_by_host = {h.nome: h.papel for h in hosts}
-
-    # A host can sit on two networks (kali, nginx). Give each (network, host)
-    # pair a UNIQUE node id so Mermaid draws the host once per network it bridges
-    # instead of collapsing both into a single node — that visibly shows the
-    # bridge host spanning two internal segments.
-    def node_id(net_name: str, host: str) -> str:
-        return f"{net_name.replace('-', '_')}__{host}"
-
-    def node(net_name: str, host: str, ip: str) -> str:
-        role = "🗡️ atacante" if role_by_host.get(host) == "attacker" else "🎯 alvo"
-        label = f"{host}<br/>{role}<br/>{ip}"
-        return f'{node_id(net_name, host)}["{label}"]'
-
-    # Pick, for each (network, host), the host IP that belongs to that network's
-    # subnet when resolvable; otherwise fall back to the first known IP.
     ips_by_host = {h.nome: h.ips for h in hosts}
 
-    def ip_in_net(host: str, subnet_prefix: str) -> str:
-        for ip in ips_by_host.get(host, []):
-            if ip.startswith(subnet_prefix):
-                return ip
-        return ip_by_host.get(host, "?")
+    # Build the set of networks each host belongs to, with the IP for that net.
+    # Also build a mapping host -> set of (net_name, ip).
+    host_interfaces: dict[str, list[tuple[str, str]]] = {h.nome: [] for h in hosts}
+    for net in redes:
+        # Prefix = first three octets of the subnet, e.g. "192.168.10.0/24"
+        # -> "192.168.10.". Splitting on "." and taking the first three parts is
+        # correct; rsplit(".", 2) would wrongly yield just "192.168.".
+        octetos = net.subnet.split("/")[0].split(".")
+        prefix = ".".join(octetos[:3]) + "."
+        for host in net.hosts:
+            ip = "?"
+            for hip in ips_by_host.get(host, []):
+                if hip.startswith(prefix):
+                    ip = hip
+                    break
+            else:
+                # fallback to first IP
+                hip_list = ips_by_host.get(host, [])
+                if hip_list:
+                    ip = hip_list[0]
+            host_interfaces[host].append((net.nome, ip))
 
-    lines: list[str] = ["flowchart LR"]
+    lines: list[str] = ["flowchart TB"]
+
+    # Host nodes — unique, with all their interfaces in the label.
     attacker_ids: list[str] = []
     target_ids: list[str] = []
-    for net in redes:
-        safe_id = net.nome.replace("-", "_")
-        prefix = net.subnet.rsplit(".", 2)[0] + "."  # e.g. "192.168.10."
-        lines.append(
-            f'  subgraph {safe_id}["{net.nome}<br/>{net.subnet} · internal"]'
-        )
-        for host in net.hosts:
-            lines.append(f"    {node(net.nome, host, ip_in_net(host, prefix))}")
-            (attacker_ids if role_by_host.get(host) == "attacker" else target_ids).append(
-                node_id(net.nome, host)
-            )
-        lines.append("  end")
+    for h in hosts:
+        hid = h.nome.replace("-", "_")
+        role = "\U0001f5e1\ufe0f atacante" if h.papel == "attacker" else "\U0001f3af alvo"
+        ifaces = " / ".join(ip for _, ip in host_interfaces.get(h.nome, []))
+        label = f"{h.nome}<br/>{role}<br/>{h.container}<br/>{ifaces}"
+        lines.append(f'  {hid}["{label}"]')
+        (attacker_ids if h.papel == "attacker" else target_ids).append(hid)
 
-    # Edges between consecutive hosts of each network (drawn after subgraphs).
+    # Network nodes — hexagonal shape, labelled with name + subnet.
     for net in redes:
-        for a, b in zip(net.hosts, net.hosts[1:]):
-            lines.append(f"  {node_id(net.nome, a)} --> {node_id(net.nome, b)}")
+        nid = "net_" + net.nome.replace("-", "_")
+        lines.append(f'  {nid}{{{{"\U0001f310 {net.nome}<br/>{net.subnet}"}}}}')
+
+    # Edges: host <--> network, labelled with the host's IP on that network.
+    for h in hosts:
+        hid = h.nome.replace("-", "_")
+        for net_name, ip in host_interfaces.get(h.nome, []):
+            nid = "net_" + net_name.replace("-", "_")
+            lines.append(f"  {hid} ---|{ip}| {nid}")
 
     # Style attacker vs target.
     lines.append("  classDef attacker fill:#fee2e2,stroke:#dc2626,color:#111;")
     lines.append("  classDef target fill:#dbeafe,stroke:#2563eb,color:#111;")
+    lines.append("  classDef network fill:#f3e8ff,stroke:#7c3aed,color:#111;")
     if attacker_ids:
         lines.append(f"  class {','.join(attacker_ids)} attacker;")
     if target_ids:
         lines.append(f"  class {','.join(target_ids)} target;")
+    net_ids = ["net_" + n.nome.replace("-", "_") for n in redes]
+    if net_ids:
+        lines.append(f"  class {','.join(net_ids)} network;")
 
     return "\n".join(lines)
 

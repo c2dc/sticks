@@ -113,6 +113,31 @@ VERSOES_CONHECIDAS: list[str] = [
     "8.0",
 ]
 
+# ---------------------------------------------------------------------------
+# Curated-version flag (Req. 5.5, 5.6, 11.5)
+# ---------------------------------------------------------------------------
+
+# Single source of truth for the curated STIX version. Version 18 is the only
+# base that carries the 8 curated cases and the pointer to the curated artifacts
+# (``data/dag``, ``data/api``, ``docker-compose.yml``). The ``versoes_stix``
+# table is *seeded* from this constant (the DB row is a persistable projection
+# of the flag, not an independent source) — keeping the flag in code means
+# ``GET /api/stix/bases`` never needs a request-time lookup to know which base
+# is curated (Req. 5.5, 11.5).
+VERSAO_CURADA: str = "18.0"  # a única versão com os 8 casos curados (Req. 5.5, 11.5)
+
+
+def versao_eh_curada(versao: str) -> bool:
+    """True sse ``versao`` é a versão curada (carrega os 8 casos curados).
+
+    A versão curada (:data:`VERSAO_CURADA`, ``"18.0"``) é a única que carrega os
+    8 casos curados e o apontamento dos artefatos curados; para ela os Estágios
+    3/4/5 resolvem seus artefatos pelos diretórios curados em disco, sem rede e
+    sem IA (Req. 5.5, 5.6, 11.5). Qualquer outra versão retorna ``False``.
+    """
+    return versao == VERSAO_CURADA
+
+
 # pt-BR description per counted STIX object type (Req. 3.3). The dashboard fills
 # each ``ContagemTipo.descricao`` from this map; every description is non-empty.
 DESCRICOES_TIPO: dict[str, str] = {
@@ -488,9 +513,14 @@ class StixService:
 
         # 4) Atomic write: temp file in the SAME directory, fsync, then
         #    os.replace. On any failure remove the temp file — never a partial.
-        self._data_dir.mkdir(parents=True, exist_ok=True)
+        #    The data-dir creation is kept INSIDE the try so a mkdir failure
+        #    (e.g. the data dir path is a file, or a parent is read-only) is
+        #    reported as the documented StixDownloadError instead of leaking an
+        #    uncaught OSError, honouring the method's "the write/rename fails ->
+        #    StixDownloadError, no partial file" contract.
         temp_path: Optional[str] = None
         try:
+            self._data_dir.mkdir(parents=True, exist_ok=True)
             with tempfile.NamedTemporaryFile(
                 mode="w",
                 encoding="utf-8",

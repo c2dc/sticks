@@ -12,6 +12,12 @@ backend-maintained constants (``VERSOES_CONHECIDAS``, ``DESCRICOES_TIPO``,
 ``SLUG_PARA_STIX``) and the service itself. Behaviour is implemented across
 tasks 1.2 (listar_bases), 2.x (ler_bundle/dashboard), 3.x (campanhas/atores) and
 4.x (baixar_base).
+
+The Estágio 2 thin orchestrator (``Estagio2Service``, task 3.1) is **not**
+re-exported here on purpose: it imports ``StageService`` (which in turn imports
+from :mod:`app.services.stix.stix_service`), so eagerly importing it in this
+package ``__init__`` would create an import cycle. Import it from its submodule
+instead (``from app.services.stix.estagio2_service import Estagio2Service``).
 """
 
 from app.services.stix.stix_service import (

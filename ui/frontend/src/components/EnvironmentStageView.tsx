@@ -4,12 +4,24 @@ import { CheckCircle2, ShieldAlert, ShieldQuestion } from "lucide-react"
 
 import { EmptyNote, StageSection } from "@/components/StageSection"
 import { MermaidDiagram } from "@/components/MermaidDiagram"
+import { PrereqChecklist } from "@/components/PrereqChecklist"
+import { ProvisioningConsole } from "@/components/ProvisioningConsole"
 import { cn } from "@/lib/utils"
+import type { EstadoEstagio } from "@/lib/casos"
 import {
-  getProvisionamento,
+  getEstagioAmbiente,
+  provisionarAmbiente,
+  type AmbienteProvisionado,
+  type IsolationResumo,
   type ProvisionamentoResponse,
+  type ResumoSaude,
   type TopologyHost,
 } from "@/lib/estagios"
+
+/** Resumo de saúde vazio (não aprovado) usado como fallback do checklist. */
+const SAUDE_VAZIA: ResumoSaude = { aprovado: false, veredictos: [] }
+/** Resumo de isolamento vazio (não aprovado) usado como fallback do checklist. */
+const ISOLAMENTO_VAZIO: IsolationResumo = { aprovado: false, veredictos: [] }
 
 /**
  * EnvironmentStageView — Provisionamento do Ambiente (Estágio 4, Req. 5.4–5.6).
@@ -30,30 +42,82 @@ import {
  *     ser verificado** (fail-closed) com o `motivo`, indicador de aviso, Estágio
  *     5 bloqueado — a topologia continua sendo exibida.
  *
- * É somente-leitura: carrega o payload do Estágio 4 na montagem e trata os
- * estados de carregamento e de erro de carga como as telas irmãs
- * (Stage1View / Stage3View).
+ * Além da topologia + isolamento (herdados do Estágio 4), a tela do Estágio 5
+ * monta o **terminal de logs ao vivo** ({@link ProvisioningConsole}) e o
+ * **checklist dos três pré-requisitos** ({@link PrereqChecklist}, com o
+ * indicador de Estágio 6 bloqueado).
+ *
+ * Ao abrir a tela, dispara **automaticamente** o provisionamento idempotente
+ * (`provisionarAmbiente` — garante/inicia; reusa um ambiente pronto, Req. 1.1,
+ * 1.6) sem ação manual e, em paralelo, lê o payload read-only
+ * (`getEstagioAmbiente`) para a topologia + checklist. O `ProvisioningConsole`
+ * transmite os logs ao vivo pelo canal, de forma independente.
+ *
+ * Quando o provisionamento conclui com sucesso, chama
+ * `onProvisionamentoConcluido` para que o wizard releia o estado do backend e
+ * libere o "Próximo" (Req. 6.4, 7.3) — o Estágio 5 só fica `concluido` após os
+ * três pré-requisitos passarem.
  */
-export function EnvironmentStageView({ casoId }: { casoId: string }) {
+export function EnvironmentStageView({
+  casoId,
+  onProvisionamentoConcluido,
+}: {
+  casoId: string
+  /**
+   * Chamado quando o provisionamento conclui com sucesso (os três
+   * pré-requisitos passam). O wizard usa isso para reler o estado do backend e
+   * destravar o "Próximo" (Req. 6.4, 7.3).
+   */
+  onProvisionamentoConcluido?: () => void
+}) {
   const { t } = useTranslation("pipeline")
   const [result, setResult] = useState<ProvisionamentoResponse | null>(null)
+  const [provisionado, setProvisionado] = useState<AmbienteProvisionado | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
 
   useEffect(() => {
     let active = true
     setResult(null)
+    setProvisionado(null)
     setLoadError(null)
-    getProvisionamento(casoId)
-      .then((data) => {
-        if (active) setResult(data)
+
+    // Dispara o provisionamento idempotente (garante/inicia) ao abrir a tela —
+    // sem botão manual (Req. 1.1). Reusar um ambiente pronto é seguro ao
+    // remontar (Req. 1.6). A Saída alimenta o checklist (saúde/isolamento/
+    // abilities) e, na conclusão, destrava o "Próximo" via o callback.
+    provisionarAmbiente(casoId)
+      .then((ambiente) => {
+        if (!active) return
+        setProvisionado(ambiente)
+        const concluiu =
+          !ambiente.etapa_falha &&
+          ambiente.saude.aprovado &&
+          ambiente.isolamento.aprovado &&
+          ambiente.abilities_carregadas
+        if (concluiu) onProvisionamentoConcluido?.()
+        // Relê o payload read-only após o provisionamento para refletir a
+        // topologia + estados mais recentes no checklist.
+        return getEstagioAmbiente(casoId).then((data) => {
+          if (active) setResult(data)
+        })
       })
       .catch(() => {
-        if (active) setLoadError(t("stageView.loadError"))
+        // Provisionamento falhou/indisponível: ainda assim exibe a topologia
+        // e o estado read-only correntes (fail-closed na tela).
+        if (!active) return
+        getEstagioAmbiente(casoId)
+          .then((data) => {
+            if (active) setResult(data)
+          })
+          .catch(() => {
+            if (active) setLoadError(t("stageView.loadError"))
+          })
       })
+
     return () => {
       active = false
     }
-  }, [casoId, t])
+  }, [casoId, t, onProvisionamentoConcluido])
 
   if (loadError) {
     return <EmptyNote>{loadError}</EmptyNote>
@@ -68,6 +132,17 @@ export function EnvironmentStageView({ casoId }: { casoId: string }) {
 
   const { hosts, redes, mermaid, compose_file, isolado, isolamento_indisponivel, motivo } =
     result
+
+  // Estado do Estágio 5 nos `estados` do payload read-only (fonte do checklist).
+  const estagio5 = result.estados.estagios.find((e) => e.estagio === 5)
+  const estadoChecklist = (estagio5?.estado ?? "nao_iniciado") as EstadoEstagio
+  // Preferir o resultado fresco do `provisionar` para saúde/isolamento/abilities
+  // (o payload GET não traz `abilities_carregadas`); cair no GET quando ausente.
+  const saudeChecklist = provisionado?.saude ?? result.saude ?? SAUDE_VAZIA
+  const isolamentoChecklist = provisionado?.isolamento ?? ISOLAMENTO_VAZIO
+  const abilitiesCarregadas = provisionado?.abilities_carregadas ?? false
+  const etapaFalha = provisionado?.etapa_falha ?? estagio5?.etapa_falha ?? null
+  const mensagemErro = provisionado?.mensagem_erro ?? estagio5?.mensagem_erro ?? null
 
   return (
     <div className="grid gap-4 md:grid-cols-3">
@@ -139,6 +214,20 @@ export function EnvironmentStageView({ casoId }: { casoId: string }) {
           </ul>
         )}
       </StageSection>
+
+      {/* Terminal de logs ao vivo do provisionamento (Req. 2.x). */}
+      <ProvisioningConsole casoId={casoId} className="md:col-span-2" />
+
+      {/* Checklist dos três pré-requisitos + indicador do Estágio 6 bloqueado
+          (Req. 5.6, 7.2, 7.3). */}
+      <PrereqChecklist
+        estado={estadoChecklist}
+        saude={saudeChecklist}
+        isolamento={isolamentoChecklist}
+        abilitiesCarregadas={abilitiesCarregadas}
+        etapaFalha={etapaFalha}
+        mensagemErro={mensagemErro}
+      />
     </div>
   )
 }

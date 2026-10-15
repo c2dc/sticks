@@ -37,6 +37,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Path, status
 from pydantic import BaseModel, Field
 
+from app.services.stix.estagio1_service import BaseStixListada, Estagio1Service
 from app.services.stix.stix_service import (
     AtorStix,
     BaseStixInfo,
@@ -57,9 +58,17 @@ router = APIRouter(prefix="/api", tags=["stix"])
 
 
 class BasesResponse(BaseModel):
-    """``GET /api/stix/bases`` payload — the known bases listing (Req. 2.1)."""
+    """``GET /api/stix/bases`` payload — the known bases listing (Req. 2.1, 5.5).
 
-    bases: list[BaseStixInfo] = Field(default_factory=list)
+    Each base carries the ``baixada``/``selecionavel`` flags (live disk presence)
+    plus the six-stage ``curada`` flag of the version (``True`` only for the
+    curated version 18 — Req. 5.5, 5.6), projected via
+    :class:`~app.services.stix.estagio1_service.Estagio1Service`. ``curada`` is an
+    additive field: existing consumers that read only ``versao``/``baixada``/
+    ``selecionavel``/``arquivo`` are unaffected.
+    """
+
+    bases: list[BaseStixListada] = Field(default_factory=list)
 
 
 class CampanhasResponse(BaseModel):
@@ -87,14 +96,20 @@ class AtoresResponse(BaseModel):
     summary="Lista as bases MITRE ATT&CK conhecidas (mais nova → mais antiga)",
 )
 def listar_bases() -> BasesResponse:
-    """List the known ATT&CK Enterprise bases, newest→oldest (Req. 2.1).
+    """List the known ATT&CK Enterprise bases, newest→oldest (Req. 2.1, 5.5).
 
-    Delegates to :meth:`StixService.listar_bases`, which enumerates the
-    backend-maintained version index and flags each base ``baixada`` /
-    ``selecionavel`` from live disk presence. READ-ONLY and side-effect free:
-    no network egress (the only egress is ``POST .../download``).
+    Delegates to :meth:`Estagio1Service.listar_bases` (which reuses
+    ``StixService.listar_bases``), enumerating the backend-maintained version
+    index, flagging each base ``baixada`` / ``selecionavel`` from live disk
+    presence and projecting the six-stage ``curada`` flag per version (``True``
+    only for the curated version 18 — Req. 5.5, 5.6). READ-ONLY and side-effect
+    free: no network egress (the only egress is the explicit download POST).
+
+    The service is built from the module-level ``StixService`` symbol so test
+    monkeypatches that pin ``StixService`` to an isolated ``data_dir`` keep
+    affecting this route.
     """
-    return BasesResponse(bases=StixService().listar_bases())
+    return BasesResponse(bases=Estagio1Service(StixService()).listar_bases())
 
 
 @router.get(

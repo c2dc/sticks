@@ -1,61 +1,40 @@
 /**
- * In-memory view state machine for the new linear STIX flow (Req. 1.3, 3.1,
- * 3.2; design "Composição do fluxo/wizard no frontend").
+ * In-memory view state machine for the guided STICKS flow.
  *
- * The flow is strictly linear with Avançar/Voltar, so instead of pulling in a
- * router we keep a single `useReducer` encapsulated by {@link useAppFlow}. The
- * reducer is pure and deterministic — exported on its own so the navigation
- * invariants can be checked by property tests without mounting the DOM
- * (Correctness Properties 10 and 11).
+ * The flow is intentionally minimal: the Landing screen and the
+ * `ExecutionWizard`. Clicking "Start" on the Landing goes straight into the
+ * wizard at Stage 1 — base selection (Stage 1) and campaign selection (Stage 2)
+ * happen INSIDE the wizard, one screen per stage, so there are no standalone
+ * base/dashboard/selection screens before it anymore.
  *
- * The standalone DAG view was removed: the DAG generation/visualization is no
- * longer a separate phase before the wizard — it is now **Estágio 1** inside
- * the `ExecutionWizard` (4-stage scheme 1..4). The "pode avançar do Estágio 1"
- * gating moved into the wizard, derived from the backend (there is a
- * `dag_escolhido_id` ⇒ Estágio 1 concluded ⇒ Estágio 2 released), so it no
- * longer lives at the flow level.
+ * The reducer is pure and deterministic — exported on its own so the navigation
+ * invariants can be checked by property tests without mounting the DOM.
  *
- * State diagram (see design.md):
- *   landing  --INICIAR-->               bases
- *   bases    --SELECIONAR_BASE(v)-->    dashboard   (store versaoSelecionada)
- *   dashboard--IR_PARA_SELECAO-->       selecao
- *   selecao  --SELECIONAR_CAMPANHA(c)-->wizard      (store campanha)
- *   wizard   --VOLTAR-->                selecao     (preserve campanha)
- *   selecao  --VOLTAR-->                dashboard
- *   dashboard--VOLTAR-->                bases
- *   bases    --VOLTAR-->                landing
- *   landing  --VOLTAR-->                landing     (no-op)
+ * Terminology: a STIX `campaign` (the adversary campaign being reproduced) is
+ * chosen in Stage 2 of the wizard. The chosen campaign's curated slug becomes
+ * the `campaignId` that drives Stages 3..6 — that selection lives in the wizard,
+ * not here, so this machine carries no campaign state.
+ *
+ * State diagram:
+ *   landing  --START-->  wizard
+ *   wizard   --BACK-->   landing
+ *   landing  --BACK-->   landing   (no-op, floor)
  *
  * Any event that is not valid for the current view is a no-op: the reducer
- * returns the state object unchanged.
+ * returns the same state object unchanged.
  */
 import { useReducer } from "react"
 
-/** The five linear screens of the flow. */
-export type View = "landing" | "bases" | "dashboard" | "selecao" | "wizard"
+/** The two screens of the flow. */
+export type View = "landing" | "wizard"
 
-/**
- * Navigation + shared selection state. `versaoSelecionada` is set when a base
- * is chosen; `campanhaSelecionada` when a campaign is chosen (carrying the
- * resolved curated slug, Req. 4.5).
- */
+/** Navigation state. The wizard owns base/campaign selection internally. */
 export interface FlowState {
   view: View
-  versaoSelecionada?: string
-  campanhaSelecionada?: {
-    stix_id: string
-    nome: string
-    slug_curado?: string | null
-  }
 }
 
-/** All events the flow accepts (pt-BR names, matching the design contract). */
-export type FlowEvent =
-  | { tipo: "INICIAR" }
-  | { tipo: "SELECIONAR_BASE"; versao: string }
-  | { tipo: "IR_PARA_SELECAO" }
-  | { tipo: "SELECIONAR_CAMPANHA"; campanha: FlowState["campanhaSelecionada"] }
-  | { tipo: "VOLTAR" }
+/** All events the flow accepts. */
+export type FlowEvent = { tipo: "START" } | { tipo: "BACK" }
 
 /** Initial state: the Landing screen. */
 export const estadoInicial: FlowState = { view: "landing" }
@@ -63,57 +42,17 @@ export const estadoInicial: FlowState = { view: "landing" }
 /**
  * Pure, deterministic reducer implementing exactly the state diagram above.
  *
- * Events not valid for the current view are no-ops (the same state object is
- * returned). `VOLTAR` steps back one screen along the linear path, preserving
- * `campanhaSelecionada` on the wizard→selecao return (Req. 7.4) and being a
- * no-op at `landing`.
+ * `START` enters the wizard from the Landing; `BACK` returns to the Landing from
+ * the wizard and is a no-op on the Landing (the floor). Events not valid for the
+ * current view are no-ops (the same state object is returned).
  */
 export function flowReducer(estado: FlowState, evento: FlowEvent): FlowState {
   switch (evento.tipo) {
-    case "INICIAR":
-      // landing -> bases (Req. 1.3). Invalid anywhere else.
-      return estado.view === "landing" ? { ...estado, view: "bases" } : estado
+    case "START":
+      return estado.view === "landing" ? { view: "wizard" } : estado
 
-    case "SELECIONAR_BASE":
-      // bases -> dashboard, storing the chosen STIX version.
-      return estado.view === "bases"
-        ? { ...estado, view: "dashboard", versaoSelecionada: evento.versao }
-        : estado
-
-    case "IR_PARA_SELECAO":
-      // dashboard -> selecao.
-      return estado.view === "dashboard" ? { ...estado, view: "selecao" } : estado
-
-    case "SELECIONAR_CAMPANHA":
-      // selecao -> wizard, storing the campaign. The wizard now begins at
-      // Estágio 1 (Geração do DAG); advance gating lives inside the wizard,
-      // derived from the backend (Req. 3.2, 6.3).
-      return estado.view === "selecao"
-        ? {
-            ...estado,
-            view: "wizard",
-            campanhaSelecionada: evento.campanha,
-          }
-        : estado
-
-    case "VOLTAR":
-      // Step back one screen along the linear path. campanhaSelecionada is kept
-      // across every transition (so wizard -> selecao preserves it, Req. 7.4);
-      // landing is the floor and VOLTAR there is a no-op.
-      switch (estado.view) {
-        case "wizard":
-          return { ...estado, view: "selecao" }
-        case "selecao":
-          return { ...estado, view: "dashboard" }
-        case "dashboard":
-          return { ...estado, view: "bases" }
-        case "bases":
-          return { ...estado, view: "landing" }
-        case "landing":
-          return estado
-        default:
-          return estado
-      }
+    case "BACK":
+      return estado.view === "wizard" ? { view: "landing" } : estado
 
     default:
       return estado
@@ -124,7 +63,10 @@ export function flowReducer(estado: FlowState, evento: FlowEvent): FlowState {
  * Hook wrapping `useReducer(flowReducer, estadoInicial)`. Returns the current
  * `estado` and `enviar` (the dispatch function) for the view layer.
  */
-export function useAppFlow(): { estado: FlowState; enviar: (evento: FlowEvent) => void } {
+export function useAppFlow(): {
+  estado: FlowState
+  enviar: (evento: FlowEvent) => void
+} {
   const [estado, enviar] = useReducer(flowReducer, estadoInicial)
   return { estado, enviar }
 }

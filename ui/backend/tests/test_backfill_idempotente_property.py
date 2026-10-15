@@ -200,7 +200,15 @@ def _persisted_tuples(session: Session, caso: str) -> list[tuple]:
 
 # Feature: dag-estagio-multi-origem, Property 11: Backfill de DAGs curados é
 # idempotente
-@settings(max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture])
+@settings(
+    max_examples=100,
+    # Cada exemplo faz I/O de disco (SQLite efêmero + fixtures de arquivo), cujo
+    # custo varia com o ambiente; o ``deadline`` padrão (200ms) é por isso uma
+    # fonte de flakiness de *timing* — não de correção. A propriedade continua
+    # a ser exercida em todos os exemplos; só desativamos o relógio por exemplo.
+    deadline=None,
+    suppress_health_check=[HealthCheck.function_scoped_fixture],
+)
 @given(structural_nodes=_acyclic_dag(), n=st.integers(min_value=1, max_value=6))
 def test_property11_backfill_e_idempotente(
     structural_nodes: list[dict], n: int

@@ -23,7 +23,7 @@
  * somente-leitura), os tipos/wrappers dos endpoints de DAG persistido (Req. 3.7, 8.7):
  * - `GET  /api/casos/{caso}/dags`                 -> {@link DagResumo}[] (lista)
  * - `GET  /api/casos/{caso}/dags/{dag_id}`        -> {@link DagDetalhe} (grafo)
- * - `POST /api/casos/{caso}/estagio/2/escolher-dag` -> {@link CaseStageStates}
+ * - `POST /api/casos/{caso}/estagio/3/escolher-dag` -> {@link CaseStageStates}
  */
 import { api } from "@/lib/api"
 import type { CaseStageStates } from "@/lib/casos"
@@ -166,10 +166,10 @@ export function getDagPorId(caso: string, dagId: number): Promise<DagDetalhe> {
 }
 
 /**
- * Escolhe um DAG para a execução, concluindo o Estágio 2 (Geração do DAG) e
- * liberando o Estágio 3 (`POST /api/casos/{caso}/estagio/2/escolher-dag`,
+ * Escolhe um DAG para a execução, concluindo o Estágio 3 (Geração do DAG) e
+ * liberando o Estágio 4 (`POST /api/casos/{caso}/estagio/3/escolher-dag`,
  * Req. 8.7). Devolve o estado por Estágio ({@link CaseStageStates}) já com o
- * Estágio 2 `concluido` e o 3 liberado.
+ * Estágio 3 `concluido` e o 4 liberado.
  *
  * Falhas tipadas do backend (propagadas como {@link ApiError} com o `detail`
  * pt-BR `{motivo, mensagem}`):
@@ -182,7 +182,7 @@ export function escolherDag(
   dagId: number,
 ): Promise<CaseStageStates> {
   return api.post<CaseStageStates>(
-    `/casos/${encodeURIComponent(caso)}/estagio/2/escolher-dag`,
+    `/casos/${encodeURIComponent(caso)}/estagio/3/escolher-dag`,
     { dag_id: dagId },
   )
 }

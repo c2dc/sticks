@@ -13,36 +13,36 @@ implementação atual de
 :meth:`~app.services.dag.dag_service.DagService.escolher_dag` e do gate
 sequencial de :class:`~app.services.stage.stage_service.StageService`.
 
-No esquema de cinco Estágios, a Geração do DAG é o **Estágio 2** (derivado da
-Modelagem Estrutural do Estágio 1): ``escolher_dag`` grava o
-``dag_escolhido_id`` no ``StageRun`` de ``estagio=2`` e o conclui, liberando o
-Estágio 3 (Operacionalização). ``EscolhaDagResult.estagio`` é
-:data:`ESTAGIO_GERACAO_DAG` (``== 2``).
+No pipeline de seis Estágios, a Geração do DAG é o **Estágio 3** (sua Entrada são
+os atributos da campanha do Estágio 2 — Seleção da campanha): ``escolher_dag``
+grava o ``dag_escolhido_id`` no ``StageRun`` de ``estagio=3`` e o conclui,
+liberando o Estágio 4 (Operacionalização). ``EscolhaDagResult.estagio`` é
+:data:`ESTAGIO_GERACAO_DAG` (``== 3``).
 
 Propriedades (design.md — Properties 9 e 10)
 --------------------------------------------
-(a) *Escolha válida conclui o Estágio 2 e é idempotente* (Property 9):
+(a) *Escolha válida conclui o Estágio 3 e é idempotente* (Property 9):
     após ``sincronizar_dags_curados(slug)``, escolher um ``dag_id`` válido e
     persistido do Caso faz ``escolher_dag(slug, dag_id)`` devolver
-    ``sucesso=True``; o ``StageRun`` de ``estagio=2`` fica ``concluido`` com
+    ``sucesso=True``; o ``StageRun`` de ``estagio=3`` fica ``concluido`` com
     ``dag_escolhido_id == dag_id``; repetir a mesma escolha ``N`` vezes é
-    idempotente — mesmo ``stage_run_id``, exatamente uma linha de ``estagio=2``,
+    idempotente — mesmo ``stage_run_id``, exatamente uma linha de ``estagio=3``,
     mesmo ``dag_escolhido_id`` (Req. 4.7, 6.3).
 
-(b) *dag_id inexistente/alheio é recusado sem tocar o Estágio 2*:
+(b) *dag_id inexistente/alheio é recusado sem tocar o Estágio 3*:
     um ``dag_id`` que não existe, ou que pertence a **outro** Caso, é recusado
-    com ``falha == DAG_NAO_ENCONTRADO`` e o ``StageRun`` de ``estagio=2`` fica
+    com ``falha == DAG_NAO_ENCONTRADO`` e o ``StageRun`` de ``estagio=3`` fica
     inalterado (ou ausente) (Req. 6.3 — erro).
 
 (c) *Campanha sem DAG persistido recusa com SEM_DAG* (gate do Req. 6.2):
     sem nenhum ``Dag`` persistido para a Campanha, ``escolher_dag`` recusa com
     ``falha == SEM_DAG`` e nada é concluído.
 
-(d) *Gate sequencial do Estágio 3* (Property 10):
-    enquanto o Estágio 2 não estiver ``concluido``, o Estágio 3 permanece
-    bloqueado (``is_stage_startable(caso, 3)`` é ``False`` e a view reporta
-    ``bloqueado=True``); após uma escolha bem-sucedida (Estágio 2 ``concluido``),
-    o Estágio 3 torna-se iniciável (Req. 6.2, 6.3).
+(d) *Gate sequencial do Estágio 4* (Property 10):
+    enquanto o Estágio 3 (Geração do DAG) não estiver ``concluido``, o Estágio 4
+    permanece bloqueado (``is_stage_startable(caso, 4)`` é ``False`` e a view
+    reporta ``bloqueado=True``); após uma escolha bem-sucedida (Estágio 3
+    ``concluido``), o Estágio 4 torna-se iniciável (Req. 6.2, 6.3).
 
 Estratégia / isolamento
 -----------------------
@@ -188,8 +188,8 @@ def _acyclic_dag(draw) -> list[dict]:
     ]
 
 
-def _estagio2_rows(session: Session, caso: str) -> list[StageRun]:
-    """Todas as linhas de ``StageRun`` de ``estagio=2`` do Caso, por ``id``."""
+def _estagio_dag_rows(session: Session, caso: str) -> list[StageRun]:
+    """Todas as linhas de ``StageRun`` de ``estagio=3`` (DAG) do Caso, por ``id``."""
     return (
         session.execute(
             select(StageRun)
@@ -202,8 +202,8 @@ def _estagio2_rows(session: Session, caso: str) -> list[StageRun]:
     )
 
 
-def _count_estagio2(session: Session, caso: str) -> int:
-    """Quantidade de linhas de ``StageRun`` de ``estagio=2`` do Caso."""
+def _count_estagio_dag(session: Session, caso: str) -> int:
+    """Quantidade de linhas de ``StageRun`` de ``estagio=3`` (DAG) do Caso."""
     return (
         session.execute(
             select(func.count())
@@ -235,10 +235,10 @@ def test_property9_escolha_valida_conclui_estagio2_e_e_idempotente(
     """Escolher um ``dag_id`` válido conclui o Estágio 2; repetir é idempotente.
 
     Após o backfill, escolher um DAG persistido do Caso devolve ``sucesso=True``;
-    o ``StageRun`` de ``estagio=2`` fica ``concluido`` (progresso 100) com
+    o ``StageRun`` de ``estagio=3`` fica ``concluido`` (progresso 100) com
     ``dag_escolhido_id == dag_id``; repetir a mesma escolha ``N`` vezes mantém o
-    mesmo ``stage_run_id``, exatamente uma linha de ``estagio=2`` e o mesmo
-    ``dag_escolhido_id`` (Req. 4.7, 6.3). Antes da escolha o Estágio 3 está
+    mesmo ``stage_run_id``, exatamente uma linha de ``estagio=3`` e o mesmo
+    ``dag_escolhido_id`` (Req. 4.7, 6.3). Antes da escolha o Estágio 4 está
     bloqueado; depois, torna-se iniciável (gate — Req. 6.2, 6.3).
 
     Validates: Requirements 4.7, 6.2, 6.3
@@ -256,24 +256,22 @@ def test_property9_escolha_valida_conclui_estagio2_e_e_idempotente(
         )
         stage_service = StageService(session)
 
-        # Backfill: persiste exatamente um Dag curadoria_humana do Caso. No
-        # esquema de cinco Estágios, o backfill materializa a Modelagem (Estágio
-        # 1) para derivar o DAG, deixando o Estágio 1 ``concluido`` — logo o
-        # Estágio 2 (Geração do DAG) já é iniciável; é a *escolha* que conclui o
-        # Estágio 2 e libera o Estágio 3.
+        # Backfill: persiste exatamente um Dag curadoria_humana do Caso. É a
+        # *escolha* que conclui o Estágio 3 (Geração do DAG) e libera o Estágio 4
+        # (Operacionalização) pelo gate sequencial.
         resumos = dag_service.sincronizar_dags_curados(_CURATED_SLUG)
         assert len(resumos) == 1
         dag_id = resumos[0].id
         assert resumos[0].origem == OrigemDag.CURADORIA_HUMANA
 
-        # (d) — ANTES da escolha: o Estágio 3 está bloqueado (gate sequencial),
-        # pois o Estágio 2 ainda não está concluido (Req. 6.2).
-        assert stage_service.is_stage_startable(_CURATED_SLUG, 3) is False
-        view3_antes = stage_service.get_stage_state(_CURATED_SLUG, 3)
-        assert view3_antes.bloqueado is True
-        assert view3_antes.iniciavel is False
+        # (d) — ANTES da escolha: o Estágio 4 está bloqueado (gate sequencial),
+        # pois o Estágio 3 (Geração do DAG) ainda não está concluido (Req. 6.2).
+        assert stage_service.is_stage_startable(_CURATED_SLUG, 4) is False
+        view4_antes = stage_service.get_stage_state(_CURATED_SLUG, 4)
+        assert view4_antes.bloqueado is True
+        assert view4_antes.iniciavel is False
 
-        # 1ª escolha: sucesso, conclui o Estágio 2 com dag_escolhido_id = dag_id.
+        # 1ª escolha: sucesso, conclui o Estágio 3 com dag_escolhido_id = dag_id.
         resultado = dag_service.escolher_dag(_CURATED_SLUG, dag_id)
         assert resultado.sucesso is True
         assert resultado.falha is None
@@ -281,7 +279,7 @@ def test_property9_escolha_valida_conclui_estagio2_e_e_idempotente(
         assert resultado.stage_run_id is not None
         primeiro_stage_run_id = resultado.stage_run_id
 
-        linhas = _estagio2_rows(session, _CURATED_SLUG)
+        linhas = _estagio_dag_rows(session, _CURATED_SLUG)
         assert len(linhas) == 1
         linha = linhas[0]
         assert linha.id == primeiro_stage_run_id
@@ -289,21 +287,21 @@ def test_property9_escolha_valida_conclui_estagio2_e_e_idempotente(
         assert linha.progresso == 100
         assert linha.dag_escolhido_id == dag_id
 
-        # (d) — DEPOIS da escolha: o Estágio 2 está concluido ⇒ Estágio 3 liberado.
-        assert stage_service.is_stage_startable(_CURATED_SLUG, 3) is True
-        view3_depois = stage_service.get_stage_state(_CURATED_SLUG, 3)
-        assert view3_depois.bloqueado is False
-        assert view3_depois.iniciavel is True
+        # (d) — DEPOIS da escolha: o Estágio 3 está concluido ⇒ Estágio 4 liberado.
+        assert stage_service.is_stage_startable(_CURATED_SLUG, 4) is True
+        view4_depois = stage_service.get_stage_state(_CURATED_SLUG, 4)
+        assert view4_depois.bloqueado is False
+        assert view4_depois.iniciavel is True
 
         # Idempotência: repetir a MESMA escolha N vezes não muda o estado — mesmo
-        # stage_run_id, exatamente uma linha de estagio=2, mesmo dag_escolhido_id.
+        # stage_run_id, exatamente uma linha de estagio=3, mesmo dag_escolhido_id.
         for _ in range(repeticoes):
             repetido = dag_service.escolher_dag(_CURATED_SLUG, dag_id)
             assert repetido.sucesso is True
             assert repetido.stage_run_id == primeiro_stage_run_id
 
-        assert _count_estagio2(session, _CURATED_SLUG) == 1
-        linha_final = _estagio2_rows(session, _CURATED_SLUG)[0]
+        assert _count_estagio_dag(session, _CURATED_SLUG) == 1
+        linha_final = _estagio_dag_rows(session, _CURATED_SLUG)[0]
         assert linha_final.id == primeiro_stage_run_id
         assert linha_final.dag_escolhido_id == dag_id
         assert linha_final.estado == StageState.COMPLETED
@@ -341,7 +339,7 @@ def test_propertyb_dag_inexistente_ou_alheio_e_recusado(
     Com um DAG persistido do Caso-alvo (para passar do gate ``SEM_DAG``) e um DAG
     de **outra** Campanha, escolher o ``dag_id`` da outra Campanha — ou um
     ``dag_id`` inexistente — é recusado com ``falha == DAG_NAO_ENCONTRADO`` e o
-    ``StageRun`` de ``estagio=2`` do Caso-alvo fica inalterado (não concluído por
+    ``StageRun`` de ``estagio=3`` do Caso-alvo fica inalterado (não concluído por
     nenhuma escolha válida).
 
     Validates: Requirements 6.3
@@ -377,11 +375,11 @@ def test_propertyb_dag_inexistente_ou_alheio_e_recusado(
             assert resultado.falha == EscolhaDagFalha.DAG_NAO_ENCONTRADO
             assert resultado.stage_run_id is None
 
-        # O StageRun do Estágio 2 (Geração do DAG) do Caso-alvo NÃO foi
+        # O StageRun do Estágio 3 (Geração do DAG) do Caso-alvo NÃO foi
         # criado/alterado: nenhuma escolha válida ocorreu, logo não há linha
-        # concluída de estagio=2. (O backfill materializa a Modelagem do Estágio
-        # 1, mas isso não cria uma linha de estagio=2 nem a conclui.)
-        linhas_alvo = _estagio2_rows(session, _CURATED_SLUG)
+        # concluída de estagio=3. (O backfill materializa os atributos da
+        # campanha, mas isso não cria uma linha de estagio=3 nem a conclui.)
+        linhas_alvo = _estagio_dag_rows(session, _CURATED_SLUG)
         assert linhas_alvo == []
     finally:
         session.close()
@@ -392,24 +390,24 @@ def test_propertyb_dag_inexistente_ou_alheio_e_recusado(
 
 # ===========================================================================
 # Property (c) — Campanha sem DAG persistido recusa com SEM_DAG e o avanço além
-# do Estágio 2 permanece bloqueado (Property 10 — Req. 6.2).
+# do Estágio 3 permanece bloqueado (Property 10 — Req. 6.2).
 # ===========================================================================
 
 
 # Feature: pipeline-cinco-estagios, Property 10: Sem DAG, o avanço além do
-# Estágio 2 permanece bloqueado.
+# Estágio 3 permanece bloqueado.
 @settings(
     max_examples=100,
     deadline=None,
     suppress_health_check=[HealthCheck.function_scoped_fixture, HealthCheck.too_slow],
 )
 @given(dag_id=st.integers(min_value=1, max_value=10_000))
-def test_property10_sem_dag_recusa_e_estagio3_bloqueado(dag_id: int) -> None:
-    """Sem DAG persistido ⇒ ``SEM_DAG`` e o Estágio 3 permanece bloqueado.
+def test_property10_sem_dag_recusa_e_estagio4_bloqueado(dag_id: int) -> None:
+    """Sem DAG persistido ⇒ ``SEM_DAG`` e o Estágio 4 permanece bloqueado.
 
     Com uma Campanha sem nenhum ``Dag`` persistido, ``escolher_dag`` recusa com
     ``falha == SEM_DAG`` para qualquer ``dag_id`` e nada é concluído; sem o
-    Estágio 2 (Geração do DAG) concluído, o gate sequencial mantém o Estágio 3
+    Estágio 3 (Geração do DAG) concluído, o gate sequencial mantém o Estágio 4
     (Operacionalização) bloqueado (Req. 6.2).
 
     Validates: Requirements 6.2
@@ -426,13 +424,13 @@ def test_property10_sem_dag_recusa_e_estagio3_bloqueado(dag_id: int) -> None:
         assert resultado.falha == EscolhaDagFalha.SEM_DAG
         assert resultado.stage_run_id is None
 
-        # Nada foi concluído: não há linha de estagio=2, e o Estágio 3 segue
-        # bloqueado pelo gate sequencial (o Estágio 2 não concluiu).
-        assert _estagio2_rows(session, _CURATED_SLUG) == []
-        assert stage_service.is_stage_startable(_CURATED_SLUG, 3) is False
-        view3 = stage_service.get_stage_state(_CURATED_SLUG, 3)
-        assert view3.bloqueado is True
-        assert view3.iniciavel is False
+        # Nada foi concluído: não há linha de estagio=3, e o Estágio 4 segue
+        # bloqueado pelo gate sequencial (o Estágio 3 não concluiu).
+        assert _estagio_dag_rows(session, _CURATED_SLUG) == []
+        assert stage_service.is_stage_startable(_CURATED_SLUG, 4) is False
+        view4 = stage_service.get_stage_state(_CURATED_SLUG, 4)
+        assert view4.bloqueado is True
+        assert view4.iniciavel is False
     finally:
         session.close()
         factory.kw["bind"].dispose()

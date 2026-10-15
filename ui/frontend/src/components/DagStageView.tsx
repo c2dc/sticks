@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Loader2, Sparkles } from "lucide-react"
 
@@ -165,7 +165,8 @@ function DagList({
   const [selecionadoId, setSelecionadoId] = useState<number>(dags[0].id)
   const [escolhendo, setEscolhendo] = useState(false)
 
-  const handleEscolher = async () => {
+  const autoEscolhido = useRef(false)
+  const handleEscolher = useCallback(async () => {
     setEscolhendo(true)
     try {
       const estados = await escolherDag(casoId, selecionadoId)
@@ -175,10 +176,24 @@ function DagList({
     } finally {
       setEscolhendo(false)
     }
-  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [casoId, selecionadoId])
+
+  // Auto-conclude when there is exactly one DAG (curated pipeline): the
+  // generated DAG is the one that will be used, no user choice needed.
+  useEffect(() => {
+    if (dags.length === 1 && !autoEscolhido.current) {
+      autoEscolhido.current = true
+      void handleEscolher()
+    }
+  }, [dags.length, handleEscolher])
+
+  // Single-DAG: no selection UI needed, just the graph.
+  const showSelectionUI = dags.length > 1
 
   return (
     <div className="flex flex-col gap-4">
+      {showSelectionUI ? (
       <ul className="flex flex-col gap-2" aria-label={t("stix.dag.selecionar")}>
         {dags.map((dag) => {
           const selecionado = dag.id === selecionadoId
@@ -206,17 +221,20 @@ function DagList({
           )
         })}
       </ul>
+      ) : null}
 
       <DagGraph casoId={casoId} dagId={selecionadoId} onErro={onErro} />
 
-      <div className="flex items-center justify-end">
-        <Button onClick={handleEscolher} disabled={escolhendo}>
-          {escolhendo ? (
-            <Loader2 className="animate-spin" aria-hidden />
-          ) : null}
-          {t("stix.dag.selecionar")}
-        </Button>
-      </div>
+      {showSelectionUI ? (
+        <div className="flex items-center justify-end">
+          <Button onClick={handleEscolher} disabled={escolhendo}>
+            {escolhendo ? (
+              <Loader2 className="animate-spin" aria-hidden />
+            ) : null}
+            {t("stix.dag.selecionar")}
+          </Button>
+        </div>
+      ) : null}
     </div>
   )
 }

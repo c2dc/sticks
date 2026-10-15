@@ -13,8 +13,8 @@ import { type NumeroEstagio } from "@/lib/casos"
  * permitido quando N+1 não está bloqueado. O wizard nunca permite avançar
  * para um estágio bloqueado, e não há avanço a partir do último estágio (5).
  */
-describe("derivarEstados — bloqueio sequencial (1..5)", () => {
-  it("nada concluído: 1 disponível, 2/3/4/5 bloqueados; sem avanço", () => {
+describe("derivarEstados — bloqueio sequencial (1..6)", () => {
+  it("nada concluído: 1 disponível, 2..6 bloqueados; sem avanço", () => {
     const d = derivarEstados([])
     expect(d.estagios).toEqual([
       { estagio: 1, status: "disponivel" },
@@ -22,40 +22,44 @@ describe("derivarEstados — bloqueio sequencial (1..5)", () => {
       { estagio: 3, status: "bloqueado" },
       { estagio: 4, status: "bloqueado" },
       { estagio: 5, status: "bloqueado" },
+      { estagio: 6, status: "bloqueado" },
     ])
     expect(d.podeAvancar(1)).toBe(false)
     expect(d.podeAvancar(2)).toBe(false)
     expect(d.podeAvancar(3)).toBe(false)
     expect(d.podeAvancar(4)).toBe(false)
+    expect(d.podeAvancar(5)).toBe(false)
   })
 
-  it("estágio 1 concluído: 2 disponível, 3/4/5 bloqueados; avança de 1", () => {
+  it("estágio 1 concluído: 2 disponível, 3..6 bloqueados; avança de 1", () => {
     const d = derivarEstados([1])
     expect(d.estagios.find((e) => e.estagio === 1)?.status).toBe("concluido")
     expect(d.estagios.find((e) => e.estagio === 2)?.status).toBe("disponivel")
     expect(d.estagios.find((e) => e.estagio === 3)?.status).toBe("bloqueado")
     expect(d.estagios.find((e) => e.estagio === 4)?.status).toBe("bloqueado")
     expect(d.estagios.find((e) => e.estagio === 5)?.status).toBe("bloqueado")
+    expect(d.estagios.find((e) => e.estagio === 6)?.status).toBe("bloqueado")
     expect(d.podeAvancar(1)).toBe(true)
     expect(d.podeAvancar(2)).toBe(false)
   })
 
-  it("1..4 concluídos: 5 disponível; avança de 1..4; nunca de 5", () => {
-    const d = derivarEstados([1, 2, 3, 4])
-    expect(d.estagios.find((e) => e.estagio === 5)?.status).toBe("disponivel")
+  it("1..5 concluídos: 6 disponível; avança de 1..5; nunca de 6", () => {
+    const d = derivarEstados([1, 2, 3, 4, 5])
+    expect(d.estagios.find((e) => e.estagio === 6)?.status).toBe("disponivel")
     expect(d.podeAvancar(1)).toBe(true)
     expect(d.podeAvancar(2)).toBe(true)
     expect(d.podeAvancar(3)).toBe(true)
     expect(d.podeAvancar(4)).toBe(true)
-    expect(d.podeAvancar(5)).toBe(false) // 5 é o último estágio
+    expect(d.podeAvancar(5)).toBe(true)
+    expect(d.podeAvancar(6)).toBe(false) // 6 é o último estágio
   })
 
   it("exaustivo: um estágio N>1 é bloqueado sse N-1 não concluído", () => {
-    // Varre todos os subconjuntos de {1,2,3,4,5}.
-    for (let mask = 0; mask < 32; mask++) {
-      const concluidos = [1, 2, 3, 4, 5].filter((n) => mask & (1 << (n - 1)))
+    // Varre todos os subconjuntos de {1,2,3,4,5,6}.
+    for (let mask = 0; mask < 64; mask++) {
+      const concluidos = [1, 2, 3, 4, 5, 6].filter((n) => mask & (1 << (n - 1)))
       const d = derivarEstados(concluidos)
-      for (const n of [2, 3, 4, 5] as const) {
+      for (const n of [2, 3, 4, 5, 6] as const) {
         const bloqueado =
           d.estagios.find((e) => e.estagio === n)?.status === "bloqueado"
         const anteriorConcluido = concluidos.includes(n - 1)
@@ -63,7 +67,8 @@ describe("derivarEstados — bloqueio sequencial (1..5)", () => {
         const esperaBloqueado = !anteriorConcluido && !concluidos.includes(n)
         expect(bloqueado).toBe(esperaBloqueado)
         // nunca permite avançar para um estágio bloqueado
-        if (bloqueado) expect(d.podeAvancar((n - 1) as 1 | 2 | 3 | 4)).toBe(false)
+        if (bloqueado)
+          expect(d.podeAvancar((n - 1) as 1 | 2 | 3 | 4 | 5)).toBe(false)
       }
     }
   })

@@ -744,8 +744,8 @@ class Stage3Result(BaseModel):
 # 3 = Operacionalização, 4 = Provisionamento do Ambiente, 5 = Execução da
 # Campanha. A later stage is *blocked* — and cannot be started — while its
 # immediately preceding stage is not "concluido" (Req. 5.4). The aggregate
-# replication progress counts exactly the cases whose all five stages are
-# "concluido", out of the 8 curated cases (Req. 5.5). Finally, the real-time
+# replication progress counts exactly the cases whose all six stages are
+# "concluido", out of the 8 curated cases (Req. 1.5). Finally, the real-time
 # channels (task 11.3) need a way to report a stage's current state and progress
 # percentage, and the state transition it just made (Req. 1.4, 1.5, 1.6).
 #
@@ -755,31 +755,48 @@ class Stage3Result(BaseModel):
 # and an ephemeral test SQLite session. There is no re-modeling here — the
 # per-stage assembly above is left intact; this section only reads state and
 # derives the blocking/progress views, parametrised by ``VALID_STAGES`` so the
-# same algorithm spans the 1..5 range (Req. 1.1, 1.3, 1.4, 1.6).
+# same algorithm spans the 1..6 range (Req. 1.1, 1.2, 1.3, 1.4, 1.5).
 
-# The five pipeline stages, in conduction order (Req. 1.1, 1.3, 1.4, 1.6, 5.2):
-#   1 = Modelagem Estrutural, 2 = Geração do DAG, 3 = Operacionalização,
-#   4 = Provisionamento do Ambiente, 5 = Execução da Campanha.
+# The six pipeline stages, in conduction order (Req. 1.1, 1.3, 1.4, 1.5, 3.1):
+#   1 = Seleção da base STIX, 2 = Seleção da campanha, 3 = Geração do DAG,
+#   4 = Operacionalização, 5 = Criação do ambiente de simulação,
+#   6 = Execução + medição + relatório.
 # A curated case has exactly these stages; ``VALID_STAGES`` bounds every stage
 # argument and is the single source of truth for the pipeline range. The
 # sequential blocking, aggregate progress and per-stage state derivation below
 # are all derived from these constants (iterate ``VALID_STAGES`` / use
 # ``FIRST_STAGE`` and ``LAST_STAGE``) — there are no hardcoded stage literals,
-# so widening the range here makes them cover 1..5 automatically (Req. 8.1).
+# so widening the range here makes them cover 1..6 automatically (Req. 1.1,
+# 3.1, 3.2, 3.3).
 FIRST_STAGE: int = 1
-LAST_STAGE: int = 5
-VALID_STAGES: tuple[int, ...] = (1, 2, 3, 4, 5)
+LAST_STAGE: int = 6
+VALID_STAGES: tuple[int, ...] = (1, 2, 3, 4, 5, 6)
 
-# Named stage roles after the 5-stage renumbering (design: "Papéis dos Estágios
-# após a renumeração"). These are the single source of truth for each stage
-# number; the sequential blocking, aggregate progress and per-``StageRun``
-# derivation reference ``VALID_STAGES``/``FIRST_STAGE``/``LAST_STAGE`` rather
-# than literals, so they span 1..5 without changes.
-ESTAGIO_MODELAGEM: int = 1          # Estágio 1 — Modelagem Estrutural
-ESTAGIO_GERACAO_DAG: int = 2        # Estágio 2 — Geração do DAG (deriva da Modelagem)
-ESTAGIO_OPERACIONALIZACAO: int = 3  # Estágio 3 — Operacionalização (ex-Tradução)
-ESTAGIO_PROVISIONAMENTO: int = 4    # Estágio 4 — Provisionamento do Ambiente (novo)
-ESTAGIO_EXECUCAO: int = 5           # Estágio 5 — Execução da Campanha (ex-Emulação)
+# Named stage roles for the six-stage pipeline (design: "Papéis dos seis
+# Estágios"). These are the single source of truth for each stage number; the
+# sequential blocking, aggregate progress and per-``StageRun`` derivation
+# reference ``VALID_STAGES``/``FIRST_STAGE``/``LAST_STAGE`` rather than literals,
+# so they span 1..6 without changes.
+ESTAGIO_SELECAO_BASE: int = 1        # Estágio 1 — Seleção da base STIX
+ESTAGIO_SELECAO_CAMPANHA: int = 2    # Estágio 2 — Seleção da campanha
+ESTAGIO_GERACAO_DAG: int = 3         # Estágio 3 — Geração do DAG
+ESTAGIO_OPERACIONALIZACAO: int = 4   # Estágio 4 — Operacionalização (Abilities + parâmetros de ambiente)
+ESTAGIO_AMBIENTE: int = 5            # Estágio 5 — Criação do ambiente de simulação
+ESTAGIO_EXECUCAO: int = 6            # Estágio 6 — Execução + medição + relatório
+
+# Nota de dívida técnica (Req. 18.5): as constantes anteriores (nomes históricos
+# da renumeração para cinco Estágios) permanecem como ALIASES para não quebrar
+# imports de módulos ainda não migrados (``dag/dag_service.py``,
+# ``environment/stage_service.py``, ``api/emulacao.py`` etc.). Os módulos a
+# jusante serão recabeados para os papéis novos nas tarefas específicas de cada
+# Estágio; até lá os aliases preservam o comportamento atual.
+#   * ``ESTAGIO_MODELAGEM`` → papel do antigo Estágio 1 (hoje Seleção da base).
+#   * ``ESTAGIO_PROVISIONAMENTO`` → papel de criação/provisionamento do ambiente
+#     (hoje :data:`ESTAGIO_AMBIENTE`).
+# ``ESTAGIO_GERACAO_DAG``/``ESTAGIO_OPERACIONALIZACAO``/``ESTAGIO_EXECUCAO``
+# existem em ambos os conjuntos de nomes e já apontam para os papéis novos acima.
+ESTAGIO_MODELAGEM: int = ESTAGIO_SELECAO_BASE        # alias histórico (Req. 18.5)
+ESTAGIO_PROVISIONAMENTO: int = ESTAGIO_AMBIENTE      # alias histórico (Req. 18.5)
 
 
 class StageStateView(BaseModel):
@@ -788,7 +805,7 @@ class StageStateView(BaseModel):
     Attributes
     ----------
     estagio:
-        The stage number (1, 2, 3, 4 or 5).
+        The stage number (1, 2, 3, 4, 5 or 6).
     estado:
         The stage state — exactly one of ``nao_iniciado`` / ``em_andamento`` /
         ``concluido`` / ``erro`` (:class:`~app.models.enums.StageState`),
@@ -823,10 +840,10 @@ class StageStateView(BaseModel):
 class CaseStageStates(BaseModel):
     """The per-stage state of a case plus whether it is fully replicated.
 
-    ``estagios`` holds one :class:`StageStateView` per stage (1..5), in order,
+    ``estagios`` holds one :class:`StageStateView` per stage (1..6), in order,
     each carrying its state, percentage and ``bloqueado`` flag (Req. 5.3). A case
-    is ``concluido_total`` iff all five stages are ``concluido`` (the unit the
-    aggregate progress counts — Req. 1.6, 5.5).
+    is ``concluido_total`` iff all six stages are ``concluido`` (the unit the
+    aggregate progress counts — Req. 1.5).
     """
 
     caso_id: str
@@ -837,7 +854,7 @@ class CaseStageStates(BaseModel):
 class AggregateProgress(BaseModel):
     """The aggregate replication progress across the 8 curated cases (Req. 5.5).
 
-    ``casos_concluidos`` is the number of cases whose all five stages are
+    ``casos_concluidos`` is the number of cases whose all six stages are
     ``concluido``; ``total_casos`` is the case universe (8 curated cases);
     ``percentual`` is ``casos_concluidos / total_casos`` as an integer 0..100 for
     display. ``casos_concluidos_ids`` lists which cases are fully replicated so
@@ -850,6 +867,24 @@ class AggregateProgress(BaseModel):
     casos_concluidos_ids: list[str] = Field(default_factory=list)
 
 
+class LinhaLogView(BaseModel):
+    """Uma linha de log de provisionamento transmitida pelo canal de Estágios (Req. 2.6).
+
+    A single provisioning log line carried over the existing stage channel. Each
+    line has a monotonic ``seq`` per case (so the UI can dedupe/reorder on
+    reconnect), the pipeline ``etapa`` that emitted it, the ``fluxo`` it belongs
+    to (``comando`` | ``stdout`` | ``stderr`` | ``info``), the ``texto`` itself,
+    and ``em`` — a naive-UTC timestamp consistent with the module's
+    :func:`_utcnow` helper (Req. 2.6).
+    """
+
+    seq: int
+    etapa: str
+    fluxo: str
+    texto: str
+    em: dt.datetime
+
+
 class StageProgressEvent(BaseModel):
     """A stage state/percentage report for the real-time channels (Req. 1.4–1.6).
 
@@ -859,6 +894,11 @@ class StageProgressEvent(BaseModel):
     it transitioned from (Req. 1.4). While a stage is ``em_andamento`` the channel
     re-emits this at least every 5s so the UI can show the live percentage
     (Req. 1.5); on failure ``mensagem_erro`` carries the cause (Req. 1.6).
+
+    For Stage 5 the frame also carries ``logs`` — the DELTA of new provisioning
+    log lines emitted since the last frame (Req. 2.6). It defaults to an empty
+    list, so Stages 1–4 and 6 keep emitting the exact same frame they do today
+    (``logs`` stays empty for them — a pure additive change).
     """
 
     caso_id: str
@@ -868,13 +908,16 @@ class StageProgressEvent(BaseModel):
     estado_anterior: Optional[StageState] = None
     mensagem_erro: Optional[str] = None
     etapa_falha: Optional[str] = None
+    # DELTA (Estágio 5): linhas novas desde o último frame (Req. 2.6).
+    logs: list[LinhaLogView] = Field(default_factory=list)
 
 
 def _validate_stage(estagio: int) -> None:
-    """Guard that ``estagio`` is one of the valid pipeline stages (1..5).
+    """Guard that ``estagio`` is one of the valid pipeline stages (1..6).
 
     Interpolates :data:`VALID_STAGES`, so widening the tuple to ``(1, 2, 3, 4,
-    5)`` makes this accept 1..5 and reject anything out of range (Req. 1.3).
+    5, 6)`` makes this accept 1..6 and reject anything out of range
+    (Req. 3.1, 3.2, 3.3).
     """
     if estagio not in VALID_STAGES:
         raise ValueError(
@@ -1715,13 +1758,13 @@ class StageService:
 
         Args:
             caso_id: The curated case slug.
-            estagio: The stage number (1, 2, 3 or 4).
+            estagio: The stage number (1, 2, 3, 4, 5 or 6).
 
         Returns:
             A typed :class:`StageStateView`.
 
         Raises:
-            ValueError: if ``estagio`` is not one of 1, 2, 3, 4.
+            ValueError: if ``estagio`` is not one of (1, 2, 3, 4, 5, 6).
         """
         _validate_stage(estagio)
         states = self._stage_states_map(caso_id)
@@ -1730,10 +1773,10 @@ class StageService:
     def get_stage_states(self, caso_id: str) -> CaseStageStates:
         """Return the per-stage state of a case (Req. 5.3, 5.4).
 
-        Assembles one :class:`StageStateView` per stage (1..5), each carrying its
+        Assembles one :class:`StageStateView` per stage (1..6), each carrying its
         state, progress percentage and ``bloqueado`` flag, and flags the case as
-        ``concluido_total`` when all five stages are ``concluido`` (the unit the
-        aggregate progress counts — Req. 5.5).
+        ``concluido_total`` when all six stages are ``concluido`` (the unit the
+        aggregate progress counts — Req. 1.5).
 
         Reads all of the case's ``StageRun`` rows once, so the blocking decision
         for stage *n* uses the same snapshot as stage *n-1*'s state.
@@ -1767,13 +1810,13 @@ class StageService:
 
         Args:
             caso_id: The curated case slug.
-            estagio: The stage number (1, 2, 3 or 4).
+            estagio: The stage number (1, 2, 3, 4, 5 or 6).
 
         Returns:
             ``True`` if the stage is startable, ``False`` if it is blocked.
 
         Raises:
-            ValueError: if ``estagio`` is not one of 1, 2, 3, 4.
+            ValueError: if ``estagio`` is not one of (1, 2, 3, 4, 5, 6).
         """
         _validate_stage(estagio)
         if estagio == FIRST_STAGE:
@@ -1787,14 +1830,14 @@ class StageService:
     ) -> AggregateProgress:
         """Aggregate replication progress across the curated cases (Req. 5.5).
 
-        Counts exactly the cases whose **all four** stages are ``concluido``,
+        Counts exactly the cases whose **all six** stages are ``concluido``,
         out of the case universe. By default the universe is the 8 curated cases
         (from :meth:`CaseService.case_slugs`); pass ``caso_ids`` to score a
         specific set (used by tests to drive distributions).
 
-        The count reads ``StageRun`` rows only: a case with fewer than four
+        The count reads ``StageRun`` rows only: a case with fewer than six
         ``concluido`` stages — including a case with no rows at all — does not
-        count (Req. 5.5, 9.5). ``percentual`` is the integer percentage
+        count (Req. 1.5, 9.5). ``percentual`` is the integer percentage
         ``casos_concluidos / total_casos * 100`` for display (0 when the universe
         is empty).
 
@@ -1845,7 +1888,7 @@ class StageService:
 
         Args:
             caso_id: The curated case slug.
-            estagio: The stage number (1, 2, 3 or 4).
+            estagio: The stage number (1, 2, 3, 4, 5 or 6).
             estado_anterior: The state the stage transitioned from, when this
                 event is emitted in response to a change (Req. 1.4).
 
@@ -1853,7 +1896,7 @@ class StageService:
             A typed :class:`StageProgressEvent`.
 
         Raises:
-            ValueError: if ``estagio`` is not one of 1, 2, 3, 4.
+            ValueError: if ``estagio`` is not one of (1, 2, 3, 4, 5, 6).
         """
         _validate_stage(estagio)
         view = self.get_stage_state(caso_id, estagio)
@@ -1942,7 +1985,7 @@ class StageService:
         )
 
     def _is_case_fully_completed(self, caso_id: str) -> bool:
-        """Whether all five stages of ``caso_id`` are ``concluido`` (Req. 5.5)."""
+        """Whether all six stages of ``caso_id`` are ``concluido`` (Req. 1.5)."""
         states = self._stage_states_map(caso_id)
         return all(
             states.get(estagio) is StageState.COMPLETED
@@ -2123,9 +2166,14 @@ __all__ = [
     "VALID_STAGES",
     "FIRST_STAGE",
     "LAST_STAGE",
-    "ESTAGIO_MODELAGEM",
+    # Papéis dos seis Estágios (nomes novos — fonte única por número)
+    "ESTAGIO_SELECAO_BASE",
+    "ESTAGIO_SELECAO_CAMPANHA",
     "ESTAGIO_GERACAO_DAG",
     "ESTAGIO_OPERACIONALIZACAO",
-    "ESTAGIO_PROVISIONAMENTO",
+    "ESTAGIO_AMBIENTE",
     "ESTAGIO_EXECUCAO",
+    # Aliases históricos mantidos para não quebrar imports (Req. 18.5)
+    "ESTAGIO_MODELAGEM",
+    "ESTAGIO_PROVISIONAMENTO",
 ]

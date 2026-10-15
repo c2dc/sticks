@@ -5,11 +5,11 @@ covering the *broader* REST surface end-to-end at the HTTP layer, plus the full
 ``preview -> emulacao`` sequence, all with the external world mocked (no real
 Caldera, no real Docker daemon):
 
-* the casos / estágios surface (renumbered 1..5) — ``GET /api/casos`` (the 8
-  curated cases + aggregate progress, 5 Estágios each), ``GET /api/casos/{caso}``,
-  the stage reads ``GET /api/casos/{caso}/estagio/{1,3,5}``,
-  ``POST .../estagio/1/executar``, the DAG endpoints
-  (``GET .../dags`` and ``POST .../estagio/2/escolher-dag`` with its 200/409/404
+* the casos / estágios surface — ``GET /api/casos`` (the 8 curated cases +
+  aggregate progress), ``GET /api/casos/{caso}``, the stage reads
+  ``GET /api/casos/{caso}/estagio/{1,3,5}`` (estágio 3 é a Geração do DAG —
+  DagView/Mermaid), ``POST .../estagio/1/executar``, the DAG endpoints
+  (``GET .../dags`` and ``POST .../estagio/3/escolher-dag`` with its 200/409/404
   outcomes), the sequential-block ``POST .../estagio/3/concluir`` and
   ``GET /api/casos/{caso}/operacao``;
 * the session / preferences / audit surface — ``GET /api/estado-sessao``,
@@ -69,6 +69,7 @@ from app.models.domain import (
 from app.models.enums import (
     OperationState,
     StageState,
+    TranslationSource,
 )
 from app.services.audit import AuditLogger
 from app.services.caldera import (
@@ -360,7 +361,7 @@ class _external_case_loader(_internal_case_loader):
 def test_listar_casos_lists_eight_cases_and_aggregate_progress(
     session_factory: sessionmaker[Session],
 ) -> None:
-    """``GET /api/casos`` lists all 8 curated cases with per-stage state (5
+    """``GET /api/casos`` lists all 8 curated cases with per-stage state (6
     stages each) and the aggregate progress over 8 (Req. 5.1, 5.5)."""
     client = _make_client(session_factory)
     resp = client.get("/api/casos")
@@ -372,18 +373,24 @@ def test_listar_casos_lists_eight_cases_and_aggregate_progress(
     assert slugs == set(CURATED_CASES), slugs
     assert len(body["casos"]) == 8
 
-    # Each successfully-loaded case carries its per-stage states (5 stages, the
-    # renumbered 1..5 scheme) and no load error.
+    # Each successfully-loaded case carries its per-stage states (6 stages, the
+    # renumbered 1..6 scheme) and no load error.
     for caso in body["casos"]:
         assert caso["erro"] is None, caso
         assert caso["estados"] is not None
-        assert len(caso["estados"]["estagios"]) == 5
-        # The five stages are numbered 1..5 in order.
-        assert [e["estagio"] for e in caso["estados"]["estagios"]] == [1, 2, 3, 4, 5]
+        assert len(caso["estados"]["estagios"]) == 6
+        # The six stages are numbered 1..6 in order.
+        assert [e["estagio"] for e in caso["estados"]["estagios"]] == [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+        ]
 
-    # Aggregate progress spans the 8-case universe. No single case has all five
-    # stages concluido (curated cases auto-conclude only stages 2 and 4), so
-    # nothing is counted as fully replicated.
+    # Aggregate progress spans the 8-case universe. No single case has all six
+    # stages concluido, so nothing is counted as fully replicated.
     progresso = body["progresso"]
     assert progresso["total_casos"] == 8
     assert progresso["casos_concluidos"] == 0
@@ -435,45 +442,105 @@ def test_detalhar_caso_unknown_slug_returns_404(
 # ===========================================================================
 
 
-def test_get_estagio1_returns_structural_modeling_read_only(
+def test_get_estagio1_returns_bundle_dashboard(
     session_factory: sessionmaker[Session],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """``GET .../estagio/1`` returns the Stage-1 (Modelagem Estrutural)
-    read-only Entrada/estado for the case (Req. 1.3, 1.7).
+    """``GET .../estagio/1`` returns the Stage-1 (Seleção da base STIX) bundle
+    dashboard + conclusion verdict (seis Estágios, Req. 5.7, 5.8, 5.10).
 
-    No esquema de cinco Estágios a Modelagem Estrutural é o Estágio 1."""
+    No esquema de SEIS Estágios o Estágio 1 é a Seleção da base STIX. The handler
+    delegates to ``Estagio1Service``; we pin its ``StixService`` to a temp data
+    dir and seed the curated bundle so the stage concludes with no network
+    egress (opening the screen without an explicit version defaults to the
+    curated version)."""
+    import app.services.stix.estagio1_service as estagio1_module
+    from app.services.stix.stix_service import VERSAO_CURADA, StixService
+
+    base = StixService(data_dir=tmp_path).base_path(VERSAO_CURADA)
+    base.parent.mkdir(parents=True, exist_ok=True)
+    base.write_text(
+        json.dumps({"type": "bundle", "objects": []}), encoding="utf-8"
+    )
+    monkeypatch.setattr(
+        estagio1_module,
+        "StixService",
+        lambda *a, **k: StixService(data_dir=tmp_path),
+    )
+
     client = _make_client(session_factory)
     resp = client.get(f"/api/casos/{_REAL_SLUG}/estagio/1")
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    assert body["caso_id"] == _REAL_SLUG
-    assert body["entrada"]["caso_id"] == _REAL_SLUG
-    # estado is one of the StageState values.
-    assert body["estado"] in {s.value for s in StageState}
+    assert body["versao"] == VERSAO_CURADA
+    assert body["concluido"] is True
+    assert body["bundle_em_disco"] is True
+    assert body["dashboard"] is not None
 
 
-def test_get_estagio3_returns_operationalization(
+def test_get_estagio3_returns_dag_view(
     session_factory: sessionmaker[Session],
 ) -> None:
-    """``GET .../estagio/3`` returns the abstract-techniques Entrada and the
-    operational-abilities Saída (Operacionalização — Req. 1.3)."""
+    """``GET .../estagio/3`` returns the DAG view (Geração do DAG — Req. 7.2, 7.3).
+
+    No esquema de seis Estágios, a Geração do DAG é o Estágio 3, servido como
+    :class:`DagView` (grafo + Mermaid). Para um Caso curado válido o DAG é
+    ``curado``, ``pode_avancar`` e traz nós e o diagrama Mermaid."""
     client = _make_client(session_factory)
     resp = client.get(f"/api/casos/{_REAL_SLUG}/estagio/3")
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert body["caso_id"] == _REAL_SLUG
-    assert "entrada" in body
+    assert body["curado"] is True
+    assert body["pode_avancar"] is True
+    assert len(body["nos"]) > 0
+    assert body["mermaid"]
 
 
-def test_get_estagio5_returns_input_and_accumulated_output(
+def test_get_estagio4_returns_abilities_and_parametros(
     session_factory: sessionmaker[Session],
 ) -> None:
-    """``GET .../estagio/5`` returns the Adversary+Abilities Entrada and the
-    accumulated Saída (Execução da Campanha — Req. 1.3, 1.7).
+    """``GET .../estagio/4`` returns the Operacionalização view — Abilities +
+    ParametrosDeAmbiente (seis Estágios, Req. 8.4, 8.7).
 
-    The accumulated Saída is a list (empty before any emulation runs)."""
+    No esquema de SEIS Estágios, o Estágio 4 é a Operacionalização: a Saída são
+    **dois artefatos tipados separados** — as Abilities ordenadas pelo DAG e os
+    ParametrosDeAmbiente derivados dos nós curados. Para um Caso curado válido,
+    ambos são produzidos (``ambos_produzidos``), a plataforma é ``conteiner`` e a
+    origem é ``curadoria_humana``. É read-only: abrir a tela não conclui o
+    Estágio."""
     client = _make_client(session_factory)
-    resp = client.get(f"/api/casos/{_REAL_SLUG}/estagio/5")
+    resp = client.get(f"/api/casos/{_REAL_SLUG}/estagio/4")
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["caso_id"] == _REAL_SLUG
+    # 1º artefato: Abilities ordenadas (Stage2Output) com ao menos uma Ability.
+    assert body["abilities"] is not None
+    assert body["abilities"]["has_abilities"] is True
+    assert len(body["abilities"]["abilities"]) > 0
+    assert len(body["abilities"]["ordering"]) > 0
+    # 2º artefato: ParametrosDeAmbiente (plataforma conteiner, origem curada).
+    assert body["parametros"]["caso_id"] == _REAL_SLUG
+    assert body["parametros"]["plataforma"] == "conteiner"
+    assert body["parametros"]["origem"] == TranslationSource.HUMAN_CURATION.value
+    # Ambos produzidos → critério de conclusão satisfeito (Req. 8.8).
+    assert body["ambos_produzidos"] is True
+    assert body["origem"] == TranslationSource.HUMAN_CURATION.value
+    assert "estagios" in body["estados"]
+
+
+def test_get_estagio6_returns_input_and_accumulated_output(
+    session_factory: sessionmaker[Session],
+) -> None:
+    """``GET .../estagio/6`` returns the Adversary+Abilities Entrada and the
+    accumulated Saída (Execução, medição e relatório — Req. 10.x).
+
+    No esquema de SEIS Estágios, a Execução é o Estágio 6 (antigo Estágio 5 do
+    esquema de cinco). The accumulated Saída is a list (empty before any
+    emulation runs)."""
+    client = _make_client(session_factory)
+    resp = client.get(f"/api/casos/{_REAL_SLUG}/estagio/6")
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert body["entrada"]["caso_id"] == _REAL_SLUG
@@ -483,9 +550,9 @@ def test_get_estagio5_returns_input_and_accumulated_output(
 def test_get_estagio_unknown_slug_returns_404(
     session_factory: sessionmaker[Session],
 ) -> None:
-    """An unknown slug is a 404 on every stage endpoint (1..5)."""
+    """An unknown slug is a 404 on every stage endpoint (1..6)."""
     client = _make_client(session_factory)
-    for estagio in (1, 2, 3, 4, 5):
+    for estagio in (1, 2, 3, 4, 5, 6):
         resp = client.get(f"/api/casos/nao_existe/estagio/{estagio}")
         assert resp.status_code == 404, resp.text
 
@@ -813,18 +880,19 @@ def test_preview_then_confirmed_happy_path_succeeds_with_aggregate(
 
 
 # ===========================================================================
-# Estágio 2 — Geração do DAG: GET /api/casos/{caso}/dags and
-# POST /api/casos/{caso}/estagio/2/escolher-dag (Req. 4.8, 6.2, 6.3)
+# Estágio 3 — Geração do DAG: GET /api/casos/{caso}/dags and
+# POST /api/casos/{caso}/estagio/3/escolher-dag (Req. 4.8, 7.2, 7.3)
 #
-# No esquema de cinco Estágios a Geração do DAG é o Estágio 2 (derivado da
-# Modelagem Estrutural, Estágio 1). A listagem (``GET .../dags``) faz um backfill
+# No esquema de seis Estágios a Geração do DAG é o Estágio 3
+# (``ESTAGIO_GERACAO_DAG == 3``; sua Entrada são os atributos da campanha
+# selecionada no Estágio 2). A listagem (``GET .../dags``) faz um backfill
 # idempotente dos DAGs curados, de modo que um Caso curado sempre exibe ao menos
 # o seu DAG de curadoria. Por isso os testes de escolha usam slugs curados
 # dedicados: o 409 (SEM_DAG) exige um Caso cujo DAG ainda NÃO foi backfilled,
 # então ``escolher-dag`` é chamado ANTES de qualquer ``.../dags`` para esse slug.
 #
 # Esta seção fica no fim do arquivo de propósito: o ``escolher-dag`` conclui o
-# Estágio 2 e o ``.../estagio/3/concluir`` persiste a session-state (via
+# Estágio 3 e o ``.../estagio/3/concluir`` persiste a session-state (via
 # SessionStateService), então, no DB compartilhado pelo módulo, estes testes
 # precisam rodar DEPOIS de ``test_get_estado_sessao_default_when_none_persisted``
 # (que exige nenhuma session-state persistida).
@@ -921,14 +989,16 @@ def test_get_dag_por_id_unknown_slug_returns_404(
     assert resp.status_code == 404, resp.text
 
 
-def test_escolher_dag_success_concludes_stage2_and_unblocks_stage3(
+def test_escolher_dag_success_concludes_stage3_and_unblocks_stage4(
     session_factory: sessionmaker[Session],
 ) -> None:
-    """``POST .../estagio/2/escolher-dag`` com um ``dag_id`` válido do Caso
-    conclui o Estágio 2 e libera o Estágio 3 → 200 (Req. 6.3).
+    """``escolher-dag`` com um ``dag_id`` válido do Caso conclui o Estágio 3
+    (Geração do DAG) e libera o Estágio 4 → 200 (Req. 7.6, 6.3).
 
-    O retorno é o estado por Estágio (:class:`CaseStageStates`) com o Estágio 2
-    ``concluido`` e o Estágio 3 ``iniciavel`` (não bloqueado)."""
+    No pipeline de seis Estágios a Geração do DAG é o Estágio 3; a escolha grava
+    ``dag_escolhido_id`` no ``StageRun`` de ``estagio=3`` e o conclui. O retorno
+    é o estado por Estágio (:class:`CaseStageStates`) com o Estágio 3
+    ``concluido`` e o Estágio 4 ``iniciavel`` (não bloqueado)."""
     client = _make_client(session_factory)
 
     # Backfill + listagem para obter um dag_id válido do Caso.
@@ -937,17 +1007,17 @@ def test_escolher_dag_success_concludes_stage2_and_unblocks_stage3(
     dag_id = dags[0]["id"]
 
     resp = client.post(
-        f"/api/casos/{_REAL_SLUG}/estagio/2/escolher-dag", json={"dag_id": dag_id}
+        f"/api/casos/{_REAL_SLUG}/estagio/3/escolher-dag", json={"dag_id": dag_id}
     )
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert body["caso_id"] == _REAL_SLUG
     estagios = {e["estagio"]: e for e in body["estagios"]}
-    assert estagios[2]["estado"] == StageState.COMPLETED.value
-    assert estagios[2]["progresso"] == 100
-    # O Estágio 3 (Operacionalização) fica liberado (não bloqueado) após o 2.
-    assert estagios[3]["bloqueado"] is False
-    assert estagios[3]["iniciavel"] is True
+    assert estagios[3]["estado"] == StageState.COMPLETED.value
+    assert estagios[3]["progresso"] == 100
+    # O Estágio 4 (Operacionalização) fica liberado (não bloqueado) após o 3.
+    assert estagios[4]["bloqueado"] is False
+    assert estagios[4]["iniciavel"] is True
 
 
 def test_escolher_dag_unknown_dag_id_returns_404(
@@ -961,7 +1031,7 @@ def test_escolher_dag_unknown_dag_id_returns_404(
     client.get(f"/api/casos/{_REAL_SLUG}/dags")
 
     resp = client.post(
-        f"/api/casos/{_REAL_SLUG}/estagio/2/escolher-dag",
+        f"/api/casos/{_REAL_SLUG}/estagio/3/escolher-dag",
         json={"dag_id": 999999},
     )
     assert resp.status_code == 404, resp.text
@@ -984,12 +1054,108 @@ def test_escolher_dag_without_persisted_dag_returns_409(
     slug_sem_dag = "operation_midnighteclipse"
 
     resp = client.post(
-        f"/api/casos/{slug_sem_dag}/estagio/2/escolher-dag",
+        f"/api/casos/{slug_sem_dag}/estagio/3/escolher-dag",
         json={"dag_id": 1},
     )
     assert resp.status_code == 409, resp.text
     detail = resp.json()["detail"]
     assert detail["motivo"] == "sem_dag"
+
+
+# ===========================================================================
+# Estágio 2 — Seleção da campanha (esquema de SEIS Estágios, task 3.2):
+# GET  /api/casos/{caso}/estagio/2            — campanhas do bundle + atributos
+# POST /api/casos/{caso}/estagio/2/selecionar — seleciona → extrai atributos
+#
+# No esquema de SEIS Estágios o Estágio 2 é a "Seleção da campanha": o GET lista
+# as campanhas do bundle selecionado no Estágio 1 (marcando curada/selecionável)
+# e devolve os atributos numa visão read-only; o POST seleciona uma campanha e
+# extrai os seus atributos, concluindo o Estágio quando a extração tem sucesso.
+# A Geração do DAG migrou para o Estágio 3 (tarefa 4.1). Estes testes usam o
+# slug curado real (``_REAL_SLUG``) e o bundle real em disco (mesma convenção
+# dos demais testes de superfície que leem artefatos curados reais).
+# ===========================================================================
+
+
+def test_get_estagio2_lists_campaigns_and_readonly_attributes(
+    session_factory: sessionmaker[Session],
+) -> None:
+    """``GET .../estagio/2`` lista as campanhas do bundle (com ``curada``/
+    ``selecionavel``) e devolve a visão read-only dos atributos (Req. 6.2, 6.4).
+
+    A versão padrão é a curada (18.0); as 8 campanhas curadas aparecem
+    selecionáveis. A visão read-only (``selecao``) carrega o ``caso_id`` e a
+    identidade, sem executar nem concluir o Estágio ao abrir a tela."""
+    from app.services.stix.stix_service import VERSAO_CURADA
+
+    client = _make_client(session_factory)
+    resp = client.get(f"/api/casos/{_REAL_SLUG}/estagio/2")
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+
+    assert body["caso_id"] == _REAL_SLUG
+    assert body["versao"] == VERSAO_CURADA
+
+    # Lista de campanhas do bundle: ao menos as 8 curadas selecionáveis.
+    campanhas = body["campanhas"]
+    assert isinstance(campanhas, list) and campanhas, body
+    selecionaveis = [c for c in campanhas if c["selecionavel"]]
+    assert len(selecionaveis) >= 8, selecionaveis
+    # Toda campanha selecionável é curada e tem slug_curado.
+    for c in selecionaveis:
+        assert c["curada"] is True
+        assert c["slug_curado"]
+
+    # Visão read-only da seleção corrente: identidade presente, nunca executa.
+    selecao = body["selecao"]
+    assert selecao["caso_id"] == _REAL_SLUG
+    assert selecao["identidade"] is not None
+
+
+def test_get_estagio2_unknown_slug_returns_404(
+    session_factory: sessionmaker[Session],
+) -> None:
+    """Um slug de Caso desconhecido é 404 no Estágio 2 (convenção de casos.py)."""
+    client = _make_client(session_factory)
+    resp = client.get("/api/casos/nao_existe/estagio/2")
+    assert resp.status_code == 404, resp.text
+
+
+def test_post_estagio2_selecionar_extracts_attributes_and_concludes(
+    session_factory: sessionmaker[Session],
+) -> None:
+    """``POST .../estagio/2/selecionar`` extrai os atributos da campanha curada e
+    conclui o Estágio quando a extração tem sucesso (Req. 6.3, 6.4, 6.6).
+
+    Para uma campanha curada real (``_REAL_SLUG``) a extração estrutural do DAG
+    curado produz as técnicas associadas; o resultado tipado traz a identidade,
+    as técnicas e ``concluido == True`` sem causa de erro."""
+    client = _make_client(session_factory)
+    resp = client.post(
+        f"/api/casos/{_REAL_SLUG}/estagio/2/selecionar",
+        json={"slug": _REAL_SLUG},
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+
+    assert body["caso_id"] == _REAL_SLUG
+    assert body["concluido"] is True
+    assert body["identidade"] is not None
+    assert isinstance(body["tecnicas"], list) and body["tecnicas"], body
+    assert body["mensagem_erro"] is None
+    assert body["etapa_falha"] is None
+
+
+def test_post_estagio2_selecionar_unknown_slug_returns_404(
+    session_factory: sessionmaker[Session],
+) -> None:
+    """Um slug de Caso desconhecido na rota é 404 (validação de casos.py)."""
+    client = _make_client(session_factory)
+    resp = client.post(
+        "/api/casos/nao_existe/estagio/2/selecionar",
+        json={"slug": "nao_existe"},
+    )
+    assert resp.status_code == 404, resp.text
 
 
 # ===========================================================================
@@ -1038,3 +1204,66 @@ def test_concluir_estagio3_respects_sequential_block(
     assert ok.status_code == 200, ok.text
     estagios = {e["estagio"]: e for e in ok.json()["estagios"]}
     assert estagios[3]["estado"] == StageState.COMPLETED.value
+
+
+# ===========================================================================
+# POST /api/casos/{caso}/estagio/4/concluir — Operacionalização (seis Estágios)
+#
+# No esquema de SEIS Estágios, a Operacionalização é o Estágio 4: a conclusão
+# exige o Estágio 3 (Geração do DAG) concluído (bloqueio sequencial) E os dois
+# artefatos produzidos (Abilities ordenadas + ParametrosDeAmbiente, Req. 8.8).
+# Como estes testes PERSISTEM session-state (via persist_stage_completion), eles
+# ficam no fim do arquivo — junto dos demais testes que escrevem no DB
+# compartilhado do módulo — para não interferir com os testes de estado-sessão
+# que esperam nenhuma persistência prévia.
+# ===========================================================================
+
+
+def test_post_estagio4_concluir_requires_estagio3(
+    session_factory: sessionmaker[Session],
+) -> None:
+    """``POST .../estagio/4/concluir`` is blocked while Estágio 3 is not
+    concluído (sequential block — 409, Req. 3.x, 8.8).
+
+    Após um ``reset`` o Estágio 3 (Geração do DAG) volta a não concluído; como
+    ``concluir_estagio4`` lê o estado persistido diretamente (sem disparar a
+    auto-conclusão curada), a conclusão do Estágio 4 é recusada com 409 e o motivo
+    ``bloqueio_sequencial``, sem persistir nada."""
+    slug = "costaricto"  # slug curado dedicado a este teste no DB do módulo
+    client = _make_client(session_factory)
+    # Garante Estágio 3 NÃO concluído (reset limpa os StageRun do Caso).
+    assert client.post(f"/api/casos/{slug}/reset").status_code == 200
+    resp = client.post(f"/api/casos/{slug}/estagio/4/concluir")
+    assert resp.status_code == 409, resp.text
+    assert resp.json()["detail"]["motivo"] == "bloqueio_sequencial"
+
+
+def test_post_estagio4_concluir_completes_after_estagio3(
+    session_factory: sessionmaker[Session],
+) -> None:
+    """``POST .../estagio/4/concluir`` conclui o Estágio 4 (Operacionalização)
+    quando o Estágio 3 está concluído e os dois artefatos existem (Req. 8.7, 8.8).
+
+    Primeiro escolhe-se um DAG (conclui o Estágio 3 e libera o 4); então concluir
+    o Estágio 4 produz as Abilities + ParametrosDeAmbiente, persiste a conclusão
+    e devolve o estado por Estágio com o 4 ``concluido`` e o 5 liberado."""
+    slug = "apt41_dust"  # slug curado dedicado a este teste no DB do módulo
+    client = _make_client(session_factory)
+
+    # Conclui o Estágio 3 escolhendo o DAG curado (backfilled ao listar).
+    dags = client.get(f"/api/casos/{slug}/dags").json()["dags"]
+    assert dags, "esperado ao menos 1 DAG curado backfilled"
+    dag_id = dags[0]["id"]
+    escolha = client.post(
+        f"/api/casos/{slug}/estagio/3/escolher-dag", json={"dag_id": dag_id}
+    )
+    assert escolha.status_code == 200, escolha.text
+
+    resp = client.post(f"/api/casos/{slug}/estagio/4/concluir")
+    assert resp.status_code == 200, resp.text
+    estagios = {e["estagio"]: e for e in resp.json()["estagios"]}
+    assert estagios[4]["estado"] == StageState.COMPLETED.value
+    assert estagios[4]["progresso"] == 100
+    # O Estágio 5 (Criação do ambiente) fica liberado após o 4.
+    assert estagios[5]["bloqueado"] is False
+    assert estagios[5]["iniciavel"] is True

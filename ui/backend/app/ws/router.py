@@ -5,7 +5,12 @@ WebSocket/SSE* section:
 
 * ``WS /ws/estagios/{caso}`` — pushes a stage's state transitions and progress
   percentage; while a stage is ``em_andamento`` it re-pushes at least every 5s
-  (Req. 1.4, 1.5).
+  (Req. 1.4, 1.5). For the provisioning stage (Estágio 5) the channel also
+  carries the live log lines, reading the **process-level shared**
+  :class:`~app.services.environment.log_buffer.ProvisioningLogBuffer` injected
+  here via :func:`~app.services.environment.log_buffer.get_log_buffer` — the
+  same instance the ``EnvironmentStageService`` feeds and the REST endpoints
+  read (Req. 2.2, 2.5, 2.7).
 * ``WS /ws/operacao/{operacao}`` — pushes per-Ability status
   (``pendente`` / ``em_execucao`` / ``sucesso`` / ``falha``), command output and
   the aggregate at the end (Req. 4.3, 4.4, 4.5).
@@ -21,7 +26,7 @@ Query parameters
 Both routes accept an optional ``intervalo`` (seconds) query param so a client —
 and, importantly, the test suite — can shrink the 5s push interval to drive a
 couple of frames without waiting. ``/ws/estagios/{caso}`` also accepts
-``estagio`` (one of ``VALID_STAGES`` — 1..5, default 1) selecting which stage to
+``estagio`` (one of ``VALID_STAGES`` — 1..6, default 1) selecting which stage to
 report; an out-of-range value yields a single ``invalido`` frame and closes.
 Both routes accept ``max_frames`` to bound the loop.
 """
@@ -32,6 +37,7 @@ from typing import Optional
 
 from fastapi import APIRouter, WebSocket
 
+from app.services.environment.log_buffer import get_log_buffer
 from app.ws.channels import (
     OPERATION_PUSH_INTERVAL_SECONDS,
     STAGE_PUSH_INTERVAL_SECONDS,
@@ -68,11 +74,17 @@ async def ws_estagios(
     ``caso`` / ``estagio``: on connect, on every state transition, and at least
     every ``intervalo`` seconds while the stage is ``em_andamento`` — closing
     once the stage reaches ``concluido`` / ``erro``. ``estagio`` may be any of
-    ``VALID_STAGES`` (1..5: 1 Modelagem, 2 Geração do DAG, 3 Operacionalização,
-    4 Provisionamento, 5 Execução); an out-of-range value yields a single
+    ``VALID_STAGES`` (1..6: 1 Seleção da base STIX, 2 Seleção da campanha, 3
+    Geração do DAG, 4 Operacionalização, 5 Criação do ambiente de simulação, 6
+    Execução + medição + relatório); an out-of-range value yields a single
     ``invalido`` frame and closes.
     """
     await websocket.accept()
+    # Encaminha o buffer de logs compartilhado a nível de processo (task 6.1): a
+    # **mesma** instância que o ``EnvironmentStageService`` alimenta durante o
+    # provisionamento do Estágio 5, de modo que o canal carregue as linhas do
+    # terminal ao vivo (Req. 2.2, 2.5, 2.7). Para os demais Estágios o campo
+    # ``logs`` segue vazio (o canal só o preenche no Estágio de provisionamento).
     await run_stage_progress_channel(
         websocket,
         caso,
@@ -80,6 +92,7 @@ async def ws_estagios(
         estagio=estagio,
         interval=intervalo,
         max_frames=max_frames,
+        log_buffer=get_log_buffer(),
     )
 
 

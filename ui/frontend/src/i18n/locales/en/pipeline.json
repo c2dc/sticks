@@ -10,24 +10,28 @@
   },
   "stages": {
     "1": {
-      "name": "Stage 1 — Structural Modeling",
+      "name": "Stage 1 — STIX Base Selection",
       "short": "Stage 1"
     },
     "2": {
-      "name": "Stage 2 — DAG Generation",
+      "name": "Stage 2 — Campaign Selection",
       "short": "Stage 2"
     },
     "3": {
-      "name": "Stage 3 — Operationalization",
+      "name": "Stage 3 — DAG Generation",
       "short": "Stage 3"
     },
     "4": {
-      "name": "Stage 4 — Environment Provisioning",
+      "name": "Stage 4 — Operationalization",
       "short": "Stage 4"
     },
     "5": {
-      "name": "Stage 5 — Campaign Execution",
+      "name": "Stage 5 — Emulation environment setup",
       "short": "Stage 5"
+    },
+    "6": {
+      "name": "Stage 6 — Execution, Measurement and Report",
+      "short": "Stage 6"
     }
   },
   "sections": {
@@ -62,6 +66,16 @@
     "loadError": "Could not load this stage's data.",
     "back": "Back to overview"
   },
+  "baseStix": {
+    "titulo": "STIX base selection",
+    "descricao": "Pick the STIX package version. The base is downloaded from the official MITRE source when no on-disk copy exists; the bundle dashboard is then shown.",
+    "selecionada": "Selected base: v{{versao}}",
+    "trocarBase": "Change base",
+    "pronto": "Bundle on disk and dashboard shown — Stage 1 can be completed.",
+    "aguardando": "Select a base and view the dashboard to complete Stage 1.",
+    "verificando": "Checking the bundle availability…",
+    "erro": "The STIX base selection could not be completed."
+  },
   "stage1": {
     "entrada": {
       "stix": "STIX reference",
@@ -92,6 +106,25 @@
       "malware": "Malware",
       "metadata": "Campaign metadata"
     }
+  },
+  "campanha": {
+    "titulo": "Bundle campaigns",
+    "descricao": "Select a campaign from the STIX bundle to extract its attributes (identity, aliases and techniques).",
+    "listaLabel": "Bundle campaigns",
+    "selecionar": "Select campaign",
+    "selecionando": "Selecting…",
+    "selecionada": "Campaign selected",
+    "naoSelecionavel": "Not selectable (no curated artifacts)",
+    "semCampanhas": "No campaigns available in this bundle.",
+    "atributos": "Extracted attributes",
+    "tecnicas": "ATT&CK techniques",
+    "tecnicas_one": "{{count}} ATT&CK technique",
+    "tecnicas_other": "{{count}} ATT&CK techniques",
+    "semTecnicas": "No techniques extracted.",
+    "naoExtraido": "Select a campaign to extract and show its attributes.",
+    "concluido": "Attributes extracted — Stage 2 completed.",
+    "falha": "Could not extract the attributes of the selected campaign.",
+    "falhaEtapa": "Failed step: {{step}}"
   },
   "stage2": {
     "entrada": {
@@ -176,6 +209,122 @@
       "bloqueado": "Stage 5 (Campaign Execution) stays blocked until isolation is confirmed."
     }
   },
+  "stage5": {
+    "provisionamento": {
+      "console": {
+        "titulo": "Provisioning console",
+        "vazio": "Waiting for provisioning to start…",
+        "etapas": {
+          "subir_conteineres": "Bring up containers",
+          "aguardar_saude": "Wait for health",
+          "carregar_abilities": "Load Abilities",
+          "verificar_isolamento": "Verify isolation",
+          "desprovisionar": "Tear down",
+          "concluir": "Finish"
+        },
+        "fluxo": {
+          "comando": "Command",
+          "stdout": "stdout",
+          "stderr": "stderr",
+          "info": "Info"
+        }
+      },
+      "prerequisitos": {
+        "titulo": "Execution prerequisites",
+        "conteineresSaudaveis": "Healthy containers",
+        "abilitiesCarregadas": "Abilities loaded in Caldera",
+        "isolamentoAprovado": "Isolation approved",
+        "pendente": "Pending",
+        "ok": "OK",
+        "falha": "Failed",
+        "pronto": "Environment ready — all prerequisites verified."
+      },
+      "falha": {
+        "titulo": "Provisioning failed",
+        "estagio6Bloqueado": "Stage 6 (Campaign Execution) stays blocked until provisioning completes."
+      }
+    }
+  },
+  "parametrosAmbiente": {
+    "titulo": "Environment parameters",
+    "descricao": "Artifact derived from the curated DAG nodes; defines the emulation environment for Stage 5.",
+    "plataforma": {
+      "label": "Platform",
+      "conteiner": "Container",
+      "maquina_virtual": "Virtual machine"
+    },
+    "hosts": {
+      "titulo": "Target hosts",
+      "vazio": "No target host derived for this case.",
+      "rotulo": "Label",
+      "endereco": "Address",
+      "container": "Container",
+      "hostType": "Host type",
+      "vulnerabilidades": "Vulnerabilities",
+      "semVulnerabilidades": "No vulnerabilities recorded."
+    },
+    "servicos": {
+      "titulo": "Required services",
+      "vazio": "No required service derived.",
+      "descricao": "Description",
+      "tecnicaOrigem": "Source technique"
+    },
+    "networkContext": {
+      "titulo": "Network context",
+      "vazio": "No network note derived."
+    },
+    "origem": {
+      "label": "Source",
+      "curadoria_humana": "Human curation",
+      "gerado_ia": "AI-generated"
+    }
+  },
+  "relatorio": {
+    "titulo": "Execution report",
+    "descricao": "Consolidation of execution results, sufficiency measurement and Stage 6 verdict.",
+    "notRun": "Execution has not completed yet; the report will be available at the end of Stage 6.",
+    "geradoEm": "Generated at",
+    "veredito": {
+      "label": "Verdict",
+      "sucesso": "Success",
+      "falha": "Failure"
+    },
+    "ambiente": {
+      "desprovisionado": "Environment deprovisioned",
+      "naoDesprovisionado": "Environment not deprovisioned",
+      "recursosRemanescentes": "Remaining resources: {{recursos}}"
+    },
+    "resultados": {
+      "titulo": "Results by Ability",
+      "vazio": "No execution result recorded.",
+      "ability": "Ability",
+      "status": "Status",
+      "tecnica": "Technique"
+    },
+    "telemetria": {
+      "titulo": "Telemetry by technique",
+      "vazio": "No telemetry recorded."
+    }
+  },
+  "metricas": {
+    "titulo": "Procedural sufficiency metrics",
+    "nota": "Initial measurement proposal, to be refined.",
+    "totalTecnicasDag": "Techniques in the DAG",
+    "tecnicasSucesso": "Techniques succeeded",
+    "taxaSucesso": "Success rate",
+    "coberturaProcedural": "Procedural coverage",
+    "tempoTotal": "Total time",
+    "tempoTecnica": "Time per technique",
+    "no": "Node",
+    "etapaFalha": "Failed step",
+    "telemetria": "Telemetry",
+    "nosFalhos": {
+      "titulo": "Failed nodes",
+      "vazio": "No node failed."
+    },
+    "porcentagem": "{{value}}%",
+    "segundos": "{{value}} s"
+  },
   "emulation": {
     "title": "Confirm adversary emulation",
     "description": "Review the complete list of concrete commands and each one's target container before confirming. Nothing runs until you explicitly confirm.",
@@ -230,6 +379,7 @@
     "stage1ErrorHint": "Modeling failed. Fix the issue to advance.",
     "openWizard": "Start guided run",
     "nextAria": "Advance to the next stage",
-    "preConcluidoNota": "This stage was already prepared by curation: the result existed before you acted."
+    "preConcluidoNota": "This stage was already prepared by curation: the result existed before you acted.",
+    "selectCampaignFirst": "Select a campaign in Stage 2 to enable this stage."
   }
 }

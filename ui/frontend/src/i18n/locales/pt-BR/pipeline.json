@@ -10,24 +10,28 @@
   },
   "stages": {
     "1": {
-      "name": "Estágio 1 — Modelagem Estrutural",
+      "name": "Estágio 1 — Seleção da base STIX",
       "short": "Estágio 1"
     },
     "2": {
-      "name": "Estágio 2 — Geração do DAG",
+      "name": "Estágio 2 — Seleção da campanha",
       "short": "Estágio 2"
     },
     "3": {
-      "name": "Estágio 3 — Operacionalização",
+      "name": "Estágio 3 — Geração do DAG",
       "short": "Estágio 3"
     },
     "4": {
-      "name": "Estágio 4 — Provisionamento do Ambiente",
+      "name": "Estágio 4 — Operacionalização",
       "short": "Estágio 4"
     },
     "5": {
-      "name": "Estágio 5 — Execução da Campanha",
+      "name": "Estágio 5 — Criação do ambiente de emulação",
       "short": "Estágio 5"
+    },
+    "6": {
+      "name": "Estágio 6 — Execução, medição e relatório",
+      "short": "Estágio 6"
     }
   },
   "sections": {
@@ -62,6 +66,16 @@
     "loadError": "Não foi possível carregar os dados deste estágio.",
     "back": "Voltar à visão geral"
   },
+  "baseStix": {
+    "titulo": "Seleção da base STIX",
+    "descricao": "Escolha a versão do pacote STIX. A base é baixada da fonte oficial do MITRE quando ainda não há cópia em disco; em seguida, o dashboard do bundle é exibido.",
+    "selecionada": "Base selecionada: v{{versao}}",
+    "trocarBase": "Trocar base",
+    "pronto": "Base em disco e dashboard exibido — o Estágio 1 pode ser concluído.",
+    "aguardando": "Selecione uma base e visualize o dashboard para concluir o Estágio 1.",
+    "verificando": "Verificando a disponibilidade do bundle…",
+    "erro": "Não foi possível concluir a Seleção da base STIX."
+  },
   "stage1": {
     "entrada": {
       "stix": "Referência STIX",
@@ -92,6 +106,25 @@
       "malware": "Malware",
       "metadata": "Metadados de campanha"
     }
+  },
+  "campanha": {
+    "titulo": "Campanhas do bundle",
+    "descricao": "Selecione uma campanha do pacote STIX para extrair seus atributos (identidade, aliases e técnicas).",
+    "listaLabel": "Campanhas do bundle",
+    "selecionar": "Selecionar campanha",
+    "selecionando": "Selecionando…",
+    "selecionada": "Campanha selecionada",
+    "naoSelecionavel": "Não selecionável (sem artefatos curados)",
+    "semCampanhas": "Nenhuma campanha disponível neste bundle.",
+    "atributos": "Atributos extraídos",
+    "tecnicas": "Técnicas ATT&CK",
+    "tecnicas_one": "{{count}} técnica ATT&CK",
+    "tecnicas_other": "{{count}} técnicas ATT&CK",
+    "semTecnicas": "Nenhuma técnica extraída.",
+    "naoExtraido": "Selecione uma campanha para extrair e exibir os seus atributos.",
+    "concluido": "Atributos extraídos — Estágio 2 concluído.",
+    "falha": "Não foi possível extrair os atributos da campanha selecionada.",
+    "falhaEtapa": "Etapa da falha: {{step}}"
   },
   "stage2": {
     "entrada": {
@@ -176,6 +209,122 @@
       "bloqueado": "O Estágio 5 (Execução da Campanha) permanece bloqueado até que o isolamento seja confirmado."
     }
   },
+  "stage5": {
+    "provisionamento": {
+      "console": {
+        "titulo": "Terminal de provisionamento",
+        "vazio": "Aguardando o início do provisionamento…",
+        "etapas": {
+          "subir_conteineres": "Subir contêineres",
+          "aguardar_saude": "Aguardar saúde",
+          "carregar_abilities": "Carregar Abilities",
+          "verificar_isolamento": "Verificar isolamento",
+          "desprovisionar": "Desprovisionar",
+          "concluir": "Concluir"
+        },
+        "fluxo": {
+          "comando": "Comando",
+          "stdout": "stdout",
+          "stderr": "stderr",
+          "info": "Info"
+        }
+      },
+      "prerequisitos": {
+        "titulo": "Pré-requisitos de execução",
+        "conteineresSaudaveis": "Contêineres saudáveis",
+        "abilitiesCarregadas": "Abilities carregadas no Caldera",
+        "isolamentoAprovado": "Isolamento aprovado",
+        "pendente": "Pendente",
+        "ok": "OK",
+        "falha": "Falha",
+        "pronto": "Ambiente pronto — todos os pré-requisitos foram verificados."
+      },
+      "falha": {
+        "titulo": "Provisionamento falhou",
+        "estagio6Bloqueado": "O Estágio 6 (Execução da Campanha) permanece bloqueado até que o provisionamento conclua."
+      }
+    }
+  },
+  "parametrosAmbiente": {
+    "titulo": "Parâmetros de ambiente",
+    "descricao": "Artefato derivado dos nós curados do DAG; define o ambiente de emulação para o Estágio 5.",
+    "plataforma": {
+      "label": "Plataforma",
+      "conteiner": "Contêiner",
+      "maquina_virtual": "Máquina virtual"
+    },
+    "hosts": {
+      "titulo": "Hosts-alvo",
+      "vazio": "Nenhum host-alvo derivado para este caso.",
+      "rotulo": "Rótulo",
+      "endereco": "Endereço",
+      "container": "Container",
+      "hostType": "Tipo de host",
+      "vulnerabilidades": "Vulnerabilidades",
+      "semVulnerabilidades": "Nenhuma vulnerabilidade registrada."
+    },
+    "servicos": {
+      "titulo": "Serviços requeridos",
+      "vazio": "Nenhum serviço requerido derivado.",
+      "descricao": "Descrição",
+      "tecnicaOrigem": "Técnica de origem"
+    },
+    "networkContext": {
+      "titulo": "Contexto de rede",
+      "vazio": "Nenhuma nota de rede derivada."
+    },
+    "origem": {
+      "label": "Origem",
+      "curadoria_humana": "Curadoria humana",
+      "gerado_ia": "Gerado por IA"
+    }
+  },
+  "relatorio": {
+    "titulo": "Relatório de execução",
+    "descricao": "Consolidação dos resultados da execução, medição de suficiência e veredito do Estágio 6.",
+    "notRun": "A execução ainda não foi concluída; o relatório estará disponível ao final do Estágio 6.",
+    "geradoEm": "Gerado em",
+    "veredito": {
+      "label": "Veredito",
+      "sucesso": "Sucesso",
+      "falha": "Falha"
+    },
+    "ambiente": {
+      "desprovisionado": "Ambiente desprovisionado",
+      "naoDesprovisionado": "Ambiente não desprovisionado",
+      "recursosRemanescentes": "Recursos remanescentes: {{recursos}}"
+    },
+    "resultados": {
+      "titulo": "Resultados por Ability",
+      "vazio": "Nenhum resultado de execução registrado.",
+      "ability": "Ability",
+      "status": "Status",
+      "tecnica": "Técnica"
+    },
+    "telemetria": {
+      "titulo": "Telemetria por técnica",
+      "vazio": "Nenhuma telemetria registrada."
+    }
+  },
+  "metricas": {
+    "titulo": "Métricas de suficiência procedural",
+    "nota": "Proposta inicial de medição, a refinar.",
+    "totalTecnicasDag": "Técnicas no DAG",
+    "tecnicasSucesso": "Técnicas com sucesso",
+    "taxaSucesso": "Taxa de sucesso",
+    "coberturaProcedural": "Cobertura procedural",
+    "tempoTotal": "Tempo total",
+    "tempoTecnica": "Tempo por técnica",
+    "no": "Nó",
+    "etapaFalha": "Etapa da falha",
+    "telemetria": "Telemetria",
+    "nosFalhos": {
+      "titulo": "Nós que falharam",
+      "vazio": "Nenhum nó falhou."
+    },
+    "porcentagem": "{{value}}%",
+    "segundos": "{{value}} s"
+  },
   "emulation": {
     "title": "Confirmar emulação de adversário",
     "description": "Revise a lista completa dos comandos concretos e o container de destino de cada um antes de confirmar. Nada é executado até a confirmação explícita.",
@@ -230,6 +379,7 @@
     "stage1ErrorHint": "A modelagem falhou. Corrija o problema para avançar.",
     "openWizard": "Iniciar execução guiada",
     "nextAria": "Avançar para o próximo estágio",
-    "preConcluidoNota": "Este estágio já estava pronto por curadoria: o resultado existia antes de você agir."
+    "preConcluidoNota": "Este estágio já estava pronto por curadoria: o resultado existia antes de você agir.",
+    "selectCampaignFirst": "Selecione uma campanha no Estágio 2 para habilitar este estágio."
   }
 }

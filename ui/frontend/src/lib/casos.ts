@@ -39,11 +39,12 @@ export const ESTADOS_ESTAGIO: readonly EstadoEstagio[] = [
 ] as const
 
 /**
- * One of the five pipeline stages (esquema 1..5 — Req. 1.1, 1.7).
- * 1 = Modelagem Estrutural, 2 = Geração do DAG, 3 = Operacionalização,
- * 4 = Provisionamento do Ambiente, 5 = Execução da Campanha.
+ * One of the six pipeline stages (esquema 1..6 — Req. 1.1, 1.2, 1.7).
+ * 1 = Seleção da base STIX, 2 = Seleção da campanha, 3 = Geração do DAG,
+ * 4 = Operacionalização, 5 = Criação do ambiente de simulação,
+ * 6 = Execução, medição e relatório.
  */
-export type NumeroEstagio = 1 | 2 | 3 | 4 | 5
+export type NumeroEstagio = 1 | 2 | 3 | 4 | 5 | 6
 
 /** State of a single stage within a case (from `GET /api/casos`). */
 export interface EstagioEstado {
@@ -60,7 +61,7 @@ export interface EstagioEstado {
 /** Aggregated stage states for a case. */
 export interface CasoEstados {
   estagios: EstagioEstado[]
-  /** True when all five stages are `concluido`. */
+  /** True when all six stages are `concluido`. */
   concluido_total: boolean
 }
 
@@ -90,9 +91,39 @@ export function getCasos(): Promise<CasosResponse> {
 }
 
 /**
+ * One provisioning log line carried on a stage-progress frame (Estágio 5,
+ * Req. 2.2, 2.6). This is the structural shape of the backend `LinhaLogView`
+ * (`StageProgressEvent.logs`).
+ *
+ * It is declared here — and NOT imported from `@/lib/estagios` — on purpose:
+ * `estagios.ts` already imports from this module (`CaseStageStates`,
+ * `EstadoEstagio`), so importing `LinhaLogView` back from `estagios.ts` would
+ * create an import cycle. Keeping a local, structurally-identical shape lets
+ * `estagios.ts`'s `LinhaLogView` stay the single documented source of truth
+ * while remaining assignable to this field without a cross-module dependency.
+ */
+export interface LogLineFrame {
+  /** Sequência monotônica por caso (para dedupe/reordenar na reconexão). */
+  seq: number
+  /** Etapa da pipeline que emitiu a linha (ex. `"subir_conteineres"`). */
+  etapa: string
+  /** Fluxo da linha; união aberta p/ novos valores (Req. 2.6). */
+  fluxo: "comando" | "stdout" | "stderr" | "info" | (string & {})
+  /** Texto da linha de log. */
+  texto: string
+  /** Timestamp ISO (naive-UTC no backend) da linha. */
+  em: string
+}
+
+/**
  * A real-time stage-progress frame pushed by `WS /ws/estagios/{caso}`
  * (Req. 1.4, 1.5). Carries the stage number, its new state, its progress and
  * the previous state for transition awareness.
+ *
+ * Para o Estágio 5 (provisionamento ativo), o frame também transporta `logs` —
+ * as linhas de log **novas** desde o último frame (e, no connect, o buffer
+ * completo), que o `ProvisioningConsole` acumula por `seq` (Req. 2.2, 2.5, 2.7).
+ * Vazio/ausente nos Estágios sem provisionamento.
  */
 export interface EstagioProgressoFrame {
   estagio: NumeroEstagio
@@ -100,12 +131,14 @@ export interface EstagioProgressoFrame {
   progresso: number
   estado_anterior?: EstadoEstagio
   erro?: string | null
+  /** Linhas de log novas desde o último frame (Estágio 5, Req. 2.2, 2.5). */
+  logs?: LogLineFrame[]
 }
 
 /**
- * Subscribe to the stage-progress channel for a case. Accepts any of the five
- * stages (`NumeroEstagio = 1 | 2 | 3 | 4 | 5`, Req. 1.7). Reconnects on drop so
- * the UI keeps reflecting real-time updates (Req. 1.4, 1.5).
+ * Subscribe to the stage-progress channel for a case. Accepts any of the six
+ * stages (`NumeroEstagio = 1 | 2 | 3 | 4 | 5 | 6`, Req. 1.2, 1.7). Reconnects on
+ * drop so the UI keeps reflecting real-time updates (Req. 1.4, 1.5).
  */
 export function connectEstagios(
   caso: string,
@@ -140,8 +173,8 @@ export function connectEstagios(
 export type StageState = EstadoEstagio
 export type StageNumber = NumeroEstagio
 
-/** The five pipeline stages, in order (Req. 1.1, 1.7, 5.2). */
-export const PIPELINE_STAGES: readonly StageNumber[] = [1, 2, 3, 4, 5] as const
+/** The six pipeline stages, in order (Req. 1.1, 1.2, 1.7, 5.2). */
+export const PIPELINE_STAGES: readonly StageNumber[] = [1, 2, 3, 4, 5, 6] as const
 
 /** Total number of curated cases (Req. 5.1, 5.5). */
 export const TOTAL_CURATED_CASES = 8
@@ -174,7 +207,7 @@ export interface StageStateView {
 
 /**
  * Per-stage state of a case plus whether it is fully replicated
- * (backend `CaseStageStates`). `concluido_total` is `true` iff all five stages
+ * (backend `CaseStageStates`). `concluido_total` is `true` iff all six stages
  * are `concluido` — the unit aggregate progress counts (Req. 5.5).
  */
 export interface CaseStageStates {

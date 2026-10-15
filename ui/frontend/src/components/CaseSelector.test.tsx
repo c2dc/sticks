@@ -7,11 +7,11 @@ import { CaseSelector } from "@/components/CaseSelector"
 import type { CasesResponse } from "@/lib/casos"
 
 /**
- * A single case in the 1..5 scheme (Modelagem = Stage 1): Stage 1 is concluded
- * (Modelagem done), and Stages 2 (Geração do DAG), 3 (Operacionalização),
- * 4 (Provisionamento do Ambiente) and 5 (Execução) are BLOCKED behind it
- * (bloqueado: true, iniciavel: false). This mirrors `GET /api/casos` for a
- * case midway through the five-stage pipeline.
+ * A single case in the 1..6 scheme (Seleção da base STIX = Stage 1): Stage 1 is
+ * concluded, and Stages 2 (Seleção da campanha), 3 (Geração do DAG),
+ * 4 (Operacionalização), 5 (Criação do ambiente) and 6 (Execução, medição e
+ * relatório) are BLOCKED behind it (bloqueado: true, iniciavel: false). This
+ * mirrors `GET /api/casos` for a case midway through the six-stage pipeline.
  */
 function makeBlockedStageData(): CasesResponse {
   return {
@@ -59,6 +59,13 @@ function makeBlockedStageData(): CasesResponse {
               bloqueado: true,
               iniciavel: false,
             },
+            {
+              estagio: 6,
+              estado: "nao_iniciado",
+              progresso: 0,
+              bloqueado: true,
+              iniciavel: false,
+            },
           ],
         },
       },
@@ -72,9 +79,9 @@ function makeBlockedStageData(): CasesResponse {
 }
 
 /**
- * The five stage rows of the (single) rendered case, in stage order
- * 1→2→3→4→5. Each stage is rendered as an `<li>` inside the card's `<ol>`, so
- * the ordered list items map directly to stages 1, 2, 3, 4, 5.
+ * The six stage rows of the (single) rendered case, in stage order
+ * 1→2→3→4→5→6. Each stage is rendered as an `<li>` inside the card's `<ol>`, so
+ * the ordered list items map directly to stages 1, 2, 3, 4, 5, 6.
  */
 function stageRows(container: HTMLElement): HTMLElement[] {
   const ol = container.querySelector("ol")
@@ -87,19 +94,21 @@ describe("CaseSelector (Req. 5.4 — blocked stages cannot be started)", () => {
     const { container } = renderWithI18n(<CaseSelector data={makeBlockedStageData()} />)
 
     const rows = stageRows(container)
-    expect(rows).toHaveLength(5)
+    expect(rows).toHaveLength(6)
 
-    // Stage 1 (index 0) is not blocked; stages 2, 3, 4 and 5 are blocked and dimmed.
+    // Stage 1 (index 0) is not blocked; stages 2..6 are blocked and dimmed.
     const stage1Inner = rows[0].querySelector("div")!
     const stage2Inner = rows[1].querySelector("div")!
     const stage3Inner = rows[2].querySelector("div")!
     const stage4Inner = rows[3].querySelector("div")!
     const stage5Inner = rows[4].querySelector("div")!
+    const stage6Inner = rows[5].querySelector("div")!
     expect(stage1Inner.className).not.toContain("opacity-60")
     expect(stage2Inner.className).toContain("opacity-60")
     expect(stage3Inner.className).toContain("opacity-60")
     expect(stage4Inner.className).toContain("opacity-60")
     expect(stage5Inner.className).toContain("opacity-60")
+    expect(stage6Inner.className).toContain("opacity-60")
   })
 
   it("disables the start control of a blocked stage and never triggers onSelectStage", async () => {
@@ -182,6 +191,6 @@ describe("CaseSelector (Req. 5.4 — blocked stages cannot be started)", () => {
     // case renders an alert instead — the others stay usable.
     const orderedLists = container.querySelectorAll("ol")
     expect(orderedLists.length).toBe(1)
-    expect(stageRows(container)).toHaveLength(5)
+    expect(stageRows(container)).toHaveLength(6)
   })
 })

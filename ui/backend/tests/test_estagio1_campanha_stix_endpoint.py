@@ -1,15 +1,23 @@
 """Contract tests of the Stage-1 endpoints' ``campanha_stix`` block (task 3.2).
 
-The *entrada conceitual* of Stage 1 (Modelagem Estrutural) is the STIX
-``campaign`` object of the base selected in the flow. The read
-(``GET /api/casos/{caso}/estagio/1``) and run
-(``POST /api/casos/{caso}/estagio/1/executar``) endpoints both accept an optional
-``versao`` query param and expose a ``campanha_stix`` block in the Entrada.
+No esquema de SEIS Estágios, o Estágio 1 passou a ser a **Seleção da base
+STIX**: ``GET /api/casos/{caso}/estagio/1`` delega ao ``Estagio1Service`` e
+devolve o resultado tipado ``ResultadoEstagio1`` (bundle em disco + dashboard +
+campanhas + veredito), aceitando um ``versao`` opcional (padrão = versão curada).
+A modelagem estrutural (DTO histórico ``Stage1*``, cuja Entrada é o objeto STIX
+``campaign``) permanece acessível de forma **transitória** em
+``POST /api/casos/{caso}/estagio/1/executar`` até as tarefas 3.x a renumerarem
+para o Estágio 2.
 
-These tests pin the HTTP contract across the three scenarios the task calls out,
-asserting that the Entrada **never breaks the Stage** (Correctness Property 1 —
-HTTP 200 in every case, no HTTP error for a missing/absent version/campaign) and
-that **no Caldera adversary artifact leaks into the Entrada** (Property 3):
+Estes testes fixam o contrato HTTP:
+
+* **GET (seis Estágios)** — a Seleção da base STIX conclui quando o bundle está
+  em disco e o dashboard foi montado; versão desconhecida mantém o Estágio não
+  concluído com a causa reportada, sem egresso de rede (Req. 5.7, 5.8, 5.9,
+  5.10).
+* **POST executar (transitório)** — a Entrada da modelagem **nunca quebra o
+  Estágio** (Correctness Property 1 — HTTP 200 em todos os cenários) e **nenhum
+  artefato de adversário Caldera vaza para a Entrada** (Property 3):
 
 1. ``versao`` válida com a campanha no bundle → ``encontrada == true`` com os
    campos ricos do objeto ``campaign`` (nome, stix_id, external_id, descrição,
@@ -55,6 +63,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session, sessionmaker
 
 import app.services.stage.stage_service as stage_module
+import app.services.stix.estagio1_service as estagio1_module
 from app.core.config import Settings
 from app.db.base import Base, import_models
 from app.db.session import create_db_engine, get_db
@@ -152,6 +161,26 @@ def stix_data_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return tmp_path
 
 
+@pytest.fixture()
+def estagio1_data_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Redirect the six-stage ``GET .../estagio/1`` handler to a temp data dir.
+
+    No esquema de seis Estágios, ``GET /api/casos/{caso}/estagio/1`` delega a
+    :class:`~app.services.stix.estagio1_service.Estagio1Service`, que (sem
+    injeção na rota) constrói um ``StixService()`` resolvido no módulo
+    ``estagio1_service``. Patching that symbol with a ``data_dir``-bound factory
+    makes the bundle read + dashboard happen inside ``tmp_path`` — the real
+    ``sticks/data/stix`` is untouched and there is no network egress (nenhum
+    bundle em disco salvo os que o teste escreve).
+    """
+
+    def _factory(*args: object, **kwargs: object) -> StixService:
+        return StixService(data_dir=tmp_path)
+
+    monkeypatch.setattr(estagio1_module, "StixService", _factory)
+    return tmp_path
+
+
 # A rich ``campaign`` object resolving to the ``shadowray`` slug (via C0045).
 def _campanha_encontrada() -> dict:
     return {
@@ -188,32 +217,33 @@ def _assert_sem_artefato_caldera(entrada: dict) -> None:
 # ===========================================================================
 
 
-def test_get_estagio1_versao_valida_campanha_encontrada(
-    session_factory: sessionmaker[Session], stix_data_dir: Path
+def test_get_estagio1_versao_valida_dashboard_concluido(
+    session_factory: sessionmaker[Session], estagio1_data_dir: Path
 ) -> None:
-    """``GET .../estagio/1?versao=`` com a campanha no bundle → HTTP 200 e
-    ``campanha_stix.encontrada=true`` com os campos ricos (Property 1)."""
+    """``GET .../estagio/1?versao=`` com o bundle em disco → HTTP 200 e o
+    resultado do Estágio 1 (Seleção da base STIX) ``concluido=True`` com o
+    dashboard do bundle e as campanhas (seis Estágios, Req. 5.7, 5.8, 5.10)."""
     campanha = _campanha_encontrada()
-    _write_bundle(StixService(data_dir=stix_data_dir).base_path(_VERSAO), [campanha])
+    _write_bundle(
+        StixService(data_dir=estagio1_data_dir).base_path(_VERSAO), [campanha]
+    )
 
     client = _make_client(session_factory)
     resp = client.get(f"/api/casos/{_SLUG}/estagio/1", params={"versao": _VERSAO})
 
     assert resp.status_code == 200, resp.text
-    entrada = resp.json()["entrada"]
-    bloco = entrada["campanha_stix"]
+    body = resp.json()
 
-    assert bloco["encontrada"] is True
-    assert bloco["motivo_indisponivel"] is None
-    assert bloco["versao_base"] == _VERSAO
-    assert bloco["stix_id"] == campanha["id"]
-    assert bloco["nome"] == _NOME_CANONICO
-    assert bloco["external_id"] == _EXTERNAL_ID
-    assert bloco["descricao"] == campanha["description"]
-    assert bloco["aliases"] == [_NOME_CANONICO, "Ray cluster abuse"]
-    assert bloco["first_seen"] == "2023-09-05T00:00:00.000Z"
-    assert bloco["last_seen"] == "2024-03-01T00:00:00.000Z"
-    _assert_sem_artefato_caldera(entrada)
+    # Veredito + Saída do Estágio 1 (bundle em disco + dashboard + campanhas).
+    assert body["versao"] == _VERSAO
+    assert body["concluido"] is True
+    assert body["bundle_em_disco"] is True
+    assert body["mensagem_erro"] is None
+    assert body["dashboard"] is not None
+    assert body["dashboard"]["versao"] == _VERSAO
+    # The written campaign is listed among the bundle's campanhas (Entrada do E2).
+    nomes = {c["nome"] for c in body["campanhas"]}
+    assert _NOME_CANONICO in nomes
 
 
 def test_post_estagio1_executar_versao_valida_campanha_encontrada(
@@ -246,25 +276,30 @@ def test_post_estagio1_executar_versao_valida_campanha_encontrada(
 # ===========================================================================
 
 
-def test_get_estagio1_sem_versao_fallback_versao_ausente(
-    session_factory: sessionmaker[Session], stix_data_dir: Path
+def test_get_estagio1_sem_versao_usa_versao_curada(
+    session_factory: sessionmaker[Session], estagio1_data_dir: Path
 ) -> None:
-    """``GET .../estagio/1`` sem ``versao`` → HTTP 200 (retrocompatível) e o
-    fallback ``versao_ausente`` sem erro HTTP (Req. 5.4, Property 1)."""
+    """``GET .../estagio/1`` sem ``versao`` → HTTP 200 e o Estágio 1 parte da
+    versão curada (``VERSAO_CURADA``) como padrão do fluxo (seis Estágios, Req.
+    5.5, 5.6). Com o bundle curado em disco, conclui sem egresso de rede."""
+    from app.services.stix.stix_service import VERSAO_CURADA
+
+    # Bundle curado em disco → nenhum download (sem rede); conclui o Estágio 1.
+    _write_bundle(
+        StixService(data_dir=estagio1_data_dir).base_path(VERSAO_CURADA),
+        [_campanha_encontrada()],
+    )
+
     client = _make_client(session_factory)
     resp = client.get(f"/api/casos/{_SLUG}/estagio/1")
 
     assert resp.status_code == 200, resp.text
-    entrada = resp.json()["entrada"]
-    bloco = entrada["campanha_stix"]
-
-    assert bloco["encontrada"] is False
-    assert bloco["motivo_indisponivel"] == "versao_ausente"
-    assert bloco["versao_base"] is None
-    # The curated identifier is still carried on the fallback path.
-    assert bloco["nome"] == _NOME_CANONICO
-    assert bloco["external_id"] == _EXTERNAL_ID
-    _assert_sem_artefato_caldera(entrada)
+    body = resp.json()
+    assert body["versao"] == VERSAO_CURADA
+    assert body["curada"] is True
+    assert body["concluido"] is True
+    assert body["bundle_em_disco"] is True
+    assert body["dashboard"] is not None
 
 
 def test_post_estagio1_executar_sem_versao_fallback_versao_ausente(
@@ -287,45 +322,29 @@ def test_post_estagio1_executar_sem_versao_fallback_versao_ausente(
 # ===========================================================================
 
 
-def test_get_estagio1_versao_valida_campanha_ausente(
-    session_factory: sessionmaker[Session], stix_data_dir: Path
+def test_get_estagio1_versao_desconhecida_nao_conclui_com_causa(
+    session_factory: sessionmaker[Session], estagio1_data_dir: Path
 ) -> None:
-    """``GET .../estagio/1?versao=`` com a base legível mas SEM a campanha →
-    HTTP 200 e ``campanha_nao_encontrada`` + o identificador curado (Req. 4.2,
-    Property 1)."""
-    # A readable bundle whose only campaign does NOT resolve to ``shadowray``.
-    _write_bundle(
-        StixService(data_dir=stix_data_dir).base_path(_VERSAO),
-        [
-            {
-                "type": "campaign",
-                "id": "campaign--9999-0000-0000-0000-000000000000",
-                "name": "Campanha Qualquer",
-                "external_references": [
-                    {"source_name": "mitre-attack", "external_id": "C9999"}
-                ],
-            }
-        ],
-    )
+    """``GET .../estagio/1?versao=`` com versão desconhecida → HTTP 200 e o
+    Estágio 1 **não concluído** com a causa reportada, sem egresso de rede
+    (``versao`` é validada contra ``VERSOES_CONHECIDAS`` antes de tocar rede —
+    seis Estágios, Req. 5.9). O serviço nunca levanta: devolve o resultado
+    tipado reportável."""
+    versao_desconhecida = "999.0"
 
     client = _make_client(session_factory)
-    resp = client.get(f"/api/casos/{_SLUG}/estagio/1", params={"versao": _VERSAO})
+    resp = client.get(
+        f"/api/casos/{_SLUG}/estagio/1", params={"versao": versao_desconhecida}
+    )
 
     assert resp.status_code == 200, resp.text
-    entrada = resp.json()["entrada"]
-    bloco = entrada["campanha_stix"]
-
-    assert bloco["encontrada"] is False
-    assert bloco["motivo_indisponivel"] == "campanha_nao_encontrada"
-    assert bloco["versao_base"] == _VERSAO
-    # Falls back to the curated identifier (nome + external_id de SLUG_PARA_STIX).
-    assert bloco["nome"] == _NOME_CANONICO
-    assert bloco["external_id"] == _EXTERNAL_ID
-    # No rich fields when not found.
-    assert bloco["stix_id"] is None
-    assert bloco["descricao"] is None
-    assert bloco["aliases"] == []
-    _assert_sem_artefato_caldera(entrada)
+    body = resp.json()
+    assert body["versao"] == versao_desconhecida
+    assert body["concluido"] is False
+    assert body["bundle_em_disco"] is False
+    assert body["dashboard"] is None
+    assert body["campanhas"] == []
+    assert body["mensagem_erro"]  # a causa reportada ao Pesquisador
 
 
 def test_post_estagio1_executar_versao_valida_campanha_ausente(
@@ -355,36 +374,54 @@ def test_post_estagio1_executar_versao_valida_campanha_ausente(
 
 
 def test_estagio1_nunca_quebra_http_em_nenhum_cenario(
-    session_factory: sessionmaker[Session], stix_data_dir: Path
+    session_factory: sessionmaker[Session],
+    stix_data_dir: Path,
+    estagio1_data_dir: Path,
 ) -> None:
-    """Across (versão válida+campanha, sem versão, versão válida sem campanha),
-    both GET and POST return HTTP 200 — a Entrada nunca quebra a Modelagem."""
-    base = StixService(data_dir=stix_data_dir).base_path(_VERSAO)
+    """A rota do Estágio 1 nunca quebra o HTTP (status 200 sempre).
+
+    Cobre o GET da Seleção da base STIX (seis Estágios) e o POST
+    ``.../estagio/1/executar`` (modelagem transitória) nos cenários relevantes;
+    todos devolvem 200, de modo que a tela sempre recebe um resultado tipado
+    reportável (Req. 5.9) e a Entrada da modelagem nunca quebra o Estágio."""
+    from app.services.stix.stix_service import VERSAO_CURADA
+
+    base_get = StixService(data_dir=estagio1_data_dir).base_path(_VERSAO)
+    base_curada = StixService(data_dir=estagio1_data_dir).base_path(VERSAO_CURADA)
+    base_post = StixService(data_dir=stix_data_dir).base_path(_VERSAO)
     client = _make_client(session_factory)
 
-    # Scenario A: valid version + campaign present.
-    _write_bundle(base, [_campanha_encontrada()])
+    # Cenário A: GET com versão válida e bundle em disco → 200.
+    _write_bundle(base_get, [_campanha_encontrada()])
     assert (
-        client.get(f"/api/casos/{_SLUG}/estagio/1", params={"versao": _VERSAO}).status_code
+        client.get(
+            f"/api/casos/{_SLUG}/estagio/1", params={"versao": _VERSAO}
+        ).status_code
         == 200
     )
+
+    # Cenário B: GET sem versão → usa a versão curada; bundle curado em disco → 200.
+    _write_bundle(base_curada, [_campanha_encontrada()])
+    assert client.get(f"/api/casos/{_SLUG}/estagio/1").status_code == 200
+
+    # Cenário C: GET com versão desconhecida → 200 (não concluído, sem rede).
+    assert (
+        client.get(
+            f"/api/casos/{_SLUG}/estagio/1", params={"versao": "999.0"}
+        ).status_code
+        == 200
+    )
+
+    # POST executar (modelagem transitória): válida+campanha, sem versão, sem campanha.
+    _write_bundle(base_post, [_campanha_encontrada()])
     assert (
         client.post(
             f"/api/casos/{_SLUG}/estagio/1/executar", params={"versao": _VERSAO}
         ).status_code
         == 200
     )
-
-    # Scenario B: no version at all.
-    assert client.get(f"/api/casos/{_SLUG}/estagio/1").status_code == 200
     assert client.post(f"/api/casos/{_SLUG}/estagio/1/executar").status_code == 200
-
-    # Scenario C: valid version but the campaign absent from the bundle.
-    _write_bundle(base, [])
-    assert (
-        client.get(f"/api/casos/{_SLUG}/estagio/1", params={"versao": _VERSAO}).status_code
-        == 200
-    )
+    _write_bundle(base_post, [])
     assert (
         client.post(
             f"/api/casos/{_SLUG}/estagio/1/executar", params={"versao": _VERSAO}

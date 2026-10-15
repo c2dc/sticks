@@ -95,6 +95,7 @@ from app.services.case_service import (
 from app.services.stage.stage_service import (
     ESTAGIO_GERACAO_DAG,
     ESTAGIO_MODELAGEM,
+    ESTAGIO_SELECAO_CAMPANHA,
     StageService,
 )
 
@@ -317,17 +318,17 @@ class EscolhaDagResult(BaseModel):
 
 # Mensagens pt-BR por caminho de não-conclusão da auto-conclusão do Estágio 2
 # (para a API/UI surfacearem), espelhando ``EnvironmentStageService`` (Estágio 4).
-_MSG_ESTAGIO2_GATE = (
-    "O Estágio 1 (Modelagem Estrutural) deste Caso ainda não está concluído; o "
-    "Estágio 2 (Geração do DAG) permanece bloqueado."
+_MSG_ESTAGIO3_GATE = (
+    "O Estágio 2 (Seleção da campanha) deste Caso ainda não está concluído; o "
+    "Estágio 3 (Geração do DAG) permanece bloqueado."
 )
-_MSG_ESTAGIO2_SEM_DAG = (
-    "Este Caso não possui DAG derivável; o Estágio 2 (Geração do DAG) não é "
+_MSG_ESTAGIO3_SEM_DAG = (
+    "Este Caso não possui DAG derivável; o Estágio 3 (Geração do DAG) não é "
     "concluído automaticamente (o botão \"Gerar DAG\" permanece desabilitado e o "
     "avanço bloqueado)."
 )
-_MSG_ESTAGIO2_FALHA_PERSISTENCIA = (
-    "A conclusão automática do Estágio 2 não foi salva: falha ao persistir na "
+_MSG_ESTAGIO3_FALHA_PERSISTENCIA = (
+    "A conclusão automática do Estágio 3 não foi salva: falha ao persistir na "
     "Base_de_Dados. O estado anterior foi preservado sem alteração."
 )
 
@@ -835,13 +836,19 @@ class DagService:
         stage_service = self._get_stage_service()
         estados = stage_service._stage_states_map(caso)
 
-        # (1) Gate sequencial (Req. 9.3): só prossegue com o Estágio 1 concluído.
-        if estados.get(ESTAGIO_MODELAGEM) is not StageState.COMPLETED:
+        # (1) Gate sequencial (Req. 7.1, 3.1): a Geração do DAG é o Estágio 3 no
+        # pipeline de seis Estágios; sua Entrada são os atributos da campanha do
+        # Estágio 2 (Seleção da campanha — ``ESTAGIO_SELECAO_CAMPANHA``). O gate
+        # só libera quando o Estágio imediatamente anterior (o 2) está
+        # ``concluido``, exatamente o que ``is_stage_startable(caso, 3)`` exige.
+        if (
+            estados.get(ESTAGIO_SELECAO_CAMPANHA) is not StageState.COMPLETED
+        ):
             return GeracaoDagAutoResult(
                 caso_id=caso,
                 concluido=False,
                 bloqueado_pelo_gate=True,
-                mensagem=_MSG_ESTAGIO2_GATE,
+                mensagem=_MSG_ESTAGIO3_GATE,
             )
 
         # (2) Idempotência: já concluído ⇒ nada a repersistir.
@@ -864,7 +871,7 @@ class DagService:
                 concluido=False,
                 sem_dag=True,
                 total_dags=0,
-                mensagem=_MSG_ESTAGIO2_SEM_DAG,
+                mensagem=_MSG_ESTAGIO3_SEM_DAG,
             )
 
         # (4) Há DAG derivável ⇒ conclui o Estágio 2 (upsert absoluto, transacional).
@@ -884,7 +891,7 @@ class DagService:
                 concluido=False,
                 total_dags=len(dags),
                 persistencia_falhou=True,
-                mensagem=_MSG_ESTAGIO2_FALHA_PERSISTENCIA,
+                mensagem=_MSG_ESTAGIO3_FALHA_PERSISTENCIA,
             )
 
         session.refresh(stage_run)

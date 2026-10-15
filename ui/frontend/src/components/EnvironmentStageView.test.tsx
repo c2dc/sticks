@@ -6,12 +6,15 @@ import { EnvironmentStageView } from "@/components/EnvironmentStageView"
 import type { CaseStageStates } from "@/lib/casos"
 import type { ProvisionamentoResponse } from "@/lib/estagios"
 
-// Mock the Stage-4 wrapper so no network is used.
+// Mock the Stage-5 wrappers so no network/WS is used. The screen now also
+// POSTs the idempotent provisioning on mount (`provisionarAmbiente`), so we mock
+// it alongside the read-only `getEstagioAmbiente`.
 vi.mock("@/lib/estagios", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/estagios")>()
   return {
     ...actual,
-    getProvisionamento: vi.fn(),
+    getEstagioAmbiente: vi.fn(),
+    provisionarAmbiente: vi.fn(),
   }
 })
 
@@ -23,9 +26,39 @@ vi.mock("@/components/MermaidDiagram", () => ({
   ),
 }))
 
-import { getProvisionamento } from "@/lib/estagios"
+// Stub the live-log console (opens a WebSocket) and the prerequisites checklist
+// so this suite stays focused on the topology/isolation assertions without WS
+// side effects. Their own suites (tasks 7.3 / 8.3) cover them directly.
+vi.mock("@/components/ProvisioningConsole", () => ({
+  ProvisioningConsole: () => <div data-testid="provisioning-console-stub" />,
+}))
+vi.mock("@/components/PrereqChecklist", () => ({
+  PrereqChecklist: () => <div data-testid="prereq-checklist-stub" />,
+}))
 
-const getProvisionamentoMock = vi.mocked(getProvisionamento)
+import { getEstagioAmbiente, provisionarAmbiente } from "@/lib/estagios"
+import type { AmbienteProvisionado } from "@/lib/estagios"
+
+const getEstagioAmbienteMock = vi.mocked(getEstagioAmbiente)
+const provisionarAmbienteMock = vi.mocked(provisionarAmbiente)
+
+function makeAmbiente(
+  overrides: Partial<AmbienteProvisionado> = {},
+): AmbienteProvisionado {
+  return {
+    caso_id: "c0026",
+    plataforma: "conteiner",
+    containers_alvo: ["c0026-victim"],
+    compose_file: "cases/c0026/docker-compose.yml",
+    saude: { aprovado: true, veredictos: [] },
+    isolamento: { aprovado: true, veredictos: [] },
+    abilities_carregadas: true,
+    origem: "curadoria_humana",
+    etapa_falha: null,
+    mensagem_erro: null,
+    ...overrides,
+  }
+}
 
 function makeEstados(estagio4Concluido: boolean): CaseStageStates {
   return {
@@ -73,21 +106,27 @@ function makeResponse(
     mermaid: "flowchart TD\n  attacker --> victim",
     compose_file: "cases/c0026/docker-compose.yml",
     estados: makeEstados(true),
+    saude: { aprovado: true, veredictos: [] },
+    logs: [],
     ...overrides,
   }
 }
 
 describe("EnvironmentStageView (Estágio 4 — Provisionamento do Ambiente, Req. 5.4–5.6)", () => {
   beforeEach(() => {
-    getProvisionamentoMock.mockReset()
+    getEstagioAmbienteMock.mockReset()
+    provisionarAmbienteMock.mockReset()
+    // Default: provisioning resolves a ready environment on mount so the screen
+    // settles into its loaded state for the topology/isolation assertions.
+    provisionarAmbienteMock.mockResolvedValue(makeAmbiente())
   })
 
   it("renders the contained topology for every isolation state (diagram, networks, hosts, compose)", async () => {
-    getProvisionamentoMock.mockResolvedValue(makeResponse())
+    getEstagioAmbienteMock.mockResolvedValue(makeResponse())
 
     renderWithI18n(<EnvironmentStageView casoId="c0026" />)
 
-    await waitFor(() => expect(getProvisionamentoMock).toHaveBeenCalledWith("c0026"))
+    await waitFor(() => expect(getEstagioAmbienteMock).toHaveBeenCalledWith("c0026"))
 
     // Mermaid definition from the backend renders.
     const stub = await screen.findByTestId("mermaid-stub")
@@ -107,7 +146,7 @@ describe("EnvironmentStageView (Estágio 4 — Provisionamento do Ambiente, Req.
   })
 
   it("isolado=true → shows the 'isolated / ready' indicator (Stage 5 unlocked)", async () => {
-    getProvisionamentoMock.mockResolvedValue(makeResponse())
+    getEstagioAmbienteMock.mockResolvedValue(makeResponse())
 
     renderWithI18n(<EnvironmentStageView casoId="c0026" />)
 
@@ -117,7 +156,7 @@ describe("EnvironmentStageView (Estágio 4 — Provisionamento do Ambiente, Req.
   })
 
   it("isolado=false & verifiable → shows the motivo and makes clear Stage 5 is blocked", async () => {
-    getProvisionamentoMock.mockResolvedValue(
+    getEstagioAmbienteMock.mockResolvedValue(
       makeResponse({
         isolado: false,
         isolamento_indisponivel: false,
@@ -139,7 +178,7 @@ describe("EnvironmentStageView (Estágio 4 — Provisionamento do Ambiente, Req.
   })
 
   it("isolamento_indisponivel=true → fail-closed: not verifiable, Stage 5 blocked, topology still shown", async () => {
-    getProvisionamentoMock.mockResolvedValue(
+    getEstagioAmbienteMock.mockResolvedValue(
       makeResponse({
         isolado: false,
         isolamento_indisponivel: true,
@@ -162,7 +201,7 @@ describe("EnvironmentStageView (Estágio 4 — Provisionamento do Ambiente, Req.
   })
 
   it("surfaces the pt-BR load error when the Stage-4 payload fails to load", async () => {
-    getProvisionamentoMock.mockRejectedValue(new Error("boom"))
+    getEstagioAmbienteMock.mockRejectedValue(new Error("boom"))
 
     renderWithI18n(<EnvironmentStageView casoId="c0026" />)
 

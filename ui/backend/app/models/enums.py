@@ -19,20 +19,24 @@ import enum
 
 
 class TranslationSource(str, enum.Enum):
-    """Origem da tradução do Estágio 2 — atributo explícito e extensível.
+    """Origem de um artefato — atributo explícito e extensível.
 
-    Hoje, todas as 8 traduções curadas usam ``HUMAN_CURATION``. Valores futuros
-    (por exemplo agentes de IA) podem ser adicionados aqui **sem** alterar o
-    modelo persistido de ``Ability``/``Adversary``/``Case`` — o atributo
-    ``origem_traducao`` já existe e apenas passa a aceitar novos valores.
+    Hoje, todas as 8 traduções curadas usam ``HUMAN_CURATION``. O valor futuro
+    ``GERADO_IA`` já é **declarado** aqui, exatamente como o precedente de
+    :class:`OrigemDag`: as colunas que usam este enum
+    (``Ability``/``Adversary``/``Case.origem_traducao`` e
+    ``ParametrosAmbiente.origem``) persistem com ``native_enum=False`` (VARCHAR +
+    CHECK), de modo que o ``CHECK`` gerado já inclua ``gerado_ia`` desde a
+    primeira migração. Assim, persistir um artefato de origem ``gerado_ia`` no
+    futuro **não** exige qualquer alteração de esquema nem migração (Req. 16.2,
+    16.4). A implementação do agente de IA que produziria tais artefatos é
+    não-objetivo desta spec (Req. 18.1).
 
-    _Requisitos: 11.1, 11.2_
+    _Requisitos: 11.1, 11.2, 16.2, 16.4_
     """
 
-    HUMAN_CURATION = "curadoria_humana"  # valor das 8 traduções existentes
-    # Valores futuros (fora de escopo de implementação) podem ser adicionados
-    # sem alterar o modelo de Ability/Adversary, por exemplo:
-    # AI_AGENT = "agente_ia"
+    HUMAN_CURATION = "curadoria_humana"  # valor das 8 traduções curadas existentes
+    GERADO_IA = "gerado_ia"  # produzido por agente de IA (encaixável depois, Req. 16)
 
 
 class OrigemDag(str, enum.Enum):
@@ -54,6 +58,50 @@ class OrigemDag(str, enum.Enum):
 
     CURADORIA_HUMANA = "curadoria_humana"  # DAGs produzidos por curadoria humana
     GERADO_IA = "gerado_ia"  # produzido por agente de IA (encaixável depois, Req. 9)
+
+
+class PlataformaAmbiente(str, enum.Enum):
+    """Plataforma do ambiente — contêiner hoje; VM admitida sem redesenho (Req. 17).
+
+    Vive na camada de modelos (dependency-free) para ser referenciada tanto pela
+    persistência (``parametros_ambiente.plataforma``) quanto pela camada de
+    serviço (``app.services.environment.operacionalizacao`` reexporta este enum),
+    evitando um ciclo de import entre modelos e serviços.
+
+    Subclasse de ``str`` para serializar ao seu valor em pt-BR na API/DB, seguindo
+    o precedente de :class:`TranslationSource`/:class:`OrigemDag`.
+
+    Nesta spec apenas ``CONTAINER`` é implementado (Req. 17.1). ``maquina_virtual``
+    **não** é um membro do enum (Req. 17.2) — mas o CHECK da coluna persistida já
+    o admite via ``_portable_enum(..., extra_values=("maquina_virtual",))``,
+    exatamente como ``OrigemDag``/``gerado_ia``: incluí-lo depois não exige
+    migração de esquema.
+
+    _Requisitos: 17.1, 17.2_
+    """
+
+    CONTAINER = "conteiner"
+    # VM = "maquina_virtual"  # futuro (Req. 17.2) — não implementado nesta spec
+
+
+class PlataformaAmbientePersistida(str, enum.Enum):
+    """Enum **de persistência** da plataforma — fonte do CHECK da coluna.
+
+    Existe apenas para montar o tipo de coluna de ``parametros_ambiente.plataforma``
+    via ``_portable_enum`` (VARCHAR + CHECK). Diferentemente de
+    :class:`PlataformaAmbiente` (usado pela camada de aplicação, com apenas
+    ``CONTAINER`` implementado — Req. 17.1), este enum já **declara**
+    ``maquina_virtual`` para que o ``CHECK`` gerado o aceite desde a primeira
+    migração — exatamente o precedente de ``OrigemDag``/``gerado_ia``: persistir
+    uma plataforma de máquina virtual no futuro **não** exige migração de esquema
+    (Req. 17.2). ``CONTAINER`` tem o mesmo valor (``"conteiner"``) do enum público,
+    então gravar ``PlataformaAmbiente.CONTAINER`` continua compatível.
+
+    _Requisitos: 17.1, 17.2_
+    """
+
+    CONTAINER = "conteiner"
+    VM = "maquina_virtual"  # admitido no CHECK; não implementado nesta spec (Req. 17.2)
 
 
 class StageState(str, enum.Enum):

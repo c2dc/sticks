@@ -1,60 +1,62 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import { waitFor } from "@testing-library/react"
+import { screen, waitFor } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 
 import { renderWithI18n } from "@/test/render"
 import { ExecutionWizard } from "@/components/ExecutionWizard"
-import type { Caso, CasoEstados } from "@/lib/casos"
-import type { Stage1Result } from "@/lib/estagios"
+import type { Caso, CasoEstados, CasesResponse } from "@/lib/casos"
+import type { ResultadoEstagio1 } from "@/lib/estagios"
+import type { BaseStixInfo } from "@/lib/stix"
 
 /**
- * Feature: entrada-estagio1-campanha-stix — propagação da versão (Task 6.2).
- * Validates: Requirements 3.1, 6.2
+ * Feature: pipeline-seis-estagios — propagation of the chosen base version to
+ * Stage 1 (Req. 4.1, 5.1, 5.2).
  *
- * O ExecutionVizard recebe `{ casoId, versao? }` e, no Estágio 1 (estágio
- * inicial), renderiza `<Stage1View casoId versao />`. A asserção da propagação é
- * feita no wrapper real `getEstagio1`: o Stage1View (filho real, não stubado
- * aqui) chama `getEstagio1(casoId, versao)` com a versão recebida pelo wizard;
- * sem versão, chama sem o parâmetro.
+ * The wizard is entered with no campaign chosen; it resolves a probe slug via
+ * `fetchCases` and renders the real `<BaseStixView casoId={probe} />` as the
+ * body of Stage 1. With no base selected yet, Stage 1 shows the bases list
+ * (StixBasesList → `getBases`) and does NOT read the completion verdict. Once a
+ * base is selected, BaseStixView reads `getEstagioBaseStix(probe, versao)` with
+ * the chosen version — that call is the propagation assertion.
  *
- * Diferente de `ExecutionWizard.test.tsx` (que stuba o Stage1View para focar na
- * estrutura do wizard), aqui o Stage1View é renderizado de verdade — só o
- * wrapper de rede `@/lib/estagios` e o `@/lib/wizard` (getCaso) são mockados.
+ * Only the network wrappers (`@/lib/estagios`, `@/lib/stix`, `@/lib/casos`) and
+ * `@/lib/wizard` (getCaso) are mocked; BaseStixView renders for real.
  */
 
-// Mock o wrapper de rede do Estágio 1: é por ele que asseveramos a propagação.
-// Mock parcial — `@/lib/wizard` reexporta outros wrappers de `@/lib/estagios`
-// (ex. `executarEstagio1`), que precisam permanecer definidos.
 vi.mock("@/lib/estagios", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/estagios")>()
-  return {
-    ...actual,
-    getEstagio1: vi.fn(),
-  }
+  return { ...actual, getEstagioBaseStix: vi.fn() }
 })
 
-// Mock os wrappers de rede do wizard; o wizard lê `getCaso` na montagem para
-// derivar os estados e renderizar o Estágio 1 (estágio inicial = 1).
+vi.mock("@/lib/stix", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/stix")>()
+  return { ...actual, getBases: vi.fn() }
+})
+
+vi.mock("@/lib/casos", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/casos")>()
+  return { ...actual, fetchCases: vi.fn() }
+})
+
 vi.mock("@/lib/wizard", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/wizard")>()
-  return {
-    ...actual,
-    getCaso: vi.fn(),
-    executarModelagem: vi.fn(),
-    concluirTraducao: vi.fn(),
-    resetCaso: vi.fn(),
-  }
+  return { ...actual, getCaso: vi.fn(), resetCaso: vi.fn() }
 })
 
-import { getEstagio1 } from "@/lib/estagios"
+import { getEstagioBaseStix } from "@/lib/estagios"
+import { getBases } from "@/lib/stix"
+import { fetchCases } from "@/lib/casos"
 import { getCaso } from "@/lib/wizard"
 
-const getEstagio1Mock = vi.mocked(getEstagio1)
+const getEstagioBaseStixMock = vi.mocked(getEstagioBaseStix)
+const getBasesMock = vi.mocked(getBases)
+const fetchCasesMock = vi.mocked(fetchCases)
 const getCasoMock = vi.mocked(getCaso)
 
 function estados(concluidos: number[]): CasoEstados {
-  const todos = [1, 2, 3, 4, 5] as const
+  const todos = [1, 2, 3, 4, 5, 6] as const
   return {
-    concluido_total: concluidos.length === 5,
+    concluido_total: concluidos.length === 6,
     estagios: todos.map((estagio) => ({
       estagio,
       estado: concluidos.includes(estagio) ? "concluido" : "nao_iniciado",
@@ -68,34 +70,67 @@ function makeCaso(concluidos: number[]): Caso {
   return { id: "shadowray", nome: "ShadowRay", estados: estados(concluidos) }
 }
 
-function makeStage1Result(): Stage1Result {
+function makeCases(): CasesResponse {
   return {
-    caso_id: "shadowray",
-    estado: "nao_iniciado",
-    entrada: { caso_id: "shadowray", nome: "ShadowRay" },
-    saida: null,
+    casos: [{ id: "shadowray", nome: "ShadowRay" }],
+    progresso: { casos_concluidos: 0, total_casos: 8, percentual: 0 },
   }
 }
 
-describe("ExecutionWizard — propaga a versão ao Estágio 1 (Req. 3.1, 6.2)", () => {
+function makeResultadoEstagio1(versao: string): ResultadoEstagio1 {
+  return {
+    versao,
+    concluido: true,
+    bundle_em_disco: true,
+    dashboard: null,
+    campanhas: [],
+    curada: true,
+  }
+}
+
+const bases: BaseStixInfo[] = [
+  {
+    versao: "18.0",
+    nome: "MITRE ATT&CK v18.0",
+    baixada: true,
+    selecionavel: true,
+    arquivo: "enterprise-attack-18.0.json",
+  },
+]
+
+describe("ExecutionWizard — propaga a versão ao Estágio 1 (Req. 4.1, 5.1, 5.2)", () => {
   beforeEach(() => {
-    getEstagio1Mock.mockReset()
-    getEstagio1Mock.mockResolvedValue(makeStage1Result())
+    getEstagioBaseStixMock.mockReset()
+    getEstagioBaseStixMock.mockResolvedValue(makeResultadoEstagio1("18.0"))
+    getBasesMock.mockReset()
+    getBasesMock.mockResolvedValue(bases)
+    fetchCasesMock.mockReset()
+    fetchCasesMock.mockResolvedValue(makeCases())
     getCasoMock.mockReset()
     getCasoMock.mockResolvedValue(makeCaso([]))
   })
 
-  it("com `versao`: o Stage1View do Estágio 1 chama getEstagio1(casoId, versao)", async () => {
-    renderWithI18n(<ExecutionWizard casoId="shadowray" versao="18.0" />)
+  it("ao selecionar uma base: o BaseStixView chama getEstagioBaseStix(probe, versao)", async () => {
+    renderWithI18n(<ExecutionWizard />)
 
-    await waitFor(() => expect(getEstagio1Mock).toHaveBeenCalledTimes(1))
-    expect(getEstagio1Mock).toHaveBeenCalledWith("shadowray", "18.0")
+    // No base selected yet: the bases list loads, no verdict read.
+    await waitFor(() => expect(getBasesMock).toHaveBeenCalled())
+    expect(getEstagioBaseStixMock).not.toHaveBeenCalled()
+
+    // Select the base 18.0 from the list; the verdict read fires with the probe
+    // id resolved from fetchCases.
+    const selecionar = await screen.findByRole("button", { name: "Selecionar" })
+    await userEvent.click(selecionar)
+
+    await waitFor(() =>
+      expect(getEstagioBaseStixMock).toHaveBeenCalledWith("shadowray", "18.0"),
+    )
   })
 
-  it("sem `versao`: o Stage1View do Estágio 1 chama getEstagio1(casoId, undefined)", async () => {
-    renderWithI18n(<ExecutionWizard casoId="shadowray" />)
+  it("sem base selecionada: o Estágio 1 mostra a lista de bases e não consulta o veredito", async () => {
+    renderWithI18n(<ExecutionWizard />)
 
-    await waitFor(() => expect(getEstagio1Mock).toHaveBeenCalledTimes(1))
-    expect(getEstagio1Mock).toHaveBeenCalledWith("shadowray", undefined)
+    await waitFor(() => expect(getBasesMock).toHaveBeenCalled())
+    expect(getEstagioBaseStixMock).not.toHaveBeenCalled()
   })
 })

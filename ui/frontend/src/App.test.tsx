@@ -5,8 +5,9 @@ import userEvent from "@testing-library/user-event"
 import { renderWithI18n } from "@/test/render"
 import App from "@/App"
 import type { BaseStixInfo } from "@/lib/stix"
+import type { Caso, CasesResponse } from "@/lib/casos"
 
-// Mock every API wrapper the App touches so no network is used and the flow
+// Mock every API wrapper the App + wizard touch so no network is used and the
 // routing can be driven deterministically.
 vi.mock("@/lib/preferencias", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/preferencias")>()
@@ -19,61 +20,90 @@ vi.mock("@/lib/preferencias", async (importOriginal) => {
 
 vi.mock("@/lib/stix", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/stix")>()
-  return {
-    ...actual,
-    getBases: vi.fn(),
-    baixarBase: vi.fn(),
-    getDashboard: vi.fn(),
-    getCampanhas: vi.fn(),
-    getAtores: vi.fn(),
-  }
+  return { ...actual, getBases: vi.fn() }
 })
 
-vi.mock("@/lib/dag", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/dag")>()
-  return { ...actual, getDag: vi.fn() }
+vi.mock("@/lib/casos", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/casos")>()
+  return { ...actual, fetchCases: vi.fn() }
+})
+
+vi.mock("@/lib/wizard", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/wizard")>()
+  return { ...actual, getCaso: vi.fn(), resetCaso: vi.fn() }
 })
 
 import { getBases } from "@/lib/stix"
+import { fetchCases } from "@/lib/casos"
+import { getCaso } from "@/lib/wizard"
 
 const getBasesMock = vi.mocked(getBases)
+const fetchCasesMock = vi.mocked(fetchCases)
+const getCasoMock = vi.mocked(getCaso)
 
 function makeBases(): BaseStixInfo[] {
   return [
     {
-      versao: "14.0",
-      nome: "Enterprise ATT&CK v14.0",
+      versao: "18.0",
+      nome: "Enterprise ATT&CK v18.0",
       baixada: true,
       selecionavel: true,
-      arquivo: "enterprise-attack-14.0.json",
+      arquivo: "enterprise-attack-18.0.json",
     },
   ]
 }
 
-describe("App flow integration (Req. 7.1, 9.3 — landing → bases routing)", () => {
+function makeCases(): CasesResponse {
+  return {
+    casos: [{ id: "shadowray", nome: "ShadowRay" }],
+    progresso: { casos_concluidos: 0, total_casos: 8, percentual: 0 },
+  }
+}
+
+function makeCaso(): Caso {
+  return {
+    id: "shadowray",
+    nome: "ShadowRay",
+    estados: {
+      concluido_total: false,
+      estagios: [1, 2, 3, 4, 5, 6].map((estagio) => ({
+        estagio: estagio as 1 | 2 | 3 | 4 | 5 | 6,
+        estado: "nao_iniciado" as const,
+        progresso: 0,
+        bloqueado: estagio > 1,
+      })),
+    },
+  }
+}
+
+describe("App flow integration (landing → wizard routing)", () => {
   beforeEach(() => {
     getBasesMock.mockReset()
     getBasesMock.mockResolvedValue(makeBases())
+    fetchCasesMock.mockReset()
+    fetchCasesMock.mockResolvedValue(makeCases())
+    getCasoMock.mockReset()
+    getCasoMock.mockResolvedValue(makeCaso())
   })
 
-  it("mounts the Landing first, then switches to the bases screen on the CTA click", async () => {
+  it("mounts the Landing first, then enters the ExecutionWizard on the CTA click", async () => {
     const user = userEvent.setup()
     renderWithI18n(<App />)
 
-    // Landing is the entry screen: its CTA is present.
+    // Landing is the entry screen: its CTA is present and the wizard is not.
     const cta = await screen.findByRole("button", { name: "Iniciar campanha" })
     expect(cta).toBeInTheDocument()
-    // The bases screen is not mounted yet.
-    expect(screen.queryByText("Bases STIX")).toBeNull()
+    expect(screen.queryByTestId("execution-wizard")).toBeNull()
 
-    // Driving INICIAR via the CTA switches the view landing → bases.
+    // START via the CTA switches the view landing → wizard, straight into
+    // Stage 1 (STIX base selection) — no standalone bases/dashboard screens.
     await user.click(cta)
 
-    // The bases screen mounts and loads the (mocked) bases list.
-    expect(await screen.findByText("Bases STIX")).toBeInTheDocument()
-    expect(await screen.findByText("Enterprise ATT&CK v14.0")).toBeInTheDocument()
-    expect(getBasesMock).toHaveBeenCalled()
-    // The Landing CTA is gone once we advanced.
-    expect(screen.queryByRole("button", { name: "Iniciar campanha" })).toBeNull()
+    expect(await screen.findByTestId("execution-wizard")).toBeInTheDocument()
+    expect(await screen.findByText("Passo 1 de 6")).toBeInTheDocument()
+    // The Landing CTA is gone once we entered the wizard.
+    expect(
+      screen.queryByRole("button", { name: "Iniciar campanha" }),
+    ).toBeNull()
   })
 })

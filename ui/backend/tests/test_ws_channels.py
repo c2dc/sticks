@@ -199,6 +199,75 @@ def test_estagios_channel_pushes_repeatedly_while_em_andamento(
     assert frames[1]["estado_anterior"] == StageState.IN_PROGRESS.value
 
 
+@pytest.mark.parametrize("estagio", [1, 2, 3, 4, 5, 6])
+def test_estagios_channel_accepts_all_six_stages(
+    client: TestClient,
+    session_factory: sessionmaker[Session],
+    estagio: int,
+) -> None:
+    """Every stage in ``VALID_STAGES`` (1..6) is accepted by the channel.
+
+    After task 1.1 widened ``VALID_STAGES`` to ``(1, 2, 3, 4, 5, 6)``, the
+    ``WS /ws/estagios/{caso}`` channel — which validates ``estagio`` against
+    that constant — must accept 1..6 and push a typed ``StageProgressEvent``
+    frame (not the ``invalido`` guard frame). _Requisitos: 1.2, 3.1_
+    """
+    session = session_factory()
+    try:
+        _seed_case(session)
+        session.add(
+            StageRun(
+                caso_id="shadowray",
+                estagio=estagio,
+                estado=StageState.COMPLETED,
+                progresso=100,
+            )
+        )
+        session.commit()
+    finally:
+        session.close()
+
+    with client.websocket_connect(
+        f"/ws/estagios/shadowray?intervalo=0&estagio={estagio}"
+    ) as ws:
+        frame = ws.receive_json()
+
+    # A valid stage yields a StageProgressEvent frame, never the ``invalido``
+    # guard frame reserved for out-of-range stages.
+    assert frame.get("valido") is not False
+    assert frame["caso_id"] == "shadowray"
+    assert frame["estagio"] == estagio
+    assert frame["estado"] == StageState.COMPLETED.value  # "concluido"
+    assert frame["progresso"] == 100
+
+
+@pytest.mark.parametrize("estagio", [0, 7])
+def test_estagios_channel_rejects_out_of_range_stage(
+    client: TestClient,
+    session_factory: sessionmaker[Session],
+    estagio: int,
+) -> None:
+    """Stages outside ``VALID_STAGES`` yield a single ``invalido`` frame.
+
+    0 and 7 bracket the 1..6 range; both must be rejected gracefully with an
+    informational frame rather than raising into the socket. _Requisitos: 3.1_
+    """
+    session = session_factory()
+    try:
+        _seed_case(session)
+    finally:
+        session.close()
+
+    with client.websocket_connect(
+        f"/ws/estagios/shadowray?intervalo=0&estagio={estagio}"
+    ) as ws:
+        frame = ws.receive_json()
+
+    assert frame["valido"] is False
+    assert frame["estagio"] == estagio
+    assert "mensagem" in frame
+
+
 def test_estagios_channel_reports_not_started_when_no_stage_run(
     client: TestClient, session_factory: sessionmaker[Session]
 ) -> None:

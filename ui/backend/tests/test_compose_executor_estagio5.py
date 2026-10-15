@@ -1,0 +1,351 @@
+"""Example-based tests for ``DockerComposeExecutor`` with a fake subprocess (task 1.3).
+
+A costura de execução do laboratório (:class:`DockerComposeExecutor`) roda o
+``docker compose`` via :mod:`subprocess` na **forma de lista de argumentos** (sem
+shell), lê ``stdout``/``stderr`` linha a linha e empurra cada :class:`LinhaLog`
+por ``on_log`` em tempo quase real; o ``codigo`` do :class:`ResultadoComando` é o
+*exit code* do processo.
+
+Estes testes substituem ``subprocess.Popen`` por um **fake** (sem subprocess
+real, sem daemon Docker) que roteia linhas pré-roteirizadas e devolve um *exit
+code* configurável, cobrindo:
+
+1. **Sucesso** (``codigo == 0``): as linhas chegam ao ``on_log`` na ordem.
+2. **Falha ao subir** (``codigo != 0``): o *exit code* propaga como falha
+   (Req. 3.5).
+3. **Ordem do streaming**: ``on_log`` recebe a linha ``comando`` primeiro, depois
+   as linhas de ``stdout`` na ordem de emissão (Req. 2.3).
+4. **Argv sem a camada de aplicação**: o ``up`` nomeia **apenas** os quatro
+   serviços do laboratório de ataque — nunca ``frontend``/``backend``/``postgres``
+   nem o perfil ``containers`` (Req. 3.4).
+
+Nada aqui toca rede, daemon Docker ou shell; o fake é injetado por ``monkeypatch``
+no símbolo ``subprocess.Popen`` que o executor resolve ao rodar.
+
+_Requisitos: 2.3, 3.4, 3.5_
+"""
+
+from __future__ import annotations
+
+import subprocess
+from collections.abc import Iterator
+from typing import Callable
+
+import pytest
+
+from app.services.environment.compose_executor import (
+    ComposeExecutor,
+    DockerComposeExecutor,
+    LinhaLog,
+    SERVICOS_LABORATORIO,
+)
+
+
+# ---------------------------------------------------------------------------
+# Fake subprocess (no real process, no Docker daemon, no shell)
+# ---------------------------------------------------------------------------
+
+
+# Serviços da camada de aplicação da Pipeline_UI que o ``up`` do laboratório de
+# ataque jamais deve nomear (Req. 3.4) — nem o perfil que os agrupa.
+_APP_SERVICES: tuple[str, ...] = ("frontend", "backend", "postgres")
+_APP_PROFILE = "containers"
+
+
+class _FakeStdout:
+    """``stdout`` falso: iterável das linhas roteirizadas, com ``close()`` no-op.
+
+    Espelha o objeto-arquivo do ``Popen.stdout`` real (``text=True``,
+    line-buffered): produz cada linha terminada em ``\\n`` na iteração e expõe um
+    ``close()`` — que o executor chama após drenar as linhas.
+    """
+
+    def __init__(self, linhas: list[str]) -> None:
+        self._iter = iter([f"{linha}\n" for linha in linhas])
+        self.closed = False
+
+    def __iter__(self) -> "_FakeStdout":
+        return self
+
+    def __next__(self) -> str:
+        return next(self._iter)
+
+    def close(self) -> None:
+        self.closed = True
+
+
+class _FakePopen:
+    """Fake de ``subprocess.Popen``: roteia linhas pré-roteirizadas + exit code.
+
+    Grava o ``argv`` recebido para asserção, expõe ``stdout`` como um
+    :class:`_FakeStdout` das linhas pré-roteirizadas (cada uma terminada em
+    ``\\n``, como o ``text=True``/line-buffered real entrega) e devolve o *exit
+    code* configurado em :meth:`wait`. Não cria processo algum.
+    """
+
+    #: ``argv`` da última instância criada, para asserção do comando montado.
+    ultimo_argv: list[str] | None = None
+
+    def __init__(
+        self,
+        argv: list[str],
+        *,
+        _linhas: list[str],
+        _codigo: int,
+        **_kwargs: object,
+    ) -> None:
+        type(self).ultimo_argv = list(argv)
+        self.stdout = _FakeStdout(_linhas)
+        self._codigo = _codigo
+
+    def wait(self) -> int:
+        return self._codigo
+
+
+def _fake_popen_factory(
+    linhas: list[str], codigo: int
+) -> Callable[..., _FakePopen]:
+    """Fábrica de ``Popen`` falso ligando ``linhas``/``codigo`` roteirizados."""
+
+    def _factory(argv: list[str], **kwargs: object) -> _FakePopen:
+        return _FakePopen(argv, _linhas=linhas, _codigo=codigo, **kwargs)
+
+    return _factory
+
+
+@pytest.fixture()
+def coletor() -> Iterator[list[LinhaLog]]:
+    """Um coletor (lista) que ``on_log`` preenche, na ordem de emissão."""
+    yield []
+
+
+# ---------------------------------------------------------------------------
+# Tests
+# ---------------------------------------------------------------------------
+
+
+def test_executor_satisfies_the_protocol() -> None:
+    """``DockerComposeExecutor`` satisfaz estruturalmente o ``ComposeExecutor``."""
+    assert isinstance(DockerComposeExecutor(), ComposeExecutor)
+
+
+def test_subir_sucesso_rota_linhas_na_ordem_com_codigo_zero(
+    monkeypatch: pytest.MonkeyPatch, coletor: list[LinhaLog]
+) -> None:
+    """Sucesso: ``codigo == 0`` e as linhas de stdout chegam ao ``on_log`` em ordem.
+    _Requisitos: 2.3, 3.5_"""
+    saida = ["Creating network", "Container caldera-attacker Started", "Waiting..."]
+    monkeypatch.setattr(subprocess, "Popen", _fake_popen_factory(saida, 0))
+
+    resultado = DockerComposeExecutor(imagem_existe=lambda _n: True).subir(
+        "docker/docker-compose.yml", on_log=coletor.append
+    )
+
+    assert resultado.codigo == 0
+    # As linhas de stdout coletadas (fora a linha "comando") preservam a ordem.
+    stdout_texts = [l.texto for l in coletor if l.fluxo == "stdout"]
+    assert stdout_texts == saida
+    # ``resultado.linhas`` espelha o que foi empurrado por ``on_log``.
+    assert resultado.linhas == coletor
+
+
+def test_subir_falha_propaga_exit_code_nao_zero(
+    monkeypatch: pytest.MonkeyPatch, coletor: list[LinhaLog]
+) -> None:
+    """Falha ao subir: um ``codigo != 0`` propaga como falha (Req. 3.5).
+    _Requisitos: 3.5_"""
+    saida = ["Container nginx-target Error", "dependency failed to start"]
+    monkeypatch.setattr(subprocess, "Popen", _fake_popen_factory(saida, 1))
+
+    resultado = DockerComposeExecutor(imagem_existe=lambda _n: True).subir(
+        "docker/docker-compose.yml", on_log=coletor.append
+    )
+
+    assert resultado.codigo == 1
+    # Mesmo em falha, as linhas emitidas são roteadas (para a tela/console).
+    assert [l.texto for l in coletor if l.fluxo == "stdout"] == saida
+
+
+def test_subir_ordem_do_streaming_comando_antes_do_stdout(
+    monkeypatch: pytest.MonkeyPatch, coletor: list[LinhaLog]
+) -> None:
+    """Ordem do streaming: a linha ``comando`` sai primeiro, depois os ``stdout``.
+    _Requisitos: 2.3_"""
+    saida = ["linha-1", "linha-2", "linha-3"]
+    monkeypatch.setattr(subprocess, "Popen", _fake_popen_factory(saida, 0))
+
+    DockerComposeExecutor(imagem_existe=lambda _n: True).subir(
+        "docker/docker-compose.yml", on_log=coletor.append
+    )
+
+    fluxos = [l.fluxo for l in coletor]
+    # Exatamente uma linha de comando, e ela é a PRIMEIRA.
+    assert fluxos[0] == "comando"
+    assert fluxos.count("comando") == 1
+    # Em seguida, as linhas de stdout na ordem exata de emissão.
+    assert [l.texto for l in coletor[1:]] == saida
+    # Toda a sequência é da etapa "subir_conteineres".
+    assert all(l.etapa == "subir_conteineres" for l in coletor)
+
+
+def test_subir_argv_nomeia_apenas_servicos_do_laboratorio(
+    monkeypatch: pytest.MonkeyPatch, coletor: list[LinhaLog]
+) -> None:
+    """Argv do ``subir``: só os serviços do laboratório; nunca a camada de aplicação.
+    _Requisitos: 3.4_"""
+    monkeypatch.setattr(subprocess, "Popen", _fake_popen_factory([], 0))
+
+    DockerComposeExecutor(imagem_existe=lambda _n: True).subir(
+        "docker/docker-compose.yml", on_log=coletor.append
+    )
+
+    argv = _FakePopen.ultimo_argv
+    assert argv is not None
+    # Forma de lista de argumentos esperada, sem shell. Imagens presentes =>
+    # ``up --no-build`` (reuso, Req. 11.2).
+    assert argv[:8] == [
+        "docker",
+        "compose",
+        "-f",
+        "docker/docker-compose.yml",
+        "up",
+        "-d",
+        "--wait",
+        "--no-build",
+    ]
+    # Nomeia EXATAMENTE os quatro serviços do laboratório de ataque, em ordem.
+    assert argv[8:] == list(SERVICOS_LABORATORIO)
+
+    # NÃO inclui nenhum serviço da camada de aplicação nem o perfil que os agrupa.
+    for app_service in _APP_SERVICES:
+        assert app_service not in argv
+    assert _APP_PROFILE not in argv
+    assert "--profile" not in argv
+
+
+def test_subir_docker_ausente_fail_closed_codigo_127(
+    monkeypatch: pytest.MonkeyPatch, coletor: list[LinhaLog]
+) -> None:
+    """Docker ausente (``FileNotFoundError``) → fail-closed com ``codigo`` 127.
+    _Requisitos: 3.5_"""
+
+    def _raise(argv: list[str], **kwargs: object) -> None:
+        raise FileNotFoundError("docker não encontrado no PATH")
+
+    monkeypatch.setattr(subprocess, "Popen", _raise)
+
+    resultado = DockerComposeExecutor(imagem_existe=lambda _n: True).subir(
+        "docker/docker-compose.yml", on_log=coletor.append
+    )
+
+    assert resultado.codigo == 127
+    # A causa é reportada como uma linha de stderr, após a linha "comando".
+    assert coletor[0].fluxo == "comando"
+    assert any(l.fluxo == "stderr" for l in coletor)
+
+
+# ---------------------------------------------------------------------------
+# Reuso de imagem e build condicional (task 12.5 — Req. 11.1, 11.2, 11.3, 11.6)
+# ---------------------------------------------------------------------------
+
+
+class _GravadorPopen:
+    """Fake de ``Popen`` que grava TODOS os argvs (build + up em sequencia).
+
+    Diferente de :class:`_FakePopen` (que guarda so o ultimo argv), este coletor
+    registra cada comando montado, de modo que os testes de build-condicional
+    assertem a sequencia build -> up (ou apenas up) e o conteudo de cada um.
+    """
+
+    def __init__(self, codigo: int = 0) -> None:
+        self.argvs: list[list[str]] = []
+        self._codigo = codigo
+
+    def __call__(self, argv, **kwargs):
+        self.argvs.append(list(argv))
+        return _FakePopen(argv, _linhas=[], _codigo=self._codigo)
+
+
+def test_subir_todas_imagens_presentes_usa_no_build_sem_build(
+    monkeypatch: pytest.MonkeyPatch, coletor: list[LinhaLog]
+) -> None:
+    """Imagens presentes -> ``up --no-build`` e NENHUMA chamada de ``build`` (Req. 11.2).
+    _Requisitos: 11.1, 11.2_"""
+    grav = _GravadorPopen(codigo=0)
+    monkeypatch.setattr(subprocess, "Popen", grav)
+
+    DockerComposeExecutor(imagem_existe=lambda _n: True).subir(
+        "docker/docker-compose.yml", on_log=coletor.append
+    )
+
+    # Exatamente um comando: o ``up`` (sem build), com ``--no-build``.
+    assert len(grav.argvs) == 1
+    up = grav.argvs[0]
+    assert "build" not in up
+    assert "up" in up and "--no-build" in up
+    assert up[-4:] == list(SERVICOS_LABORATORIO)
+
+
+def test_subir_imagem_faltando_builda_antes_e_entao_sobe(
+    monkeypatch: pytest.MonkeyPatch, coletor: list[LinhaLog]
+) -> None:
+    """Falta imagem -> ``build`` dos faltantes primeiro, depois ``up`` (Req. 11.3).
+    _Requisitos: 11.1, 11.3_"""
+    grav = _GravadorPopen(codigo=0)
+    monkeypatch.setattr(subprocess, "Popen", grav)
+
+    # Só a imagem do kali falta; as demais existem.
+    def _existe(nome: str) -> bool:
+        return "kali-attacker" not in nome
+
+    DockerComposeExecutor(imagem_existe=_existe).subir(
+        "docker/docker-compose.yml", on_log=coletor.append
+    )
+
+    assert len(grav.argvs) == 2, "esperava build seguido de up"
+    build, up = grav.argvs
+    # 1) build nomeia APENAS o servico faltante (kali-attacker).
+    assert "build" in build
+    assert "kali-attacker" in build
+    assert build[build.index("build") + 1 :] == ["kali-attacker"]
+    # 2) up em seguida, com --no-build e todos os servicos.
+    assert "up" in up and "--no-build" in up
+    assert up[-4:] == list(SERVICOS_LABORATORIO)
+
+
+def test_subir_build_falha_nao_sobe(
+    monkeypatch: pytest.MonkeyPatch, coletor: list[LinhaLog]
+) -> None:
+    """Build falha (codigo != 0) -> NAO executa o ``up`` e propaga a falha (Req. 11.3).
+    _Requisitos: 11.3_"""
+    grav = _GravadorPopen(codigo=1)  # build retorna != 0
+    monkeypatch.setattr(subprocess, "Popen", grav)
+
+    resultado = DockerComposeExecutor(imagem_existe=lambda _n: False).subir(
+        "docker/docker-compose.yml", on_log=coletor.append
+    )
+
+    assert resultado.codigo == 1
+    # Houve build (ao menos um) e NENHUM up — a subida nao ocorre apos build falho.
+    assert any("build" in a for a in grav.argvs)
+    assert all("up" not in a for a in grav.argvs)
+
+
+def test_derrubar_nunca_inclui_rmi_preserva_imagem(
+    monkeypatch: pytest.MonkeyPatch, coletor: list[LinhaLog]
+) -> None:
+    """``derrubar`` -> ``compose down`` SEM ``--rmi`` (preserva a imagem — Req. 11.6).
+    _Requisitos: 8.2, 11.6_"""
+    grav = _GravadorPopen(codigo=0)
+    monkeypatch.setattr(subprocess, "Popen", grav)
+
+    DockerComposeExecutor().derrubar(
+        "docker/docker-compose.yml", on_log=coletor.append
+    )
+
+    assert len(grav.argvs) == 1
+    down = grav.argvs[0]
+    assert "down" in down
+    # NUNCA remove imagens nem volumes de dados persistentes.
+    assert "--rmi" not in down
+    assert "-v" not in down and "--volumes" not in down

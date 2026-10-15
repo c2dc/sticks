@@ -4,114 +4,177 @@ import { ArrowLeft, ArrowRight, Loader2, Play, RotateCcw } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { BaseStixView } from "@/components/BaseStixView"
+import { CampanhaView } from "@/components/CampanhaView"
 import { DagStageView } from "@/components/DagStageView"
 import { EnvironmentStageView } from "@/components/EnvironmentStageView"
-import { Stage1View } from "@/components/Stage1View"
+import { ParametrosAmbienteView } from "@/components/ParametrosAmbienteView"
+import { RelatorioView } from "@/components/RelatorioView"
 import { Stage2View } from "@/components/Stage2View"
 import { Stage3View } from "@/components/Stage3View"
 import { StageStateBadge } from "@/components/StageStateBadge"
 import { cn } from "@/lib/utils"
-import type { CaseStageStates, NumeroEstagio } from "@/lib/casos"
+import { concluirOperacionalizacao } from "@/lib/estagios"
+import { fetchCases, type CaseStageStates, type NumeroEstagio } from "@/lib/casos"
+import { PIPELINE_STAGES } from "@/lib/casos"
 import {
-  concluirTraducao,
   derivarApresentacao,
   derivarEstados,
   estagiosConcluidos,
-  executarModelagem,
   getCaso,
   resetCaso,
 } from "@/lib/wizard"
 
+/** Last stage of the six-stage pipeline (derived from the single source). */
+const LAST_STAGE = PIPELINE_STAGES[PIPELINE_STAGES.length - 1]
+
 /**
- * ExecutionWizard — fluxo guiado "Modelar → Gerar DAG → Operacionalizar →
- * Provisionar → Executar".
+ * ExecutionWizard — guided flow across the **6 stages** of the pipeline, one
+ * screen per stage, with the stage trail always visible at the top:
  *
- * Conduz o Pesquisador pelos **5 Estágios** de uma campanha (esquema
- * pipeline-cinco-estagios, 1..5):
- * - Estágio 1 — Modelagem Estrutural: corpo `Stage1View`; o botão "Executar
- *   modelagem" dispara POST /estagio/1/executar (`executarModelagem`). É o
- *   ponto de partida do pipeline e nunca fica bloqueado.
- * - Estágio 2 — Geração do DAG: corpo `DagStageView`. Para casos curados o
- *   Estágio 2 já vem `concluido` (auto-concluído pelo backend). O botão único
- *   "Gerar DAG" vive no `DagStageView` e fica desabilitado quando não há DAG; a
- *   conclusão/escolha do DAG chega pela costura `onDagEscolhido` → relê o
- *   backend.
- * - Estágio 3 — Operacionalização: corpo `Stage2View`; "Avançar" conclui a
- *   Operacionalização (POST /estagio/3/concluir, `concluirTraducao`) e segue
- *   para o Estágio 4.
- * - Estágio 4 — Provisionamento do Ambiente: corpo `EnvironmentStageView`. Para
- *   casos curados é auto-concluído (pronto); quando não isolado/não verificável,
- *   o avanço é bloqueado pelo gate sequencial do backend.
- * - Estágio 5 — Execução da Campanha: corpo `Stage3View` + EmulationConfirmModal
- *   (aberto pelo App via `onRequestEmulation`). É o último Estágio — sem
- *   "Avançar".
+ * - Stage 1 — STIX base selection ({@link BaseStixView}): lists/downloads the
+ *   base and shows the bundle dashboard.
+ * - Stage 2 — Campaign selection ({@link CampanhaView}): picks a campaign from
+ *   the bundle and extracts its attributes. The chosen campaign's curated slug
+ *   becomes the `campaignId` that drives Stages 3..6.
+ * - Stage 3 — DAG generation ({@link DagStageView}).
+ * - Stage 4 — Operationalization ({@link Stage2View} + {@link ParametrosAmbienteView}).
+ * - Stage 5 — Simulation environment ({@link EnvironmentStageView}).
+ * - Stage 6 — Execution, measurement and report ({@link Stage3View} +
+ *   {@link RelatorioView}). Last stage — no "Next".
  *
- * NÃO mantém estado de progresso próprio: relê o backend (fonte da verdade)
- * após cada transição e deriva badges/controles com `derivarEstados` (bloqueio
- * sequencial em 1..5).
+ * Entry point: the wizard is reached straight from the Landing, with NO campaign
+ * chosen yet. Stages 1 and 2 (base/campaign listings) depend only on the base
+ * version, not on a specific campaign, so they run against a `probeId` — the
+ * first curated slug fetched from the backend — purely to list options. Once a
+ * campaign is selected in Stage 2, `campaignId` is set and governs Stages 3..6.
+ *
+ * The wizard keeps NO progress state of its own: it re-reads the backend (the
+ * source of truth) after each transition and derives badges/controls with
+ * `derivarEstados` (sequential gating over 1..6).
  */
 export function ExecutionWizard({
-  casoId,
-  versao,
   onRequestEmulation,
-  onVoltarAntesDoEstagio1,
+  onExitToStart,
 }: {
-  casoId: string
+  /** Opens the emulation confirm modal for the selected campaign id. */
+  onRequestEmulation?: (campaignId: string) => void
   /**
-   * Versão da base STIX selecionada no fluxo (Req. 3.1, 3.2). Propagada ao
-   * Estágio 1 para recortar o objeto `campaign` da base correta na Entrada e
-   * enriquecer o resultado da Modelagem. Opcional/retrocompatível: quando
-   * ausente, o backend aplica o fallback (`versao_ausente`) sem erro.
+   * "Back" on Stage 1 leaves the wizard and returns to the Landing. When
+   * absent, the Back button stays disabled on Stage 1. Does not affect the
+   * internal 1↔…↔6 navigation.
    */
-  versao?: string
-  onRequestEmulation?: (casoId: string) => void
-  /**
-   * Seam opcional: no Estágio 1, acionar "Voltar" dispara este callback para o
-   * fluxo externo retornar à fase anterior (ex.: seleção de casos — Req 7.4).
-   * Quando ausente, o botão permanece desabilitado no Estágio 1 (comportamento
-   * atual). Não altera a navegação interna 1↔2↔3↔4↔5 (estágios > 1 seguem
-   * usando handleBack).
-   */
-  onVoltarAntesDoEstagio1?: () => void
+  onExitToStart?: () => void
 }) {
   const { t } = useTranslation("pipeline")
 
   const [estagioAtual, setEstagioAtual] = useState<NumeroEstagio>(1)
-  // Marca de avanço do Pesquisador (monotônica): maior estágio já alcançado
-  // nesta sessão. Governa a *apresentação* (um estágio concluído no backend só
-  // aparece como "concluído" depois de ter sido alcançado); a habilitação
-  // continua governada por `derivarEstados`. Reseta ao trocar de caso ou
-  // reiniciar. (Consumida pela derivação de apresentação na próxima etapa.)
+  // Monotonic advance mark: the furthest stage reached this session. Governs
+  // presentation (a stage completed on the backend only shows as "completed"
+  // once it has been reached); enablement stays governed by `derivarEstados`.
   const [maxEstagioVisitado, setMaxEstagioVisitado] = useState<NumeroEstagio>(1)
   const [concluidos, setConcluidos] = useState<number[]>([])
+  // STIX base version chosen in Stage 1; consumed by Stages 1 and 2.
+  const [versaoSelecionada, setVersaoSelecionada] = useState<string | undefined>(
+    undefined,
+  )
+  // Probe slug used only to list base/campaign options in Stages 1-2 before a
+  // campaign is chosen. Any curated slug works since those listings depend on
+  // the base version, not on a specific campaign.
+  const [probeId, setProbeId] = useState<string | undefined>(undefined)
+  // The chosen campaign's curated slug — set when the campaign is selected in
+  // Stage 2. Drives Stages 3..6. Until then it is undefined.
+  const [campaignId, setCampaignId] = useState<string | undefined>(undefined)
+  // Stage 1 completion is a client-side verdict (bundle on disk + dashboard
+  // shown), reported by BaseStixView via onConclusaoChange. Stage 1 is pure
+  // selection/visualization with no backend StageRun to persist, so the
+  // wizard merges this verdict into the completed set that governs the gate.
+  const [estagio1Ok, setEstagio1Ok] = useState(false)
+  // Stage 2 completion mirrors Stage 1: selecting a campaign extracts its
+  // attributes and yields a client-side "concluido" verdict
+  // (ResultadoSelecaoCampanha.concluido) that the backend does not persist as
+  // a StageRun. CampanhaView only calls onConcluido on a successful
+  // extraction, so this flag tracks that success and feeds the gate.
+  const [estagio2Ok, setEstagio2Ok] = useState(false)
   const [busy, setBusy] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
-  // Chave para forçar o remount das Stage*View e recarregarem os dados após
-  // uma transição (ex.: após executar a modelagem do Estágio 1).
+  // Key to force the Stage*View remount and data reload after a transition.
   const [refreshKey, setRefreshKey] = useState(0)
 
+  // The id that backend-addressed stages operate on: the chosen campaign once
+  // selected, otherwise the probe slug for the pre-selection stages (1-2).
+  const activeId = campaignId ?? probeId
+
   const relerEstado = useCallback(async () => {
-    const caso = await getCaso(casoId)
+    if (!activeId) return
+    const caso = await getCaso(activeId)
     setConcluidos(estagiosConcluidos(caso.estados))
     setRefreshKey((k) => k + 1)
-  }, [casoId])
+  }, [activeId])
 
-  // Carrega o estado inicial e volta ao Estágio 1 quando a campanha muda.
+  // Stage 5 reports provisioning completion WHILE the stage is open. Re-read
+  // the backend state to unlock "Próximo" (Req. 6.4, 7.3) WITHOUT bumping
+  // `refreshKey` — remounting the Stage 5 body would re-trigger provisioning
+  // (idempotent, but it would loop with the completion callback). Stable
+  // identity so it never re-runs the EnvironmentStageView mount effect.
+  const handleProvisionamentoConcluido = useCallback(() => {
+    if (!activeId) return
+    getCaso(activeId)
+      .then((caso) => setConcluidos(estagiosConcluidos(caso.estados)))
+      .catch(() => {
+        // Best-effort: the next transition re-reads the backend anyway.
+      })
+  }, [activeId])
+
+  // Resolve the probe slug once on mount (first curated case). Failing to fetch
+  // it leaves Stage 1 able to list bases (that path does not need the probe for
+  // the base list itself), but the stage verdict read is skipped until an id
+  // exists.
   useEffect(() => {
-    setEstagioAtual(1)
-    setMaxEstagioVisitado(1)
+    let active = true
+    fetchCases()
+      .then((resp) => {
+        if (!active) return
+        const first = resp.casos[0]?.id
+        if (first) setProbeId(first)
+      })
+      .catch(() => {
+        // Best-effort: the base list still renders; selecting a campaign later
+        // provides a real id for the backend-addressed reads.
+      })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  // Load initial state once an addressable id is known.
+  useEffect(() => {
     setErro(null)
     void relerEstado().catch(() => setErro(t("stageView.loadError")))
-  }, [casoId, relerEstado, t])
+  }, [relerEstado, t])
 
-  const derived = derivarEstados(concluidos)
-  // Camada de apresentação (wizard-progresso-estagios): deriva o
-  // Estado_Apresentado de cada badge a partir do Estado_Real (`concluidos`), do
-  // avanço do Pesquisador (`maxEstagioVisitado`) e da janela aberta
-  // (`estagioAtual`). NÃO governa o gate/avanço — isso continua em `derived`
-  // (`derivarEstados`). Só afeta o que a badge mostra e a nota de pré-concluído.
+  // Effective completed set: the backend-reported stages plus Stage 1 when its
+  // client-side verdict holds. This is the single source for both the gate
+  // (`derivarEstados`) and the presentation (`derivarApresentacao`).
+  // Stages 1 and 2 are governed by client-side verdicts (estagio1Ok /
+  // estagio2Ok). The backend may auto-conclude them for curated cases, which
+  // would show "completed" badges before the researcher actually selected a
+  // base or campaign. So: stage 1 is only counted when estagio1Ok, stage 2
+  // only when estagio2Ok — regardless of what the backend reports for them.
+  const concluidosEfetivos = (() => {
+    const set = new Set(concluidos)
+    // Remove backend auto-concluded 1/2 unless the client-side verdict agrees.
+    if (!estagio1Ok) set.delete(1)
+    if (!estagio2Ok) set.delete(2)
+    if (estagio1Ok) set.add(1)
+    if (estagio2Ok) set.add(2)
+    return [...set]
+  })()
+  const derived = derivarEstados(concluidosEfetivos)
+  // Presentation layer (gradual reveal + pre-completed mark). Does NOT govern
+  // the gate/advance — that stays in `derived` (`derivarEstados`).
   const apresentacao = derivarApresentacao(
-    concluidos,
+    concluidosEfetivos,
     maxEstagioVisitado,
     estagioAtual,
   )
@@ -119,82 +182,91 @@ export function ExecutionWizard({
     apresentacao.estagios.find((e) => e.estagio === estagioAtual)?.preConcluido ??
     false
   const statusAtual = derived.estagios.find((e) => e.estagio === estagioAtual)?.status
-  const estagio1Concluido = concluidos.includes(1)
-  // Special case for Estágio 3 (Operacionalização): the curated material means
-  // "avançar = concluir". Clicking "Próximo" here is what POSTs
-  // /estagio/3/concluir, so the button must be enabled while Estágio 3 is still
-  // AVAILABLE (its predecessor, Estágio 2, is concluded) but not yet concluded
-  // — otherwise the gate would require the stage to be concluded to allow the
-  // very action that concludes it (a dead end). For every other stage the plain
-  // sequential gate applies (advance only once the current stage is concluded).
-  const podeConcluirEstagio3Agora =
-    estagioAtual === 3 &&
-    !concluidos.includes(3) &&
+  // Stage 4 (Operationalization) special case: the material is curated, so
+  // "advance = complete". Clicking "Next" here is what POSTs
+  // /estagio/4/concluir, so the button must be enabled while Stage 4 is
+  // AVAILABLE (its predecessor, Stage 3, is complete) but not yet complete —
+  // otherwise the gate would require the stage to be complete to allow the very
+  // action that completes it. Other stages use the plain sequential gate.
+  const podeConcluirEstagio4Agora =
+    estagioAtual === 4 &&
+    !concluidosEfetivos.includes(4) &&
     statusAtual === "disponivel"
   const podeAvancar =
-    estagioAtual < 5 &&
-    (derived.podeAvancar(estagioAtual) || podeConcluirEstagio3Agora)
+    estagioAtual < LAST_STAGE &&
+    (derived.podeAvancar(estagioAtual) || podeConcluirEstagio4Agora)
 
-  // ---- ações -------------------------------------------------------------
+  // ---- actions -----------------------------------------------------------
 
   /**
-   * Estágio 2 — a conclusão vem da escolha/geração do DAG. O `DagStageView`
-   * chama este callback com os estados devolvidos pelo backend (Estágio 2 já
-   * `concluido` e Estágio 3 liberado); atualizamos `concluidos` a partir deles
-   * e, por garantia, relemos o caso como fonte da verdade.
+   * Stage 3 (DAG generation) — completion comes from choosing the DAG. The
+   * DagStageView calls this with the backend-returned states (Stage 3 already
+   * `concluido`); we update `concluidos` from them and re-read as the source of
+   * truth.
    */
   const handleDagEscolhido = (estados: CaseStageStates) => {
+    // Reconcile the gate straight from the backend-returned states. We do NOT
+    // call relerEstado() here: it bumps refreshKey and would remount the
+    // DagStageView mid-render, collapsing the just-drawn Mermaid diagram. The
+    // states already carry Stage 3 concluded + Stage 4 unlocked.
     const concluidosDoBackend = estados.estagios
       .filter((e) => e.estado === "concluido")
       .map((e) => e.estagio)
     setConcluidos(concluidosDoBackend)
-    void relerEstado().catch(() => setErro(t("stageView.loadError")))
   }
 
-  /** Estágio 1 — dispara a Modelagem Estrutural (POST /estagio/1/executar). */
-  const handleRunModelagem = async () => {
-    setBusy(true)
-    setErro(null)
-    try {
-      await executarModelagem(casoId, versao)
-      // A fonte da verdade é o estado relido do backend: se o Estágio 1 não
-      // ficou concluido, a modelagem falhou — sinaliza para o Pesquisador.
-      const caso = await getCaso(casoId)
-      const e1 = caso.estados?.estagios.find((e) => e.estagio === 1)
-      if (e1 && e1.estado === "erro") {
-        setErro(e1.erro || t("wizard.stage1ErrorHint"))
-      }
-      setConcluidos(estagiosConcluidos(caso.estados))
-      setRefreshKey((k) => k + 1)
-    } catch {
-      setErro(t("stageView.loadError"))
-    } finally {
-      setBusy(false)
+  /**
+   * Stage 2 (Campaign selection) — the chosen campaign's curated slug becomes
+   * the campaignId that drives Stages 3..6; then re-read the backend.
+   */
+  const handleCampanhaConcluida = (slugCurado: string) => {
+    // Idempotent: CampanhaView may report the same already-concluded
+    // selection more than once (e.g. after a remount). Only react when the
+    // chosen campaign actually changes, so we never loop by re-setting state
+    // that triggers another report. No refreshKey bump here — the stage
+    // transition (handleNext) is what forces a reload.
+    if (slugCurado === campaignId && estagio2Ok) return
+    setCampaignId(slugCurado)
+    // Successful extraction concludes Stage 2 (client-side verdict).
+    setEstagio2Ok(true)
+    // The effect keyed on `activeId` re-reads the backend; also read now for
+    // responsiveness so the gate reflects the chosen campaign immediately.
+    getCaso(slugCurado)
+      .then((caso) => setConcluidos(estagiosConcluidos(caso.estados)))
+      .catch(() => setErro(t("stageView.loadError")))
+  }
+
+  /** Stage 1 — the researcher chose/changed the STIX base. */
+  const handleVersaoSelecionada = (nova: string) => {
+    // Empty string means "change base" (back to the list) in BaseStixView.
+    setVersaoSelecionada(nova || undefined)
+    // Changing/clearing the base invalidates the Stage 1 verdict until the
+    // new base's bundle + dashboard are confirmed again, and also drops any
+    // prior campaign selection (Stage 2) made against the old base.
+    if (!nova) {
+      setEstagio1Ok(false)
+      setEstagio2Ok(false)
     }
   }
 
   const handleNext = async () => {
     setErro(null)
-    // Do Estágio 3, avançar significa concluir a Operacionalização.
-    if (estagioAtual === 3 && !concluidos.includes(3)) {
+    // From Stage 4, advancing means completing Operationalization.
+    if (estagioAtual === 4 && !concluidos.includes(4) && activeId) {
       setBusy(true)
       try {
-        await concluirTraducao(casoId)
+        await concluirOperacionalizacao(activeId)
         await relerEstado()
       } catch (e) {
-        setErro(
-          e instanceof Error ? e.message : t("stageView.loadError"),
-        )
+        setErro(e instanceof Error ? e.message : t("stageView.loadError"))
         setBusy(false)
         return
       }
       setBusy(false)
     }
     setEstagioAtual((n) => {
-      const novoAtual = n < 5 ? ((n + 1) as NumeroEstagio) : n
-      setMaxEstagioVisitado(
-        (m) => Math.max(m, novoAtual) as NumeroEstagio,
-      )
+      const novoAtual = n < LAST_STAGE ? ((n + 1) as NumeroEstagio) : n
+      setMaxEstagioVisitado((m) => Math.max(m, novoAtual) as NumeroEstagio)
       return novoAtual
     })
   }
@@ -205,12 +277,14 @@ export function ExecutionWizard({
   }
 
   const handleRestart = async () => {
+    if (!activeId) return
     setBusy(true)
     setErro(null)
     try {
-      await resetCaso(casoId)
+      await resetCaso(activeId)
       setEstagioAtual(1)
       setMaxEstagioVisitado(1)
+      setEstagio2Ok(false)
       await relerEstado()
     } catch {
       setErro(t("stageView.loadError"))
@@ -229,25 +303,22 @@ export function ExecutionWizard({
             {t(`stages.${estagioAtual}.name`)}
           </CardTitle>
           <span className="text-sm text-muted-foreground">
-            {t("wizard.stepIndicator", { atual: estagioAtual, total: 5 })}
+            {t("wizard.stepIndicator", {
+              atual: estagioAtual,
+              total: LAST_STAGE,
+            })}
           </span>
         </div>
 
-        {/* Trilha de badges dos 5 estágios. O `data-status` continua expondo o
-            status do gate (`derivarEstados`) — fonte da verdade do avanço e
-            atributo observado pelos testes —, enquanto o visual da badge segue
-            o Estado_Apresentado (`derivarApresentacao`): revelação gradual +
-            marca de pré-concluído (curado). */}
+        {/* Six-stage badge trail. `data-status` keeps exposing the gate status
+            (`derivarEstados`) — the source of truth for advancing and the
+            attribute asserted by tests —, while the badge visual follows the
+            presented state (`derivarApresentacao`): gradual reveal + the
+            pre-completed (curated) mark. */}
         <ol className="flex flex-wrap items-center gap-2">
           {derived.estagios.map((e) => {
-            const ap = apresentacao.estagios.find(
-              (x) => x.estagio === e.estagio,
-            )
+            const ap = apresentacao.estagios.find((x) => x.estagio === e.estagio)
             const apresentado = ap?.apresentado ?? e.status
-            // Mapeia o Estado_Apresentado para as props da badge:
-            //  "concluido"  → estado="concluido" (+ preConcluido quando curado)
-            //  "disponivel" → estado="nao_iniciado", bloqueado={false}
-            //  "bloqueado"  → estado="nao_iniciado", bloqueado={true}
             const estadoBadge: "concluido" | "nao_iniciado" =
               apresentado === "concluido" ? "concluido" : "nao_iniciado"
             const bloqueado = apresentado === "bloqueado"
@@ -256,7 +327,8 @@ export function ExecutionWizard({
                 key={e.estagio}
                 className={cn(
                   "flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs",
-                  e.estagio === estagioAtual && "border-team-blue ring-1 ring-team-blue",
+                  e.estagio === estagioAtual &&
+                    "border-team-blue ring-1 ring-team-blue",
                 )}
                 data-stage={e.estagio}
                 data-status={e.status}
@@ -268,6 +340,7 @@ export function ExecutionWizard({
                   estado={estadoBadge}
                   bloqueado={bloqueado}
                   preConcluido={ap?.preConcluido ?? false}
+                  compact
                 />
               </li>
             )
@@ -276,8 +349,8 @@ export function ExecutionWizard({
       </CardHeader>
 
       <CardContent className="flex flex-col gap-4">
-        {/* Nota explicativa de estágio pré-concluído (curado): quando a janela
-            aberta corresponde a um estágio concluído pelo sistema (R2.2). */}
+        {/* Pre-completed (curated) stage note: when the open stage corresponds
+            to a stage the system completed. */}
         {estagioAtualPreConcluido ? (
           <p
             className="rounded-md border border-team-blue/40 bg-team-blue/10 px-3 py-2 text-xs text-team-blue"
@@ -287,19 +360,60 @@ export function ExecutionWizard({
           </p>
         ) : null}
 
-        {/* Corpo do estágio atual — reaproveita as telas existentes.
-            Estágio 1 = Modelagem (Stage1View), 2 = Geração do DAG (DagStageView),
-            3 = Operacionalização (Stage2View), 4 = Provisionamento
-            (EnvironmentStageView), 5 = Execução (Stage3View). */}
-        <div key={`${casoId}-${estagioAtual}-${refreshKey}`}>
-          {estagioAtual === 1 ? <Stage1View casoId={casoId} versao={versao} /> : null}
-          {estagioAtual === 2 ? (
-            <DagStageView casoId={casoId} onDagEscolhido={handleDagEscolhido} />
+        {/* Current stage body. 1 = STIX base selection, 2 = campaign selection,
+            3 = DAG generation, 4 = operationalization, 5 = environment,
+            6 = execution/measurement/report. Stages 1-2 use the probe id to
+            list options; 3..6 require the chosen campaign id. */}
+        <div key={`${activeId ?? "nocampaign"}-${estagioAtual}-${refreshKey}`}>
+          {estagioAtual === 1 ? (
+            <BaseStixView
+              casoId={activeId ?? ""}
+              versao={versaoSelecionada}
+              onVersaoSelecionada={handleVersaoSelecionada}
+              onConclusaoChange={setEstagio1Ok}
+            />
           ) : null}
-          {estagioAtual === 3 ? <Stage2View casoId={casoId} /> : null}
-          {estagioAtual === 4 ? <EnvironmentStageView casoId={casoId} /> : null}
-          {estagioAtual === 5 ? (
-            <Stage3View casoId={casoId} onRequestEmulation={onRequestEmulation} />
+          {estagioAtual === 2 ? (
+            // Index Stage 2 by the chosen campaign once one is picked,
+            // falling back to the probe only while none is chosen. Keying on
+            // activeId makes the read-only selection the backend returns match
+            // the campaign the researcher actually selected (no reverting to
+            // the probe's campaign).
+            <CampanhaView
+              casoId={activeId ?? ""}
+              versao={versaoSelecionada}
+              onConcluido={handleCampanhaConcluida}
+            />
+          ) : null}
+          {estagioAtual === 3 && campaignId ? (
+            <DagStageView casoId={campaignId} onDagEscolhido={handleDagEscolhido} />
+          ) : null}
+          {estagioAtual === 4 && campaignId ? (
+            <div className="grid gap-4 lg:grid-cols-2">
+              <Stage2View casoId={campaignId} />
+              <ParametrosAmbienteView casoId={campaignId} />
+            </div>
+          ) : null}
+          {estagioAtual === 5 && campaignId ? (
+            <EnvironmentStageView
+              casoId={campaignId}
+              // Provisioning happens WHILE on Stage 5; when it concludes we
+              // re-read the backend state so Stage 5 shows `concluido` and the
+              // "Próximo" gate unlocks (Req. 6.4, 7.3). `relerEstado` is a
+              // stable useCallback so it won't re-trigger provisioning.
+              onProvisionamentoConcluido={handleProvisionamentoConcluido}
+            />
+          ) : null}
+          {estagioAtual === 6 && campaignId ? (
+            <div className="flex flex-col gap-4">
+              <Stage3View casoId={campaignId} onRequestEmulation={onRequestEmulation} />
+              <RelatorioView casoId={campaignId} />
+            </div>
+          ) : null}
+          {estagioAtual >= 3 && !campaignId ? (
+            <p className="text-sm text-muted-foreground" role="status">
+              {t("wizard.selectCampaignFirst")}
+            </p>
           ) : null}
         </div>
 
@@ -309,20 +423,16 @@ export function ExecutionWizard({
           </p>
         ) : null}
 
-        {/* Controles de navegação do wizard. */}
+        {/* Wizard navigation controls. */}
         <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-3">
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
               size="sm"
               onClick={
-                estagioAtual === 1 && onVoltarAntesDoEstagio1
-                  ? onVoltarAntesDoEstagio1
-                  : handleBack
+                estagioAtual === 1 && onExitToStart ? onExitToStart : handleBack
               }
-              disabled={
-                busy || (estagioAtual === 1 && !onVoltarAntesDoEstagio1)
-              }
+              disabled={busy || (estagioAtual === 1 && !onExitToStart)}
             >
               <ArrowLeft className="mr-1 size-4" aria-hidden />
               {t("wizard.back")}
@@ -331,7 +441,7 @@ export function ExecutionWizard({
               variant="ghost"
               size="sm"
               onClick={handleRestart}
-              disabled={busy}
+              disabled={busy || !activeId}
               title={t("wizard.restart")}
             >
               <RotateCcw className="mr-1 size-4" aria-hidden />
@@ -340,24 +450,12 @@ export function ExecutionWizard({
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Estágio 1 (Modelagem) não concluído: executar modelagem. */}
-            {estagioAtual === 1 && !estagio1Concluido ? (
-              <Button size="sm" onClick={handleRunModelagem} disabled={busy}>
-                {busy ? (
-                  <Loader2 className="mr-1 size-4 animate-spin" aria-hidden />
-                ) : (
-                  <Play className="mr-1 size-4" aria-hidden />
-                )}
-                {busy ? t("wizard.running") : t("wizard.runStage1")}
-              </Button>
-            ) : null}
-
-            {/* Estágio 5 (Execução): executar emulação (Finish). */}
-            {estagioAtual === 5 && onRequestEmulation ? (
+            {/* Stage 6 (Execution): run emulation (Finish). */}
+            {estagioAtual === LAST_STAGE && onRequestEmulation && campaignId ? (
               <Button
                 variant="destructive"
                 size="sm"
-                onClick={() => onRequestEmulation(casoId)}
+                onClick={() => onRequestEmulation(campaignId)}
                 disabled={busy}
               >
                 <Play className="mr-1 size-4" aria-hidden />
@@ -365,8 +463,8 @@ export function ExecutionWizard({
               </Button>
             ) : null}
 
-            {/* Avançar (estágios 1..4). */}
-            {estagioAtual < 5 ? (
+            {/* Next (stages 1..5). */}
+            {estagioAtual < LAST_STAGE ? (
               <Button
                 size="sm"
                 onClick={handleNext}

@@ -1,33 +1,34 @@
-"""Property-based test for the sequential-blocking gate across Estágios 1..5.
+"""Property-based test for the sequential-blocking gate across Estágios 1..6.
 
-# Feature: pipeline-cinco-estagios, Property 1: Bloqueio sequencial em todo par
-# adjacente de 1..5. Para qualquer distribuição de estados dos cinco Estágios
-# de um Caso, o Estágio N (2..5) é iniciável se e somente se o Estágio N-1 está
-# "concluído"; o Estágio 1 nunca é bloqueado.
+# Feature: pipeline-seis-estagios, Property 1: Bloqueio sequencial em 1..6. Para
+# qualquer distribuição de estados dos seis Estágios de um Caso, o Estágio N
+# (2..6) é iniciável se e somente se o Estágio N-1 está "concluído"; o Estágio 1
+# (``FIRST_STAGE``) nunca é bloqueado.
 
-Validates: Requirements 1.2, 1.4, 1.5, 8.2
+Validates: Requirements 1.3, 3.1, 3.2, 3.3
 
-This property originates in the pipeline-ui spec (Property 3, Req. 5.4) and is
-carried forward here, now that the pipeline has FIVE Estágios (``VALID_STAGES ==
-(1, 2, 3, 4, 5)``). The rule is unchanged — a stage is startable
-iff it is the first stage or its immediately preceding stage is ``concluido`` —
-but it must now hold across the whole 1..5 range, including the new Estágio 5
-"Execução da Campanha" gated on the Estágio 4 "Provisionamento do Ambiente".
+This property originates in the pipeline-ui spec (Property 3) and is carried
+forward through ``pipeline-cinco-estagios``; it now spans the widened range of
+``pipeline-seis-estagios`` (``VALID_STAGES == (1, 2, 3, 4, 5, 6)``). The rule is
+unchanged — a stage is startable iff it is the first stage or its immediately
+preceding stage is ``concluido`` — but it must now hold across the whole 1..6
+range, including the new Estágio 6 "Execução + medição + relatório" gated on the
+Estágio 5 "Criação do ambiente de simulação" (Req. 3.1, 3.2, 3.3).
 
-This is a normal ``feature`` property test (``dag-estagio-multi-origem`` is a
+This is a normal ``feature`` property test (``pipeline-seis-estagios`` is a
 feature spec, not a bugfix): the property is expected to HOLD on the current
-:class:`~app.services.stage.stage_service.StageService` implementation. It
-exercises the sequential-blocking gate (Req. 1.4, 1.5) that governs whether a
-stage of a curated case can be started.
+:class:`~app.services.stage.stage_service.StageService` implementation, whose
+range was widened to 1..6 in task 1.1. It exercises the sequential-blocking gate
+(Req. 1.3, 3.1, 3.2, 3.3) that governs whether a stage of a case can be started.
 
 Driven entirely by the imported constants
 ------------------------------------------
 Every stage number in this test is derived from ``VALID_STAGES`` / ``FIRST_STAGE``
-/ ``LAST_STAGE`` imported from ``stage_service`` — there are NO hardcoded ``3``
-or ``5`` literals. The generator produces one state per stage in ``VALID_STAGES``
-(so it automatically widened to five states when the pipeline gained
-Estágio 5), and the oracle/assertions iterate ``VALID_STAGES``. Were a sixth
-stage ever added, this test would cover it with no edit.
+/ ``LAST_STAGE`` imported from ``stage_service`` — there are NO hardcoded ``5``
+or ``6`` literals. The generator produces one state per stage in ``VALID_STAGES``
+(so it automatically widened to six states when the pipeline gained Estágio 6),
+and the oracle/assertions iterate ``VALID_STAGES``. Were a seventh stage ever
+added, this test would cover it with no edit.
 
 How the property is driven
 --------------------------
@@ -37,8 +38,8 @@ when there is no row yet). So the generator produces, for each stage in
 ``VALID_STAGES``, one of the four states — ``nao_iniciado`` / ``em_andamento`` /
 ``concluido`` / ``erro`` — where "no row" is modelled by simply not writing a
 row for that stage (which the service must treat as ``nao_iniciado``). Every
-combination of the five stages' states is reachable and Hypothesis samples
-across them with at least 100 iterations.
+combination of the six stages' states is reachable and Hypothesis samples across
+them with at least 100 iterations.
 
 An INDEPENDENT oracle (``_expected_startable``) recomputes iniciabilidade
 directly from the generated states — the assertions never trust the
@@ -52,7 +53,7 @@ implementation to decide what "startable" means. We assert, for every stage:
   the other stages;
 * a stage N > 1 is startable IFF the immediately preceding stage N-1 is
   ``concluido`` — and it depends only on N-1, never on the stage's own state —
-  for EVERY adjacent pair in 1..5, including the pair ``(4, 5)``.
+  for EVERY adjacent pair in 1..6, including the pair ``(5, 6)``.
 
 Each example builds and tears down a fresh temp-file SQLite database (mirroring
 ``test_aggregate_progress_property.py``), so there is no state leak between
@@ -84,13 +85,13 @@ from app.services.stage.stage_service import (
 )
 
 # ---------------------------------------------------------------------------
-# Generators for every stage's state, sized by VALID_STAGES (1..5).
+# Generators for every stage's state, sized by VALID_STAGES (1..6).
 # ---------------------------------------------------------------------------
 
 # The four persisted states a stage can be in, PLUS ``None`` to model "no
-# StageRun row yet" — which the service must treat as ``nao_iniciado`` (Req.
-# 9.5). Including ``None`` proves the missing-row default participates in the
-# blocking decision exactly like an explicit ``nao_iniciado``.
+# StageRun row yet" — which the service must treat as ``nao_iniciado``
+# (Req. 3.1). Including ``None`` proves the missing-row default participates in
+# the blocking decision exactly like an explicit ``nao_iniciado``.
 _STATE_CHOICES: tuple[Optional[StageState], ...] = (
     None,
     StageState.NOT_STARTED,
@@ -102,7 +103,7 @@ _STATE_CHOICES: tuple[Optional[StageState], ...] = (
 _stage_state_strategy = st.sampled_from(_STATE_CHOICES)
 
 # A full combination of ALL stages: one state per stage in ``VALID_STAGES``
-# (currently five). ``st.tuples`` samples every combination across the choice
+# (currently six). ``st.tuples`` samples every combination across the choice
 # sets. The tuple length is driven by ``VALID_STAGES`` so it tracks the pipeline
 # range automatically (no hardcoded count).
 _stage_states_strategy = st.tuples(
@@ -116,7 +117,7 @@ _stage_states_strategy = st.tuples(
 
 
 def _effective_state(state: Optional[StageState]) -> StageState:
-    """A missing row (``None``) is ``nao_iniciado`` (Req. 9.5)."""
+    """A missing row (``None``) is ``nao_iniciado`` (Req. 3.1)."""
     return state if state is not None else StageState.NOT_STARTED
 
 
@@ -137,8 +138,8 @@ def _expected_startable(
 ) -> bool:
     """Compute the expected startability WITHOUT calling the implementation.
 
-    Mirrors the Req. 1.4/1.5 rule: ``FIRST_STAGE`` is always startable; any later
-    stage N is startable iff the immediately preceding stage N-1 is
+    Mirrors the Req. 3.1/3.2/3.3 rule: ``FIRST_STAGE`` is always startable; any
+    later stage N is startable iff the immediately preceding stage N-1 is
     ``concluido``. Depends only on stage N-1's effective state.
     """
     if estagio == FIRST_STAGE:
@@ -160,7 +161,7 @@ def _build_ephemeral_session() -> tuple[Session, Path, object]:
     engine)`` so the caller can dispose the engine and remove the file
     afterward.
     """
-    tmp_dir = tempfile.mkdtemp(prefix="dag_estagio_stage_block_")
+    tmp_dir = tempfile.mkdtemp(prefix="pipeline_seis_stage_block_")
     db_path = Path(tmp_dir) / "stage_block.db"
     settings_obj = Settings(database_url=f"sqlite:///{db_path.as_posix()}")
 
@@ -189,7 +190,7 @@ def _seed_stage_runs(
     A ``None`` state means "no row" — the stage is left absent so the service
     exercises its missing-row default (``nao_iniciado``). Progress is set to 100
     for a completed stage and 0 otherwise, matching how the service persists it.
-    Stages are paired with ``VALID_STAGES`` so all 1..5 rows are seeded.
+    Stages are paired with ``VALID_STAGES`` so all 1..6 rows are seeded.
     """
     for estagio, state in zip(VALID_STAGES, states):
         if state is None:
@@ -206,7 +207,7 @@ def _seed_stage_runs(
 
 
 # ---------------------------------------------------------------------------
-# Property 1 — sequential blocking across every adjacent pair of 1..5.
+# Property 1 — sequential blocking across every adjacent pair of 1..6.
 # ---------------------------------------------------------------------------
 
 
@@ -226,9 +227,8 @@ def test_property1_blocked_stage_is_never_startable(
 ) -> None:
     """A blocked stage is never startable; startability is exactly the gate rule.
 
-    # Feature: pipeline-cinco-estagios, Property 1: Bloqueio sequencial em todo
-    # par adjacente de 1..5.
-    Validates: Requirements 1.2, 1.4, 1.5, 8.2
+    # Feature: pipeline-seis-estagios, Property 1: Bloqueio sequencial em 1..6.
+    Validates: Requirements 1.3, 3.1, 3.2, 3.3
     """
     session, db_path, engine = _build_ephemeral_session()
     caso_id = "caso-prop1"
@@ -279,7 +279,7 @@ def test_property1_blocked_stage_is_never_startable(
         # Every stage N > FIRST_STAGE is startable IFF the previous stage is
         # concluido — and this depends ONLY on N-1, never on the stage's own
         # state. Iterating VALID_STAGES[1:] covers all adjacent pairs up to the
-        # new (LAST_STAGE-1, LAST_STAGE) pair, i.e. including Estágio 4.
+        # new (LAST_STAGE-1, LAST_STAGE) pair, i.e. including Estágio 6.
         for estagio in VALID_STAGES[1:]:
             previous_completed = (
                 _effective_state(_state_for_stage(estagio - 1, states))
@@ -298,7 +298,7 @@ def test_property1_blocked_stage_is_never_startable(
             pass
 
 
-# A later stage sampled from every non-first stage of 1..5 (so Estágio 5 is
+# A later stage sampled from every non-first stage of 1..6 (so Estágio 6 is
 # directly exercised), paired with the four non-``concluido`` predecessor states.
 _LATER_STAGES: tuple[int, ...] = VALID_STAGES[1:]
 _NON_COMPLETED_CHOICES: tuple[Optional[StageState], ...] = tuple(
@@ -327,14 +327,13 @@ def test_property1_later_stage_blocked_when_previous_not_completed(
 ) -> None:
     """Targeted direction: a stage is blocked whenever its predecessor isn't concluido.
 
-    For a stage ``later_stage`` sampled from every non-first stage of 1..5
-    (including the new Estágio 5), forces the immediately-preceding stage into a
+    For a stage ``later_stage`` sampled from every non-first stage of 1..6
+    (including the new Estágio 6), forces the immediately-preceding stage into a
     non-``concluido`` state and asserts ``later_stage`` is signalled blocked and
     cannot be started — no matter what the remaining stages look like.
 
-    # Feature: pipeline-cinco-estagios, Property 1: Bloqueio sequencial em todo
-    # par adjacente de 1..5.
-    Validates: Requirements 1.2, 1.4, 1.5, 8.2
+    # Feature: pipeline-seis-estagios, Property 1: Bloqueio sequencial em 1..6.
+    Validates: Requirements 1.3, 3.1, 3.2, 3.3
     """
     # By construction the preceding stage is NOT completed.
     assert _effective_state(prev_not_completed) is not StageState.COMPLETED
@@ -369,17 +368,16 @@ def test_property1_later_stage_blocked_when_previous_not_completed(
 
 
 def test_valid_stages_span_first_to_last() -> None:
-    """Guard: the covered range is exactly ``FIRST_STAGE..LAST_STAGE`` with 5 stages.
+    """Guard: the covered range is exactly ``FIRST_STAGE..LAST_STAGE`` with 6 stages.
 
-    This anchors the property's claim ("1..5") to the imported constants, so if
+    This anchors the property's claim ("1..6") to the imported constants, so if
     the pipeline range changes, the generators above (driven by ``VALID_STAGES``)
     and this guard move together instead of silently covering the wrong span.
 
-    # Feature: pipeline-cinco-estagios, Property 1: Bloqueio sequencial em todo
-    # par adjacente de 1..5.
-    Validates: Requirements 1.2
+    # Feature: pipeline-seis-estagios, Property 1: Bloqueio sequencial em 1..6.
+    Validates: Requirements 1.3
     """
     assert VALID_STAGES[0] == FIRST_STAGE
     assert VALID_STAGES[-1] == LAST_STAGE
     assert VALID_STAGES == tuple(range(FIRST_STAGE, LAST_STAGE + 1))
-    assert len(VALID_STAGES) == 5
+    assert len(VALID_STAGES) == 6

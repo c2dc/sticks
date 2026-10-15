@@ -82,7 +82,7 @@ describe("DagStageView (Estágio 2 — Geração do DAG, Req. 3.3–3.5, 3.7)", 
     escolherDagMock.mockReset()
   })
 
-  it("lists persisted DAGs, renders the selected DAG's graph and chooses it (Req. 3.3, 3.7)", async () => {
+  it("auto-concludes when there is exactly one DAG (curated), renders the graph and reports stage states", async () => {
     getDagsMock.mockResolvedValue(makeList([makeResumo()]))
     getDagPorIdMock.mockResolvedValue(makeDetalhe())
     const estados = makeEstados()
@@ -97,12 +97,16 @@ describe("DagStageView (Estágio 2 — Geração do DAG, Req. 3.3–3.5, 3.7)", 
       expect(getDagsMock).toHaveBeenCalledWith("shadowray")
     })
 
-    // The selected DAG's graph renders with the backend-provided definition.
+    // The DAG's graph renders with the backend-provided definition.
     const stub = await screen.findByTestId("mermaid-stub")
     expect(stub).toHaveTextContent("flowchart TD")
 
-    // Choosing the DAG calls escolherDag and reports the backend stage states.
-    await userEvent.click(screen.getByRole("button", { name: /Selecionar DAG/ }))
+    // With a single DAG, the stage auto-concludes — no "Selecionar DAG" button.
+    expect(
+      screen.queryByRole("button", { name: /Selecionar DAG/ }),
+    ).not.toBeInTheDocument()
+
+    // escolherDag is called automatically and the stage states are reported.
     await waitFor(() => {
       expect(escolherDagMock).toHaveBeenCalledWith("shadowray", 1)
     })

@@ -1,0 +1,1054 @@
+{
+  "pbtResults": {
+    "1.4 Escrever property test da derivação de estado por StageRun em 1..6": {
+      "status": "passed",
+      "lastRunTimestamp": 1792020578804
+    },
+    "1.3 Escrever property test do progresso agregado sobre 6 Estágios": {
+      "status": "passed",
+      "lastRunTimestamp": 1792020584914
+    },
+    "4.4 Escrever property test da origem explícita e extensível (Estágio 3)": {
+      "status": "passed",
+      "lastRunTimestamp": 1792024238116
+    },
+    "7.4 Escrever property test do isolamento como pré-condição do Estágio 5": {
+      "status": "passed",
+      "lastRunTimestamp": 1792024277516
+    },
+    "8.6 Escrever property test da segurança (nenhuma execução com destino externo ou contêiner não isolado)": {
+      "status": "passed",
+      "lastRunTimestamp": 1792026592661
+    },
+    "10.4 Escrever property test da origem persistida extensível (`gerado_ia` sem migração)": {
+      "status": "passed",
+      "lastRunTimestamp": 1792030124151
+    }
+  },
+  "executionHistory": {
+    "1.1 Ampliar o intervalo e nomear os papéis em `ui/backend/app/services/stage/stage_service.py`": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792019666392
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792019679867
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792020406737
+      }
+    ],
+    "1.2 Escrever property test do bloqueio sequencial em 1..6": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792019666581
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792020411905
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792021029731
+      }
+    ],
+    "1.3 Escrever property test do progresso agregado sobre 6 Estágios": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792019666674
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792020413706
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792021028786
+      }
+    ],
+    "1.4 Escrever property test da derivação de estado por StageRun em 1..6": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792019666762
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792020414137
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792021026150
+      }
+    ],
+    "1.5 Escrever testes de exemplo das constantes e `_validate_stage`": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792019666853
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792020415554
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792021027331
+      }
+    ],
+    "2.1 Adicionar a flag de versão curada em `ui/backend/app/services/stix/stix_service.py`": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792019666944
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792019682209
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792020407545
+      }
+    ],
+    "2.2 Criar o serviço fino do Estágio 1 reusando `StixService`": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792019667035
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792020416558
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792021030916
+      }
+    ],
+    "2.3 Adicionar os endpoints REST do Estágio 1 em `ui/backend/app/api/casos.py`": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792019667141
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792021573957
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792023097964
+      }
+    ],
+    "2.4 Escrever testes de exemplo da flag curada e do download": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792019667235
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792021572971
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792023095443
+      }
+    ],
+    "3.1 Implementar a listagem e a seleção de campanha do Estágio 2": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792019667323
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792021571579
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792023098910
+      }
+    ],
+    "3.2 Adicionar os endpoints REST do Estágio 2 em `ui/backend/app/api/casos.py`": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792019667410
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792023104830
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792024075931
+      }
+    ],
+    "3.3 Escrever testes de exemplo da seleção de campanha": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792019667487
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792023106245
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792024078089
+      }
+    ],
+    "4.1 Costurar o Estágio 3 sobre `GeradorDeDag`/`CuradoriaGeradorDeDag`/`DagService`": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792019667577
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792023103450
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792024074572
+      }
+    ],
+    "4.2 Adicionar os endpoints REST do Estágio 3 em `ui/backend/app/api/casos.py`": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792019667662
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792024084904
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792024878777
+      }
+    ],
+    "4.3 Escrever property test da idempotência da leitura curada do DAG": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792019667759
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792024085868
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792024877540
+      }
+    ],
+    "4.4 Escrever property test da origem explícita e extensível (Estágio 3)": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792019667889
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792024087371
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792024882533
+      }
+    ],
+    "5.1 Definir os DTOs novos de parâmetros de ambiente": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792019667976
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792021041111
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792021564672
+      }
+    ],
+    "5.2 Implementar a costura `OperacionalizadorPorOrigem` + `CuradoriaOperacionalizador`": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792019668055
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792024083488
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792024880184
+      }
+    ],
+    "5.3 Adicionar os endpoints REST do Estágio 4 em `ui/backend/app/api/casos.py`": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792019668139
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792025456271
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792026268339
+      }
+    ],
+    "5.4 Escrever property test da derivação dos parâmetros de ambiente": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792019668231
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792025457668
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792026265473
+      }
+    ],
+    "5.5 Escrever property test da origem extensível (Estágio 4)": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792019668327
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792025458733
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792026266794
+      }
+    ],
+    "6. Checkpoint - garantir Estágios 1..4 do backend verdes": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792019668416
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792034181897
+      }
+    ],
+    "7.1 Definir os DTOs `AmbienteProvisionado`/`IsolationResumo` e a costura `ProvisionadorDeAmbiente`": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792019668494
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792021570629
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792023096487
+      }
+    ],
+    "7.2 Implementar `CuradoriaProvisionadorDeAmbiente`": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792019668589
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792023107004
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792024076895
+      }
+    ],
+    "7.3 Adicionar os endpoints REST do Estágio 5 em `ui/backend/app/api/casos.py`": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792019668679
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792034195151
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792034955525
+      }
+    ],
+    "7.4 Escrever property test do isolamento como pré-condição do Estágio 5": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792019668776
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792024088291
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792024881575
+      }
+    ],
+    "7.5 Escrever property test da origem extensível (Estágio 5)": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792019668861
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792024887428
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792025450432
+      }
+    ],
+    "7.6 Escrever teste de integração com Caldera/Docker reais do Estágio 5 (lab)": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792019668953
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792024888292
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792025449877
+      }
+    ],
+    "8.1 Definir os DTOs de métricas e relatório": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792019669045
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792021568731
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792023095715
+      }
+    ],
+    "8.2 Costurar a execução do Estágio 6 reusando `OperationRunner` com os quatro gates": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792019669139
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792025454914
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792026269351
+      }
+    ],
+    "8.3 Implementar a medição de suficiência procedural e o relatório": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792019669232
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792026275458
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792027318730
+      }
+    ],
+    "8.4 Implementar o desprovisionamento ao final do Estágio 6": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792019669337
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792027326257
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792028631403
+      }
+    ],
+    "8.5 Adicionar os endpoints REST do Estágio 6 e do relatório em `ui/backend/app/api/casos.py`": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792019669473
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792028640180
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792029766770
+      }
+    ],
+    "8.6 Escrever property test da segurança (nenhuma execução com destino externo ou contêiner não isolado)": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792019669584
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792026276742
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792027320079
+      }
+    ],
+    "8.7 Escrever property test do desprovisionamento sempre após a execução": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792019669691
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792027328986
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792028635193
+      }
+    ],
+    "8.8 Escrever property test das métricas de suficiência consistentes": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792019669776
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792026277617
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792027321185
+      }
+    ],
+    "8.9 Escrever teste de integração com Caldera/Docker reais do Estágio 6 (lab)": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792019669884
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792027329728
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792028632738
+      }
+    ],
+    "9. Checkpoint - garantir Estágios 5 e 6 do backend verdes": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792019669978
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792034959337
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792034962993
+      }
+    ],
+    "10.1 Atualizar os modelos de domínio e adicionar as tabelas novas em `ui/backend/app/models/domain.py`": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792019670079
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792027327207
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792028634138
+      }
+    ],
+    "10.2 Criar a migração Alembic encadeada sobre `1cc7b8b24bd2`": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792019670170
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792028641610
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792029767614
+      }
+    ],
+    "10.3 Escrever property test da migração 1..6": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792019670262
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792029773114
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792032698485
+      }
+    ],
+    "10.4 Escrever property test da origem persistida extensível (`gerado_ia` sem migração)": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792019670354
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792029776491
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792032697600
+      }
+    ],
+    "11.1 Estender o canal `WS /ws/estagios/{caso}` para 1..6": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792019670448
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792028642648
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792029765641
+      }
+    ],
+    "11.2 Escrever testes de integração dos contratos REST 1..6 e WS": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792019670524
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792029774080
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792032699868
+      }
+    ],
+    "12. Checkpoint - garantir backend verde ponta a ponta": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792019670614
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792034966301
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792035431958
+      }
+    ],
+    "13.1 Atualizar tipos e wrappers em `ui/frontend/src/lib`": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792019670700
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792029775476
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792032701024
+      }
+    ],
+    "13.2 Implementar a navegação Próximo/Voltar com reseleção no fluxo": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792019670795
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792032706189
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792033095252
+      }
+    ],
+    "13.3 Escrever property test da reseleção ao Voltar (reset dos Estágios seguintes)": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792019670884
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792033104393
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792033522034
+      }
+    ],
+    "14.1 Criar `BaseStixView` (Estágio 1)": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792019670975
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792032709029
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792033098216
+      }
+    ],
+    "14.2 Criar `CampanhaView` (Estágio 2)": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792019671056
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792032711431
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792033095919
+      }
+    ],
+    "14.3 Criar `ParametrosAmbienteView` (painel do Estágio 4) e `RelatorioView` (Estágio 6)": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792019671144
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792032711581
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792033094881
+      }
+    ],
+    "14.4 Expandir `ExecutionWizard.tsx` para 6 Estágios e costurar os corpos": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792019671231
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792033103216
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792033520934
+      }
+    ],
+    "14.5 Unificar as chaves i18n dos seis Estágios em `ui/frontend/src/i18n`": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792019671326
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792032707580
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792033097200
+      }
+    ],
+    "14.6 Escrever testes de UI (Vitest) do wizard e das telas novas": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792019671417
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792033527456
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792033702875
+      }
+    ],
+    "14.7 Escrever property test da paridade i18n pt-BR/en (fast-check)": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792019671512
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792033528325
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792033701572
+      }
+    ],
+    "15. Final checkpoint - garantir todas as suítes verdes": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792019671675
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792035435145
+      },
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792035452192
+      }
+    ],
+    "1. Generalizar o range de Estágios para 1..6 (alavanca principal)": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792021029827
+      }
+    ],
+    "2. Backend Estágio 1: Seleção da base STIX (reuso de `StixService`)": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792023098049
+      }
+    ],
+    "3. Backend Estágio 2: Seleção da campanha (reuso de `StixService` + `CampanhaStixEntrada`)": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792024078186
+      }
+    ],
+    "4. Backend Estágio 3: Geração do DAG (reuso da costura `GeradorDeDag`/`DagService`)": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792024882636
+      }
+    ],
+    "5. Backend Estágio 4: Operacionalização — Abilities + parâmetros de ambiente (DTOs novos)": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792026268450
+      }
+    ],
+    "8. Backend Estágio 6: Execução, medição e relatório (reuso `OperationRunner` + métricas novas)": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792029766883
+      }
+    ],
+    "10. Persistência e migração Alembic para 1..6": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792032698597
+      }
+    ],
+    "11. Backend WebSocket de Estágios em 1..6": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792032699973
+      }
+    ],
+    "13. Frontend: tipos, wrappers de API e reseleção": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792033522147
+      }
+    ],
+    "14. Frontend: wizard de 6 Estágios e telas por Estágio": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792033702979
+      }
+    ],
+    "7. Backend Estágio 5: Criação do ambiente (costura nova + reuso `containment/isolation`)": [
+      {
+        "executionId": "35b546ae-ad81-4896-8365-c352934104df",
+        "chatSessionId": "sess_f4f11a5a-dded-48be-84b9-61a9228c531d",
+        "timestamp": 1792034955669
+      }
+    ]
+  }
+}

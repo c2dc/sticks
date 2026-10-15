@@ -5,10 +5,11 @@ import { UserCheck } from "lucide-react"
 import { EmptyNote, StageSection } from "@/components/StageSection"
 import { cn } from "@/lib/utils"
 import {
-  getEstagio2,
+  getEstagioOperacionalizacao,
   type Ability,
+  type Estagio4Response,
   type OrigemTraducao,
-  type Stage2Result,
+  type Stage2Saida,
 } from "@/lib/estagios"
 
 /**
@@ -26,14 +27,14 @@ import {
  */
 export function Stage2View({ casoId }: { casoId: string }) {
   const { t } = useTranslation("pipeline")
-  const [result, setResult] = useState<Stage2Result | null>(null)
+  const [result, setResult] = useState<Estagio4Response | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
 
   useEffect(() => {
     let active = true
     setResult(null)
     setLoadError(null)
-    getEstagio2(casoId)
+    getEstagioOperacionalizacao(casoId)
       .then((data) => {
         if (active) setResult(data)
       })
@@ -54,54 +55,38 @@ export function Stage2View({ casoId }: { casoId: string }) {
     )
   }
 
-  const { entrada, saida, suppressed } = result
+  // Estágio 4 (Operacionalização): `abilities` carries the curated Abilities
+  // Saída (same shape as the former Stage-2 `saida`); it is null when the
+  // operationalization is suppressed (no upstream technique).
+  const suppressed = result.abilities === null
+  const saida = result.abilities
 
   return (
-    <div className="grid gap-4 md:grid-cols-3">
-      {/* Entrada — abstract techniques from Stage 1 (Req. 3.1). */}
-      <StageSection
-        data-section="entrada"
-        label={t("sections.entrada")}
-        kind="blue"
-      >
-        {!entrada.has_input ? (
-          <EmptyNote>{entrada.note || t("stage2.entrada.noInput")}</EmptyNote>
-        ) : (
-          <ul className="flex flex-wrap gap-1.5">
-            {entrada.techniques.map((tech, index) => (
-              <li
-                key={tech.technique_id ?? index}
-                className="rounded-md border border-team-blue/30 bg-team-blue/5 px-2 py-0.5 text-xs"
-                title={tech.description ?? undefined}
-              >
-                <span className="font-medium">{tech.technique_id ?? "—"}</span>
-                {tech.name ? (
-                  <span className="text-muted-foreground"> · {tech.name}</span>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        )}
-      </StageSection>
-
+    <div className="grid gap-4 md:grid-cols-2">
       {/* Processamento — explicit translation-source indicator (Req. 3.4, 11). */}
       <StageSection
         data-section="processamento"
         label={t("sections.processamento")}
         kind="purple"
       >
-        <TranslationSourceBadge
-          origem={saida.origem_traducao}
-          humanCuration={saida.human_curation}
-        />
-        <p className="text-xs text-muted-foreground">
-          {t("stage2.processamento.description")}
-        </p>
+        {saida ? (
+          <>
+            <TranslationSourceBadge
+              origem={saida.origem_traducao}
+              humanCuration={saida.human_curation}
+            />
+            <p className="text-xs text-muted-foreground">
+              {t("stage2.processamento.description")}
+            </p>
+          </>
+        ) : (
+          <EmptyNote>{t("stage2.saida.suppressed")}</EmptyNote>
+        )}
       </StageSection>
 
       {/* Saída — curated Abilities, ordering, Adversary; or absence (3.6–3.8). */}
       <StageSection data-section="saida" label={t("sections.saida")} kind="neutral">
-        {suppressed ? (
+        {suppressed || !saida ? (
           <EmptyNote>{t("stage2.saida.suppressed")}</EmptyNote>
         ) : !saida.has_abilities ? (
           <EmptyNote>{saida.note || t("stage2.saida.noAbilities")}</EmptyNote>
@@ -234,7 +219,7 @@ function AdversaryBlock({
   note,
 }: {
   hasAdversary: boolean
-  adversary: Stage2Result["saida"]["adversary"]
+  adversary: Stage2Saida["adversary"]
   note?: string | null
 }) {
   const { t } = useTranslation("pipeline")

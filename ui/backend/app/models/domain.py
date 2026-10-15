@@ -31,6 +31,7 @@ from typing import Any, Optional
 
 from sqlalchemy import (
     JSON,
+    Boolean,
     DateTime,
     Enum as SAEnum,
     ForeignKey,
@@ -46,6 +47,8 @@ from app.models.enums import (
     Language,
     OperationState,
     OrigemDag,
+    PlataformaAmbiente,
+    PlataformaAmbientePersistida,
     StageState,
     Theme,
     TranslationSource,
@@ -141,7 +144,9 @@ class StageRun(Base):
     caso_id: Mapped[Optional[str]] = mapped_column(
         String, ForeignKey("casos.id"), nullable=True
     )
-    estagio: Mapped[int] = mapped_column(Integer, nullable=False)  # 1, 2 ou 3
+    # Estágio do pipeline no range 1..6 (coluna Integer pura, sem CHECK de
+    # intervalo: o intervalo é acomodado pela própria coluna — Req. 1.2).
+    estagio: Mapped[int] = mapped_column(Integer, nullable=False)  # 1..6
     estado: Mapped[StageState] = mapped_column(
         _portable_enum(StageState, "stage_state"),
         default=StageState.NOT_STARTED,
@@ -314,3 +319,157 @@ class UserPreferences(Base):
         default=Language.PT_BR,  # padrão pt-BR (Req. 8.6)
         nullable=False,
     )
+
+
+class VersaoStix(Base):
+    """Flag de versão curada por versão STIX (Req. 5.5, 5.6).
+
+    Fonte persistível da flag de versão curada. A constante ``VERSAO_CURADA``
+    (em :mod:`app.services.stix.stix_service`) é a fonte única em código e semeia
+    esta tabela na migração; aqui apenas definimos o esquema portável.
+
+    * ``versao`` é a PK (ex.: ``"18.0"``).
+    * ``curada`` marca a versão como curada (``True`` para a versão 18 — Req. 5.5).
+    * ``artefatos_curados_path`` aponta os artefatos curados da versão (Req. 5.6),
+      ``None`` quando a versão não tem artefatos curados associados.
+    """
+
+    __tablename__ = "versoes_stix"
+
+    versao: Mapped[str] = mapped_column(String, primary_key=True)  # ex.: "18.0"
+    curada: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    artefatos_curados_path: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True
+    )
+
+
+class ParametrosAmbiente(Base):
+    """Parâmetros de ambiente do Estágio 4 (Operacionalização) — Req. 8.3.
+
+    A segunda Saída tipada do Estágio 4 (``ParametrosDeAmbiente``) é persistida em
+    uma única coluna JSON portável (``conteudo``), como ``Dag.conteudo``, evitando
+    normalização desnecessária (Req. 8.3, 17.1).
+
+    ``plataforma`` persiste como VARCHAR + CHECK (``native_enum=False``) a partir
+    de ``PlataformaAmbientePersistida``. Seguindo o precedente de
+    ``OrigemDag``/``gerado_ia``, esse enum de persistência já declara
+    ``maquina_virtual``, então o CHECK gerado o admite mesmo que apenas
+    ``conteiner`` esteja implementado na aplicação (Req. 17.1): persistir uma
+    plataforma de máquina virtual no futuro não exige migração de esquema
+    (Req. 17.2).
+
+    ``origem`` é o atributo explícito e extensível (``TranslationSource``,
+    VARCHAR + CHECK que já inclui os valores do enum): uma operacionalização
+    futura ``gerado_ia`` encaixa sem alterar o esquema (Req. 16.2, 16.4).
+    """
+
+    __tablename__ = "parametros_ambiente"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    caso_id: Mapped[str] = mapped_column(
+        String, ForeignKey("casos.id"), nullable=False
+    )
+    # O tipo de coluna é derivado de ``PlataformaAmbientePersistida`` (que já
+    # declara ``maquina_virtual``), de modo que o CHECK portável aceite a VM
+    # desde a primeira migração — sem migração futura (Req. 17.2). O valor
+    # ``conteiner`` coincide com ``PlataformaAmbiente.CONTAINER``, logo gravar o
+    # enum público continua válido.
+    plataforma: Mapped[PlataformaAmbientePersistida] = mapped_column(
+        _portable_enum(PlataformaAmbientePersistida, "plataforma_ambiente"),
+        default=PlataformaAmbiente.CONTAINER,
+        nullable=False,
+    )
+    # ``ParametrosDeAmbiente`` serializado (hosts/serviços/network_context).
+    conteudo: Mapped[Any] = mapped_column(JSON, nullable=False)
+    origem: Mapped[TranslationSource] = mapped_column(
+        _portable_enum(TranslationSource, "translation_source"),
+        default=TranslationSource.HUMAN_CURATION,
+        nullable=False,
+    )
+    criado_em: Mapped[dt.datetime] = mapped_column(DateTime, nullable=False)
+
+
+class AmbienteProvisionadoRow(Base):
+    """Saída do Estágio 5 (Criação do ambiente) persistida — Req. 6.3, 1.6.
+
+    O artefato tipado :class:`~app.services.environment.provisionador.AmbienteProvisionado`
+    produzido quando o provisionamento do Estágio 5 fica **pronto** (contêineres
+    saudáveis + Abilities carregadas + isolamento aprovado) é persistido aqui, em
+    uma única coluna JSON portável (``conteudo``) associada ao Caso, exatamente no
+    precedente de ``Dag.conteudo`` / ``ParametrosAmbiente.conteudo`` /
+    ``RelatorioExecucao.metricas`` — de modo que o Estágio 6 e a tela consumam a
+    Saída **após a conclusão** (Req. 6.3) e o provisionamento seja **reaproveitado**
+    sem subir um novo quando o ambiente já está pronto (idempotência — Req. 1.6).
+
+    ``plataforma`` persiste como VARCHAR + CHECK (``native_enum=False``) a partir
+    de ``PlataformaAmbientePersistida`` — como ``ParametrosAmbiente.plataforma`` —,
+    de modo que o CHECK gerado já aceite ``maquina_virtual`` sem migração futura
+    (Req. 17.2). O valor ``conteiner`` coincide com ``PlataformaAmbiente.CONTAINER``,
+    logo gravar o enum público continua válido.
+
+    ``origem`` é o atributo explícito e extensível (``TranslationSource``, VARCHAR +
+    CHECK que já inclui ``gerado_ia``): um provisionamento futuro ``gerado_ia``
+    encaixa sem alterar o esquema (Req. 16.2, 16.4).
+
+    ``pronto`` guarda o veredito de homologação da Saída persistida (os três
+    pré-requisitos passaram) — é o sinal que a idempotência do Estágio 5 lê para
+    reaproveitar o ambiente (Req. 1.6). Uma única linha por Caso (upsert
+    *latest-row-wins*): a persistência sempre atualiza a linha existente do Caso.
+    """
+
+    __tablename__ = "ambiente_provisionado"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    caso_id: Mapped[str] = mapped_column(
+        String, ForeignKey("casos.id"), nullable=False
+    )
+    # O tipo de coluna é derivado de ``PlataformaAmbientePersistida`` (que já
+    # declara ``maquina_virtual``), de modo que o CHECK portável aceite a VM
+    # desde a primeira migração — sem migração futura (Req. 17.2). O valor
+    # ``conteiner`` coincide com ``PlataformaAmbiente.CONTAINER``, logo gravar o
+    # enum público continua válido.
+    plataforma: Mapped[PlataformaAmbientePersistida] = mapped_column(
+        _portable_enum(PlataformaAmbientePersistida, "plataforma_ambiente"),
+        default=PlataformaAmbiente.CONTAINER,
+        nullable=False,
+    )
+    # ``AmbienteProvisionado`` serializado via ``model_dump(mode="json")``
+    # (plataforma, contêineres-alvo, compose_file, isolamento, saude,
+    # abilities_carregadas, origem) — Saída portável do Estágio 5 (Req. 6.3).
+    conteudo: Mapped[Any] = mapped_column(JSON, nullable=False)
+    origem: Mapped[TranslationSource] = mapped_column(
+        _portable_enum(TranslationSource, "translation_source"),
+        default=TranslationSource.HUMAN_CURATION,
+        nullable=False,
+    )
+    # Veredito de homologação da Saída (os três pré-requisitos passaram) — o
+    # sinal "pronto+persistido" que a idempotência do Estágio 5 lê (Req. 1.6).
+    pronto: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    criado_em: Mapped[dt.datetime] = mapped_column(DateTime, nullable=False)
+    atualizado_em: Mapped[dt.datetime] = mapped_column(DateTime, nullable=False)
+
+
+class RelatorioExecucao(Base):
+    """Relatório/métricas do Estágio 6 (Execução, medição e relatório) — Req. 15.7.
+
+    As ``MetricasSuficiencia`` são persistidas em uma coluna JSON portável
+    (``metricas``), como ``Dag.conteudo``. ``veredito_sucesso`` guarda o veredito
+    geral da execução (Req. 15.6) e ``ambiente_desprovisionado`` registra se o
+    ambiente foi desprovisionado ao final do Estágio 6 (Req. 12.1).
+    """
+
+    __tablename__ = "relatorios_execucao"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    caso_id: Mapped[str] = mapped_column(
+        String, ForeignKey("casos.id"), nullable=False
+    )
+    # liga à Operação executada; nullable (relatório pode existir sem operação).
+    operacao_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("operacoes.id"), nullable=True
+    )
+    # ``MetricasSuficiencia`` serializada (Req. 15.8).
+    metricas: Mapped[Any] = mapped_column(JSON, nullable=False)
+    veredito_sucesso: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    ambiente_desprovisionado: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    gerado_em: Mapped[dt.datetime] = mapped_column(DateTime, nullable=False)

@@ -154,6 +154,17 @@ class DagNode(BaseModel):
     * ``attacker_commands`` — the concrete attacker commands, mined for network
       indicators (destination IPs/hosts).
     * ``campaign_context`` — the per-node campaign narrative, surfaced as metadata.
+
+    A few additional curated fields are preserved so the Stage-4
+    Operacionalização can **derive** the environment parameters
+    (:class:`~app.services.environment.operacionalizacao.ParametrosDeAmbiente`)
+    directly from the curated nodes (Req. 8.3, 17.1):
+
+    * ``target_vuln_host_a`` / ``target_vuln_host_b`` — the setup/vulnerability
+      commands that prepare each target host (what the environment must expose).
+    * ``source_host_type`` / ``target_host_type`` — the host types of the attack
+      source and target (e.g. ``"kali"``, ``"macos"``).
+    * ``network_context`` — the per-node network narrative (surfaced as a note).
     """
 
     node_id: Optional[str] = None
@@ -170,6 +181,12 @@ class DagNode(BaseModel):
     provides: list[str] = Field(default_factory=list)
     attacker_commands: list[str] = Field(default_factory=list)
     campaign_context: Optional[str] = None
+    # Curated environment fields preserved for Stage-4 derivation (task 5.2).
+    target_vuln_host_a: list[str] = Field(default_factory=list)
+    target_vuln_host_b: list[str] = Field(default_factory=list)
+    source_host_type: Optional[str] = None
+    target_host_type: Optional[str] = None
+    network_context: Optional[str] = None
 
 
 class DagData(BaseModel):

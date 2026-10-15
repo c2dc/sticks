@@ -27,11 +27,14 @@ export function StageStateBadge({
   estado,
   bloqueado = false,
   preConcluido = false,
+  compact = false,
   className,
 }: {
   estado: EstadoEstagio
   bloqueado?: boolean
   preConcluido?: boolean
+  /** Icon-only mode: hides the text label (kept as aria-label/title). */
+  compact?: boolean
   className?: string
 }) {
   const { t } = useTranslation("pipeline")
@@ -48,7 +51,7 @@ export function StageStateBadge({
         aria-label={t("state.bloqueado")}
       >
         <Lock className="size-3.5" aria-hidden />
-        {t("state.bloqueado")}
+        {!compact && t("state.bloqueado")}
       </span>
     )
   }
@@ -69,7 +72,7 @@ export function StageStateBadge({
         aria-label={label}
       >
         <Sparkles className="size-3.5" aria-hidden />
-        {label}
+        {!compact && label}
       </span>
     )
   }
@@ -111,7 +114,7 @@ export function StageStateBadge({
       aria-label={t(`state.${estado}`)}
     >
       <Icon className={cn("size-3.5", spin && "animate-spin")} aria-hidden />
-      {t(`state.${estado}`)}
+      {!compact && t(`state.${estado}`)}
     </span>
   )
 }

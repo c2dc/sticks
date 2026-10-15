@@ -17,7 +17,13 @@ export interface StixIntelligenceDashboardProps {
   /** Downloaded base version whose intelligence dashboard is shown (Req. 3.1). */
   versao: string
   /** Advances the flow to the campaign/actor selection step (Req. 3.6). */
-  onIrParaSelecao: () => void
+  onIrParaSelecao?: () => void
+  /**
+   * Hides the "select campaign/actor" CTA. The dashboard is also embedded as
+   * the body of Stage 1 inside the ExecutionWizard, where navigation is driven
+   * by the wizard's own "Next" control, so the standalone CTA is hidden there.
+   */
+  hideCta?: boolean
 }
 
 /**
@@ -42,6 +48,7 @@ export interface StixIntelligenceDashboardProps {
 export function StixIntelligenceDashboard({
   versao,
   onIrParaSelecao,
+  hideCta = false,
 }: StixIntelligenceDashboardProps) {
   const { t } = useTranslation("stix")
 
@@ -119,10 +126,13 @@ export function StixIntelligenceDashboard({
               })}
             </p>
           </div>
-          {/* Prominent CTA advancing to campaign/actor selection (Req. 3.6). */}
-          <Button size="lg" onClick={onIrParaSelecao}>
-            {t("dashboard.irParaSelecao")}
-          </Button>
+          {/* Prominent CTA advancing to campaign/actor selection (Req. 3.6).
+              Hidden when embedded in the wizard (navigation is the wizard's). */}
+          {!hideCta && onIrParaSelecao ? (
+            <Button size="lg" onClick={onIrParaSelecao}>
+              {t("dashboard.irParaSelecao")}
+            </Button>
+          ) : null}
         </div>
       </div>
 

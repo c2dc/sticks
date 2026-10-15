@@ -51,9 +51,10 @@ from sqlalchemy.orm import Session
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
 from app.models.enums import OperationState, StageState
+from app.services.environment.log_buffer import ProvisioningLogBuffer
 from app.services.session import SessionStateService
 from app.services.stage import StageService
-from app.services.stage.stage_service import VALID_STAGES
+from app.services.stage.stage_service import ESTAGIO_PROVISIONAMENTO, VALID_STAGES
 
 # ---------------------------------------------------------------------------
 # Push intervals (Req. 1.5 — "ao menos a cada 5 segundos")
@@ -110,6 +111,7 @@ async def run_stage_progress_channel(
     interval: float = STAGE_PUSH_INTERVAL_SECONDS,
     max_frames: Optional[int] = None,
     sleeper: Sleeper = _default_sleep,
+    log_buffer: Optional[ProvisioningLogBuffer] = None,
 ) -> int:
     """Push stage state/percentage frames for ``caso_id`` (Req. 1.4, 1.5).
 
@@ -121,9 +123,38 @@ async def run_stage_progress_channel(
     percentage keeps flowing (Req. 1.5). When the stage reaches a terminal state
     (``concluido`` / ``erro``) the final frame is sent and the loop stops.
 
-    Any stage in ``VALID_STAGES`` (1..5 — Req. 1.5, 1.6, 1.7) may be reported;
+    Terminal de logs do provisionamento (Estágio 5 — Req. 2.2, 2.5, 2.7)
+    -------------------------------------------------------------------
+    When ``estagio`` is the provisioning stage
+    (:data:`~app.services.stage.stage_service.ESTAGIO_PROVISIONAMENTO`, Stage 5)
+    **and** a ``log_buffer`` is injected, each frame also carries the
+    provisioning log lines so the on-screen terminal streams the commands and
+    their output in near real time (Req. 2.2):
+
+    * **On connect** (the first frame) the frame carries the **full** current
+      buffer (:meth:`ProvisioningLogBuffer.ler`), so a screen opened late or a
+      reconnecting client recovers the whole history of the current execution
+      without losing lines (Req. 2.5, 2.7).
+    * **On every subsequent frame** it carries only the **delta** — the lines
+      emitted since the last frame (:meth:`ProvisioningLogBuffer.novas_desde`
+      from the greatest ``seq`` already sent) — so the terminal appends new
+      lines without re-sending the whole buffer (Req. 2.2, 2.5).
+
+    ``last_seq`` (the greatest ``seq`` sent so far) is tracked across iterations
+    and advanced from the lines actually included in each frame. For any other
+    stage (1–4, 6), or when ``log_buffer`` is ``None``, ``logs`` stays empty and
+    the frame is byte-for-byte what the channel sent before — a pure additive,
+    backward-compatible change. The process-level shared buffer is wired into
+    the router (``app.ws.router`` passes
+    :func:`~app.services.environment.log_buffer.get_log_buffer`) and fed by the
+    ``EnvironmentStageService`` (task 5.1); here the buffer is only read.
+
+    Any stage in ``VALID_STAGES`` (1..6 — Req. 1.2, 3.1) may be reported;
     the push loop is stage-agnostic, reading whatever the ``StageRun`` for
-    ``(caso_id, estagio)`` holds. An ``estagio`` outside ``VALID_STAGES`` is
+    ``(caso_id, estagio)`` holds. Because the valid range is sourced from
+    ``VALID_STAGES`` (widened to ``(1, 2, 3, 4, 5, 6)`` in ``stage_service``),
+    this channel covers the full six-stage pipeline without changes here. An
+    ``estagio`` outside ``VALID_STAGES`` is
     handled gracefully — mirroring the operation channel's missing-subject
     convention — by sending a single informational ``invalido`` frame and
     closing, rather than letting the service's stage guard raise into the socket.
@@ -134,21 +165,33 @@ async def run_stage_progress_channel(
         session_factory: Zero-arg factory returning a fresh SQLAlchemy session
             per poll (``SessionLocal`` in the app; an ephemeral factory in
             tests). Each session is closed right after the read.
-        estagio: Which stage to report — one of ``VALID_STAGES`` (1..5: 1
-            Modelagem, 2 Geração do DAG, 3 Operacionalização, 4
-            Provisionamento, 5 Execução). Defaults to Stage 1.
+        estagio: Which stage to report — one of ``VALID_STAGES`` (1..6: 1
+            Seleção da base STIX, 2 Seleção da campanha, 3 Geração do DAG, 4
+            Operacionalização, 5 Criação do ambiente de simulação, 6 Execução +
+            medição + relatório). Defaults to Stage 1.
         interval: Max seconds between frames while ``em_andamento`` (Req. 1.5).
             A short/zero value (tests) drives frames without waiting.
         max_frames: Optional cap on the number of frames to send before
             returning (tests use it to bound an otherwise-open loop). ``None``
             means "until terminal state or disconnect".
         sleeper: Injectable async sleep (defaults to ``asyncio.sleep``).
+        log_buffer: Optional process-level provisioning log buffer. When injected
+            and ``estagio`` is the provisioning stage (Stage 5), the frame's
+            ``logs`` carry the full buffer on connect and the delta thereafter
+            (Req. 2.2, 2.5, 2.7). ``None`` (the default) keeps ``logs`` empty —
+            the pre-existing behavior — for every stage.
 
     Returns:
         The number of frames actually sent (useful for tests/metrics).
     """
     frames_sent = 0
     previous_state: Optional[StageState] = None
+    # Terminal de logs do Estágio 5 (Req. 2.2, 2.5, 2.7): só carregamos ``logs``
+    # para o estágio de provisionamento e quando um buffer foi injetado. ``last_seq``
+    # é o maior ``seq`` já enviado — 0 significa "nada enviado ainda", de modo que o
+    # primeiro frame leve o buffer completo (connect) e os seguintes só o delta.
+    carrega_logs = log_buffer is not None and estagio == ESTAGIO_PROVISIONAMENTO
+    last_seq = 0
 
     # Reject an out-of-range stage gracefully (no uncaught stage guard raised
     # into the socket). Mirrors the operation channel's absent-subject frame:
@@ -187,6 +230,17 @@ async def run_stage_progress_channel(
                 )
             finally:
                 session.close()
+
+            # Terminal de logs do Estágio 5 (Req. 2.2, 2.5, 2.7). No connect
+            # (``last_seq == 0``) enviamos o buffer completo para a tela recuperar
+            # todo o histórico da execução corrente; nos frames seguintes, apenas
+            # o delta desde o maior ``seq`` já enviado. ``novas_desde(caso, 0)``
+            # equivale a ``ler(caso)``, então o connect usa o mesmo caminho.
+            if carrega_logs:
+                assert log_buffer is not None  # garantido por ``carrega_logs``
+                event.logs = log_buffer.novas_desde(caso_id, last_seq)
+                if event.logs:
+                    last_seq = max(linha.seq for linha in event.logs)
 
             await websocket.send_json(event.model_dump(mode="json"))
             frames_sent += 1

@@ -16,15 +16,21 @@ from app.models.domain import (
     Adversary,
     AuditLogEntry,
     Case,
+    Dag,
     Operation,
+    ParametrosAmbiente,
+    RelatorioExecucao,
     SessionState,
     StageRun,
     UserPreferences,
+    VersaoStix,
 )
 from app.models.enums import (
     AbilityResultStatus,
     Language,
     OperationState,
+    OrigemDag,
+    PlataformaAmbiente,
     StageState,
     Theme,
     TranslationSource,
@@ -33,6 +39,8 @@ from app.models.enums import (
 __all__ = [
     # Enums
     "TranslationSource",
+    "OrigemDag",
+    "PlataformaAmbiente",
     "StageState",
     "OperationState",
     "AbilityResultStatus",
@@ -40,6 +48,7 @@ __all__ = [
     "Language",
     # Models
     "Case",
+    "Dag",
     "StageRun",
     "Ability",
     "Adversary",
@@ -48,4 +57,7 @@ __all__ = [
     "AuditLogEntry",
     "SessionState",
     "UserPreferences",
+    "VersaoStix",
+    "ParametrosAmbiente",
+    "RelatorioExecucao",
 ]

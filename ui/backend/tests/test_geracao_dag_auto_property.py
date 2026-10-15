@@ -1,8 +1,8 @@
-"""Property test da conclusão automática do Estágio 2 — parte DAG (task 5.2).
+"""Property test da conclusão automática do Estágio 3 — parte DAG (task 4.1).
 
-# Feature: pipeline-cinco-estagios, Property 9: Conclusão automática dos
-# Estágios 2 e 4. Para um Caso curado, assim que o Estágio 1 (Modelagem
-# Estrutural) conclui e há um DAG curado derivável, o Estágio 2 (Geração do DAG)
+# Feature: pipeline-seis-estagios, Property 9: Conclusão automática dos
+# Estágios de curadoria. Para um Caso curado, assim que o Estágio 2 (Seleção da
+# campanha) conclui e há um DAG curado derivável, o Estágio 3 (Geração do DAG)
 # auto-conclui carregando o DAG. Respeita o gate sequencial e não ocorre sem o
 # material curado (DAG ausente).
 
@@ -16,26 +16,26 @@ implementação atual de
 Propriedade (design.md — Property 9, parte DAG)
 -----------------------------------------------
 Dirige o gate, a auto-conclusão idempotente e o caminho de não-conclusão do
-Estágio 2 sobre uma distribuição **arbitrária** de estados dos ``StageRun`` de
-um Caso. O estado do Estágio 1 (Modelagem) é semeado diretamente como linha
-``StageRun`` para isolar o gate de forma determinística; a derivação do DAG usa
-o :class:`CuradoriaGeradorDeDag` **real** sobre um ``{slug}_dag.json`` escrito
-num data dir temporário. Nenhum caminho toca a rede nem um cliente de IA (não há
-um neste caminho) — tudo é lógica pura de BD sobre SQLite efêmero.
+Estágio 3 sobre uma distribuição **arbitrária** de estados dos ``StageRun`` de
+um Caso. O estado do Estágio 2 (Seleção da campanha) é semeado diretamente como
+linha ``StageRun`` para isolar o gate de forma determinística; a derivação do
+DAG usa o :class:`CuradoriaGeradorDeDag` **real** sobre um ``{slug}_dag.json``
+escrito num data dir temporário. Nenhum caminho toca a rede nem um cliente de IA
+(não há um neste caminho) — tudo é lógica pura de BD sobre SQLite efêmero.
 
-1. **Gate (Req. 9.3).** Para qualquer distribuição de estados em que o Estágio 1
+1. **Gate (Req. 9.3).** Para qualquer distribuição de estados em que o Estágio 2
    **não** está ``concluido``, ``auto_concluir_estagio2`` devolve
    ``concluido=False`` / ``bloqueado_pelo_gate=True`` e **não** persiste nenhuma
-   linha ``estagio=2`` concluída — independentemente de haver DAG curado.
-2. **Auto-conclusão (Req. 9.1).** Quando o Estágio 1 está ``concluido`` e há um
-   DAG curado derivável, o Estágio 2 auto-conclui carregando o DAG: o
-   ``StageRun`` de ``(caso, estagio=2)`` fica ``concluido``/100; e é
+   linha ``estagio=3`` concluída — independentemente de haver DAG curado.
+2. **Auto-conclusão (Req. 9.1).** Quando o Estágio 2 está ``concluido`` e há um
+   DAG curado derivável, o Estágio 3 auto-conclui carregando o DAG: o
+   ``StageRun`` de ``(caso, estagio=3)`` fica ``concluido``/100; e é
    **idempotente** — chamar ``N`` vezes (``N`` dirigido por Hypothesis) produz
    exatamente a mesma linha única (mesmo ``id``, sem acúmulo), e o backfill não
    duplica a linha ``Dag`` (uma única entidade curada).
-3. **Sem DAG (Req. 9.4).** Com o Estágio 1 ``concluido`` mas **sem** DAG curado
+3. **Sem DAG (Req. 9.4).** Com o Estágio 2 ``concluido`` mas **sem** DAG curado
    derivável (data dir sem ``{slug}_dag.json``), ``auto_concluir_estagio2``
-   devolve ``sem_dag=True``, não conclui, o avanço para o Estágio 3 permanece
+   devolve ``sem_dag=True``, não conclui, o avanço para o Estágio 4 permanece
    bloqueado, e o backfill é idempotente (nenhuma linha ``Dag`` é persistida).
 
 Estratégia / isolamento
@@ -47,9 +47,8 @@ sobre uma ``Session`` SQLite **efêmera** (engine em arquivo temporário com o
 esquema completo via ``Base.metadata.create_all``, igual às fixtures de
 ``test_backfill_idempotente_property.py`` / ``test_escolha_dag_property.py``). O
 ``DagService`` recebe o ``CuradoriaGeradorDeDag`` real sobre o mesmo
-``CaseService``; o ``_obter_modelagem`` lê o Estágio 1 concluído (``read_stage1``,
-somente-leitura) a partir do mesmo fixture. Os DAGs gerados são acíclicos por
-construção.
+``CaseService``; o ``_obter_modelagem`` materializa os atributos da campanha a
+partir do mesmo fixture. Os DAGs gerados são acíclicos por construção.
 """
 
 from __future__ import annotations
@@ -76,7 +75,7 @@ from app.services.dag.dag_service import DagService
 from app.services.dag.gerador import CuradoriaGeradorDeDag
 from app.services.stage.stage_service import (
     ESTAGIO_GERACAO_DAG,
-    ESTAGIO_MODELAGEM,
+    ESTAGIO_SELECAO_CAMPANHA,
     VALID_STAGES,
     StageService,
 )
@@ -210,16 +209,19 @@ _NON_COMPLETED_CHOICES: tuple[Optional[StageState], ...] = tuple(
     s for s in _STATE_CHOICES if s is not StageState.COMPLETED
 )
 
-# Os Estágios semeados arbitrariamente (todos menos o 1 e o 2, controlados pelo
-# teste).
+# Os Estágios semeados arbitrariamente (todos menos o 2 e o 3, controlados pelo
+# teste): o Estágio 2 (Seleção da campanha) é o predecessor que abre o gate, e o
+# Estágio 3 (Geração do DAG) é o alvo da auto-conclusão.
 _OTHER_STAGES: tuple[int, ...] = tuple(
-    e for e in VALID_STAGES if e not in (ESTAGIO_MODELAGEM, ESTAGIO_GERACAO_DAG)
+    e
+    for e in VALID_STAGES
+    if e not in (ESTAGIO_SELECAO_CAMPANHA, ESTAGIO_GERACAO_DAG)
 )
 
 
 @st.composite
 def _other_stage_states(draw) -> dict[int, Optional[StageState]]:
-    """Distribuição arbitrária de estados para os Estágios que não o 1 nem o 2."""
+    """Distribuição arbitrária de estados para os Estágios que não o 2 nem o 3."""
     return {
         estagio: draw(st.sampled_from(_STATE_CHOICES)) for estagio in _OTHER_STAGES
     }
@@ -245,8 +247,8 @@ def _seed_stage_runs(
     session.commit()
 
 
-def _estagio2_rows(session: Session, caso_id: str) -> list[StageRun]:
-    """Todas as linhas ``StageRun`` de ``(caso_id, estagio=2)``, por ``id``."""
+def _estagio_dag_rows(session: Session, caso_id: str) -> list[StageRun]:
+    """Todas as linhas ``StageRun`` de ``(caso_id, estagio=3)``, por ``id``."""
     return list(
         session.execute(
             select(StageRun)
@@ -259,8 +261,8 @@ def _estagio2_rows(session: Session, caso_id: str) -> list[StageRun]:
     )
 
 
-def _count_estagio2_concluido(session: Session, caso_id: str) -> int:
-    """Quantas linhas ``estagio=2`` concluídas existem para ``caso_id``."""
+def _count_estagio_dag_concluido(session: Session, caso_id: str) -> int:
+    """Quantas linhas ``estagio=3`` (DAG) concluídas existem para ``caso_id``."""
     return (
         session.execute(
             select(func.count())
@@ -298,42 +300,43 @@ def _build_dag_service(
 
 
 # ===========================================================================
-# Propriedade 9.1 — Gate (Req. 9.3): Estágio 1 não concluído ⇒ não conclui.
+# Propriedade 9.1 — Gate (Req. 9.3): Estágio 2 não concluído ⇒ não conclui.
 # ===========================================================================
 
 
-# Feature: pipeline-cinco-estagios, Property 9 (parte DAG)
+# Feature: pipeline-seis-estagios, Property 9 (parte DAG)
 @settings(
     max_examples=100,
     deadline=None,
     suppress_health_check=[HealthCheck.function_scoped_fixture, HealthCheck.too_slow],
 )
 @given(
-    estagio1=st.sampled_from(_NON_COMPLETED_CHOICES),
-    estagio2=st.sampled_from(_STATE_CHOICES),
+    estagio2=st.sampled_from(_NON_COMPLETED_CHOICES),
+    estagio3=st.sampled_from(_STATE_CHOICES),
     outros=_other_stage_states(),
     structural_nodes=_acyclic_dag(),
 )
-def test_property9_gate_bloqueia_sem_estagio1_concluido(
-    estagio1: Optional[StageState],
+def test_property9_gate_bloqueia_sem_estagio2_concluido(
     estagio2: Optional[StageState],
+    estagio3: Optional[StageState],
     outros: dict[int, Optional[StageState]],
     structural_nodes: list[dict],
 ) -> None:
-    """Estágio 1 não concluído ⇒ gate fechado, não conclui o Estágio 2.
+    """Estágio 2 não concluído ⇒ gate fechado, não conclui o Estágio 3.
 
-    Para qualquer distribuição de estados onde o Estágio 1 (Modelagem) não é
-    ``concluido``, o gate sequencial tem precedência: ``auto_concluir_estagio2``
-    devolve ``concluido=False`` / ``bloqueado_pelo_gate=True`` e não persiste
-    nenhuma linha ``estagio=2`` *nova* — mesmo havendo um DAG curado derivável no
-    data dir. O gate é avaliado antes da idempotência, então o resultado é
-    "bloqueado" mesmo que já exista uma linha ``estagio=2`` concluída de antes.
+    Para qualquer distribuição de estados onde o Estágio 2 (Seleção da campanha)
+    não é ``concluido``, o gate sequencial tem precedência:
+    ``auto_concluir_estagio2`` devolve ``concluido=False`` /
+    ``bloqueado_pelo_gate=True`` e não persiste nenhuma linha ``estagio=3`` *nova*
+    — mesmo havendo um DAG curado derivável no data dir. O gate é avaliado antes
+    da idempotência, então o resultado é "bloqueado" mesmo que já exista uma
+    linha ``estagio=3`` concluída de antes.
 
     Validates: Requirements 9.1, 9.3, 9.4
     """
-    assert estagio1 is not StageState.COMPLETED
+    assert estagio2 is not StageState.COMPLETED
 
-    data_dir = Path(tempfile.mkdtemp(prefix="pipeline5_dag_auto_data_"))
+    data_dir = Path(tempfile.mkdtemp(prefix="pipeline6_dag_auto_data_"))
     factory, db_tmp_dir = _make_session_factory()
     session = factory()
     try:
@@ -343,11 +346,11 @@ def test_property9_gate_bloqueia_sem_estagio1_concluido(
         dag_service, _stage_service = _build_dag_service(session, data_dir)
 
         states = dict(outros)
-        states[ESTAGIO_MODELAGEM] = estagio1
-        states[ESTAGIO_GERACAO_DAG] = estagio2
+        states[ESTAGIO_SELECAO_CAMPANHA] = estagio2
+        states[ESTAGIO_GERACAO_DAG] = estagio3
         _seed_stage_runs(session, _CURATED_SLUG, states)
 
-        concluidas_antes = _count_estagio2_concluido(session, _CURATED_SLUG)
+        concluidas_antes = _count_estagio_dag_concluido(session, _CURATED_SLUG)
 
         resultado = dag_service.auto_concluir_estagio2(_CURATED_SLUG)
 
@@ -356,10 +359,13 @@ def test_property9_gate_bloqueia_sem_estagio1_concluido(
         assert resultado.bloqueado_pelo_gate is True
         assert resultado.sem_dag is False
         # Nenhuma conclusão foi feita por esta chamada: a contagem permanece a
-        # mesma de antes (0 quando estagio2 não era concluido; 1 quando já era).
-        assert _count_estagio2_concluido(session, _CURATED_SLUG) == concluidas_antes
+        # mesma de antes (0 quando estagio3 não era concluido; 1 quando já era).
+        assert (
+            _count_estagio_dag_concluido(session, _CURATED_SLUG)
+            == concluidas_antes
+        )
         assert concluidas_antes == (
-            1 if estagio2 is StageState.COMPLETED else 0
+            1 if estagio3 is StageState.COMPLETED else 0
         )
         # O gate fecha antes do backfill: nenhum Dag é persistido.
         assert _count_dags(session, _CURATED_SLUG) == 0
@@ -375,35 +381,36 @@ def test_property9_gate_bloqueia_sem_estagio1_concluido(
 # ===========================================================================
 
 
-# Feature: pipeline-cinco-estagios, Property 9 (parte DAG)
+# Feature: pipeline-seis-estagios, Property 9 (parte DAG)
 @settings(
     max_examples=100,
     deadline=None,
     suppress_health_check=[HealthCheck.function_scoped_fixture, HealthCheck.too_slow],
 )
 @given(
-    estagio2_inicial=st.sampled_from(_NON_COMPLETED_CHOICES),
+    estagio3_inicial=st.sampled_from(_NON_COMPLETED_CHOICES),
     outros=_other_stage_states(),
     structural_nodes=_acyclic_dag(),
     n=st.integers(min_value=1, max_value=6),
 )
 def test_property9_auto_conclui_carregando_dag_e_idempotente(
-    estagio2_inicial: Optional[StageState],
+    estagio3_inicial: Optional[StageState],
     outros: dict[int, Optional[StageState]],
     structural_nodes: list[dict],
     n: int,
 ) -> None:
-    """Estágio 1 concluído + DAG curado ⇒ auto-conclui; N chamadas == 1.
+    """Estágio 2 concluído + DAG curado ⇒ auto-conclui; N chamadas == 1.
 
-    Com o gate liberado (Estágio 1 ``concluido``) e um DAG curado derivável, o
-    Estágio 2 auto-conclui carregando o DAG: a linha ``(caso, estagio=2)`` fica
+    Com o gate liberado (Estágio 2 ``concluido``) e um DAG curado derivável, o
+    Estágio 3 auto-conclui carregando o DAG: a linha ``(caso, estagio=3)`` fica
     ``concluido``/100. Chamar ``N`` vezes é idempotente — exatamente uma linha
-    ``estagio=2`` com ``id`` estável, e o backfill não duplica a linha ``Dag``
-    (uma única entidade curada).
+    ``estagio=3`` com ``id`` estável, e o backfill não duplica a linha ``Dag``
+    (uma única entidade curada). Concluir o Estágio 3 libera o Estágio 4
+    (Operacionalização) pelo gate sequencial.
 
     Validates: Requirements 9.1, 9.3
     """
-    data_dir = Path(tempfile.mkdtemp(prefix="pipeline5_dag_auto_data_"))
+    data_dir = Path(tempfile.mkdtemp(prefix="pipeline6_dag_auto_data_"))
     factory, db_tmp_dir = _make_session_factory()
     session = factory()
     try:
@@ -411,14 +418,14 @@ def test_property9_auto_conclui_carregando_dag_e_idempotente(
         dag_service, stage_service = _build_dag_service(session, data_dir)
 
         states = dict(outros)
-        states[ESTAGIO_MODELAGEM] = StageState.COMPLETED
-        states[ESTAGIO_GERACAO_DAG] = estagio2_inicial
+        states[ESTAGIO_SELECAO_CAMPANHA] = StageState.COMPLETED
+        states[ESTAGIO_GERACAO_DAG] = estagio3_inicial
         _seed_stage_runs(session, _CURATED_SLUG, states)
 
-        # ANTES: o Estágio 3 está bloqueado enquanto o Estágio 2 não concluir.
-        assert stage_service.is_stage_startable(_CURATED_SLUG, 3) is False
+        # ANTES: o Estágio 4 está bloqueado enquanto o Estágio 3 não concluir.
+        assert stage_service.is_stage_startable(_CURATED_SLUG, 4) is False
 
-        # 1ª chamada: auto-conclui o Estágio 2 carregando o DAG curado.
+        # 1ª chamada: auto-conclui o Estágio 3 carregando o DAG curado.
         primeiro = dag_service.auto_concluir_estagio2(_CURATED_SLUG)
         assert primeiro.concluido is True
         assert primeiro.bloqueado_pelo_gate is False
@@ -426,15 +433,15 @@ def test_property9_auto_conclui_carregando_dag_e_idempotente(
         assert primeiro.total_dags == 1
         assert primeiro.stage_run_id is not None
 
-        rows_1 = _estagio2_rows(session, _CURATED_SLUG)
+        rows_1 = _estagio_dag_rows(session, _CURATED_SLUG)
         assert len(rows_1) == 1
         linha = rows_1[0]
         assert linha.estado is StageState.COMPLETED
         assert linha.progresso == 100
         id_estavel = linha.id
 
-        # DEPOIS: o Estágio 2 concluído ⇒ Estágio 3 liberado (gate sequencial).
-        assert stage_service.is_stage_startable(_CURATED_SLUG, 3) is True
+        # DEPOIS: o Estágio 3 concluído ⇒ Estágio 4 liberado (gate sequencial).
+        assert stage_service.is_stage_startable(_CURATED_SLUG, 4) is True
 
         # Chamadas 2..N são no-ops idempotentes: mesma linha única, mesmo id, e
         # o backfill continua com exatamente um Dag persistido.
@@ -443,12 +450,12 @@ def test_property9_auto_conclui_carregando_dag_e_idempotente(
             assert repetido.concluido is True
             assert repetido.stage_run_id == id_estavel
 
-        rows_n = _estagio2_rows(session, _CURATED_SLUG)
+        rows_n = _estagio_dag_rows(session, _CURATED_SLUG)
         assert len(rows_n) == 1
         assert rows_n[0].id == id_estavel
         assert rows_n[0].estado is StageState.COMPLETED
         assert rows_n[0].progresso == 100
-        assert _count_estagio2_concluido(session, _CURATED_SLUG) == 1
+        assert _count_estagio_dag_concluido(session, _CURATED_SLUG) == 1
         # Backfill idempotente: exatamente um Dag curado, sem duplicar.
         assert _count_dags(session, _CURATED_SLUG) == 1
     finally:
@@ -463,33 +470,33 @@ def test_property9_auto_conclui_carregando_dag_e_idempotente(
 # ===========================================================================
 
 
-# Feature: pipeline-cinco-estagios, Property 9 (parte DAG)
+# Feature: pipeline-seis-estagios, Property 9 (parte DAG)
 @settings(
     max_examples=100,
     deadline=None,
     suppress_health_check=[HealthCheck.function_scoped_fixture, HealthCheck.too_slow],
 )
 @given(
-    estagio2_inicial=st.sampled_from(_NON_COMPLETED_CHOICES),
+    estagio3_inicial=st.sampled_from(_NON_COMPLETED_CHOICES),
     outros=_other_stage_states(),
     n=st.integers(min_value=1, max_value=6),
 )
 def test_property9_sem_dag_nao_conclui_e_avanco_bloqueado(
-    estagio2_inicial: Optional[StageState],
+    estagio3_inicial: Optional[StageState],
     outros: dict[int, Optional[StageState]],
     n: int,
 ) -> None:
-    """Estágio 1 concluído mas SEM DAG derivável ⇒ ``sem_dag``, não conclui.
+    """Estágio 2 concluído mas SEM DAG derivável ⇒ ``sem_dag``, não conclui.
 
-    Com o gate liberado (Estágio 1 ``concluido``) mas sem DAG curado derivável (o
+    Com o gate liberado (Estágio 2 ``concluido``) mas sem DAG curado derivável (o
     data dir não tem ``{slug}_dag.json``), ``auto_concluir_estagio2`` devolve
-    ``sem_dag=True``, não conclui a linha ``estagio=2``, e o avanço para o
-    Estágio 3 permanece bloqueado. O backfill é idempotente: nenhuma linha
+    ``sem_dag=True``, não conclui a linha ``estagio=3``, e o avanço para o
+    Estágio 4 permanece bloqueado. O backfill é idempotente: nenhuma linha
     ``Dag`` é persistida, mesmo após ``N`` chamadas.
 
     Validates: Requirements 9.3, 9.4
     """
-    data_dir = Path(tempfile.mkdtemp(prefix="pipeline5_dag_auto_data_"))
+    data_dir = Path(tempfile.mkdtemp(prefix="pipeline6_dag_auto_data_"))
     factory, db_tmp_dir = _make_session_factory()
     session = factory()
     try:
@@ -498,8 +505,8 @@ def test_property9_sem_dag_nao_conclui_e_avanco_bloqueado(
         dag_service, stage_service = _build_dag_service(session, data_dir)
 
         states = dict(outros)
-        states[ESTAGIO_MODELAGEM] = StageState.COMPLETED
-        states[ESTAGIO_GERACAO_DAG] = estagio2_inicial
+        states[ESTAGIO_SELECAO_CAMPANHA] = StageState.COMPLETED
+        states[ESTAGIO_GERACAO_DAG] = estagio3_inicial
         _seed_stage_runs(session, _CURATED_SLUG, states)
 
         for _ in range(n):
@@ -511,10 +518,10 @@ def test_property9_sem_dag_nao_conclui_e_avanco_bloqueado(
             assert resultado.total_dags == 0
             assert resultado.stage_run_id is None
 
-        # Nada concluído: nenhuma linha ``estagio=2`` concluída e o Estágio 3
+        # Nada concluído: nenhuma linha ``estagio=3`` concluída e o Estágio 4
         # permanece bloqueado pelo gate sequencial (Req. 9.4).
-        assert _count_estagio2_concluido(session, _CURATED_SLUG) == 0
-        assert stage_service.is_stage_startable(_CURATED_SLUG, 3) is False
+        assert _count_estagio_dag_concluido(session, _CURATED_SLUG) == 0
+        assert stage_service.is_stage_startable(_CURATED_SLUG, 4) is False
         # Backfill idempotente: nenhum Dag inválido é persistido.
         assert _count_dags(session, _CURATED_SLUG) == 0
     finally:

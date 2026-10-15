@@ -50,6 +50,7 @@ services:
   # MariaDB (not MySQL) and the container also serves web content on :80.
   mariadb-target:
     build: .docker/db
+    image: sticks-mariadb-target:latest
     container_name: sticks-mariadb-target
     hostname: db  # keep internal hostname `db`; attack scripts target it by fixed IP
     #restart: always
@@ -74,6 +75,7 @@ services:
   # NGINX - Lab TARGET web server (SUT-A). The primary web attack target.
   nginx-target:
     build: .docker/nginx
+    image: sticks-nginx-target:latest
     container_name: sticks-nginx-target
     hostname: nginx  # keep internal hostname `nginx`; nothing resolves it, but harmless
     volumes:
@@ -91,6 +93,7 @@ services:
   # CALDERA - Red Team C2 Platform (attacker-side: orchestrates the emulation).
   caldera-attacker:
     build: .docker/caldera
+    image: sticks-caldera-attacker:latest
     container_name: sticks-caldera-attacker
     # NOTE: no --build — the magma UI is already compiled into the image (ui-build stage). Running the UI build at runtime fails (ENOTEMPTY) due to the source bind-mount.
     entrypoint:
@@ -132,6 +135,7 @@ services:
     build:
       context: .docker/kali
       dockerfile: Dockerfile
+    image: sticks-kali-attacker:latest
     container_name: sticks-kali-attacker
     hostname: kali-attacker
     volumes:
