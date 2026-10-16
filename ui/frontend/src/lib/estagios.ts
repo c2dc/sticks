@@ -447,8 +447,12 @@ export interface TopologyResponse {
  * extras.
  */
 export function getTopologia(caso: string): Promise<TopologyResponse> {
+  // Six-stage scheme: the contained topology (redes/hosts/mermaid) is served by
+  // Stage 5 (environment creation). Stage 4 now serves Operationalization
+  // (Abilities + ParametrosDeAmbiente) which has NO `redes` field, so pointing
+  // here would make Stage3View crash on `topologia.redes.map`.
   return api.get<TopologyResponse>(
-    `/casos/${encodeURIComponent(caso)}/estagio/4`,
+    `/casos/${encodeURIComponent(caso)}/estagio/5`,
   )
 }
 

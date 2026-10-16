@@ -219,7 +219,7 @@ export function Stage3View({
             </p>
             <MermaidDiagram definition={topologia.mermaid} className="w-full overflow-auto" />
             <ul className="flex flex-col gap-0.5">
-              {topologia.redes.map((rede) => (
+              {(topologia.redes ?? []).map((rede) => (
                 <li key={rede.nome} className="flex justify-between gap-2 text-[11px]">
                   <span className="text-muted-foreground">{rede.nome}</span>
                   <span className="font-mono">{rede.subnet}</span>

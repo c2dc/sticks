@@ -584,14 +584,22 @@ class OperationRunner:
         unresolved destinations contribute nothing here (they are already handled
         by the destination containment gate).
         """
+        # Lazy import to avoid the environment<->operation module import cycle:
+        # topologia_builder.HOST_CONTAINERS maps the logical host label
+        # (e.g. "nginx", "db") to the real lab container_name the Docker Engine
+        # knows (e.g. "sticks-nginx-target"), so the read-only isolation
+        # pre-flight inspects the actual running containers.
+        from app.services.environment.topologia_builder import HOST_CONTAINERS
+
         preview = preview_abilities(abilities)
         seen: set[str] = set()
         ordered: list[str] = []
         for command in preview.commands:
             for container in command.target_containers:
-                if container not in seen:
-                    seen.add(container)
-                    ordered.append(container)
+                resolved = HOST_CONTAINERS.get(container, container)
+                if resolved not in seen:
+                    seen.add(resolved)
+                    ordered.append(resolved)
         return ordered
 
     def _primary_target_label(
