@@ -1,0 +1,23 @@
+{
+  "title": "Preferências",
+  "theme": {
+    "label": "Tema",
+    "light": "Modo Claro",
+    "lightHint": "Tema corporativo com fundo claro.",
+    "dark": "Modo Escuro",
+    "darkHint": "Tema de cultura hacker com fundo escuro."
+  },
+  "language": {
+    "label": "Idioma",
+    "ptBR": "Português (pt-BR)",
+    "en": "English"
+  },
+  "navbar": {
+    "toggleTheme": "Alternar tema",
+    "toThemeLight": "Mudar para o Modo Claro",
+    "toThemeDark": "Mudar para o Modo Escuro",
+    "toggleLanguage": "Alternar idioma",
+    "toLanguagePtBR": "Mudar para Português (Brasil)",
+    "toLanguageEn": "Mudar para Inglês (Estados Unidos)"
+  }
+}
