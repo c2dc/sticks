@@ -48,6 +48,23 @@ The default database (`PIPELINE_UI_DATABASE_URL`) already points at the
 containerized Postgres on `localhost:5432`. The compose `backend` service
 (`containers` profile, opt-in) overrides the host to `postgres:5432`.
 
+### STIX bundle cache location
+
+The STIX bundle (`enterprise-attack-{version}.json`) is downloaded from MITRE on
+demand during Stage 1 and materialized in a **persistent user cache** outside the
+repository tree (not a versioned artifact). The default location is resolved by
+`StixService` via `pathlib`:
+
+- **Windows:** `%LOCALAPPDATA%\sticks\stix`
+- **Linux / macOS:** `$XDG_CACHE_HOME/sticks/stix` when `XDG_CACHE_HOME` is set,
+  otherwise `~/.cache/sticks/stix`
+- **Fallback:** `~/.sticks/stix` when no base environment variable is available
+
+Set `PIPELINE_UI_STIX_DIR` (environment or `.env`, `PIPELINE_UI_` prefix) to
+override the cache directory; the override takes precedence over the OS default.
+When the backend runs in the `containers` compose profile, this is pointed at a
+named cache volume so the ~50 MB copy persists across container recreations.
+
 No real Caldera or Docker attack network is used in development; everything
 uses mocks/fixtures.
 

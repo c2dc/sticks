@@ -225,16 +225,23 @@ services:
       # Point the backend at the `postgres` PostgreSQL service when run via compose.
       PIPELINE_UI_DATABASE_URL: postgresql+psycopg://pipeline_ui:pipeline_ui@postgres:5432/pipeline_ui
       PIPELINE_UI_ENVIRONMENT: development
+      # STIX bundle cache INSIDE the container, persisted in a named volume
+      # (sticks-stix-cache). Overrides the OS default so the download lands on
+      # the cache volume instead of the repo tree.
+      PIPELINE_UI_STIX_DIR: /var/cache/sticks/stix
     ports:
       # Bound to 127.0.0.1 so ONLY this machine can reach the backend API.
       # host 8010 -> container 8000 (8000 is taken by nginx inside the lab).
       - "127.0.0.1:8010:8000"
     volumes:
       # Mount the repo root read-only so app/core/sticks_config.py can resolve
-      # <repo>/packages/cli/config/config.py via parents[4] at runtime.
+      # <repo>/packages/cli/config/config.py via parents[4] at runtime. The STIX
+      # download no longer writes under /repo, so the whole tree stays :ro.
       - ../..:/repo:ro
-      # Download is the ONLY write; keep the data dir writable while the rest of /repo stays :ro.
-      - ../../packages/cli/data/stix:/repo/packages/cli/data/stix
+      # STIX cache volume (persists across container recreations and is reused,
+      # avoiding re-download). Replaces the old bind in packages/cli/data/stix;
+      # the backend writes the bundle here via PIPELINE_UI_STIX_DIR.
+      - sticks-stix-cache:/var/cache/sticks/stix
       # Docker Engine API, READ-ONLY, for isolation inspection only.
       - /var/run/docker.sock:/var/run/docker.sock:ro
     extra_hosts:
@@ -360,3 +367,8 @@ volumes:
   # installed dependencies from being shadowed by the host source bind-mount.
   sticks-frontend-node-modules:
     name: sticks-frontend-node-modules
+  # STIX bundle cache for the containerized `sticks-backend` service. A named
+  # volume persists the ~50 MB bundle across container recreations and is reused
+  # (no re-download), decoupling the runtime artifact from the repo tree.
+  sticks-stix-cache:
+    name: sticks-stix-cache

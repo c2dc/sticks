@@ -1088,7 +1088,23 @@ def test_get_stage2_lists_campaigns_and_readonly_attributes(
     as selectable. The read-only view (``selection``) carries the ``campaign_id``
     and the identity, without running or completing the Stage when opening the
     screen."""
-    from app.services.stix.stix_service import CURATED_VERSION
+    from app.services.stix.stix_service import CURATED_VERSION, StixService
+
+    # Environment guard: this surface test reads the REAL curated STIX bundle
+    # (enterprise-attack-{CURATED_VERSION}.json, ~50MB), which is a runtime
+    # artifact downloaded on demand in Stage 1 — not a versioned repo file. When
+    # it is absent from the resolved STIX cache (clean dev/CI machine), the
+    # endpoint correctly returns 422 "arquivo ausente". Skip cleanly in that case
+    # (same convention as test_e2e_real_lab.py) and run fully when the bundle is
+    # present. Uses StixService().base_path so it tracks whatever the resolver
+    # returns (env override / OS default).
+    bundle_path = StixService().base_path(CURATED_VERSION)
+    if not bundle_path.exists():
+        pytest.skip(
+            "requires the curated enterprise-attack-"
+            f"{CURATED_VERSION}.json bundle present in the STIX cache "
+            f"({bundle_path}); download it via Stage 1 to run this surface test"
+        )
 
     client = _make_client(session_factory)
     resp = client.get(f"/api/campaigns/{_REAL_SLUG}/stage/2")

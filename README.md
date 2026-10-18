@@ -50,6 +50,21 @@ directly from disk (no AI, no network in development). This is a transitional
 design: an `origin` extension point (`human_curation` today, `ai_generated`
 later) lets an AI agent replace the curation without a redesign.
 
+### STIX base selection — where the bundle is stored
+
+The STIX bundle (`enterprise-attack-{version}.json`, ~50 MB) is a **runtime
+artifact**, not a versioned file. It is downloaded from the official MITRE source
+on demand during Stage 1, into a **persistent user cache** outside the repository
+tree, so the repository stays small and clean:
+
+- **Windows:** `%LOCALAPPDATA%\sticks\stix`
+- **Linux / macOS:** `$XDG_CACHE_HOME/sticks/stix` when `XDG_CACHE_HOME` is set,
+  otherwise `~/.cache/sticks/stix`
+- **Fallback:** `~/.sticks/stix` when no base environment variable is available
+
+Override the location with the `PIPELINE_UI_STIX_DIR` environment variable (or an
+entry in `.env`); when set, it takes precedence over the OS default.
+
 **Curated campaigns:** APT41 - DUST, ATT&CK Campaign C0010, ATT&CK Campaign
 C0026, CostaRicto, Operation MidnightEclipse, Operation Outer Space,
 Salesforce Data Exfiltration, ShadowRay.

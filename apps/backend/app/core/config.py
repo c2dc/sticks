@@ -62,6 +62,14 @@ class Settings(BaseSettings):
     # the value comes from the existing sticks config (single source of truth).
     caldera_url_override: Optional[str] = None
 
+    # Explicit override of the STIX data directory (Req. 2.1, 2.4). When set
+    # (env PIPELINE_UI_STIX_DIR or .env) it takes precedence over the OS default;
+    # absent/empty falls back to the default (Req. 2.3). The StixService passes
+    # this value as `override` to resolve_stix_data_dir. Kept as Optional[str]
+    # (not Path) to mirror the env var faithfully and leave normalization to
+    # pathlib/the resolver.
+    stix_dir: Optional[str] = None
+
     # ---- Stage 6 operation collection settings (Req. 3.1) --------------------
 
     # Seconds between polls while collecting an Operation's state. The runner

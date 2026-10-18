@@ -1,0 +1,316 @@
+{
+  "pbtResults": {
+    "1.1 Teste de propriedade — precedência da resolução": {
+      "status": "passed",
+      "lastRunTimestamp": 1792358927304
+    },
+    "3.1 Teste de propriedade — instanciação sem efeitos colaterais": {
+      "status": "passed",
+      "lastRunTimestamp": 1792359242670
+    },
+    "3.3 Teste de propriedade — nenhum arquivo parcial em falha": {
+      "status": "passed",
+      "lastRunTimestamp": 1792359343142
+    },
+    "3.4 Teste de propriedade — equivalência observável entre locais": {
+      "status": "passed",
+      "lastRunTimestamp": 1792359351026
+    },
+    "3.2 Teste de propriedade — criação de diretório idempotente sob demanda": {
+      "status": "passed",
+      "lastRunTimestamp": 1792360182318
+    }
+  },
+  "executionHistory": {
+    "1.1 Teste de propriedade — precedência da resolução": [
+      {
+        "executionId": "9831192b-2460-4f31-bdf7-e741e458549f",
+        "chatSessionId": "sess_31e45ac3-f724-431c-95da-8bdcc09601e5",
+        "timestamp": 1792358803875
+      },
+      {
+        "executionId": "9831192b-2460-4f31-bdf7-e741e458549f",
+        "chatSessionId": "sess_31e45ac3-f724-431c-95da-8bdcc09601e5",
+        "timestamp": 1792358822642
+      },
+      {
+        "executionId": "9831192b-2460-4f31-bdf7-e741e458549f",
+        "chatSessionId": "sess_31e45ac3-f724-431c-95da-8bdcc09601e5",
+        "timestamp": 1792358948480
+      }
+    ],
+    "1.2 Teste de propriedade — mapeamento do default por SO": [
+      {
+        "executionId": "9831192b-2460-4f31-bdf7-e741e458549f",
+        "chatSessionId": "sess_31e45ac3-f724-431c-95da-8bdcc09601e5",
+        "timestamp": 1792358804111
+      },
+      {
+        "executionId": "9831192b-2460-4f31-bdf7-e741e458549f",
+        "chatSessionId": "sess_31e45ac3-f724-431c-95da-8bdcc09601e5",
+        "timestamp": 1792358957654
+      },
+      {
+        "executionId": "9831192b-2460-4f31-bdf7-e741e458549f",
+        "chatSessionId": "sess_31e45ac3-f724-431c-95da-8bdcc09601e5",
+        "timestamp": 1792359102606
+      }
+    ],
+    "1.3 Teste de propriedade — default fora da raiz do repositório": [
+      {
+        "executionId": "9831192b-2460-4f31-bdf7-e741e458549f",
+        "chatSessionId": "sess_31e45ac3-f724-431c-95da-8bdcc09601e5",
+        "timestamp": 1792358804343
+      },
+      {
+        "executionId": "9831192b-2460-4f31-bdf7-e741e458549f",
+        "chatSessionId": "sess_31e45ac3-f724-431c-95da-8bdcc09601e5",
+        "timestamp": 1792358958738
+      },
+      {
+        "executionId": "9831192b-2460-4f31-bdf7-e741e458549f",
+        "chatSessionId": "sess_31e45ac3-f724-431c-95da-8bdcc09601e5",
+        "timestamp": 1792359103518
+      }
+    ],
+    "1.4 Teste de propriedade — fallback determinístico sem erro": [
+      {
+        "executionId": "9831192b-2460-4f31-bdf7-e741e458549f",
+        "chatSessionId": "sess_31e45ac3-f724-431c-95da-8bdcc09601e5",
+        "timestamp": 1792358804571
+      },
+      {
+        "executionId": "9831192b-2460-4f31-bdf7-e741e458549f",
+        "chatSessionId": "sess_31e45ac3-f724-431c-95da-8bdcc09601e5",
+        "timestamp": 1792358960051
+      },
+      {
+        "executionId": "9831192b-2460-4f31-bdf7-e741e458549f",
+        "chatSessionId": "sess_31e45ac3-f724-431c-95da-8bdcc09601e5",
+        "timestamp": 1792359104922
+      }
+    ],
+    "1.5 Teste de propriedade — portabilidade por pathlib": [
+      {
+        "executionId": "9831192b-2460-4f31-bdf7-e741e458549f",
+        "chatSessionId": "sess_31e45ac3-f724-431c-95da-8bdcc09601e5",
+        "timestamp": 1792358804802
+      },
+      {
+        "executionId": "9831192b-2460-4f31-bdf7-e741e458549f",
+        "chatSessionId": "sess_31e45ac3-f724-431c-95da-8bdcc09601e5",
+        "timestamp": 1792358960901
+      },
+      {
+        "executionId": "9831192b-2460-4f31-bdf7-e741e458549f",
+        "chatSessionId": "sess_31e45ac3-f724-431c-95da-8bdcc09601e5",
+        "timestamp": 1792359105822
+      }
+    ],
+    "2.1 Teste de exemplo — fiação de Settings": [
+      {
+        "executionId": "9831192b-2460-4f31-bdf7-e741e458549f",
+        "chatSessionId": "sess_31e45ac3-f724-431c-95da-8bdcc09601e5",
+        "timestamp": 1792358805068
+      },
+      {
+        "executionId": "9831192b-2460-4f31-bdf7-e741e458549f",
+        "chatSessionId": "sess_31e45ac3-f724-431c-95da-8bdcc09601e5",
+        "timestamp": 1792358828214
+      },
+      {
+        "executionId": "9831192b-2460-4f31-bdf7-e741e458549f",
+        "chatSessionId": "sess_31e45ac3-f724-431c-95da-8bdcc09601e5",
+        "timestamp": 1792358949781
+      }
+    ],
+    "3.1 Teste de propriedade — instanciação sem efeitos colaterais": [
+      {
+        "executionId": "9831192b-2460-4f31-bdf7-e741e458549f",
+        "chatSessionId": "sess_31e45ac3-f724-431c-95da-8bdcc09601e5",
+        "timestamp": 1792358805298
+      },
+      {
+        "executionId": "9831192b-2460-4f31-bdf7-e741e458549f",
+        "chatSessionId": "sess_31e45ac3-f724-431c-95da-8bdcc09601e5",
+        "timestamp": 1792359115782
+      },
+      {
+        "executionId": "9831192b-2460-4f31-bdf7-e741e458549f",
+        "chatSessionId": "sess_31e45ac3-f724-431c-95da-8bdcc09601e5",
+        "timestamp": 1792359259782
+      }
+    ],
+    "3.2 Teste de propriedade — criação de diretório idempotente sob demanda": [
+      {
+        "executionId": "9831192b-2460-4f31-bdf7-e741e458549f",
+        "chatSessionId": "sess_31e45ac3-f724-431c-95da-8bdcc09601e5",
+        "timestamp": 1792358805545
+      },
+      {
+        "executionId": "9831192b-2460-4f31-bdf7-e741e458549f",
+        "chatSessionId": "sess_31e45ac3-f724-431c-95da-8bdcc09601e5",
+        "timestamp": 1792359261045
+      },
+      {
+        "executionId": "9831192b-2460-4f31-bdf7-e741e458549f",
+        "chatSessionId": "sess_31e45ac3-f724-431c-95da-8bdcc09601e5",
+        "timestamp": 1792359368152
+      }
+    ],
+    "3.3 Teste de propriedade — nenhum arquivo parcial em falha": [
+      {
+        "executionId": "9831192b-2460-4f31-bdf7-e741e458549f",
+        "chatSessionId": "sess_31e45ac3-f724-431c-95da-8bdcc09601e5",
+        "timestamp": 1792358805783
+      },
+      {
+        "executionId": "9831192b-2460-4f31-bdf7-e741e458549f",
+        "chatSessionId": "sess_31e45ac3-f724-431c-95da-8bdcc09601e5",
+        "timestamp": 1792359262503
+      },
+      {
+        "executionId": "9831192b-2460-4f31-bdf7-e741e458549f",
+        "chatSessionId": "sess_31e45ac3-f724-431c-95da-8bdcc09601e5",
+        "timestamp": 1792359369429
+      }
+    ],
+    "3.4 Teste de propriedade — equivalência observável entre locais": [
+      {
+        "executionId": "9831192b-2460-4f31-bdf7-e741e458549f",
+        "chatSessionId": "sess_31e45ac3-f724-431c-95da-8bdcc09601e5",
+        "timestamp": 1792358805997
+      },
+      {
+        "executionId": "9831192b-2460-4f31-bdf7-e741e458549f",
+        "chatSessionId": "sess_31e45ac3-f724-431c-95da-8bdcc09601e5",
+        "timestamp": 1792359263442
+      },
+      {
+        "executionId": "9831192b-2460-4f31-bdf7-e741e458549f",
+        "chatSessionId": "sess_31e45ac3-f724-431c-95da-8bdcc09601e5",
+        "timestamp": 1792359370830
+      }
+    ],
+    "3.5 Testes de exemplo — reuso de disco e estado inicial": [
+      {
+        "executionId": "9831192b-2460-4f31-bdf7-e741e458549f",
+        "chatSessionId": "sess_31e45ac3-f724-431c-95da-8bdcc09601e5",
+        "timestamp": 1792358806212
+      },
+      {
+        "executionId": "9831192b-2460-4f31-bdf7-e741e458549f",
+        "chatSessionId": "sess_31e45ac3-f724-431c-95da-8bdcc09601e5",
+        "timestamp": 1792359264586
+      },
+      {
+        "executionId": "9831192b-2460-4f31-bdf7-e741e458549f",
+        "chatSessionId": "sess_31e45ac3-f724-431c-95da-8bdcc09601e5",
+        "timestamp": 1792359371572
+      }
+    ],
+    "4. Checkpoint — garantir que resolvedor, Settings e StixService passam": [
+      {
+        "executionId": "9831192b-2460-4f31-bdf7-e741e458549f",
+        "chatSessionId": "sess_31e45ac3-f724-431c-95da-8bdcc09601e5",
+        "timestamp": 1792358806431
+      },
+      {
+        "executionId": "9831192b-2460-4f31-bdf7-e741e458549f",
+        "chatSessionId": "sess_31e45ac3-f724-431c-95da-8bdcc09601e5",
+        "timestamp": 1792359375833
+      },
+      {
+        "executionId": "9831192b-2460-4f31-bdf7-e741e458549f",
+        "chatSessionId": "sess_31e45ac3-f724-431c-95da-8bdcc09601e5",
+        "timestamp": 1792360915468
+      }
+    ],
+    "5.1 Teste de snapshot/parse do compose": [
+      {
+        "executionId": "9831192b-2460-4f31-bdf7-e741e458549f",
+        "chatSessionId": "sess_31e45ac3-f724-431c-95da-8bdcc09601e5",
+        "timestamp": 1792358806651
+      },
+      {
+        "executionId": "9831192b-2460-4f31-bdf7-e741e458549f",
+        "chatSessionId": "sess_31e45ac3-f724-431c-95da-8bdcc09601e5",
+        "timestamp": 1792358829149
+      },
+      {
+        "executionId": "9831192b-2460-4f31-bdf7-e741e458549f",
+        "chatSessionId": "sess_31e45ac3-f724-431c-95da-8bdcc09601e5",
+        "timestamp": 1792358951188
+      }
+    ],
+    "6.1 Teste de asserção estática do `.gitignore`": [
+      {
+        "executionId": "9831192b-2460-4f31-bdf7-e741e458549f",
+        "chatSessionId": "sess_31e45ac3-f724-431c-95da-8bdcc09601e5",
+        "timestamp": 1792358806864
+      },
+      {
+        "executionId": "9831192b-2460-4f31-bdf7-e741e458549f",
+        "chatSessionId": "sess_31e45ac3-f724-431c-95da-8bdcc09601e5",
+        "timestamp": 1792358830214
+      },
+      {
+        "executionId": "9831192b-2460-4f31-bdf7-e741e458549f",
+        "chatSessionId": "sess_31e45ac3-f724-431c-95da-8bdcc09601e5",
+        "timestamp": 1792358951933
+      }
+    ],
+    "7. Checkpoint final — garantir que toda a suíte passa": [
+      {
+        "executionId": "9831192b-2460-4f31-bdf7-e741e458549f",
+        "chatSessionId": "sess_31e45ac3-f724-431c-95da-8bdcc09601e5",
+        "timestamp": 1792358807086
+      },
+      {
+        "executionId": "9831192b-2460-4f31-bdf7-e741e458549f",
+        "chatSessionId": "sess_31e45ac3-f724-431c-95da-8bdcc09601e5",
+        "timestamp": 1792360919380
+      },
+      {
+        "executionId": "9831192b-2460-4f31-bdf7-e741e458549f",
+        "chatSessionId": "sess_31e45ac3-f724-431c-95da-8bdcc09601e5",
+        "timestamp": 1792360999937
+      }
+    ],
+    "2. Expor o override `stix_dir` em `Settings`": [
+      {
+        "executionId": "9831192b-2460-4f31-bdf7-e741e458549f",
+        "chatSessionId": "sess_31e45ac3-f724-431c-95da-8bdcc09601e5",
+        "timestamp": 1792358949974
+      }
+    ],
+    "5. Mapear o volume de cache no profile `containers` do compose": [
+      {
+        "executionId": "9831192b-2460-4f31-bdf7-e741e458549f",
+        "chatSessionId": "sess_31e45ac3-f724-431c-95da-8bdcc09601e5",
+        "timestamp": 1792358951410
+      }
+    ],
+    "6. Manter `.gitignore` e documentar o novo local": [
+      {
+        "executionId": "9831192b-2460-4f31-bdf7-e741e458549f",
+        "chatSessionId": "sess_31e45ac3-f724-431c-95da-8bdcc09601e5",
+        "timestamp": 1792358952162
+      }
+    ],
+    "1. Criar o resolvedor de caminho puro `stix_paths`": [
+      {
+        "executionId": "9831192b-2460-4f31-bdf7-e741e458549f",
+        "chatSessionId": "sess_31e45ac3-f724-431c-95da-8bdcc09601e5",
+        "timestamp": 1792359106081
+      }
+    ],
+    "3. Trocar o default do `StixService` para o resolvedor": [
+      {
+        "executionId": "9831192b-2460-4f31-bdf7-e741e458549f",
+        "chatSessionId": "sess_31e45ac3-f724-431c-95da-8bdcc09601e5",
+        "timestamp": 1792359371795
+      }
+    ]
+  }
+}
