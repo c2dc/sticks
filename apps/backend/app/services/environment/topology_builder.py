@@ -106,13 +106,36 @@ def ips_for_host(host: str) -> list[str]:
 
 
 def container_names() -> list[str]:
-    """The display container names for every lab host (isolation targets).
+    """The display container names for EVERY lab host, in stable ``HOST_ROLES``
+    order (attackers + targets).
 
-    This is the exact list the isolation verification inspects, in the stable
-    ``HOST_ROLES`` order, so the Provisioner verifies the SAME containers the
-    Execution stage will target.
+    NOTE: this includes the attacker/C2 hosts (``caldera``/``kali``). It is used
+    for display/topology, NOT for the isolation verdict. The isolation check
+    must inspect only the **target** containers (the hosts the campaign
+    attacks) — see :func:`target_container_names` — because the attacker C2
+    (``caldera``) legitimately joins a non-internal management network so the
+    operator can reach the Caldera UI. Verifying attackers would be a false
+    negative; the real Execution gate (OperationRunner) only verifies targets.
     """
     return [HOST_CONTAINERS.get(host, host) for host in HOST_ROLES]
+
+
+def target_container_names() -> list[str]:
+    """The container names of the **target** hosts only (role == ``target``).
+
+    These are the victim containers the campaign actually attacks (e.g.
+    ``sticks-nginx-target``, ``sticks-mariadb-target``). Isolation MUST hold for
+    exactly these — if a target is not isolated, attack commands could leak to
+    the real network. The attacker/C2 hosts are intentionally excluded: they
+    are not attacked, and the C2 needs a management network to be operated.
+    This mirrors what the Execution gate (``OperationRunner``) verifies, so the
+    Stage 5 panel and the Stage 6 gate agree on the same contract.
+    """
+    return [
+        HOST_CONTAINERS.get(host, host)
+        for host, role in HOST_ROLES.items()
+        if role == "target"
+    ]
 
 
 def build_hosts() -> list[HostView]:
@@ -220,13 +243,14 @@ def compose_path() -> Optional[str]:
     # app/services/environment/topology_builder.py -> parents[3] = app/,
     # parents[5] = repo root (…/app/services/environment -> …/).
     repo_root = FsPath(__file__).resolve().parents[5]
-    candidate = repo_root / "docker" / "docker-compose.yml"
+    candidate = repo_root / "infra" / "docker" / "docker-compose.yml"
     return str(candidate) if candidate.exists() else None
 
 
 __all__ = [
     "HOST_ROLES",
     "HOST_CONTAINERS",
+    "target_container_names",
     "NETWORK_MEMBERS",
     "HostView",
     "NetworkView",

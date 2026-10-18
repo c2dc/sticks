@@ -93,14 +93,14 @@ from app.services.campaign_service import (
     DagData,
 )
 from app.services.stage.stage_service import (
-    ESTAGIO_GERACAO_DAG,
-    ESTAGIO_MODELAGEM,
-    ESTAGIO_SELECAO_CAMPANHA,
+    STAGE_DAG_GENERATION,
+    STAGE_MODELING,
+    STAGE_CAMPAIGN_SELECTION,
     StageService,
 )
 
 if TYPE_CHECKING:  # pragma: no cover - import only for typing (avoids a cycle)
-    from app.services.dag.gerador import DagGenerator, StructuralModeling
+    from app.services.dag.generator import DagGenerator, StructuralModeling
 
 
 def _utcnow() -> dt.datetime:
@@ -225,7 +225,7 @@ class DagDetail(BaseModel):
 # ---------------------------------------------------------------------------
 
 # The "DAG Generation" Stage number is the single source of truth in
-# ``stage_service`` (``ESTAGIO_GERACAO_DAG == 2`` after the renumbering to five
+# ``stage_service`` (``STAGE_DAG_GENERATION == 2`` after the renumbering to five
 # Stages — Req. 1.1); imported above rather than redeclared as a local literal.
 # The choice writes ``chosen_dag_id`` on the ``StageRun`` of this Stage and
 # completes it; the automatic completion (``auto_complete_stage2``) marks the
@@ -296,7 +296,7 @@ class DagChoiceResult(BaseModel):
         the API/UI to surface.
     stage:
         The Stage number completed by the choice (always
-        :data:`ESTAGIO_GERACAO_DAG`), also present on a refusal for context.
+        :data:`STAGE_DAG_GENERATION`), also present on a refusal for context.
     stage_run_id:
         The id of the written Stage 2 ``StageRun`` on success; ``None`` when the
         choice was refused/failed.
@@ -307,7 +307,7 @@ class DagChoiceResult(BaseModel):
     dag_id: int
     failure: Optional[DagChoiceFailure] = None
     message: Optional[str] = None
-    stage: int = ESTAGIO_GERACAO_DAG
+    stage: int = STAGE_DAG_GENERATION
     stage_run_id: Optional[int] = None
 
 
@@ -397,7 +397,7 @@ class DagService:
     Persistence / generation (task 5.1 — Req. 4.1–4.5, 4.8, 5.1)
     ------------------------------------------------------------
     The service also persists and lists first-class :class:`~app.models.domain.Dag`
-    entities for a campaign, consuming a :class:`~app.services.dag.gerador.DagGenerator`
+    entities for a campaign, consuming a :class:`~app.services.dag.generator.DagGenerator`
     (``CurationDagGenerator`` by default — Req. 5.1). It takes an injected
     SQLAlchemy :class:`~sqlalchemy.orm.Session` (same convention as
     ``StageService``/``SessionStateService``), so the same code works with the
@@ -413,7 +413,7 @@ class DagService:
         self,
         session: Optional[Session] = None,
         case_service: Optional[CaseService] = None,
-        gerador: Optional["DagGenerator"] = None,
+        generator: Optional["DagGenerator"] = None,
         stage_service: Optional[StageService] = None,
     ) -> None:
         self._session = session
@@ -425,14 +425,14 @@ class DagService:
         # auto-completion gate. Built lazily (only when there is a Session),
         # reusing ``case_service`` to point at the same fixtures.
         self._stage_service: Optional[StageService] = stage_service
-        if gerador is None:
-            # Lazy import: ``gerador`` imports ``DagService`` from this module,
+        if generator is None:
+            # Lazy import: ``generator`` imports ``DagService`` from this module,
             # so importing it at module top-level would create a cycle. The
             # default generator is the curation implementation (Req. 5.1).
-            from app.services.dag.gerador import CurationDagGenerator
+            from app.services.dag.generator import CurationDagGenerator
 
-            gerador = CurationDagGenerator(self._case_service)
-        self._gerador: "DagGenerator" = gerador
+            generator = CurationDagGenerator(self._case_service)
+        self._gerador: "DagGenerator" = generator
 
     @property
     def case_service(self) -> CaseService:
@@ -440,7 +440,7 @@ class DagService:
         return self._case_service
 
     @property
-    def gerador(self) -> "DagGenerator":
+    def generator(self) -> "DagGenerator":
         """The injected :class:`DagGenerator` (curation by default — Req. 5.1)."""
         return self._gerador
 
@@ -485,7 +485,7 @@ class DagService:
         :meth:`StageService.run_stage1` (the Modeling must exist for the DAG to be
         derived from it). The ``techniques`` / ``relationships`` elements of
         ``Stage1Output`` are mapped 1:1 to
-        :class:`~app.services.dag.gerador.StructuralModeling` (the same
+        :class:`~app.services.dag.generator.StructuralModeling` (the same
         ``TechniqueElement`` / ``RelationshipElement``), so the Modeling → DAG
         data flow is correct even if the curation implementation ignores the
         Modeling (the curated graph already exists on disk).
@@ -495,12 +495,12 @@ class DagService:
         generation still produces the curated DAG from disk (or an empty list
         with no derivable DAG).
         """
-        # Local import to avoid the cycle (``gerador`` imports ``DagService``).
-        from app.services.dag.gerador import StructuralModeling
+        # Local import to avoid the cycle (``generator`` imports ``DagService``).
+        from app.services.dag.generator import StructuralModeling
 
         stage_service = self._get_stage_service()
         states = stage_service._stage_states_map(campaign)
-        if states.get(ESTAGIO_MODELAGEM) is StageState.COMPLETED:
+        if states.get(STAGE_MODELING) is StageState.COMPLETED:
             # Stage 1 already completed: pure read, no re-run/persist.
             result = stage_service.read_stage1(campaign)
         else:
@@ -521,7 +521,7 @@ class DagService:
     def sync_curated_dags(self, campaign: str) -> list[DagSummary]:
         """Idempotent backfill of a campaign's curated DAGs (Req. 4.5).
 
-        Calls ``gerador.generate(campaign, modeling)`` (``CurationDagGenerator`` by
+        Calls ``generator.generate(campaign, modeling)`` (``CurationDagGenerator`` by
         default, which reads ``data/dag/{slug}_dag.json`` via ``CaseService`` —
         **no network and no AI**, Req. 5.5, 9.1) and persists each
         :class:`ProducedDag` as a :class:`~app.models.domain.Dag` entity
@@ -836,11 +836,11 @@ class DagService:
 
         # (1) Sequential gate (Req. 7.1, 3.1): DAG Generation is Stage 3 in the
         # six-stage pipeline; its Input is the campaign attributes from Stage 2
-        # (Campaign Selection — ``ESTAGIO_SELECAO_CAMPANHA``). The gate only
+        # (Campaign Selection — ``STAGE_CAMPAIGN_SELECTION``). The gate only
         # releases when the immediately preceding Stage (the 2nd) is
         # ``completed``, exactly what ``is_stage_startable(campaign, 3)`` requires.
         if (
-            states.get(ESTAGIO_SELECAO_CAMPANHA) is not StageState.COMPLETED
+            states.get(STAGE_CAMPAIGN_SELECTION) is not StageState.COMPLETED
         ):
             return DagAutoGenerationResult(
                 campaign_id=campaign,
@@ -850,8 +850,8 @@ class DagService:
             )
 
         # (2) Idempotency: already completed ⇒ nothing to re-persist.
-        if states.get(ESTAGIO_GERACAO_DAG) is StageState.COMPLETED:
-            row = stage_service._stage_run_row(campaign, ESTAGIO_GERACAO_DAG)
+        if states.get(STAGE_DAG_GENERATION) is StageState.COMPLETED:
+            row = stage_service._stage_run_row(campaign, STAGE_DAG_GENERATION)
             dags = self.list_dags(campaign)
             return DagAutoGenerationResult(
                 campaign_id=campaign,
@@ -912,12 +912,12 @@ class DagService:
         stmt = (
             select(StageRun)
             .where(StageRun.campaign_id == campaign)
-            .where(StageRun.stage == ESTAGIO_GERACAO_DAG)
+            .where(StageRun.stage == STAGE_DAG_GENERATION)
             .order_by(StageRun.id.asc())
         )
         stage_run = session.execute(stmt).scalars().first()
         if stage_run is None:
-            stage_run = StageRun(campaign_id=campaign, stage=ESTAGIO_GERACAO_DAG)
+            stage_run = StageRun(campaign_id=campaign, stage=STAGE_DAG_GENERATION)
             session.add(stage_run)
         return stage_run
 

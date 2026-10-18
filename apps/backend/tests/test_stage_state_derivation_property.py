@@ -272,7 +272,7 @@ def test_property3_stage_state_derived_exactly_from_stage_run(
     state=st.sampled_from(_STATE_VALUES),
     progress=st.integers(min_value=0, max_value=100),
 )
-def test_property3_absent_stages_default_to_nao_iniciado_zero(
+def test_property3_absent_stages_default_to_not_started_zero(
     present_stage: int,
     state: StageState,
     progress: int,

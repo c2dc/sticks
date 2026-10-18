@@ -5,7 +5,7 @@ reuses** the already-built :class:`~app.services.operation.runner.OperationRunne
 (the old Stage 5 "Campaign Execution" of the five-stage scheme), without
 reimplementing any of its safety logic. This module is the *session-bound*
 **seam** that ties the runner to the new stage number
-(:data:`~app.services.stage.stage_service.ESTAGIO_EXECUCAO` ``= 6``), exposing the
+(:data:`~app.services.stage.stage_service.STAGE_EXECUTION` ``= 6``), exposing the
 **preview** as a visible precondition and marking the Stage 6 completion through
 the single completion path
 (:meth:`SessionStateService.persist_stage_completion`).
@@ -57,7 +57,7 @@ preview **presents**, it does not **execute** nor create an Operation.
 Stage 6 completion
 ------------------
 Only when the execution actually completes (``RunOutcome.COMPLETED`` **and**
-``OperationState.FINISHED``) is Stage 6 (:data:`ESTAGIO_EXECUCAO`) marked
+``OperationState.FINISHED``) is Stage 6 (:data:`STAGE_EXECUTION`) marked
 ``completed`` through the single completion path
 (:meth:`SessionStateService.persist_stage_completion`, transactional and
 idempotent). ``ABORTED`` (audit-trail failure, Req. 10.2), ``NOT_CONFIRMED``
@@ -94,7 +94,7 @@ from app.services.operation.runner import (
     RunOutcome,
 )
 from app.services.session.session_state_service import SessionStateService
-from app.services.stage.stage_service import ESTAGIO_EXECUCAO
+from app.services.stage.stage_service import STAGE_EXECUTION
 
 
 # ---------------------------------------------------------------------------
@@ -353,7 +353,7 @@ class ExecutionStageService:
         projects the runner's typed :class:`OperationRunResult` into an
         :class:`ExecutionResult` and, **only** when the execution actually
         completes (``COMPLETED`` + ``FINISHED``), marks Stage 6
-        (:data:`ESTAGIO_EXECUCAO`) ``completed`` through the single completion
+        (:data:`STAGE_EXECUTION`) ``completed`` through the single completion
         path (:meth:`SessionStateService.persist_stage_completion`). A failure to
         persist the completion does **not** bring down the execution already
         performed — it is a typed signal in ``completion_persisted=False``.
@@ -406,7 +406,7 @@ class ExecutionStageService:
         bringing down the execution already performed.
         """
         completion = SessionStateService(self._session).persist_stage_completion(
-            campaign, ESTAGIO_EXECUCAO
+            campaign, STAGE_EXECUTION
         )
         return completion.saved
 
@@ -454,7 +454,7 @@ class ExecutionStageService:
             and result.state is OperationState.FINISHED
         ):
             completion = SessionStateService(self._session).persist_stage_completion(
-                campaign, ESTAGIO_EXECUCAO
+                campaign, STAGE_EXECUTION
             )
             completion_persisted = completion.saved
             # A persistence failure does NOT bring down the execution already

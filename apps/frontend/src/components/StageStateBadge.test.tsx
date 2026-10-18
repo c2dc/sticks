@@ -4,7 +4,7 @@ import { renderWithI18n } from "@/test/render"
 import { StageStateBadge } from "@/components/StageStateBadge"
 
 /**
- * UI test for the "pré-concluído (curado)" adornment of StageStateBadge
+ * UI test for the "pre-completed (curated)" adornment of StageStateBadge
  * (wizard-progresso-estagios, Req. 2.1, 7.4). When a completed stage was
  * reached automatically by curation (`preCompleted`), the badge must be
  * visually distinct from the "concluded by you" state: a different

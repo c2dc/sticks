@@ -47,23 +47,32 @@ The environment uses multiple Docker containers connected through static network
 
 ```
 .
-├── docker/                 # Docker environment and network configuration
-│   ├── docker-compose.yml
-│   ├── kali-data/          # Persistent data for Kali container
-│   └── .docker/            # Container build contexts
-│       ├── caldera/        # MITRE Caldera container
-│       ├── db/             # Database container
-│       ├── kali/           # Kali attacker container
-│       └── nginx/          # Target web server container
+├── apps/                   # Runnable applications (Pipeline_UI)
+│   ├── backend/            # FastAPI backend (API, services, Alembic migrations)
+│   └── frontend/           # React + TypeScript (Vite) frontend
 │
-├── sticks/                 # STIX analysis and campaign generation framework
-│   ├── config/             # Configuration files
-│   ├── data/               # Dataset and intermediate artifacts
-│   ├── lib/                # Core libraries
-│   ├── tools/              # Utility scripts
-│   ├── main.py             # Main execution entry point
-│   ├── requirements.txt    # Python dependencies
-│   └── README.md           # STIX framework documentation
+├── packages/               # Reusable packages
+│   └── cli/                # STIX analysis and campaign generation framework
+│       ├── config/         # Configuration files
+│       ├── data/           # Dataset and intermediate artifacts
+│       ├── lib/            # Core libraries
+│       ├── tools/          # Utility scripts
+│       ├── main.py         # Main execution entry point
+│       ├── requirements.txt # Python dependencies
+│       └── README.md       # STIX framework documentation
+│
+├── infra/                  # Infrastructure
+│   └── docker/             # Docker environment and network configuration
+│       ├── docker-compose.yml
+│       ├── kali-data/      # Persistent data for Kali container
+│       └── .docker/        # Container build contexts
+│           ├── caldera/    # MITRE Caldera container
+│           ├── db/         # Database container
+│           ├── kali/       # Kali attacker container
+│           └── nginx/      # Target web server container
+│
+├── scripts/                # Cross-platform dev/setup/migrate runners
+└── docs/                   # Project documentation
 ```
 ---
 
@@ -120,7 +129,7 @@ Otherwise, these fields can remain empty.
 ## 1️⃣ Start the Docker infrastructure
 
 ```bash
-cd docker
+cd infra/docker
 docker-compose up --build
 ```
 
@@ -130,7 +139,7 @@ Wait until all containers are built and running.
 
 ## 2️⃣ Initialize the STIX environment
 
-Move to the `sticks` directory and run:
+Move to the `packages/cli` directory and run:
 
 ```bash
 python tools/empty_caldera.py

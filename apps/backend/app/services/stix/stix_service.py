@@ -26,7 +26,7 @@ Design alignment
   loaded via :func:`~app.core.sticks_config.load_sticks_config` — never
   duplicated here.
 * The known-versions index is kept as a backend-maintained constant
-  (:data:`VERSOES_CONHECIDAS`) so ``GET /api/stix/bases`` is read-only and never
+  (:data:`KNOWN_VERSIONS`) so ``GET /api/stix/bases`` is read-only and never
   performs network egress; only ``download_base`` reaches the network.
 
 Target on-disk filename pattern: ``sticks/data/stix/enterprise-attack-{version}.json``.
@@ -83,7 +83,7 @@ def _semantic_version_key(version: str) -> tuple[int, ...]:
 # network call: the index of known versions lives here and the on-disk presence
 # is checked live. ``list_bases`` re-sorts this list defensively by semantic
 # version, so the stored order is a convenience, not a contract.
-VERSOES_CONHECIDAS: list[str] = [
+KNOWN_VERSIONS: list[str] = [
     "19.1",
     "19.0",
     "18.0",
@@ -122,24 +122,24 @@ VERSOES_CONHECIDAS: list[str] = [
 # persistable projection of the flag, not an independent source) — keeping the
 # flag in code means ``GET /api/stix/bases`` never needs a request-time lookup to
 # know which base is curated (Req. 5.5, 11.5).
-VERSAO_CURADA: str = "18.0"  # the only version with the 8 curated campaigns (Req. 5.5, 11.5)
+CURATED_VERSION: str = "18.0"  # the only version with the 8 curated campaigns (Req. 5.5, 11.5)
 
 
 def version_is_curated(version: str) -> bool:
     """True iff ``version`` is the curated version (carries the 8 curated campaigns).
 
-    The curated version (:data:`VERSAO_CURADA`, ``"18.0"``) is the only one that
+    The curated version (:data:`CURATED_VERSION`, ``"18.0"``) is the only one that
     carries the 8 curated campaigns and the pointer to the curated artifacts; for
     it Stages 3/4/5 resolve their artifacts from the curated directories on disk,
     with no network and no AI (Req. 5.5, 5.6, 11.5). Any other version returns
     ``False``.
     """
-    return version == VERSAO_CURADA
+    return version == CURATED_VERSION
 
 
 # pt-BR description per counted STIX object type (Req. 3.3). The dashboard fills
 # each ``TypeCount.description`` from this map; every description is non-empty.
-DESCRICOES_TIPO: dict[str, str] = {
+TYPE_DESCRIPTIONS: dict[str, str] = {
     "campaign": "Campanhas de adversário observadas no mundo real.",
     "attack-pattern": "Técnicas e subtécnicas de ataque do ATT&CK.",
     "x-mitre-tactic": "Objetivos táticos do adversário (fases).",
@@ -162,7 +162,7 @@ ROTULO_TIPO: dict[str, str] = {
 # known STIX campaign identifier(s) / canonical name used to resolve the
 # "curated" flag (Req. 4.5). ``external_references`` codes (e.g. ``C0010``) take
 # priority, with the canonical name as a tolerant fallback.
-SLUG_PARA_STIX: dict[str, dict[str, Any]] = {
+SLUG_TO_STIX: dict[str, dict[str, Any]] = {
     "apt41_dust": {"referencias": ["C0040"], "nome_canonico": "APT41 DUST"},
     "c0010": {"referencias": ["C0010"], "nome_canonico": "C0010"},
     "c0026": {"referencias": ["C0026"], "nome_canonico": "C0026"},
@@ -180,8 +180,8 @@ SLUG_PARA_STIX: dict[str, dict[str, Any]] = {
 }
 
 # Sanity check: the mapping must cover exactly the 8 curated campaign slugs.
-assert set(SLUG_PARA_STIX) == set(CURATED_CASES), (
-    "SLUG_PARA_STIX must map exactly the curated campaign slugs"
+assert set(SLUG_TO_STIX) == set(CURATED_CASES), (
+    "SLUG_TO_STIX must map exactly the curated campaign slugs"
 )
 
 
@@ -356,11 +356,11 @@ class StixService:
         data_dir: Optional[Path] = None,
         http_client: Any = None,
     ) -> None:
-        # Default to <repo>/sticks/data/stix, resolved via the same repo-root
+        # Default to <repo>/packages/cli/data/stix, resolved via the same repo-root
         # strategy used by sticks_config / CaseService. All paths are pathlib
         # for portability.
         self._data_dir: Path = (
-            Path(data_dir) if data_dir is not None else _repo_root() / "sticks" / "data" / "stix"
+            Path(data_dir) if data_dir is not None else _repo_root() / "packages" / "cli" / "data" / "stix"
         )
         self._http_client = http_client
 
@@ -387,12 +387,12 @@ class StixService:
     def list_bases(self) -> list[BaseStixInfo]:
         """Known versions ordered newest→oldest, each flagged by disk presence.
 
-        Enumerates :data:`VERSOES_CONHECIDAS` sorted monotonically descending by
+        Enumerates :data:`KNOWN_VERSIONS` sorted monotonically descending by
         semantic version; marks ``downloaded`` from the live file presence in
         ``sticks/data/stix`` and ``selectable == downloaded``. No network egress.
 
         The sort is defensive — it does not rely on the stored order of
-        :data:`VERSOES_CONHECIDAS` and compares each component **numerically**
+        :data:`KNOWN_VERSIONS` and compares each component **numerically**
         (so ``"18.0" > "9.0"`` and ``"17.1" > "17.0"``, never a lexicographic
         comparison). ``downloaded`` is checked live against disk on every call,
         so the listing always reflects the current state of
@@ -400,7 +400,7 @@ class StixService:
         on disk, otherwise ``None`` (Req. 2.1, 2.2, 2.3).
         """
         sorted_versions = sorted(
-            VERSOES_CONHECIDAS, key=_semantic_version_key, reverse=True
+            KNOWN_VERSIONS, key=_semantic_version_key, reverse=True
         )
 
         bases: list[BaseStixInfo] = []
@@ -422,14 +422,14 @@ class StixService:
         """Download the ``enterprise-attack-{version}`` bundle and persist it.
 
         The ONLY network egress, triggered only by explicit request. Validates
-        ``version`` against :data:`VERSOES_CONHECIDAS`, fetches via the injectable
+        ``version`` against :data:`KNOWN_VERSIONS`, fetches via the injectable
         ``http_client`` and writes atomically into ``sticks/data/stix``; on
         failure leaves no partial file and signals a descriptive error.
 
         Behaviour (Req. 2.5, 2.6, 2.7):
 
         1. **Validate first (security).** ``version`` is checked against
-           :data:`VERSOES_CONHECIDAS` *before* any disk or network access. An
+           :data:`KNOWN_VERSIONS` *before* any disk or network access. An
            unknown version raises :class:`StixDownloadError` immediately, so no
            caller-controlled value is ever interpolated into a filesystem path or
            a URL — closing the path/URL-injection vector.
@@ -455,7 +455,7 @@ class StixService:
 
         Args:
             version: The ATT&CK Enterprise version (must be in
-                :data:`VERSOES_CONHECIDAS`).
+                :data:`KNOWN_VERSIONS`).
 
         Returns:
             A :class:`BaseStixInfo` with ``downloaded=True`` and ``file`` set to
@@ -468,7 +468,7 @@ class StixService:
         """
         # 1) SECURITY — validate before any disk/network access. An unknown
         #    version never reaches a path or a URL (no path/URL injection).
-        if version not in VERSOES_CONHECIDAS:
+        if version not in KNOWN_VERSIONS:
             raise StixDownloadError(
                 f"Versão desconhecida '{version}': não está na lista de versões "
                 "conhecidas; download recusado sem acessar disco ou rede.",
@@ -711,7 +711,7 @@ class StixService:
         across bases (Req. 3.2). For each type: ``count`` is exactly the number of
         ``bundle["objects"]`` whose ``"type"`` equals ``stix_type``; ``label`` is
         the label from :data:`ROTULO_TIPO`; ``description`` is the non-empty
-        description from :data:`DESCRICOES_TIPO` (Req. 3.3); and ``stix_type`` is
+        description from :data:`TYPE_DESCRIPTIONS` (Req. 3.3); and ``stix_type`` is
         the raw STIX type.
 
         Satisfies Correctness Properties 3 (count equals the number of objects of
@@ -750,7 +750,7 @@ class StixService:
                     label=label,
                     stix_type=stix_type,
                     count=count_by_type.get(stix_type, 0),
-                    description=DESCRICOES_TIPO[stix_type],
+                    description=TYPE_DESCRIPTIONS[stix_type],
                 )
             )
 
@@ -773,7 +773,7 @@ class StixService:
         For each campaign a :class:`CampaignStix` is built with ``stix_id`` from
         ``id``, ``name`` from ``name`` (falling back to ``id`` when absent) and the
         optional ``description``. The ``curated`` / ``curated_slug`` pair is
-        resolved against :data:`SLUG_PARA_STIX` tolerantly (Req. 4.5, Correctness
+        resolved against :data:`SLUG_TO_STIX` tolerantly (Req. 4.5, Correctness
         Property 7):
 
         1. **By external reference** — if any of the campaign's
@@ -818,7 +818,7 @@ class StixService:
         ``type == "campaign"`` and returns the rich detail of the **first**
         campaign whose resolved curated slug equals ``slug``. The slug resolution
         reuses the single source of truth :meth:`_resolve_curated_slug` /
-        :data:`SLUG_PARA_STIX` — the same tolerant rule (``external_id`` first,
+        :data:`SLUG_TO_STIX` — the same tolerant rule (``external_id`` first,
         canonical name as fallback) used by :meth:`list_campaigns` /
         :meth:`_map_campaign`, so this view never diverges from the campaigns
         screen (Correctness Property 2). The rule is **not** duplicated here.
@@ -953,7 +953,7 @@ class StixService:
     def _resolve_curated_slug(obj: dict[str, Any]) -> Optional[str]:
         """Resolve the curated-campaign slug for a STIX ``campaign`` object, or ``None``.
 
-        Tolerant matching against :data:`SLUG_PARA_STIX` (Req. 4.5): first by
+        Tolerant matching against :data:`SLUG_TO_STIX` (Req. 4.5): first by
         ``external_references`` ``external_id`` codes (case-insensitive), then by
         normalized canonical name. Returns the matching slug, or ``None`` when no
         curated campaign matches (silent fallback — a campaign is never invented).
@@ -970,7 +970,7 @@ class StixService:
                     codes.add(external_id.strip().casefold())
 
         if codes:
-            for slug, mapping in SLUG_PARA_STIX.items():
+            for slug, mapping in SLUG_TO_STIX.items():
                 for code in mapping.get("referencias", []):
                     if isinstance(code, str) and code.strip().casefold() in codes:
                         return slug
@@ -980,7 +980,7 @@ class StixService:
         if isinstance(raw_name, str):
             normalized_name = raw_name.strip().casefold()
             if normalized_name:
-                for slug, mapping in SLUG_PARA_STIX.items():
+                for slug, mapping in SLUG_TO_STIX.items():
                     canonical = mapping.get("nome_canonico")
                     if (
                         isinstance(canonical, str)
@@ -992,8 +992,8 @@ class StixService:
         return None
 
     # Synthetic group holding campaigns with no ``attributed-to`` relationship.
-    ATOR_SEM_ASSOCIACAO_ID = "sem-ator"
-    ATOR_SEM_ASSOCIACAO_NOME = "Sem ator associado"
+    ADVERSARY_UNASSOCIATED_ID = "sem-ator"
+    ADVERSARY_UNASSOCIATED_NAME = "Sem ator associado"
 
     def list_adversaries(self, version: str) -> list[AdversaryStix]:
         """STIX ``intrusion-set`` objects grouped with their attributed campaigns.
@@ -1022,7 +1022,7 @@ class StixService:
           duplicated under the same adversary.
         * Campaigns with no attribution relationship are collected under a single
           synthetic *"sem ator associado"* group (``stix_id`` =
-          :data:`ATOR_SEM_ASSOCIACAO_ID`), appended last — and only when there is
+          :data:`ADVERSARY_UNASSOCIATED_ID`), appended last — and only when there is
           at least one unattributed campaign.
 
         Args:
@@ -1110,8 +1110,8 @@ class StixService:
         if unattributed:
             adversaries.append(
                 AdversaryStix(
-                    stix_id=self.ATOR_SEM_ASSOCIACAO_ID,
-                    name=self.ATOR_SEM_ASSOCIACAO_NOME,
+                    stix_id=self.ADVERSARY_UNASSOCIATED_ID,
+                    name=self.ADVERSARY_UNASSOCIATED_NAME,
                     campaigns=unattributed,
                 )
             )

@@ -109,7 +109,7 @@ _STAGES: tuple[int, ...] = (1, 2, 3)
 
 # The current case: one of the pool slugs, or None (no case selected). Only
 # slugs from the pool are used so the generated state stays internally coherent.
-_caso_atual_strategy = st.one_of(st.none(), st.sampled_from(_CASE_IDS))
+_current_campaign_strategy = st.one_of(st.none(), st.sampled_from(_CASE_IDS))
 
 # Already-completed stages of a single case: an arbitrary subset of {1, 2, 3}.
 _completed_stages_strategy = st.sets(st.sampled_from(_STAGES))
@@ -129,10 +129,10 @@ _completed_by_case_strategy = st.dictionaries(
 # both are valid Req. 9.3 scenarios (a would-be no-op and a would-be mutation).
 _scenario_strategy = st.fixed_dictionaries(
     {
-        "current_campaign": _caso_atual_strategy,
+        "current_campaign": _current_campaign_strategy,
         "completed_by_case": _completed_by_case_strategy,
-        "fail_caso_id": st.sampled_from(_CASE_IDS),
-        "fail_estagio": st.sampled_from(_STAGES),
+        "fail_campaign_id": st.sampled_from(_CASE_IDS),
+        "fail_stage": st.sampled_from(_STAGES),
     }
 )
 
@@ -187,7 +187,7 @@ def _snapshot_stage_runs(session: Session) -> list[tuple]:
 
 
 def _snapshot_session_state(session: Session) -> Optional[tuple]:
-    """Snapshot the single ``estado_sessao`` row's mutable fields (or ``None``).
+    """Snapshot the single ``session_state`` row's mutable fields (or ``None``).
 
     Captures ``current_campaign`` and ``updated_at`` — the session-state fields
     ``persist_stage_completion`` bumps — so a partial write would change this.
@@ -287,8 +287,8 @@ def test_property9_persist_failure_preserves_previous_state(
     """
     current_campaign: Optional[str] = scenario["current_campaign"]
     completed_by_case: dict[str, set[int]] = scenario["completed_by_case"]
-    fail_caso_id: str = scenario["fail_caso_id"]
-    fail_estagio: int = scenario["fail_estagio"]
+    fail_campaign_id: str = scenario["fail_campaign_id"]
+    fail_stage: int = scenario["fail_stage"]
 
     session, db_path, engine = _build_ephemeral_session()
     try:
@@ -320,22 +320,22 @@ def test_property9_persist_failure_preserves_previous_state(
         session.commit = _FailOnceCommit(session)  # type: ignore[method-assign]
 
         # --- Attempt to persist a new Stage completion (this must fail) ------
-        result = service.persist_stage_completion(fail_caso_id, fail_estagio)
+        result = service.persist_stage_completion(fail_campaign_id, fail_stage)
 
         # 1) The completion was NOT saved and the failure is signalled (Req. 9.3).
         assert result.saved is False
         assert result.message == SAVE_FAILED_MESSAGE
-        assert result.campaign_id == fail_caso_id
-        assert result.stage == fail_estagio
+        assert result.campaign_id == fail_campaign_id
+        assert result.stage == fail_stage
 
         # 2) The returned completed map is the PREVIOUSLY persisted one — the new
         #    completion is absent (no partial mutation surfaced to the caller).
         assert result.completed_stages_by_campaign == expected_completed
         # The failing (campaign_id, stage) must not have been recorded as completed
         # unless it was ALREADY completed before the attempt.
-        already_completed = fail_estagio in completed_by_case.get(fail_caso_id, set())
-        got_stages = result.completed_stages_by_campaign.get(fail_caso_id, [])
-        assert (fail_estagio in got_stages) == already_completed
+        already_completed = fail_stage in completed_by_case.get(fail_campaign_id, set())
+        got_stages = result.completed_stages_by_campaign.get(fail_campaign_id, [])
+        assert (fail_stage in got_stages) == already_completed
 
         # 3) The persisted rows are byte-for-byte identical to before the
         #    attempt — the core of Property 9 (no partial mutation).

@@ -8,17 +8,19 @@ import path from "node:path";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(scriptDir, "..");
-const backendDir = path.join(root, "ui", "backend");
+const backendDir = path.join(root, "apps", "backend");
 const isWindows = process.platform === "win32";
 const venvBin = path.join(backendDir, ".venv", isWindows ? "Scripts" : "bin");
-const alembic = path.join(venvBin, isWindows ? "alembic.exe" : "alembic");
+// Invoke via `python -m alembic` (robust: avoids the alembic.exe shim, which
+// can exit 1 spuriously on some Windows shells).
+const venvPython = path.join(venvBin, isWindows ? "python.exe" : "python");
 
-if (!existsSync(alembic)) {
+if (!existsSync(venvPython)) {
   console.error(`[migrate] venv nao encontrado. Rode primeiro: npm run setup`);
   process.exit(1);
 }
 
-const r = spawnSync(alembic, ["upgrade", "head"], {
+const r = spawnSync(venvPython, ["-m", "alembic", "upgrade", "head"], {
   stdio: "inherit",
   cwd: backendDir,
   env: process.env,

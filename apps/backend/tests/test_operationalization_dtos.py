@@ -3,7 +3,7 @@
 
 Verificam, por exemplos diretos, os DTOs novos da 2ª Saída do Estágio 4
 (Operacionalização) definidos em
-``app.services.environment.operacionalizacao`` (Req. 8.3, 8.4, 17.1, 17.2):
+``app.services.environment.operationalization`` (Req. 8.3, 8.4, 17.1, 17.2):
 
 1. :class:`EnvironmentPlatform` — ``CONTAINER`` serializa para ``"conteiner"`` e
    é o **único** membro implementado nesta spec; ``maquina_virtual`` fica como
@@ -29,16 +29,16 @@ from app.services.environment import (
 )
 
 
-def test_plataforma_ambiente_is_str_enum() -> None:
+def test_environment_platform_is_str_enum() -> None:
     assert issubclass(EnvironmentPlatform, str)
     assert issubclass(EnvironmentPlatform, enum.Enum)
 
 
-def test_plataforma_container_value() -> None:
+def test_platform_container_value() -> None:
     assert EnvironmentPlatform.CONTAINER.value == "conteiner"
 
 
-def test_plataforma_only_container_implemented() -> None:
+def test_platform_only_container_implemented() -> None:
     # ``maquina_virtual`` é um placeholder comentado (Req. 17.2) e NÃO deve
     # existir como membro do enum nesta spec.
     assert [m.name for m in EnvironmentPlatform] == ["CONTAINER"]
@@ -74,7 +74,7 @@ def test_servico_requerido_defaults() -> None:
     assert servico.origin_technique is None
 
 
-def test_parametros_de_ambiente_defaults() -> None:
+def test_environment_parameters_defaults() -> None:
     params = EnvironmentParameters(campaign_id="apt-x")
     assert params.campaign_id == "apt-x"
     assert params.platform is EnvironmentPlatform.CONTAINER
@@ -84,7 +84,7 @@ def test_parametros_de_ambiente_defaults() -> None:
     assert params.origin is TranslationSource.HUMAN_CURATION
 
 
-def test_parametros_de_ambiente_serializes_pt_br() -> None:
+def test_environment_parameters_serializes_pt_br() -> None:
     params = EnvironmentParameters(
         campaign_id="apt-x",
         hosts=[TargetHost(label="host_a", address="192.168.20.30")],

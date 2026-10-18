@@ -119,6 +119,7 @@ class OperationState(str, enum.Enum):
     RUNNING = "em_execucao"
     FINISHED = "finalizada"
     ABORTED = "abortada"
+    INCOMPLETE_TIMEOUT = "incompleta_timeout"  # novo (Req. 3.2)
 
 
 class AbilityResultStatus(str, enum.Enum):

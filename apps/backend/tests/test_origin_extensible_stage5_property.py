@@ -1,4 +1,4 @@
-"""Property test da origin explícita e extensível — Estágio 5 / Ambiente (task 7.5).
+"""Property test of the explicit, extensible origin — Stage 5 / Environment (task 7.5).
 
 # Feature: pipeline-seis-stages, Property 13: Origem explícita e extensível nodes
 # Estágios 3, 4 e 5. Parte Estágio 5 (Criação do environment de simulação): a
@@ -6,7 +6,7 @@
 # ``curadoria_humana`` em ``ProvisionedEnvironment.origin``; a costura
 # ``EnvironmentProvisioner`` é satisfeita estruturalmente (``@runtime_checkable``
 # Protocol); e um stub ``gerado_ia`` também satisfaz a costura — provando que a
-# origin ``gerado_ia`` encaixa sem redesenho (sem alterar a assinatura nem o
+# origin ``gerado_ia`` fits without redesign (without changing the signature nor the
 # artefato ``ProvisionedEnvironment``).
 
 Validates: Requirements 16.3, 16.4
@@ -29,7 +29,7 @@ A Property 13 (lado Estágio 5) afirma, para qualquer input:
 2. **Conformidade estrutural do Protocol** (Req. 16.3) — a instância de curation
    satisfaz o ``@runtime_checkable`` ``EnvironmentProvisioner`` por *duck typing*
    estrutural (``isinstance`` é ``True``), sem herança explícita.
-3. **Extensibilidade sem redesenho** (Req. 16.3, 16.4) — um stub ``gerado_ia``
+3. **Extensibility without redesign** (Req. 16.3, 16.4) — a ``gerado_ia`` stub
    que apenas expõe ``origin()`` + ``provision(params)`` + ``deprovision(...)``
    (sem herdar de ``EnvironmentProvisioner``) também satisfaz o Protocol **sem**
    alterar a assinatura da costura nem o artefato ``ProvisionedEnvironment`` —
@@ -40,7 +40,7 @@ A Property 13 (lado Estágio 5) afirma, para qualquer input:
 
 Estratégia / isolation
 -----------------------
-Reusa os *fakes* de ``tests/test_provisionador_estagio5.py`` (``FakeCaldera``,
+Reusa os *fakes* de ``tests/test_provisioner_stage5.py`` (``FakeCaldera``,
 ``FakeInspector``, o semeador de campaign curated e os construtores de
 ``EnvironmentParameters``): tudo é puro/in-memory — nenhum daemon Docker, nenhuma
 rede, nenhuma IA. Cada exemplo semeia um campaign curated em um diretório de dados
@@ -76,7 +76,7 @@ from app.services.environment.provisioner import (
 
 # Reuso dos fakes/semeadores da suíte de exemplo do Estágio 5 (sem rede, sem
 # daemon Docker, sem IA) — a mesma fonte das fixtures pedidas pela task 7.5.
-from tests.test_provisionador_estagio5 import (
+from tests.test_provisioner_stage5 import (
     _NET,
     _SLUG,
     FakeCaldera,
@@ -119,7 +119,7 @@ class _StubGeradoIa:
     def provision(self, params: EnvironmentParameters) -> ProvisionedEnvironment:
         # Uma IA real CRIARIA o environment sob medida; o stub apenas honra a
         # assinatura e devolve o MESMO artefato ``ProvisionedEnvironment``, provando
-        # que a extensão por origin não redesenha a costura (Req. 16.3).
+        # that the origin extension does not redesign the seam (Req. 16.3).
         return ProvisionedEnvironment(
             campaign_id=params.campaign_id,
             platform=params.platform,
@@ -178,15 +178,15 @@ def _inspector_para(containers: list[str], isolar: bool) -> FakeInspector:
 #   (1) a curation carimba curadoria_humana em origin() e em ProvisionedEnvironment;
 #   (2) a curation satisfaz o Protocol EnvironmentProvisioner estruturalmente;
 #   (3) um stub gerado_ia também satisfaz o Protocol, com assinatura e artefato
-#       inalterados (extensível sem redesenho).
+#       unchanged (extensible without redesign).
 # ===========================================================================
 
 
 # Feature: pipeline-seis-stages, Property 13: Origem explícita e extensível nodes
-# Estágios 3, 4 e 5 (parte Estágio 5 / Ambiente).
+# Stages 3, 4 and 5 (Stage 5 / Environment part).
 @settings(max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture])
 @given(cenario=_cenario())
-def test_property13_estagio5_origem_explicita_e_extensivel(
+def test_property13_stage5_origin_explicit_and_extensible(
     cenario: tuple[list[str], bool, bool],
 ) -> None:
     """A origin do environment é explícita (curadoria_humana) e extensível (gerado_ia).
@@ -195,7 +195,7 @@ def test_property13_estagio5_origem_explicita_e_extensivel(
     """
     containers, isolar, caldera_ok = cenario
 
-    data_dir = Path(tempfile.mkdtemp(prefix="origem_extensivel_estagio5_"))
+    data_dir = Path(tempfile.mkdtemp(prefix="origin_extensible_stage5_"))
     try:
         (data_dir / "api").mkdir(parents=True, exist_ok=True)
         (data_dir / "dag").mkdir(parents=True, exist_ok=True)
@@ -231,16 +231,16 @@ def test_property13_estagio5_origem_explicita_e_extensivel(
         assert isinstance(curation, EnvironmentProvisioner)
 
         # (3) Um stub gerado_ia também satisfaz o Protocol — extensibilidade sem
-        #     redesenho: mesma assinatura, mesmo artefato ProvisionedEnvironment,
+        #     redesign: same signature, same ProvisionedEnvironment artifact,
         #     origin distinta (Req. 16.3, 16.4).
         stub = _StubGeradoIa()
         assert isinstance(stub, EnvironmentProvisioner)
         assert stub.origin() == DagOrigin.AI_GENERATED.value == "gerado_ia"
-        ambiente_ia = stub.provision(params)
-        assert isinstance(ambiente_ia, ProvisionedEnvironment)
+        ai_environment = stub.provision(params)
+        assert isinstance(ai_environment, ProvisionedEnvironment)
 
         # A assinatura da costura permanece centrada no único parâmetro posicional
-        # ``params`` para ambas as origens — a extensão não redesenha a costura
+        # ``params`` for both origins — the extension does not redesign the seam
         # (Req. 16.3). O pipeline observável da task 3.2 acrescentou um
         # ``on_log`` **keyword-only** com default no-op, de modo que os chamadores
         # existentes (``provision(params)``) seguem válidos sem alteração; por

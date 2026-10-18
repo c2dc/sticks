@@ -10,7 +10,7 @@ exposed in the Stage 1 Entrada:
   when present (and their omission when absent);
 * ``None`` when no campaign in the base resolves to the slug;
 * **Property 2** — the resolution is consistent with
-  ``list_campaigns`` / ``_mapear_campanha`` (the **same** ``stix_id``), so the
+  ``list_campaigns`` / ``_map_campaign`` (the **same** ``stix_id``), so the
   Entrada never diverges from the campaigns screen.
 
 Isolation: every test instantiates ``StixService(data_dir=tmp_path)`` so the
@@ -18,7 +18,7 @@ service reads only inside pytest/Hypothesis temp directories — the real
 ``sticks/data/stix`` is never touched and there is no network egress.
 
 The oracles are computed independently of the method under test (from the
-generated bundle and from ``SLUG_PARA_STIX`` directly), so the properties
+generated bundle and from ``SLUG_TO_STIX`` directly), so the properties
 genuinely cross-check the implementation rather than restating it.
 """
 
@@ -31,8 +31,8 @@ from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
 from app.services.stix.stix_service import (
-    SLUG_PARA_STIX,
-    VERSOES_CONHECIDAS,
+    SLUG_TO_STIX,
+    KNOWN_VERSIONS,
     DetailedCampaignStix,
     StixService,
 )
@@ -44,7 +44,7 @@ PROP_SETTINGS = settings(
     suppress_health_check=[HealthCheck.function_scoped_fixture],
 )
 
-_VERSAO = VERSOES_CONHECIDAS[0]
+_VERSION = KNOWN_VERSIONS[0]
 
 
 # ---------------------------------------------------------------------------
@@ -68,11 +68,11 @@ def _stix_id(prefix: str, n: int) -> str:
 # canonical name (every slug has a nome_canonico).
 _CURADAS_POR_ID = [
     (slug, mapa["referencias"][0])
-    for slug, mapa in SLUG_PARA_STIX.items()
+    for slug, mapa in SLUG_TO_STIX.items()
     if mapa.get("referencias")
 ]
 _CURADAS_POR_NOME = [
-    (slug, mapa["nome_canonico"]) for slug, mapa in SLUG_PARA_STIX.items()
+    (slug, mapa["nome_canonico"]) for slug, mapa in SLUG_TO_STIX.items()
 ]
 
 
@@ -97,18 +97,18 @@ def test_resolve_por_external_id_c0045_shadowray(tmp_path: Path) -> None:
             {"source_name": "mitre-attack", "external_id": "C0045"}
         ],
     }
-    _write_bundle(service.base_path(_VERSAO), [campaign])
+    _write_bundle(service.base_path(_VERSION), [campaign])
 
-    detalhe = service.get_campaign_by_slug(_VERSAO, "shadowray")
+    detail = service.get_campaign_by_slug(_VERSION, "shadowray")
 
-    assert isinstance(detalhe, DetailedCampaignStix)
-    assert detalhe.stix_id == campaign["id"]
-    assert detalhe.name == "ShadowRay"
-    assert detalhe.external_id == "C0045"
-    assert detalhe.description == campaign["description"]
-    assert detalhe.aliases == ["ShadowRay", "Ray cluster abuse"]
-    assert detalhe.first_seen == "2023-09-05T00:00:00.000Z"
-    assert detalhe.last_seen == "2024-03-01T00:00:00.000Z"
+    assert isinstance(detail, DetailedCampaignStix)
+    assert detail.stix_id == campaign["id"]
+    assert detail.name == "ShadowRay"
+    assert detail.external_id == "C0045"
+    assert detail.description == campaign["description"]
+    assert detail.aliases == ["ShadowRay", "Ray cluster abuse"]
+    assert detail.first_seen == "2023-09-05T00:00:00.000Z"
+    assert detail.last_seen == "2024-03-01T00:00:00.000Z"
 
 
 def test_resolve_por_nome_canonico(tmp_path: Path) -> None:
@@ -122,19 +122,19 @@ def test_resolve_por_nome_canonico(tmp_path: Path) -> None:
         "id": _stix_id("campaign", 7),
         "name": "CostaRicto",
     }
-    _write_bundle(service.base_path(_VERSAO), [campaign])
+    _write_bundle(service.base_path(_VERSION), [campaign])
 
-    detalhe = service.get_campaign_by_slug(_VERSAO, "costaricto")
+    detail = service.get_campaign_by_slug(_VERSION, "costaricto")
 
-    assert isinstance(detalhe, DetailedCampaignStix)
-    assert detalhe.stix_id == campaign["id"]
-    assert detalhe.name == "CostaRicto"
+    assert isinstance(detail, DetailedCampaignStix)
+    assert detail.stix_id == campaign["id"]
+    assert detail.name == "CostaRicto"
     # Fields absent in the object are omitted (None / empty).
-    assert detalhe.external_id is None
-    assert detalhe.description is None
-    assert detalhe.aliases == []
-    assert detalhe.first_seen is None
-    assert detalhe.last_seen is None
+    assert detail.external_id is None
+    assert detail.description is None
+    assert detail.aliases == []
+    assert detail.first_seen is None
+    assert detail.last_seen is None
 
 
 def test_nome_canonico_case_insensitive(tmp_path: Path) -> None:
@@ -145,26 +145,26 @@ def test_nome_canonico_case_insensitive(tmp_path: Path) -> None:
         "id": _stix_id("campaign", 11),
         "name": "shadowray",  # lower-case variant of "ShadowRay"
     }
-    _write_bundle(service.base_path(_VERSAO), [campaign])
+    _write_bundle(service.base_path(_VERSION), [campaign])
 
-    detalhe = service.get_campaign_by_slug(_VERSAO, "shadowray")
+    detail = service.get_campaign_by_slug(_VERSION, "shadowray")
 
-    assert detalhe is not None
-    assert detalhe.stix_id == campaign["id"]
+    assert detail is not None
+    assert detail.stix_id == campaign["id"]
 
 
-def test_retorna_none_quando_ausente(tmp_path: Path) -> None:
+def test_returns_none_when_absent(tmp_path: Path) -> None:
     """No campaign resolving to the slug -> ``None`` (never a partial object)."""
     service = StixService(data_dir=tmp_path)
     # A bundle with a non-curated campaign and some noise, but nothing that maps
     # to "shadowray".
     _write_bundle(
-        service.base_path(_VERSAO),
+        service.base_path(_VERSION),
         [
             {
                 "type": "campaign",
                 "id": _stix_id("campaign", 1),
-                "name": "Campanha Qualquer",
+                "name": "Any Campaign",
                 "external_references": [
                     {"source_name": "mitre-attack", "external_id": "C9999"}
                 ],
@@ -174,16 +174,16 @@ def test_retorna_none_quando_ausente(tmp_path: Path) -> None:
         ],
     )
 
-    assert service.get_campaign_by_slug(_VERSAO, "shadowray") is None
+    assert service.get_campaign_by_slug(_VERSION, "shadowray") is None
 
 
-def test_retorna_none_em_bundle_sem_campanhas(tmp_path: Path) -> None:
+def test_returns_none_in_bundle_without_campaigns(tmp_path: Path) -> None:
     """An empty bundle resolves to ``None`` for any slug."""
     service = StixService(data_dir=tmp_path)
-    _write_bundle(service.base_path(_VERSAO), [])
+    _write_bundle(service.base_path(_VERSION), [])
 
-    for slug in SLUG_PARA_STIX:
-        assert service.get_campaign_by_slug(_VERSAO, slug) is None
+    for slug in SLUG_TO_STIX:
+        assert service.get_campaign_by_slug(_VERSION, slug) is None
 
 
 def test_extrai_campos_ricos_quando_presentes(tmp_path: Path) -> None:
@@ -194,8 +194,8 @@ def test_extrai_campos_ricos_quando_presentes(tmp_path: Path) -> None:
         "type": "campaign",
         "id": _stix_id("campaign", 42),
         "name": "C0010",
-        "description": "intrusão de longa duração.",
-        "aliases": ["C0010", "", "Alias válido"],  # empties filtered out
+        "description": "long-duration intrusion.",
+        "aliases": ["C0010", "", "Valid alias"],  # empties filtered out
         "first_seen": "2020-01-01T00:00:00.000Z",
         "last_seen": "2021-01-01T00:00:00.000Z",
         "external_references": [
@@ -204,20 +204,20 @@ def test_extrai_campos_ricos_quando_presentes(tmp_path: Path) -> None:
             {"source_name": "other", "external_id": "C0099"},
         ],
     }
-    _write_bundle(service.base_path(_VERSAO), [campaign])
+    _write_bundle(service.base_path(_VERSION), [campaign])
 
-    detalhe = service.get_campaign_by_slug(_VERSAO, "c0010")
+    detail = service.get_campaign_by_slug(_VERSION, "c0010")
 
-    assert detalhe is not None
-    assert detalhe.external_id == "C0010"  # first usable one
-    assert detalhe.description == "intrusão de longa duração."
-    assert detalhe.aliases == ["C0010", "Alias válido"]  # empty string dropped
-    assert detalhe.first_seen == "2020-01-01T00:00:00.000Z"
-    assert detalhe.last_seen == "2021-01-01T00:00:00.000Z"
+    assert detail is not None
+    assert detail.external_id == "C0010"  # first usable one
+    assert detail.description == "long-duration intrusion."
+    assert detail.aliases == ["C0010", "Valid alias"]  # empty string dropped
+    assert detail.first_seen == "2020-01-01T00:00:00.000Z"
+    assert detail.last_seen == "2021-01-01T00:00:00.000Z"
 
 
 # ---------------------------------------------------------------------------
-# Property 2 — resolution consistent with list_campaigns / _mapear_campanha.
+# Property 2 — resolution consistent with list_campaigns / _map_campaign.
 # ---------------------------------------------------------------------------
 
 
@@ -255,7 +255,7 @@ def _bundle_com_slug_curado(draw: st.DrawFn) -> tuple[list[dict], str, str]:
         {
             "type": "campaign",
             "id": _stix_id("campaign", draw(st.integers(20_000, 29_999)) + i),
-            "name": f"Campanha Nao Curada {i}",
+            "name": f"Non-Curated Campaign {i}",
             "external_references": [
                 {"source_name": "mitre-attack", "external_id": f"C8{i:03d}"}
             ],
@@ -267,29 +267,29 @@ def _bundle_com_slug_curado(draw: st.DrawFn) -> tuple[list[dict], str, str]:
         for i in range(draw(st.integers(0, 2)))
     ]
 
-    objetos = draw(st.permutations([target] + ruido))
-    return list(objetos), slug, alvo_id
+    objects = draw(st.permutations([target] + ruido))
+    return list(objects), slug, alvo_id
 
 
-# Feature: input-estagio1-campaign-stix, Property 2: Resolução consistente com o endpoint de campaigns
+# Feature: input-estagio1-campaign-stix, Property 2: resolution consistent with the campaigns endpoint
 @PROP_SETTINGS
 @given(dados=_bundle_com_slug_curado())
-def test_property2_resolucao_consistente_com_listar_campanhas(
+def test_property2_resolution_consistent_with_list_campaigns(
     tmp_path: Path, dados: tuple[list[dict], str, str]
 ) -> None:
     """For a curated slug present in a base, ``get_campaign_by_slug`` resolves
     to the **same** campaign (same ``stix_id``) that ``list_campaigns`` /
-    ``_mapear_campanha`` flags for that slug — the resolution rule is single and
+    ``_map_campaign`` flags for that slug — the resolution rule is single and
     does not diverge between the Entrada and the campaigns screen."""
-    objetos, slug, alvo_id = dados
+    objects, slug, alvo_id = dados
     service = StixService(data_dir=tmp_path)
-    _write_bundle(service.base_path(_VERSAO), objetos)
+    _write_bundle(service.base_path(_VERSION), objects)
 
-    detalhe = service.get_campaign_by_slug(_VERSAO, slug)
+    detail = service.get_campaign_by_slug(_VERSION, slug)
 
     # Independent oracle: the stix_id of the FIRST campaign that list_campaigns
     # flags as curated with this slug (same bundle order as get_campaign_by_slug).
-    campaigns = service.list_campaigns(_VERSAO)
+    campaigns = service.list_campaigns(_VERSION)
     esperado = next(
         (c.stix_id for c in campaigns if c.curated and c.curated_slug == slug),
         None,
@@ -297,34 +297,34 @@ def test_property2_resolucao_consistente_com_listar_campanhas(
 
     assert esperado is not None, "a campaign curated gerada deve ser listada"
     assert esperado == alvo_id
-    assert detalhe is not None, "a Entrada deve resolver o mesmo slug curated"
+    assert detail is not None, "a Entrada deve resolver o mesmo slug curated"
     # Property 2: same campaign (same stix_id) in both views.
-    assert detalhe.stix_id == esperado
+    assert detail.stix_id == esperado
 
 
-# Feature: input-estagio1-campaign-stix, Property 2: slug ausente resolve para None nas duas visões
+# Feature: input-estagio1-campaign-stix, Property 2: absent slug resolves to None in both views
 @PROP_SETTINGS
 @given(
-    slug=st.sampled_from(sorted(SLUG_PARA_STIX)),
+    slug=st.sampled_from(sorted(SLUG_TO_STIX)),
     ruido=st.lists(
         st.sampled_from(["intrusion-set", "attack-pattern", "malware", "relationship"]),
         max_size=5,
     ),
 )
-def test_property2_slug_ausente_none_em_ambas_visoes(
+def test_property2_absent_slug_none_in_both_views(
     tmp_path: Path, slug: str, ruido: list[str]
 ) -> None:
     """When no campaign resolves to a slug, ``get_campaign_by_slug`` returns
     ``None`` and ``list_campaigns`` likewise flags no campaign with that slug —
     the two views stay consistent on absence too."""
     service = StixService(data_dir=tmp_path)
-    objetos = [
+    objects = [
         {"type": type, "id": _stix_id(type, i)} for i, type in enumerate(ruido)
     ]
-    _write_bundle(service.base_path(_VERSAO), objetos)
+    _write_bundle(service.base_path(_VERSION), objects)
 
-    detalhe = service.get_campaign_by_slug(_VERSAO, slug)
-    campaigns = service.list_campaigns(_VERSAO)
+    detail = service.get_campaign_by_slug(_VERSION, slug)
+    campaigns = service.list_campaigns(_VERSION)
 
-    assert detalhe is None
+    assert detail is None
     assert all(not (c.curated and c.curated_slug == slug) for c in campaigns)

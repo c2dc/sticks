@@ -10,7 +10,7 @@ medição + relatório) definidos em ``app.services.environment.report`` (Req.
    ``per_technique`` aninhada.
 3. :class:`ExecutionReport` — consolida as métricas, os
    :class:`~app.services.stage.stage_service.Stage3AbilityResult` reusados e o
-   flag de desprovisionamento (Req. 12), serializando em pt-BR.
+   deprovisioning flag (Req. 12), serializing in pt-BR.
 
 _Requirements: 15.1, 15.2, 15.3, 15.4, 15.5, 15.6, 15.7, 15.8_
 """
@@ -56,7 +56,7 @@ def test_metrica_tecnica_full_and_serialization() -> None:
     assert dumped["telemetry"] == ["processo", "rede"]
 
 
-def test_metricas_suficiencia_defaults() -> None:
+def test_sufficiency_metrics_defaults() -> None:
     metrics = SufficiencyMetrics()
     assert metrics.total_dag_techniques == 0
     assert metrics.successful_techniques == 0
@@ -68,7 +68,7 @@ def test_metricas_suficiencia_defaults() -> None:
     assert metrics.success_verdict is False
 
 
-def test_metricas_suficiencia_full_and_nested() -> None:
+def test_sufficiency_metrics_full_and_nested() -> None:
     metrics = SufficiencyMetrics(
         total_dag_techniques=4,
         successful_techniques=3,
@@ -94,7 +94,7 @@ def test_metricas_suficiencia_full_and_nested() -> None:
     assert dumped["success_verdict"] is True
 
 
-def test_relatorio_execucao_requires_caso_metricas_and_gerado_em() -> None:
+def test_execution_report_requires_campaign_metrics_and_generated_at() -> None:
     generated_at = dt.datetime(2024, 1, 2, 3, 4, 5)
     report = ExecutionReport(
         campaign_id="apt-x",
@@ -108,7 +108,7 @@ def test_relatorio_execucao_requires_caso_metricas_and_gerado_em() -> None:
     assert report.generated_at == generated_at
 
 
-def test_relatorio_execucao_full_and_serialization() -> None:
+def test_execution_report_full_and_serialization() -> None:
     report = ExecutionReport(
         campaign_id="apt-x",
         metrics=SufficiencyMetrics(

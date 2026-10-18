@@ -120,7 +120,7 @@ def test_user_preferences_language_defaults_to_pt_br(db_session: Session) -> Non
     assert prefs.language.value == "pt-BR"
 
 
-def test_case_origem_traducao_defaults_to_human_curation(db_session: Session) -> None:
+def test_case_translation_origin_defaults_to_human_curation(db_session: Session) -> None:
     """Case.translation_source default is HUMAN_CURATION. _Requirements: 11.1_"""
     case = Case(id="shadowray", name="ShadowRay")
     db_session.add(case)
@@ -131,7 +131,7 @@ def test_case_origem_traducao_defaults_to_human_curation(db_session: Session) ->
     assert case.translation_source.value == "curadoria_humana"
 
 
-def test_ability_origem_traducao_defaults_to_human_curation(
+def test_ability_translation_origin_defaults_to_human_curation(
     db_session: Session,
 ) -> None:
     """Ability.translation_source default is HUMAN_CURATION. _Requirements: 11.1_"""
@@ -144,7 +144,7 @@ def test_ability_origem_traducao_defaults_to_human_curation(
     assert ability.translation_source.value == "curadoria_humana"
 
 
-def test_adversary_origem_traducao_defaults_to_human_curation(
+def test_adversary_translation_origin_defaults_to_human_curation(
     db_session: Session,
 ) -> None:
     """Adversary.translation_source default is HUMAN_CURATION. _Requirements: 11.1_"""

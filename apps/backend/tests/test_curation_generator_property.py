@@ -1,4 +1,4 @@
-"""Property test do gerador de curation :class:`CurationDagGenerator` (task 3.3).
+"""Property test do generator de curation :class:`CurationDagGenerator` (task 3.3).
 
 # Feature: pipeline-cinco-stages, Property 7: Gerador de curation produz
 # curadoria_humana a partir da Modelagem (ignorando-a), sem rede/IA.
@@ -7,7 +7,7 @@ Validates: Requirements 3.1, 3.6
 
 Esta é uma property test de *feature* (a spec ``pipeline-cinco-stages`` é uma
 feature, não um bugfix): a propriedade é esperada **valer** sobre a implementação
-atual de :class:`~app.services.dag.gerador.CurationDagGenerator`. No esquema de
+atual de :class:`~app.services.dag.generator.CurationDagGenerator`. No esquema de
 cinco estágios, o DAG (Estágio 2) é **derivado da Modelagem Estrutural**
 (Estágio 1), então a costura ``DagGenerator`` recebe
 ``gerar(campaign, modeling: StructuralModeling)``. A implementação de curation
@@ -61,7 +61,7 @@ from hypothesis import strategies as st
 from app.models.enums import DagOrigin
 from app.services.campaign_service import CURATED_CASES, CaseService, DagData
 from app.services.dag.dag_service import DagService
-from app.services.dag.gerador import (
+from app.services.dag.generator import (
     CurationDagGenerator,
     ProducedDag,
     StructuralModeling,
@@ -220,7 +220,7 @@ def _modelagem(draw) -> StructuralModeling:
 # curadoria_humana a partir da Modelagem (ignorando-a), sem rede/IA
 @settings(max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture])
 @given(dag=_acyclic_dag(), modeling=_modelagem())
-def test_property7_curadoria_produz_um_dag_curadoria_humana_consistente(
+def test_property7_curation_produces_a_consistent_human_curation_dag(
     dag: dict,
     modeling: StructuralModeling,
     tmp_path_factory: pytest.TempPathFactory,
@@ -237,9 +237,9 @@ def test_property7_curadoria_produz_um_dag_curadoria_humana_consistente(
     _write_case_fixture(data_dir, _CURATED_SLUG, dag["structural_nodes"])
 
     case_service = CaseService(data_dir=data_dir)
-    gerador = CurationDagGenerator(case_service=case_service)
+    generator = CurationDagGenerator(case_service=case_service)
 
-    produzidos = gerador.generate(_CURATED_SLUG, modeling)
+    produzidos = generator.generate(_CURATED_SLUG, modeling)
 
     # Exatamente um ProducedDag, origin = HUMAN_CURATION.
     assert len(produzidos) == 1
@@ -247,7 +247,7 @@ def test_property7_curadoria_produz_um_dag_curadoria_humana_consistente(
     assert isinstance(produzido, ProducedDag)
     assert produzido.origin == DagOrigin.HUMAN_CURATION
     # ``origin()`` da costura também carimba curadoria_humana (Req. 3.6).
-    assert gerador.origin() == DagOrigin.HUMAN_CURATION
+    assert generator.origin() == DagOrigin.HUMAN_CURATION
 
     # O content tem as duas chaves estruturais do contrato.
     content = produzido.content
@@ -278,7 +278,7 @@ def test_property7_curadoria_produz_um_dag_curadoria_humana_consistente(
 
 @settings(max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture])
 @given(dag=_acyclic_dag(), modelagem_a=_modelagem(), modelagem_b=_modelagem())
-def test_property7_curadoria_ignora_a_modelagem(
+def test_property7_curation_ignores_the_modeling(
     dag: dict,
     modelagem_a: StructuralModeling,
     modelagem_b: StructuralModeling,
@@ -295,12 +295,12 @@ def test_property7_curadoria_ignora_a_modelagem(
     data_dir = tmp_path_factory.mktemp("gerador_curadoria_ignora_modelagem")
     _write_case_fixture(data_dir, _CURATED_SLUG, dag["structural_nodes"])
 
-    gerador = CurationDagGenerator(case_service=CaseService(data_dir=data_dir))
+    generator = CurationDagGenerator(case_service=CaseService(data_dir=data_dir))
 
     vazia = StructuralModeling()
-    r_vazia = gerador.generate(_CURATED_SLUG, vazia)
-    r_a = gerador.generate(_CURATED_SLUG, modelagem_a)
-    r_b = gerador.generate(_CURATED_SLUG, modelagem_b)
+    r_vazia = generator.generate(_CURATED_SLUG, vazia)
+    r_a = generator.generate(_CURATED_SLUG, modelagem_a)
+    r_b = generator.generate(_CURATED_SLUG, modelagem_b)
 
     # Idêntico qualquer que seja a Modelagem: a saída não depende dela.
     assert r_vazia == r_a == r_b
@@ -319,14 +319,14 @@ def test_property7_curadoria_ignora_a_modelagem(
     cenario=st.sampled_from(["ausente", "malformado", "no_dag"]),
     modeling=_modelagem(),
 )
-def test_property7_sem_dag_derivavel_devolve_lista_vazia(
+def test_property7_no_derivable_dag_returns_empty_list(
     cenario: str,
     modeling: StructuralModeling,
     tmp_path_factory: pytest.TempPathFactory,
 ) -> None:
     """campaign curated sem DAG derivável (ausente/malformado/null) → lista vazia.
 
-    A geração de curation é acionada por campaign curated (o backfill itera os Casos
+    Curation generation is triggered by a curated campaign (the backfill iterates the Campaigns
     curados). Para um campaign curated cujo ``{slug}_dag.json`` está ausente,
     malformado, ou cujo payload de DAG é ``null``, ``gerar`` devolve ``[]`` sem
     levantar e sem persistir um ``Dag`` inválido — qualquer que seja a Modelagem
@@ -340,9 +340,9 @@ def test_property7_sem_dag_derivavel_devolve_lista_vazia(
     api_dir.mkdir(parents=True, exist_ok=True)
     dag_dir.mkdir(parents=True, exist_ok=True)
 
-    gerador = CurationDagGenerator(case_service=CaseService(data_dir=data_dir))
+    generator = CurationDagGenerator(case_service=CaseService(data_dir=data_dir))
 
-    # Todos os cenários usam um slug curated (a geração só é acionada para Casos
+    # All scenarios use a curated slug (generation is only triggered for Campaigns
     # curados); varia o state do file de DAG em disco.
     slug = _CURATED_SLUG
     (api_dir / f"{slug}_dag-ability.json").write_text("[]", encoding="utf-8")
@@ -359,7 +359,7 @@ def test_property7_sem_dag_derivavel_devolve_lista_vazia(
         # Arquivo de DAG presente mas com payload JSON ``null`` → campaign sem DAG.
         (dag_dir / f"{slug}_dag.json").write_text("null", encoding="utf-8")
 
-    produzidos = gerador.generate(slug, modeling)
+    produzidos = generator.generate(slug, modeling)
 
     assert produzidos == []
 
@@ -383,7 +383,7 @@ class _NoAICalledSentinel:
 
 @settings(max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture])
 @given(dag=_acyclic_dag(), modeling=_modelagem())
-def test_property7_geracao_de_curadoria_nao_acessa_rede_nem_ia(
+def test_property7_curation_generation_no_network_no_ai(
     dag: dict,
     modeling: StructuralModeling,
     tmp_path_factory: pytest.TempPathFactory,
@@ -391,7 +391,7 @@ def test_property7_geracao_de_curadoria_nao_acessa_rede_nem_ia(
     """A geração de curation lê somente o disco local via CaseService — sem IA.
 
     Não há cliente de IA neste caminho; uma sentinela de IA é intencionalmente
-    não acoplada ao gerador (não há seam para injetar uma). A assertiva de
+    não acoplada ao generator (não há seam para injetar uma). A assertiva de
     contrato mais forte é: o DAG curated é produzido lendo apenas o CaseService
     (disco local), sem exceção e sem qualquer chamada de rede/IA — a Modelagem
     recebida (saída do Estágio 1) é ignorada (Req. 3.6).
@@ -401,14 +401,14 @@ def test_property7_geracao_de_curadoria_nao_acessa_rede_nem_ia(
     data_dir = tmp_path_factory.mktemp("gerador_curadoria_sem_ia")
     _write_case_fixture(data_dir, _CURATED_SLUG, dag["structural_nodes"])
 
-    # O gerador depende apenas do CaseService (seam de disco local); nenhuma seam
+    # O generator depende apenas do CaseService (seam de disco local); nenhuma seam
     # de IA existe para injetar — documentamos a intenção "sem IA".
     _ = _NoAICalledSentinel
 
-    gerador = CurationDagGenerator(case_service=CaseService(data_dir=data_dir))
+    generator = CurationDagGenerator(case_service=CaseService(data_dir=data_dir))
 
     # Produz normalmente a partir do disco local, sem levantar.
-    produzidos = gerador.generate(_CURATED_SLUG, modeling)
+    produzidos = generator.generate(_CURATED_SLUG, modeling)
     assert len(produzidos) == 1
     assert produzidos[0].origin == DagOrigin.HUMAN_CURATION
 
@@ -416,5 +416,5 @@ def test_property7_geracao_de_curadoria_nao_acessa_rede_nem_ia(
     # cliente de rede/IA — a única fonte de dados é o CaseService de disco local.
     import inspect
 
-    params = list(inspect.signature(gerador.generate).parameters)
+    params = list(inspect.signature(generator.generate).parameters)
     assert params == ["campaign", "modeling"]

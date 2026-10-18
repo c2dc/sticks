@@ -129,7 +129,7 @@ def test_executor_satisfies_the_protocol() -> None:
     assert isinstance(DockerComposeExecutor(), ComposeExecutor)
 
 
-def test_subir_sucesso_rota_linhas_na_ordem_com_codigo_zero(
+def test_bring_up_success_routes_lines_in_order_with_code_zero(
     monkeypatch: pytest.MonkeyPatch, coletor: list[LogLine]
 ) -> None:
     """Sucesso: ``code == 0`` e as lines de stdout chegam ao ``on_log`` em ordem.
@@ -149,7 +149,7 @@ def test_subir_sucesso_rota_linhas_na_ordem_com_codigo_zero(
     assert result.lines == coletor
 
 
-def test_subir_falha_propaga_exit_code_nao_zero(
+def test_bring_up_failure_propagates_nonzero_exit_code(
     monkeypatch: pytest.MonkeyPatch, coletor: list[LogLine]
 ) -> None:
     """Falha ao subir: um ``code != 0`` propaga como failure (Req. 3.5).
@@ -166,7 +166,7 @@ def test_subir_falha_propaga_exit_code_nao_zero(
     assert [l.text for l in coletor if l.stream == "stdout"] == output
 
 
-def test_subir_ordem_do_streaming_comando_antes_do_stdout(
+def test_bring_up_streaming_order_command_before_stdout(
     monkeypatch: pytest.MonkeyPatch, coletor: list[LogLine]
 ) -> None:
     """Ordem do streaming: a line ``command`` sai primeiro, depois os ``stdout``.
@@ -188,7 +188,7 @@ def test_subir_ordem_do_streaming_comando_antes_do_stdout(
     assert all(l.step == "subir_conteineres" for l in coletor)
 
 
-def test_subir_argv_nomeia_apenas_servicos_do_laboratorio(
+def test_bring_up_argv_names_only_lab_services(
     monkeypatch: pytest.MonkeyPatch, coletor: list[LogLine]
 ) -> None:
     """Argv do ``subir``: só os serviços do laboratório; nunca a camada de aplicação.
@@ -223,7 +223,7 @@ def test_subir_argv_nomeia_apenas_servicos_do_laboratorio(
     assert "--profile" not in argv
 
 
-def test_subir_docker_ausente_fail_closed_codigo_127(
+def test_bring_up_docker_absent_fail_closed_code_127(
     monkeypatch: pytest.MonkeyPatch, coletor: list[LogLine]
 ) -> None:
     """Docker ausente (``FileNotFoundError``) → fail-closed com ``code`` 127.
@@ -266,7 +266,7 @@ class _GravadorPopen:
         return _FakePopen(argv, _linhas=[], _codigo=self._codigo)
 
 
-def test_subir_todas_imagens_presentes_usa_no_build_sem_build(
+def test_bring_up_all_images_present_uses_no_build(
     monkeypatch: pytest.MonkeyPatch, coletor: list[LogLine]
 ) -> None:
     """Imagens presentes -> ``up --no-build`` e NENHUMA chamada de ``build`` (Req. 11.2).
@@ -286,7 +286,7 @@ def test_subir_todas_imagens_presentes_usa_no_build_sem_build(
     assert up[-4:] == list(LAB_SERVICES)
 
 
-def test_subir_imagem_faltando_builda_antes_e_entao_sobe(
+def test_bring_up_missing_image_builds_first_then_brings_up(
     monkeypatch: pytest.MonkeyPatch, coletor: list[LogLine]
 ) -> None:
     """Falta imagem -> ``build`` dos faltantes primeiro, depois ``up`` (Req. 11.3).
@@ -313,7 +313,7 @@ def test_subir_imagem_faltando_builda_antes_e_entao_sobe(
     assert up[-4:] == list(LAB_SERVICES)
 
 
-def test_subir_build_falha_nao_sobe(
+def test_bring_up_build_failure_does_not_bring_up(
     monkeypatch: pytest.MonkeyPatch, coletor: list[LogLine]
 ) -> None:
     """Build failure (code != 0) -> NAO executa o ``up`` e propaga a failure (Req. 11.3).

@@ -14,9 +14,9 @@ vi.mock("@/lib/preferences", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/preferences")>()
   return {
     ...actual,
-    getPreferencias: vi.fn().mockResolvedValue(null),
-    putPreferencias: vi.fn().mockResolvedValue({ tema: "claro", idioma: "pt-BR" }),
-    persistIdioma: vi.fn().mockResolvedValue({ tema: "claro", idioma: "pt-BR" }),
+    getPreferences: vi.fn().mockResolvedValue(null),
+    putPreferences: vi.fn().mockResolvedValue({ theme: "light", language: "pt-BR" }),
+    persistLanguage: vi.fn().mockResolvedValue({ theme: "light", language: "pt-BR" }),
   }
 })
 

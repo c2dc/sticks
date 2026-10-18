@@ -8,8 +8,8 @@ sobre o seam injetável :class:`ContainerStateInspector`, de modo que os testes
 substituem o acesso ao Docker por um **fake** que devolve
 :class:`ContainerStateInfo` fabricadas.
 
-Seguindo o mesmo padrão de ``test_isolation_property.py`` / ``test_provisionador
-_estagio5.py`` (fake inspector + dataclass simples, pura in-memory), estes testes
+Following the same pattern as ``test_isolation_property.py`` / ``test_provisioner
+_stage5.py`` (fake inspector + simple dataclass, pure in-memory), these tests
 cobrem:
 
 1. **Todos saudáveis** → ``approved=True`` (running; alguns ``healthy``, outros
@@ -87,7 +87,7 @@ def test_fake_satisfies_the_inspector_protocol() -> None:
     assert isinstance(FakeStateInspector({}), ContainerStateInspector)
 
 
-def test_todos_saudaveis_aprovado() -> None:
+def test_all_healthy_approved() -> None:
     """Todos running (uns ``healthy``, outros sem healthcheck) → ``approved=True``.
     _Requirements: 5.1_"""
     inspector = FakeStateInspector(
@@ -116,7 +116,7 @@ def test_todos_saudaveis_aprovado() -> None:
     assert all(v.reason is None for v in resumo.verdicts)
 
 
-def test_um_nao_running_reprova_com_razao() -> None:
+def test_one_not_running_fails_with_reason() -> None:
     """Um contêiner fora de ``running`` → ``approved=False`` com razão nele.
     _Requirements: 5.1_"""
     inspector = FakeStateInspector(
@@ -143,7 +143,7 @@ def test_um_nao_running_reprova_com_razao() -> None:
     assert _veredito_de(resumo, "caldera-attacker").approved is True
 
 
-def test_um_unhealthy_reprova_com_razao() -> None:
+def test_one_unhealthy_fails_with_reason() -> None:
     """Um contêiner running porém ``unhealthy`` → ``approved=False`` com razão.
     _Requirements: 5.1_"""
     inspector = FakeStateInspector(
@@ -168,7 +168,7 @@ def test_um_unhealthy_reprova_com_razao() -> None:
     assert [v.container for v in resumo.unhealthy] == ["mariadb-target"]
 
 
-def test_sem_healthcheck_saudavel_none_nao_reprova() -> None:
+def test_without_healthcheck_health_none_does_not_fail() -> None:
     """Serviço sem healthcheck (``health=None``) → ``healthy=None`` e aprova.
     _Requirements: 5.1_"""
     inspector = FakeStateInspector(
@@ -189,7 +189,7 @@ def test_sem_healthcheck_saudavel_none_nao_reprova() -> None:
     assert verdict.reason is None
 
 
-def test_lista_vazia_reprova_fail_closed() -> None:
+def test_empty_list_fails_closed() -> None:
     """Fail-closed: lista vazia de contêineres → ``approved=False``.
     _Requirements: 5.1_"""
     inspector = FakeStateInspector({})
@@ -202,7 +202,7 @@ def test_lista_vazia_reprova_fail_closed() -> None:
     assert inspector.consultados == []
 
 
-def test_container_ausente_reprova_com_razao() -> None:
+def test_missing_container_fails_with_reason() -> None:
     """Contêiner ausente (``ContainerStateNotFound``) → ``approved=False`` com razão.
     _Requirements: 5.1_"""
     inspector = FakeStateInspector(

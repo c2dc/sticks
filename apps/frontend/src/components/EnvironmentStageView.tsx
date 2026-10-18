@@ -154,7 +154,7 @@ export function EnvironmentStageView({
     <div className="grid gap-4 md:grid-cols-3">
       {/* Contained lab topology — diagram + internal networks. */}
       <StageSection
-        data-section="topologia"
+        data-section="topology"
         label={t("stage4.topologia.titulo")}
         kind="blue"
         description={t("stage4.topologia.descricao")}
@@ -192,7 +192,7 @@ export function EnvironmentStageView({
 
       {/* Isolation state — ready / blocked / not verifiable. */}
       <StageSection
-        data-section="isolamento"
+        data-section="isolation"
         label={t("stage4.isolamento.titulo")}
         kind={isolated ? "blue" : "red"}
       >

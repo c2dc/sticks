@@ -159,8 +159,8 @@ describe("Stage1View — campaign_stix Input render (Req. 2.3, 2.4, 4.2)", () =>
     renderWithI18n(<Stage1View campaignId="shadowray" />)
 
     // The rich block is present; the fallback warning is not.
-    const block = await screen.findByTestId("campanha-stix")
-    expect(screen.queryByTestId("campanha-stix-nao-encontrada")).toBeNull()
+    const block = await screen.findByTestId("campaign-stix")
+    expect(screen.queryByTestId("campaign-stix-not-found")).toBeNull()
 
     // Rich fields rendered.
     expect(block).toHaveTextContent("ShadowRay")
@@ -196,8 +196,8 @@ describe("Stage1View — campaign_stix Input render (Req. 2.3, 2.4, 4.2)", () =>
     expect(alert).toHaveTextContent("C0045")
 
     // The rich-fields block is NOT present.
-    expect(screen.queryByTestId("campanha-stix")).toBeNull()
-    expect(screen.getByTestId("campanha-stix-nao-encontrada")).toBeInTheDocument()
+    expect(screen.queryByTestId("campaign-stix")).toBeNull()
+    expect(screen.getByTestId("campaign-stix-not-found")).toBeInTheDocument()
   })
 
   it("Property 1: the Output (structural extraction) stays intact with a found campaign", async () => {
@@ -207,7 +207,7 @@ describe("Stage1View — campaign_stix Input render (Req. 2.3, 2.4, 4.2)", () =>
 
     const { container } = renderWithI18n(<Stage1View campaignId="shadowray" />)
 
-    await screen.findByTestId("campanha-stix")
+    await screen.findByTestId("campaign-stix")
     const output = container.querySelector('[data-section="saida"]')
     expect(output).not.toBeNull()
     // The extracted technique appears in the Output, regardless of the Input.
@@ -223,7 +223,7 @@ describe("Stage1View — campaign_stix Input render (Req. 2.3, 2.4, 4.2)", () =>
     const { container } = renderWithI18n(<Stage1View campaignId="shadowray" />)
 
     // Input fell into the fallback, but the structural Output keeps rendering.
-    await screen.findByTestId("campanha-stix-nao-encontrada")
+    await screen.findByTestId("campaign-stix-not-found")
     const output = container.querySelector('[data-section="saida"]')
     expect(output).not.toBeNull()
     expect(output).toHaveTextContent("T1190")
@@ -236,7 +236,7 @@ describe("Stage1View — campaign_stix Input render (Req. 2.3, 2.4, 4.2)", () =>
       makeResultWithCampaign(foundCampaign(), outputWithTechniques()),
     )
     const found = renderWithI18n(<Stage1View campaignId="shadowray" />)
-    await screen.findByTestId("campanha-stix")
+    await screen.findByTestId("campaign-stix")
 
     const foundText = found.container.textContent ?? ""
     expect(foundText).not.toMatch(/data\/caldera_adversaries/)
@@ -251,7 +251,7 @@ describe("Stage1View — campaign_stix Input render (Req. 2.3, 2.4, 4.2)", () =>
       makeResultWithCampaign(notFoundCampaign(), outputWithTechniques()),
     )
     const notFound = renderWithI18n(<Stage1View campaignId="shadowray" />)
-    await screen.findByTestId("campanha-stix-nao-encontrada")
+    await screen.findByTestId("campaign-stix-not-found")
 
     const notFoundText = notFound.container.textContent ?? ""
     expect(notFoundText).not.toMatch(/data\/caldera_adversaries/)

@@ -24,7 +24,7 @@ pipeline. It covers two complementary roles:
 Stage 4 (Environment provisioning) of a **curated** Campaign requires no action
 from the Researcher: as soon as Stage 3 (Operationalization) is ``completed`` and
 the curated environment is available and **verified isolated**, the Backend marks
-the ``stage=4`` ``StageRun`` (:data:`ESTAGIO_PROVISIONAMENTO`) as ``completed``
+the ``stage=4`` ``StageRun`` (:data:`STAGE_PROVISIONING`) as ``completed``
 automatically (Req. 5.3, 9.2). If the isolation **cannot** be verified, Stage 4
 does not complete and Stage 5 stays blocked by the sequential gate (Req. 5.6,
 9.3).
@@ -91,15 +91,23 @@ _Requirements: 5.2, 5.3, 5.6, 9.2, 9.3, 9.4_
 from __future__ import annotations
 
 import datetime as dt
+import enum
+import logging
 from typing import Callable, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.models.domain import ProvisionedEnvironmentRow, StageRun
 from app.models.enums import PersistedEnvironmentPlatform, StageState
+from app.services.caldera.client import (
+    DEFAULT_GROUP,
+    CalderaApiError,
+    CalderaClient,
+    CalderaUnavailable,
+)
 from app.services.containment import ContainerInspector
 from app.services.environment.compose_executor import LogLine
 from app.services.environment.log_buffer import ProvisioningLogBuffer
@@ -111,10 +119,13 @@ from app.services.environment.provisioner import (
 )
 from app.services.environment.topology_builder import compose_path
 from app.services.stage.stage_service import (
-    ESTAGIO_AMBIENTE,
-    ESTAGIO_OPERACIONALIZACAO,
-    ESTAGIO_PROVISIONAMENTO,
+    STAGE_ENVIRONMENT,
+    STAGE_OPERATIONALIZATION,
+    STAGE_PROVISIONING,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 def _utcnow() -> dt.datetime:
@@ -265,6 +276,84 @@ class ProvisioningStage5Result(BaseModel):
     stage_run_id: Optional[int] = None
 
 
+class AgentHealthCause(str, enum.Enum):
+    """The specific blocking cause of the Stage 5 agent-health gate (Req. 4.6).
+
+    When the environment cannot be guaranteed healthy, the gate reports **which**
+    specific condition blocked the advance, so the Stage 5 screen surfaces the
+    precise cause (Req. 4.2/4.3/4.5/4.6) — never a generic failure.
+
+    Members
+    -------
+    NONE:
+        No blocking cause — the gate released the advance (≥ 1 ``alive=true``
+        agent in the expected group).
+    NO_ACTIVE_AGENT:
+        No agent with ``alive=true`` was found in the expected group (Req. 4.2).
+    ORPHAN:
+        No active agent **and** at least one orphan (``alive=false``) agent is
+        registered in the expected group (Req. 4.3) — the typical "rebuilt image
+        left a dead agent behind" case that would stall the Operation silently.
+    POINTING_DIVERGENCE:
+        The configured endpoint/route or host/container name does not match the
+        running environment: a Caldera API error (e.g. 404) or a non-resolvable
+        host maps here (Req. 4.4/4.5).
+    """
+
+    NONE = "none"
+    NO_ACTIVE_AGENT = "no_active_agent"
+    ORPHAN = "orphan"
+    POINTING_DIVERGENCE = "pointing_divergence"
+
+
+class AgentHealthResult(BaseModel):
+    """Typed verdict of the Stage 5 agent-health gate (Req. 4.1/4.2/4.3/4.4/4.6).
+
+    The gate consults the Caldera API (``CalderaClient.list_agents``) and decides
+    whether Stage 5 may release the advance to Stage 6 based **only** on the
+    agents of the expected group: it requires **≥ 1 agent with ``alive=true``**
+    (Req. 4.1), detects **orphans** (``alive=false``) left by rebuilt images
+    (Req. 4.3) and blocks the advance with a **specific cause** (absence of active
+    agent, orphan present, or pointing divergence — Req. 4.2/4.4/4.6).
+
+    Like the other *session-bound* seams it is a typed result rather than an
+    exception: the API/screen layer reads it to surface the cause on the Stage 5
+    screen and keep Stage 6 blocked. Stage 6 consumes the **same** verdict
+    **read-only** (no re-run — Req. 5.1/5.2).
+
+    Attributes
+    ----------
+    campaign_id:
+        The Campaign whose agent health was checked.
+    group:
+        The expected agent group the gate required agents to be registered under.
+    released:
+        ``True`` iff the advance to Stage 6 is released — i.e. there is **≥ 1**
+        agent with ``alive=true`` in the expected group (Req. 4.1). ``False`` on
+        every blocking path.
+    active_agents:
+        The number of ``alive=true`` agents found in the expected group.
+    orphan_paws:
+        The ``paw`` identifiers of the ``alive=false`` agents found in the
+        expected group — always signalled, even when the advance is released, so
+        the screen can warn about leftover dead agents (Req. 4.3).
+    cause:
+        The specific blocking cause (:class:`AgentHealthCause`); ``NONE`` when
+        released (Req. 4.6).
+    message:
+        pt-BR text explaining the verdict for the Stage 5 screen; ``None`` when
+        released without caveats.
+    """
+
+    campaign_id: str
+    group: str
+    released: bool = False
+    active_agents: int = 0
+    orphan_paws: list[str] = Field(default_factory=list)
+    cause: AgentHealthCause = AgentHealthCause.NONE
+    message: Optional[str] = None
+
+
 # Portuguese messages per non-completion path (for the API/UI to surface).
 _MSG_GATE = (
     "O Estágio 3 (Operacionalização) deste Caso ainda não está concluído; o "
@@ -300,6 +389,24 @@ _MSG_PERSISTENCE_FAILURE_STAGE5 = (
 _MSG_PERSISTENCE_FAILURE_OUTPUT_STAGE5 = (
     "A Saída do provisionamento do Estágio 5 não foi salva: falha ao persistir "
     "na base de dados. O estado anterior foi preservado sem alteração."
+)
+
+# Portuguese messages of the Stage 5 agent-health gate (task 8.1 — Req. 4). The
+# cause is always surfaced on the Stage 5 screen (not the Stage 6 one — Req. 4.6).
+_MSG_AGENTS_NO_ACTIVE = (
+    "Nenhum agente ativo (alive=true) foi encontrado no grupo esperado do "
+    "Caldera; o avanço para o Estágio 6 permanece bloqueado até haver pelo menos "
+    "1 agente ativo."
+)
+_MSG_AGENTS_ORPHAN = (
+    "Há agente(s) órfão(s) (alive=false) registrado(s) no grupo esperado do "
+    "Caldera e nenhum agente ativo; o avanço para o Estágio 6 permanece "
+    "bloqueado até haver pelo menos 1 agente ativo."
+)
+_MSG_AGENTS_DIVERGENCE = (
+    "O apontamento do Caldera (rota/endpoint ou nome de host/contêiner) não "
+    "corresponde ao ambiente em execução; o avanço para o Estágio 6 permanece "
+    "bloqueado por divergência de apontamento."
 )
 
 # Aggregate progress per pipeline step (per-step progress — task 5.1). The four
@@ -357,6 +464,18 @@ class EnvironmentStageService:
         (Req. 9.4). Default: ``lambda: compose_path() is not None`` — the lab's
         ``docker/docker-compose.yml``. Injectable in the tests to exercise the "no
         material" path without touching the disk.
+    caldera_client:
+        :class:`~app.services.caldera.client.CalderaClient` used by the agent-
+        health gate (task 8.1 — Req. 4) to list the Caldera agents of the expected
+        group. ``None`` in production: it is built **lazily** (via
+        :meth:`_get_caldera_client`) only when :meth:`verify_agents_health` runs,
+        so importing this module never opens a socket. The tests inject a client
+        backed by :class:`httpx.MockTransport`.
+    agent_group:
+        The agent group the health gate requires agents to be registered under
+        (Req. 4.1/4.3). Defaults to the pipeline convention
+        :data:`~app.services.caldera.client.DEFAULT_GROUP` (``"red"``), matching
+        ``CalderaClient.create_operation``'s default target group.
     """
 
     def __init__(
@@ -368,8 +487,16 @@ class EnvironmentStageService:
         compose_available: Optional[Callable[[], bool]] = None,
         log_buffer: Optional[ProvisioningLogBuffer] = None,
         params_provider: Optional[Callable[[str], EnvironmentParameters]] = None,
+        caldera_client: Optional[CalderaClient] = None,
+        agent_group: str = DEFAULT_GROUP,
     ) -> None:
         self._session = session
+        # Caldera client for the agent-health gate (task 8.1 — Req. 4). Injectable
+        # (tests pass a MockTransport-backed client); when ``None`` it is built
+        # lazily on first use so importing this module never opens a socket, the
+        # same contract as :class:`CalderaClient` itself.
+        self._caldera_client = caldera_client
+        self._agent_group = agent_group
         self._provisioner: EnvironmentProvisioner = (
             provisioner
             if provisioner is not None
@@ -430,7 +557,31 @@ class EnvironmentStageService:
         row = self._environment_row(campaign)
         if row is None:
             return None
-        return ProvisionedEnvironment.model_validate(row.content)
+        return self._safe_environment_from_row(row)
+
+    def _safe_environment_from_row(
+        self, row: ProvisionedEnvironmentRow
+    ) -> Optional[ProvisionedEnvironment]:
+        """Rebuild a ProvisionedEnvironment from a persisted row, tolerating
+        stale/incompatible JSON.
+
+        A row persisted by an older schema (e.g. pre-English-rename, with
+        Portuguese keys) no longer validates against the current model. Rather
+        than raising a 500, we treat such a row as having no usable persisted
+        output: the caller then falls back to (re)provisioning, which rewrites
+        the row in the current format. Returns None on invalid/obsolete content.
+        """
+        try:
+            return ProvisionedEnvironment.model_validate(row.content)
+        except ValidationError as exc:
+            logger.warning(
+                "Discarding stale persisted environment for campaign %r "
+                "(id=%s): incompatible content schema (%d error(s)).",
+                getattr(row, "campaign_id", None),
+                getattr(row, "id", None),
+                exc.error_count(),
+            )
+            return None
 
     def auto_complete_stage4(self, campaign: str) -> AutoProvisioningResult:
         """Try to automatically complete the Stage 4 of the curated Campaign ``campaign``.
@@ -460,7 +611,7 @@ class EnvironmentStageService:
         states = self._states_map(campaign)
 
         # (1) Sequential gate (Req. 9.3): only proceeds with Stage 3 completed.
-        if states.get(ESTAGIO_OPERACIONALIZACAO) is not StageState.COMPLETED:
+        if states.get(STAGE_OPERATIONALIZATION) is not StageState.COMPLETED:
             return AutoProvisioningResult(
                 campaign_id=campaign,
                 completed=False,
@@ -469,8 +620,8 @@ class EnvironmentStageService:
             )
 
         # (2) Idempotency: already completed ⇒ nothing to re-persist.
-        if states.get(ESTAGIO_PROVISIONAMENTO) is StageState.COMPLETED:
-            row = self._stage_run_row(campaign, ESTAGIO_PROVISIONAMENTO)
+        if states.get(STAGE_PROVISIONING) is StageState.COMPLETED:
+            row = self._stage_run_row(campaign, STAGE_PROVISIONING)
             return AutoProvisioningResult(
                 campaign_id=campaign,
                 completed=True,
@@ -513,7 +664,7 @@ class EnvironmentStageService:
 
         # (5) Isolated ⇒ complete Stage 4 (absolute upsert, transactional).
         stage_run = self._get_or_create_stage_run(
-            campaign, stage=ESTAGIO_PROVISIONAMENTO
+            campaign, stage=STAGE_PROVISIONING
         )
         stage_run.state = StageState.COMPLETED
         stage_run.progress = 100
@@ -604,7 +755,7 @@ class EnvironmentStageService:
         # (1) Sequential gate (Req. 1.1): Stage 5 only starts with Stage 4
         # (Operationalization) completed. While it is not, it brings up/persists
         # nothing.
-        if states.get(ESTAGIO_OPERACIONALIZACAO) is not StageState.COMPLETED:
+        if states.get(STAGE_OPERATIONALIZATION) is not StageState.COMPLETED:
             return ProvisioningStage5Result(
                 campaign_id=campaign,
                 blocked_by_gate=True,
@@ -621,11 +772,15 @@ class EnvironmentStageService:
         # clearing/re-running. The completed ``StageRun`` confirms that the
         # completion (task 5.3) approved the three prerequisites — "ready+persisted"
         # is the reuse signal.
-        if states.get(ESTAGIO_AMBIENTE) is StageState.COMPLETED:
+        if states.get(STAGE_ENVIRONMENT) is StageState.COMPLETED:
             row = self._environment_row(campaign)
-            if row is not None and row.ready:
-                environment = ProvisionedEnvironment.model_validate(row.content)
-                run = self._stage_run_row(campaign, ESTAGIO_AMBIENTE)
+            environment = (
+                self._safe_environment_from_row(row)
+                if row is not None and row.ready
+                else None
+            )
+            if environment is not None:
+                run = self._stage_run_row(campaign, STAGE_ENVIRONMENT)
                 return ProvisioningStage5Result(
                     campaign_id=campaign,
                     ready=True,
@@ -639,7 +794,7 @@ class EnvironmentStageService:
 
         # (3) Marks em_andamento and resets the Campaign's log buffer for the new
         # run (seq restarts at 1). Persists the start transactionally.
-        stage_run = self._get_or_create_stage_run(campaign, stage=ESTAGIO_AMBIENTE)
+        stage_run = self._get_or_create_stage_run(campaign, stage=STAGE_ENVIRONMENT)
         stage_run.state = StageState.IN_PROGRESS
         stage_run.progress = 0
         stage_run.error_message = None
@@ -760,6 +915,123 @@ class EnvironmentStageService:
     def start_provisioning(self, campaign: str) -> ProvisioningStage5Result:
         """Alias of :meth:`provision_stage5` — triggers the provisioning (Req. 1.1)."""
         return self.provision_stage5(campaign)
+
+    # ---- agent-health gate (task 8.1 — Req. 4) ---------------------------
+
+    def verify_agents_health(
+        self, campaign: str, *, group: Optional[str] = None
+    ) -> AgentHealthResult:
+        """Verify the Caldera agents' health for the Stage 5 → Stage 6 gate (task 8.1).
+
+        This is the environment check that **belongs to Stage 5** (Req. 5.1): it
+        consults the running Caldera via :meth:`CalderaClient.list_agents` — using
+        the **current v2 route** and the running environment's group name
+        (Req. 4.4) — and derives a typed verdict that gates the advance to Stage 6.
+
+        Decision (derived **only** from the expected group's agents):
+
+        * **Release** iff there is **≥ 1** agent with ``alive=true`` in the group
+          (Req. 4.1). Orphans may coexist with a live agent — their presence is
+          still signalled in ``orphan_paws`` (Req. 4.3) but does **not** block
+          when an active agent exists.
+        * **Block — orphan (Req. 4.3):** no active agent **and** at least one
+          orphan (``alive=false``) in the group ⇒ the typical "rebuilt image left a
+          dead agent behind" case; the advance is blocked with a visible cause so
+          it never stalls silently.
+        * **Block — no active agent (Req. 4.2):** no active agent and no orphan ⇒
+          the group simply has no usable agent.
+        * **Block — pointing divergence (Req. 4.4/4.5):** a :class:`CalderaApiError`
+          (e.g. 404 on the route) **or** a :class:`CalderaUnavailable`
+          (non-resolvable host / connection failure) maps to a pointing-divergence
+          block — the configured endpoint/host does not match the running
+          environment.
+
+        The verdict is **read-only** and side-effect-free (no DB write, no Caldera
+        mutation), so Stage 6 can consume the **same** result without re-running
+        the check (Req. 5.1, 5.2). The cause is surfaced on the **Stage 5** screen,
+        never on the Stage 6 one (Req. 4.6).
+
+        Parameters
+        ----------
+        campaign:
+            The Campaign whose agent health is checked (carried in the result).
+        group:
+            The expected agent group; defaults to the service's ``agent_group``
+            (the pipeline's ``"red"`` convention — Req. 4.1/4.3).
+
+        Returns
+        -------
+        AgentHealthResult
+            The typed verdict (released + active count + orphans + specific cause +
+            pt-BR message). Never raises on the expected Caldera error paths — they
+            map to a ``POINTING_DIVERGENCE`` block.
+        """
+        expected_group = group if group is not None else self._agent_group
+
+        # Current v2 route + running-environment group name (Req. 4.4). A route/
+        # host mismatch surfaces as a typed Caldera error, mapped to a pointing-
+        # divergence block (Req. 4.5) — fail-closed, never released.
+        try:
+            agents = self._get_caldera_client().list_agents(expected_group)
+        except (CalderaApiError, CalderaUnavailable):
+            return AgentHealthResult(
+                campaign_id=campaign,
+                group=expected_group,
+                released=False,
+                active_agents=0,
+                orphan_paws=[],
+                cause=AgentHealthCause.POINTING_DIVERGENCE,
+                message=_MSG_AGENTS_DIVERGENCE,
+            )
+
+        # ``list_agents(group)`` already filtered to the expected group.
+        active = [agent for agent in agents if agent.alive]
+        orphans = sorted(agent.paw for agent in agents if not agent.alive)
+
+        # Release iff ≥ 1 active agent in the group (Req. 4.1). Orphans are always
+        # signalled, even when released (Req. 4.3).
+        if active:
+            return AgentHealthResult(
+                campaign_id=campaign,
+                group=expected_group,
+                released=True,
+                active_agents=len(active),
+                orphan_paws=orphans,
+                cause=AgentHealthCause.NONE,
+                message=None,
+            )
+
+        # No active agent ⇒ blocked. Distinguish the orphan case (Req. 4.3) from the
+        # plain absence of any agent (Req. 4.2) so the Stage 5 screen shows the
+        # precise cause (Req. 4.6).
+        if orphans:
+            cause = AgentHealthCause.ORPHAN
+            message = _MSG_AGENTS_ORPHAN
+        else:
+            cause = AgentHealthCause.NO_ACTIVE_AGENT
+            message = _MSG_AGENTS_NO_ACTIVE
+
+        return AgentHealthResult(
+            campaign_id=campaign,
+            group=expected_group,
+            released=False,
+            active_agents=0,
+            orphan_paws=orphans,
+            cause=cause,
+            message=message,
+        )
+
+    def _get_caldera_client(self) -> CalderaClient:
+        """Return the agent-health :class:`CalderaClient`, building it lazily.
+
+        In production (no injected client) a real client is created on first use —
+        so importing this module never opens a socket, mirroring
+        :class:`CalderaClient`'s own lazy-connect contract. The tests inject a
+        client backed by :class:`httpx.MockTransport`.
+        """
+        if self._caldera_client is None:
+            self._caldera_client = CalderaClient()
+        return self._caldera_client
 
     def _last_error_line_message(
         self, campaign: str, step: str, *, fallback: Optional[str] = None
@@ -958,4 +1230,6 @@ __all__ = [
     "EnvironmentStageService",
     "AutoProvisioningResult",
     "ProvisioningStage5Result",
+    "AgentHealthResult",
+    "AgentHealthCause",
 ]

@@ -6,7 +6,7 @@ usuário. NÃO rodar no environment de desenvolvimento nem em CI.**
 Unlike ``test_e2e_emulation_mocked.py`` (task 15.2), which drives the whole
 pipeline with Caldera and the Docker Engine API **mocked**, this suite drives
 the *real* end-to-end flow: a **real Caldera** at ``http://localhost:8888`` and
-the **real Ambiente_Docker** (the lab containers on the internal-only networks),
+the **real Docker environment** (the lab containers on the internal-only networks),
 with containment actually satisfied. It runs 1–2 curated cases from start to
 finish and validates both the real emulation and the **persisted audit trail**
 (Req. 4.2, 4.4, 6.3, 6.8).
@@ -160,9 +160,9 @@ def real_caldera() -> Iterator[CalderaClient]:
         client.close()
 
 
-@pytest.mark.parametrize("caso_slug", _lab_cases())
+@pytest.mark.parametrize("campaign_slug", _lab_cases())
 def test_real_end_to_end_emulation_and_audit_trail(
-    caso_slug: str,
+    campaign_slug: str,
     session_factory: sessionmaker[Session],
     real_caldera: CalderaClient,
 ) -> None:
@@ -176,7 +176,7 @@ def test_real_end_to_end_emulation_and_audit_trail(
       target the internal subnets) **and** the **real** read-only Docker
       isolation inspection of the target containers (Req. 6.3) — no mocks;
     * loads the Abilities/Adversary into the **real Caldera** and starts a real
-      Operation against the real Ambiente_Docker (Req. 4.2);
+      Operation against the real Docker environment (Req. 4.2);
     * asserts the per-Ability results and the aggregate totals were persisted
       (Req. 4.4);
     * asserts the audit trail was persisted **1:1** — exactly one row per
@@ -190,9 +190,9 @@ def test_real_end_to_end_emulation_and_audit_trail(
     guards keep it skipped.
     """
     case_service = CaseService()
-    case = case_service.load_case(caso_slug)
-    assert case.abilities, f"campaign {caso_slug} deve ter Abilities curadas"
-    assert case.adversary is not None, f"campaign {caso_slug} deve ter Adversary"
+    case = case_service.load_case(campaign_slug)
+    assert case.abilities, f"campaign {campaign_slug} deve ter Abilities curadas"
+    assert case.adversary is not None, f"campaign {campaign_slug} deve ter Adversary"
 
     session = session_factory()
     try:
@@ -207,7 +207,7 @@ def test_real_end_to_end_emulation_and_audit_trail(
         )
 
         # Confirmed, real run: pre-flight (containment + isolation, Req. 6.3) ->
-        # real Caldera Operation against the real Ambiente_Docker (Req. 4.2).
+        # real Caldera Operation against the real Docker environment (Req. 4.2).
         # Abilities are adapted to the runner-facing form exactly as the API
         # layer does; the target containers are derived from the abilities'
         # internal destinations by the runner's own preview resolver.

@@ -174,7 +174,7 @@ export function CampaignStixBlock({
       <div
         className="flex flex-col gap-1 rounded-md border border-team-red/30 bg-team-red/5 p-2"
         role="alert"
-        data-testid="campanha-stix-nao-encontrada"
+        data-testid="campaign-stix-not-found"
       >
         <p className="text-sm text-team-red">
           {t("stage1.entrada.naoEncontrada")}
@@ -189,8 +189,8 @@ export function CampaignStixBlock({
   return (
     <div
       className="flex flex-col gap-2"
-      data-testid="campanha-stix"
-      data-section="campanha-stix"
+      data-testid="campaign-stix"
+      data-section="campaign-stix"
     >
       <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         {t("stage1.entrada.campanhaStix")}

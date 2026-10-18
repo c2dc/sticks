@@ -80,17 +80,17 @@ _CONTAINER_LABELS: list[str] = [
     "caldera (192.168.10.10)",
 ]
 
-comando_strategy = st.sampled_from(_COMMAND_TEMPLATES)
+command_strategy = st.sampled_from(_COMMAND_TEMPLATES)
 container_strategy = st.sampled_from(_CONTAINER_LABELS)
 # result may be a success/failure string OR None (the model allows NULL).
-resultado_strategy = st.one_of(
+result_strategy = st.one_of(
     st.none(),
     st.sampled_from(["sucesso", "falha"]),
     st.text(alphabet="abcdefghijklmnop 0123456789", min_size=0, max_size=40),
 )
 
 command_record_strategy = st.tuples(
-    comando_strategy, container_strategy, resultado_strategy
+    command_strategy, container_strategy, result_strategy
 )
 
 

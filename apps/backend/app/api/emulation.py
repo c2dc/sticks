@@ -271,7 +271,7 @@ def _load_case_or_error(campaign: str, case_service: CaseService) -> CaseData:
     """Resolve a curated case, mapping unknown/failed reads to HTTP errors.
 
     An unknown slug is a 404; a missing/malformed case file is a descriptive 422
-    (mirroring the casos router's per-case handling). The returned
+    (mirroring the campaigns router's per-case handling). The returned
     :class:`CaseData` exposes the Abilities and Adversary the emulation needs.
     """
     if campaign not in case_service.list_cases():
@@ -282,7 +282,7 @@ def _load_case_or_error(campaign: str, case_service: CaseService) -> CaseData:
     result = case_service.try_load_case(campaign)
     if not result.ok or result.case is None:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=(
                 result.error.detail if result.error else f"Falha ao ler {campaign!r}."
             ),
@@ -504,7 +504,7 @@ def execute_emulation(
 
     # After the renumbering (five-stage pipeline spec): the old "Emulation"
     # becomes Stage 5 — Campaign Execution. When the execution completes
-    # successfully, Stage 5 (`ESTAGIO_EXECUCAO`) moves to `concluido` —
+    # successfully, Stage 5 (`STAGE_EXECUTION`) moves to `concluido` —
     # persisted through the single completion path (persist_stage_completion).
     # Only COMPLETED + OperationState.FINISHED persists;
     # ABORTED/NOT_CONFIRMED/409/503 do not. A failure to mark the completion does
@@ -514,9 +514,9 @@ def execute_emulation(
     if result.outcome is RunOutcome.COMPLETED and result.state is OperationState.FINISHED:
         try:
             from app.services.session.session_state_service import SessionStateService
-            from app.services.stage.stage_service import ESTAGIO_EXECUCAO
+            from app.services.stage.stage_service import STAGE_EXECUTION
 
-            SessionStateService(db).persist_stage_completion(campaign, ESTAGIO_EXECUCAO)
+            SessionStateService(db).persist_stage_completion(campaign, STAGE_EXECUTION)
         except Exception:  # noqa: BLE001 - best-effort; does not fail the success response
             pass
 

@@ -111,7 +111,7 @@ from app.services.campaign_service import (
 from app.services.containment.command_parser import parse_command
 from app.services.containment.subnets import is_internal_ip
 from app.services.stix.stix_service import (
-    SLUG_PARA_STIX,
+    SLUG_TO_STIX,
     DetailedCampaignStix,
     StixFileError,
     StixService,
@@ -489,7 +489,7 @@ def _extract_metadata(dag: DagData) -> dict:
 # ===========================================================================
 #
 # Operationalization is Stage 3 of the five-stage pipeline (``stage=3``,
-# :data:`ESTAGIO_OPERACIONALIZACAO`; Req. 8.4). It turns the abstract ATT&CK
+# :data:`STAGE_OPERATIONALIZATION`; Req. 8.4). It turns the abstract ATT&CK
 # techniques (consolidated in the Stage-2 DAG) into executable Abilities —
 # the concrete commands, their ordering / dependencies, and the Adversary
 # grouping (Req. 4.1). The product terminology is "Operationalization", no longer
@@ -778,12 +778,12 @@ VALID_STAGES: tuple[int, ...] = (1, 2, 3, 4, 5, 6)
 # sequential blocking, aggregate progress and per-``StageRun`` derivation
 # reference ``VALID_STAGES``/``FIRST_STAGE``/``LAST_STAGE`` rather than literals,
 # so they span 1..6 without changes.
-ESTAGIO_SELECAO_BASE: int = 1        # Stage 1 — STIX base selection
-ESTAGIO_SELECAO_CAMPANHA: int = 2    # Stage 2 — Campaign selection
-ESTAGIO_GERACAO_DAG: int = 3         # Stage 3 — DAG generation
-ESTAGIO_OPERACIONALIZACAO: int = 4   # Stage 4 — Operationalization (Abilities + environment parameters)
-ESTAGIO_AMBIENTE: int = 5            # Stage 5 — Simulation environment creation
-ESTAGIO_EXECUCAO: int = 6            # Stage 6 — Execution + measurement + report
+STAGE_BASE_SELECTION: int = 1        # Stage 1 — STIX base selection
+STAGE_CAMPAIGN_SELECTION: int = 2    # Stage 2 — Campaign selection
+STAGE_DAG_GENERATION: int = 3         # Stage 3 — DAG generation
+STAGE_OPERATIONALIZATION: int = 4   # Stage 4 — Operationalization (Abilities + environment parameters)
+STAGE_ENVIRONMENT: int = 5            # Stage 5 — Simulation environment creation
+STAGE_EXECUTION: int = 6            # Stage 6 — Execution + measurement + report
 
 # Technical-debt note (Req. 18.5): the preceding constants (historical names
 # from the renumbering to five Stages) remain as ALIASES so they do not break
@@ -791,13 +791,13 @@ ESTAGIO_EXECUCAO: int = 6            # Stage 6 — Execution + measurement + rep
 # ``environment/stage_service.py``, ``api/emulation.py`` etc.). The downstream
 # modules will be re-wired to the new roles in each Stage's specific tasks;
 # until then the aliases preserve the current behavior.
-#   * ``ESTAGIO_MODELAGEM`` → role of the old Stage 1 (today base selection).
-#   * ``ESTAGIO_PROVISIONAMENTO`` → environment creation/provisioning role
-#     (today :data:`ESTAGIO_AMBIENTE`).
-# ``ESTAGIO_GERACAO_DAG``/``ESTAGIO_OPERACIONALIZACAO``/``ESTAGIO_EXECUCAO``
+#   * ``STAGE_MODELING`` → role of the old Stage 1 (today base selection).
+#   * ``STAGE_PROVISIONING`` → environment creation/provisioning role
+#     (today :data:`STAGE_ENVIRONMENT`).
+# ``STAGE_DAG_GENERATION``/``STAGE_OPERATIONALIZATION``/``STAGE_EXECUTION``
 # exist in both name sets and already point at the new roles above.
-ESTAGIO_MODELAGEM: int = ESTAGIO_SELECAO_BASE        # historical alias (Req. 18.5)
-ESTAGIO_PROVISIONAMENTO: int = ESTAGIO_AMBIENTE      # historical alias (Req. 18.5)
+STAGE_MODELING: int = STAGE_BASE_SELECTION        # historical alias (Req. 18.5)
+STAGE_PROVISIONING: int = STAGE_ENVIRONMENT      # historical alias (Req. 18.5)
 
 
 class StageStateView(BaseModel):
@@ -1116,7 +1116,7 @@ class StageService:
 
         * **missing version** (``version`` ``None``/empty) → ``found=False``,
           ``unavailable_reason="versao_ausente"``, plus the curated identifier
-          (name + external_id from :data:`SLUG_PARA_STIX`) when available.
+          (name + external_id from :data:`SLUG_TO_STIX`) when available.
         * **bundle unavailable** (:class:`StixFileError` from
           :meth:`StixService.get_campaign_by_slug` / ``read_bundle``) →
           ``found=False``, ``base_version=version``,
@@ -1125,7 +1125,7 @@ class StageService:
         * **not found** (``get_campaign_by_slug`` returns ``None``) →
           ``found=False``, ``base_version=version``,
           ``unavailable_reason="campanha_nao_encontrada"``, plus the curated
-          identifier (name + external_id from :data:`SLUG_PARA_STIX`).
+          identifier (name + external_id from :data:`SLUG_TO_STIX`).
         * **found** (rich DTO) → ``found=True``, ``base_version=version``
           with ``stix_id``, ``name``, ``external_id``, ``description``,
           ``aliases``, ``first_seen``, ``last_seen``.
@@ -1197,13 +1197,13 @@ class StageService:
 
     @staticmethod
     def _curated_identifier(slug: str) -> tuple[Optional[str], Optional[str]]:
-        """Curated identifier (canonical name, external_id) from :data:`SLUG_PARA_STIX`.
+        """Curated identifier (canonical name, external_id) from :data:`SLUG_TO_STIX`.
 
         Reuses the single resolution map so the fallback identifier never
         diverges from the campaigns screen (no duplicated rule). Returns
         ``(None, None)`` for an unknown slug.
         """
-        entry = SLUG_PARA_STIX.get(slug)
+        entry = SLUG_TO_STIX.get(slug)
         if not entry:
             return (None, None)
         name = entry.get("nome_canonico")
@@ -1379,7 +1379,7 @@ class StageService:
 
         # The persisted state is the source of truth for whether the stage ran.
         # Structural modeling is Stage 1 after the renumbering.
-        row = self._stage_run_row(slug, ESTAGIO_MODELAGEM)
+        row = self._stage_run_row(slug, STAGE_MODELING)
         state = row.state if row is not None else StageState.NOT_STARTED
 
         # Try to enrich the input from the case files (read-only). A read
@@ -1451,7 +1451,7 @@ class StageService:
         """Assemble the Operationalization (Stage 3) input/output for ``slug``.
 
         Operationalization is Stage 3 (``stage=3``,
-        :data:`ESTAGIO_OPERACIONALIZACAO`; Req. 8.4) — the stage that turns the
+        :data:`STAGE_OPERATIONALIZATION`; Req. 8.4) — the stage that turns the
         abstract techniques into executable Abilities (Req. 4.1). For the curated
         cases the operationalization already exists on disk, so this method
         *assembles* it (the method keeps its historical ``assemble_stage2`` name,
@@ -1876,7 +1876,7 @@ class StageService:
         """Build a stage state/percentage report for the real-time channels.
 
         Exposes the payload the WebSocket layer (task 11.3) pushes on
-        ``WS /ws/stages/{caso}``: the stage's current ``state`` and
+        ``WS /ws/stages/{campaign}``: the stage's current ``state`` and
         ``progress`` percentage (Req. 1.4, 1.5), the optional
         ``previous_state`` it transitioned from (Req. 1.4), and — when the
         stage is in ``erro`` — the ``error_message`` / ``failed_step`` cause
@@ -2017,9 +2017,9 @@ class StageService:
         db_case.translation_source = case.translation_source
 
         # Flush the parent Case row BEFORE inserting any child Ability/Adversary.
-        # The children carry a FK to casos.id; without this explicit flush the
+        # The children carry a FK to campaigns.id; without this explicit flush the
         # unit-of-work can order a child INSERT before the parent, raising a
-        # ForeignKeyViolation (abilities_caso_id_fkey). Still one transaction:
+        # ForeignKeyViolation (abilities_campaign_id_fkey). Still one transaction:
         # the single commit() at the end keeps the all-or-nothing guarantee.
         self._session.flush()
 
@@ -2054,7 +2054,7 @@ class StageService:
         # Upsert the structural-modeling StageRun (Stage 1) and mark it
         # concluido (Req. 2.4).
         stage_run = self._get_or_create_stage_run(
-            case.id, stage=ESTAGIO_MODELAGEM
+            case.id, stage=STAGE_MODELING
         )
         stage_run.state = StageState.COMPLETED
         stage_run.progress = 100
@@ -2104,7 +2104,7 @@ class StageService:
         """
         try:
             stage_run = self._get_or_create_stage_run(
-                slug, stage=ESTAGIO_MODELAGEM
+                slug, stage=STAGE_MODELING
             )
             stage_run.state = StageState.ERROR
             stage_run.error_message = error_message
@@ -2167,13 +2167,13 @@ __all__ = [
     "FIRST_STAGE",
     "LAST_STAGE",
     # Roles of the six stages (new names — single source per number)
-    "ESTAGIO_SELECAO_BASE",
-    "ESTAGIO_SELECAO_CAMPANHA",
-    "ESTAGIO_GERACAO_DAG",
-    "ESTAGIO_OPERACIONALIZACAO",
-    "ESTAGIO_AMBIENTE",
-    "ESTAGIO_EXECUCAO",
+    "STAGE_BASE_SELECTION",
+    "STAGE_CAMPAIGN_SELECTION",
+    "STAGE_DAG_GENERATION",
+    "STAGE_OPERATIONALIZATION",
+    "STAGE_ENVIRONMENT",
+    "STAGE_EXECUTION",
     # Historical aliases kept so as not to break imports (Req. 18.5)
-    "ESTAGIO_MODELAGEM",
-    "ESTAGIO_PROVISIONAMENTO",
+    "STAGE_MODELING",
+    "STAGE_PROVISIONING",
 ]

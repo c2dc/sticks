@@ -54,7 +54,7 @@ from app.models.enums import OperationState, StageState
 from app.services.environment.log_buffer import ProvisioningLogBuffer
 from app.services.session import SessionStateService
 from app.services.stage import StageService
-from app.services.stage.stage_service import ESTAGIO_PROVISIONAMENTO, VALID_STAGES
+from app.services.stage.stage_service import STAGE_PROVISIONING, VALID_STAGES
 
 # ---------------------------------------------------------------------------
 # Push intervals (Req. 1.5 — "at least every 5 seconds")
@@ -65,8 +65,10 @@ from app.services.stage.stage_service import ESTAGIO_PROVISIONAMENTO, VALID_STAG
 STAGE_PUSH_INTERVAL_SECONDS: float = 5.0
 
 #: Default max interval between operation frames while an Operation is running
-#: (Req. 4.3). Tests pass a short/zero value.
-OPERATION_PUSH_INTERVAL_SECONDS: float = 5.0
+#: (Req. 4.3). Reduced to ≤ 2s so the update latency of the live
+#: technique-by-technique tracking satisfies Req. 2.3/2.5. Tests pass a
+#: short/zero value.
+OPERATION_PUSH_INTERVAL_SECONDS: float = 2.0
 
 #: Terminal stage states — once a stage reaches one of these there will be no
 #: further transition, so the channel sends the final frame and closes.
@@ -74,10 +76,17 @@ _STAGE_TERMINAL_STATES: frozenset[StageState] = frozenset(
     {StageState.COMPLETED, StageState.ERROR}
 )
 
-#: Terminal operation states — final states of an Operation (Req. 4.5). Once
-#: reached, the channel sends the final aggregate and closes.
+#: Terminal operation states — final states of an Operation (Req. 4.5, 3.2).
+#: Once reached, the channel sends the final aggregate and closes. Includes
+#: ``INCOMPLETE_TIMEOUT`` so a collection that timed out without reaching a
+#: Caldera terminal state still produces a final frame and closes the channel
+#: (Req. 3.2).
 _OPERATION_TERMINAL_STATES: frozenset[OperationState] = frozenset(
-    {OperationState.FINISHED, OperationState.ABORTED}
+    {
+        OperationState.FINISHED,
+        OperationState.ABORTED,
+        OperationState.INCOMPLETE_TIMEOUT,
+    }
 )
 
 
@@ -126,7 +135,7 @@ async def run_stage_progress_channel(
     Provisioning log terminal (Stage 5 — Req. 2.2, 2.5, 2.7)
     --------------------------------------------------------
     When ``stage`` is the provisioning stage
-    (:data:`~app.services.stage.stage_service.ESTAGIO_PROVISIONAMENTO`, Stage 5)
+    (:data:`~app.services.stage.stage_service.STAGE_PROVISIONING`, Stage 5)
     **and** a ``log_buffer`` is injected, each frame also carries the
     provisioning log lines so the on-screen terminal streams the commands and
     their output in near real time (Req. 2.2):
@@ -190,7 +199,7 @@ async def run_stage_progress_channel(
     # provisioning stage and when a buffer was injected. ``last_seq`` is the
     # greatest ``seq`` already sent — 0 means "nothing sent yet", so the first
     # frame carries the full buffer (connect) and the following ones only the delta.
-    carry_logs = log_buffer is not None and stage == ESTAGIO_PROVISIONAMENTO
+    carry_logs = log_buffer is not None and stage == STAGE_PROVISIONING
     last_seq = 0
 
     # Reject an out-of-range stage gracefully (no uncaught stage guard raised

@@ -13,7 +13,7 @@ Validates: Requirements 8.3, 8.4, 17.1
 
 Esta é uma property test de *feature* (``pipeline-seis-stages`` é uma feature,
 não um bugfix): a propriedade é esperada **valer** sobre a implementação atual
-de :meth:`~app.services.environment.operacionalizador.CurationOperationalizer._derive_parameters`.
+de :meth:`~app.services.environment.operationalizer.CurationOperationalizer._derive_parameters`.
 
 Estratégia / isolation
 -----------------------
@@ -180,7 +180,7 @@ def _curated_nodes(draw: st.DrawFn) -> list[dict]:
 
 @settings(max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture])
 @given(nodes=_curated_nodes())
-def test_derivacao_parametros_ambiente(tmp_path: Path, nodes: list[dict]) -> None:
+def test_derivation_environment_parameters(tmp_path: Path, nodes: list[dict]) -> None:
     """Deriva EnvironmentParameters fiel aos nós curados; platform sempre CONTAINER.
 
     # Feature: pipeline-seis-stages, Property 6: Derivação dos parâmetros de
