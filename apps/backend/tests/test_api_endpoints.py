@@ -1,6 +1,6 @@
 """Integration tests of the REST surface with mocked services (task 11.4).
 
-This suite complements the focused ``test_emulacao_endpoints.py`` (task 11.2) by
+This suite complements the focused ``test_emulation_endpoints.py`` (task 11.2) by
 covering the *broader* REST surface end-to-end at the HTTP layer, plus the full
 ``preview -> emulation`` sequence, all with the external world mocked (no real
 Caldera, no real Docker daemon):
@@ -22,7 +22,7 @@ Caldera, no real Docker daemon):
     - ``confirmed=false`` -> nothing started (Req. 6.6),
     - the happy path (internal-only + isolated + healthy Caldera).
 
-Isolation from ``test_emulacao_endpoints.py``
+Isolation from ``test_emulation_endpoints.py``
 --------------------------------------------
 The emulation-outcome cases here are driven through the full ``preview ->
 emulation`` *sequence* (a preview call always precedes the execute call, matching
@@ -326,11 +326,11 @@ class _internal_case_loader:
     """
 
     def __enter__(self):
-        from app.api import emulation as emulacao_module
+        from app.api import emulation as emulation_module
 
-        self._module = emulacao_module
-        self._original = emulacao_module._load_case_or_error
-        emulacao_module._load_case_or_error = (  # type: ignore[assignment]
+        self._module = emulation_module
+        self._original = emulation_module._load_case_or_error
+        emulation_module._load_case_or_error = (  # type: ignore[assignment]
             lambda campaign, case_service: _internal_only_case(campaign)
         )
         return self
@@ -343,11 +343,11 @@ class _external_case_loader(_internal_case_loader):
     """Swap the emulation loader for the deterministic external case."""
 
     def __enter__(self):
-        from app.api import emulation as emulacao_module
+        from app.api import emulation as emulation_module
 
-        self._module = emulacao_module
-        self._original = emulacao_module._load_case_or_error
-        emulacao_module._load_case_or_error = (  # type: ignore[assignment]
+        self._module = emulation_module
+        self._original = emulation_module._load_case_or_error
+        emulation_module._load_case_or_error = (  # type: ignore[assignment]
             lambda campaign, case_service: _external_destination_case(campaign)
         )
         return self
@@ -358,7 +358,7 @@ class _external_case_loader(_internal_case_loader):
 # ===========================================================================
 
 
-def test_listar_casos_lists_eight_cases_and_aggregate_progress(
+def test_list_campaigns_lists_eight_cases_and_aggregate_progress(
     session_factory: sessionmaker[Session],
 ) -> None:
     """``GET /api/campaigns`` lists all 8 curated cases with per-stage state (6
@@ -402,7 +402,7 @@ def test_listar_casos_lists_eight_cases_and_aggregate_progress(
 # ===========================================================================
 
 
-def test_detalhar_caso_returns_abilities_adversary_and_origin(
+def test_detail_campaign_returns_abilities_adversary_and_origin(
     session_factory: sessionmaker[Session],
 ) -> None:
     """``GET /api/campaigns/{campaign}`` returns the curated Abilities, Adversary,
@@ -423,7 +423,7 @@ def test_detalhar_caso_returns_abilities_adversary_and_origin(
         assert body["atomic_ordering"] == body["adversary"]["atomic_ordering"]
 
 
-def test_detalhar_caso_unknown_slug_returns_404(
+def test_detail_campaign_unknown_slug_returns_404(
     session_factory: sessionmaker[Session],
 ) -> None:
     """An unknown case slug is a 404 (not one of the 8 curated cases)."""
@@ -442,7 +442,7 @@ def test_detalhar_caso_unknown_slug_returns_404(
 # ===========================================================================
 
 
-def test_get_estagio1_returns_bundle_dashboard(
+def test_get_stage1_returns_bundle_dashboard(
     session_factory: sessionmaker[Session],
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -455,16 +455,16 @@ def test_get_estagio1_returns_bundle_dashboard(
     dir and seed the curated bundle so the stage concludes with no network
     egress (opening the screen without an explicit version defaults to the
     curated version)."""
-    import app.services.stix.estagio1_service as estagio1_module
-    from app.services.stix.stix_service import VERSAO_CURADA, StixService
+    import app.services.stix.stage1_service as stage1_module
+    from app.services.stix.stix_service import CURATED_VERSION, StixService
 
-    base = StixService(data_dir=tmp_path).base_path(VERSAO_CURADA)
+    base = StixService(data_dir=tmp_path).base_path(CURATED_VERSION)
     base.parent.mkdir(parents=True, exist_ok=True)
     base.write_text(
         json.dumps({"type": "bundle", "objects": []}), encoding="utf-8"
     )
     monkeypatch.setattr(
-        estagio1_module,
+        stage1_module,
         "StixService",
         lambda *a, **k: StixService(data_dir=tmp_path),
     )
@@ -473,13 +473,13 @@ def test_get_estagio1_returns_bundle_dashboard(
     resp = client.get(f"/api/campaigns/{_REAL_SLUG}/stage/1")
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    assert body["version"] == VERSAO_CURADA
+    assert body["version"] == CURATED_VERSION
     assert body["completed"] is True
     assert body["bundle_on_disk"] is True
     assert body["dashboard"] is not None
 
 
-def test_get_estagio3_returns_dag_view(
+def test_get_stage3_returns_dag_view(
     session_factory: sessionmaker[Session],
 ) -> None:
     """``GET .../stage/3`` returns the DAG view (DAG Generation — Req. 7.2, 7.3).
@@ -498,7 +498,7 @@ def test_get_estagio3_returns_dag_view(
     assert body["mermaid"]
 
 
-def test_get_estagio4_returns_abilities_and_parametros(
+def test_get_stage4_returns_abilities_and_parameters(
     session_factory: sessionmaker[Session],
 ) -> None:
     """``GET .../stage/4`` returns the Operationalization view — Abilities +
@@ -530,7 +530,7 @@ def test_get_estagio4_returns_abilities_and_parametros(
     assert "stages" in body["states"]
 
 
-def test_get_estagio6_returns_input_and_accumulated_output(
+def test_get_stage6_returns_input_and_accumulated_output(
     session_factory: sessionmaker[Session],
 ) -> None:
     """``GET .../stage/6`` returns the Adversary+Abilities Input and the
@@ -547,7 +547,7 @@ def test_get_estagio6_returns_input_and_accumulated_output(
     assert isinstance(body["output"], list)
 
 
-def test_get_estagio_unknown_slug_returns_404(
+def test_get_stage_unknown_slug_returns_404(
     session_factory: sessionmaker[Session],
 ) -> None:
     """An unknown slug is a 404 on every stage endpoint (1..6)."""
@@ -562,7 +562,7 @@ def test_get_estagio_unknown_slug_returns_404(
 # ===========================================================================
 
 
-def test_post_estagio1_executar_runs_structural_modeling(
+def test_post_stage1_execute_runs_structural_modeling(
     session_factory: sessionmaker[Session],
 ) -> None:
     """``POST .../stage/1/execute`` triggers structural modeling and reports
@@ -598,7 +598,7 @@ def test_post_estagio1_executar_runs_structural_modeling(
 # ===========================================================================
 
 
-def test_get_operacao_empty_before_any_emulation(
+def test_get_operation_empty_before_any_emulation(
     session_factory: sessionmaker[Session],
 ) -> None:
     """``GET .../operation`` returns an empty operations list before any run."""
@@ -610,7 +610,7 @@ def test_get_operacao_empty_before_any_emulation(
     assert body["operations"] == []
 
 
-def test_get_operacao_unknown_slug_returns_404(
+def test_get_operation_unknown_slug_returns_404(
     session_factory: sessionmaker[Session],
 ) -> None:
     """An unknown slug is a 404 on the operation endpoint."""
@@ -624,7 +624,7 @@ def test_get_operacao_unknown_slug_returns_404(
 # ===========================================================================
 
 
-def test_get_estado_sessao_default_when_none_persisted(
+def test_get_session_state_default_when_none_persisted(
     session_factory: sessionmaker[Session],
 ) -> None:
     """``GET /api/state-sessao`` returns the default all-not-started state when
@@ -644,7 +644,7 @@ def test_get_estado_sessao_default_when_none_persisted(
 # ===========================================================================
 
 
-def test_put_preferencias_persists_theme_and_language(
+def test_put_preferences_persists_theme_and_language(
     session_factory: sessionmaker[Session],
 ) -> None:
     """``PUT /api/preferences`` persists the theme + language and echoes the
@@ -664,7 +664,7 @@ def test_put_preferencias_persists_theme_and_language(
     assert body2["language"] == "en"
 
 
-def test_put_preferencias_rejects_invalid_theme(
+def test_put_preferences_rejects_invalid_theme(
     session_factory: sessionmaker[Session],
 ) -> None:
     """An out-of-enum theme value is a 422 (schema validation)."""
@@ -678,7 +678,7 @@ def test_put_preferencias_rejects_invalid_theme(
 # ===========================================================================
 
 
-def test_get_auditoria_returns_persisted_trail_oldest_first(
+def test_get_audit_returns_persisted_trail_oldest_first(
     session_factory: sessionmaker[Session],
 ) -> None:
     """``GET /api/audit/{operation}`` returns the persisted audit trail of an
@@ -733,7 +733,7 @@ def test_get_auditoria_returns_persisted_trail_oldest_first(
     assert body["records"][0]["target_container"] == "target-a"
 
 
-def test_get_auditoria_unknown_operation_returns_empty_trail(
+def test_get_audit_unknown_operation_returns_empty_trail(
     session_factory: sessionmaker[Session],
 ) -> None:
     """An operation with no audit rows returns an empty (but 200) trail."""
@@ -884,7 +884,7 @@ def test_preview_then_confirmed_happy_path_succeeds_with_aggregate(
 # POST /api/campaigns/{campaign}/stage/3/choose-dag (Req. 4.8, 7.2, 7.3)
 #
 # In the six-Stage scheme DAG Generation is Stage 3
-# (``ESTAGIO_GERACAO_DAG == 3``; its Input is the attributes of the campaign
+# (``STAGE_DAG_GENERATION == 3``; its Input is the attributes of the campaign
 # selected in Stage 2). The listing (``GET .../dags``) performs an idempotent
 # backfill of the curated DAGs, so a curated campaign always shows at least its
 # curation DAG. That is why the choice tests use dedicated curated slugs: the
@@ -894,7 +894,7 @@ def test_preview_then_confirmed_happy_path_succeeds_with_aggregate(
 # This section is at the end of the file on purpose: ``choose-dag`` completes
 # Stage 3 and ``.../stage/3/complete`` persists the session-state (via
 # SessionStateService), so, in the module's shared DB, these tests must run
-# AFTER ``test_get_estado_sessao_default_when_none_persisted`` (which requires
+# AFTER ``test_get_session_state_default_when_none_persisted`` (which requires
 # no session-state persisted).
 # ===========================================================================
 
@@ -990,7 +990,7 @@ def test_get_dag_por_id_unknown_slug_returns_404(
     assert resp.status_code == 404, resp.text
 
 
-def test_escolher_dag_success_concludes_stage3_and_unblocks_stage4(
+def test_choose_dag_success_concludes_stage3_and_unblocks_stage4(
     session_factory: sessionmaker[Session],
 ) -> None:
     """``choose-dag`` with a valid ``dag_id`` for the campaign completes Stage 3
@@ -1021,7 +1021,7 @@ def test_escolher_dag_success_concludes_stage3_and_unblocks_stage4(
     assert stages[4]["startable"] is True
 
 
-def test_escolher_dag_unknown_dag_id_returns_404(
+def test_choose_dag_unknown_dag_id_returns_404(
     session_factory: sessionmaker[Session],
 ) -> None:
     """A non-existent ``dag_id`` or one not belonging to the campaign (which
@@ -1040,7 +1040,7 @@ def test_escolher_dag_unknown_dag_id_returns_404(
     assert detail["motivo"] == "dag_nao_encontrado"
 
 
-def test_escolher_dag_without_persisted_dag_returns_409(
+def test_choose_dag_without_persisted_dag_returns_409(
     session_factory: sessionmaker[Session],
 ) -> None:
     """``choose-dag`` on a campaign WITHOUT any persisted DAG → 409 (NO_DAG,
@@ -1077,7 +1077,7 @@ def test_escolher_dag_without_persisted_dag_returns_409(
 # ===========================================================================
 
 
-def test_get_estagio2_lists_campaigns_and_readonly_attributes(
+def test_get_stage2_lists_campaigns_and_readonly_attributes(
     session_factory: sessionmaker[Session],
 ) -> None:
     """``GET .../stage/2`` lists the bundle campaigns (with ``curated``/
@@ -1088,7 +1088,7 @@ def test_get_estagio2_lists_campaigns_and_readonly_attributes(
     as selectable. The read-only view (``selection``) carries the ``campaign_id``
     and the identity, without running or completing the Stage when opening the
     screen."""
-    from app.services.stix.stix_service import VERSAO_CURADA
+    from app.services.stix.stix_service import CURATED_VERSION
 
     client = _make_client(session_factory)
     resp = client.get(f"/api/campaigns/{_REAL_SLUG}/stage/2")
@@ -1096,7 +1096,7 @@ def test_get_estagio2_lists_campaigns_and_readonly_attributes(
     body = resp.json()
 
     assert body["campaign_id"] == _REAL_SLUG
-    assert body["version"] == VERSAO_CURADA
+    assert body["version"] == CURATED_VERSION
 
     # List of bundle campaigns: at least the 8 curated selectable ones.
     campaigns = body["campaigns"]
@@ -1114,7 +1114,7 @@ def test_get_estagio2_lists_campaigns_and_readonly_attributes(
     assert selection["identity"] is not None
 
 
-def test_get_estagio2_unknown_slug_returns_404(
+def test_get_stage2_unknown_slug_returns_404(
     session_factory: sessionmaker[Session],
 ) -> None:
     """An unknown campaign slug is a 404 on Stage 2 (campaigns.py convention)."""
@@ -1123,7 +1123,7 @@ def test_get_estagio2_unknown_slug_returns_404(
     assert resp.status_code == 404, resp.text
 
 
-def test_post_estagio2_selecionar_extracts_attributes_and_concludes(
+def test_post_stage2_select_extracts_attributes_and_concludes(
     session_factory: sessionmaker[Session],
 ) -> None:
     """``POST .../stage/2/select`` extracts the curated campaign's attributes and
@@ -1148,7 +1148,7 @@ def test_post_estagio2_selecionar_extracts_attributes_and_concludes(
     assert body["failed_step"] is None
 
 
-def test_post_estagio2_selecionar_unknown_slug_returns_404(
+def test_post_stage2_select_unknown_slug_returns_404(
     session_factory: sessionmaker[Session],
 ) -> None:
     """An unknown campaign slug in the route is a 404 (campaigns.py validation)."""
@@ -1165,7 +1165,7 @@ def test_post_estagio2_selecionar_unknown_slug_returns_404(
 # ===========================================================================
 
 
-def test_concluir_estagio3_respects_sequential_block(
+def test_complete_stage3_respects_sequential_block(
     session_factory: sessionmaker[Session],
 ) -> None:
     """``POST .../stage/3/complete`` respects the sequential block: 409 while
@@ -1221,14 +1221,14 @@ def test_concluir_estagio3_respects_sequential_block(
 # ===========================================================================
 
 
-def test_post_estagio4_concluir_requires_estagio3(
+def test_post_stage4_complete_requires_stage3(
     session_factory: sessionmaker[Session],
 ) -> None:
     """``POST .../stage/4/complete`` is blocked while Stage 3 is not completed
     (sequential block — 409, Req. 3.x, 8.8).
 
     After a ``reset`` Stage 3 (DAG Generation) goes back to not completed; since
-    ``concluir_estagio4`` reads the persisted state directly (without triggering
+    ``complete_stage4`` reads the persisted state directly (without triggering
     the curated auto-completion), completing Stage 4 is refused with 409 and the
     reason ``bloqueio_sequencial``, persisting nothing."""
     slug = "costaricto"  # curated slug dedicated to this test in the module DB
@@ -1240,7 +1240,7 @@ def test_post_estagio4_concluir_requires_estagio3(
     assert resp.json()["detail"]["motivo"] == "bloqueio_sequencial"
 
 
-def test_post_estagio4_concluir_completes_after_estagio3(
+def test_post_stage4_complete_completes_after_stage3(
     session_factory: sessionmaker[Session],
 ) -> None:
     """``POST .../stage/4/complete`` completes Stage 4 (Operationalization) when

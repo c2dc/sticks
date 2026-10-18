@@ -5,7 +5,7 @@ PIPELINE_UI_DATABASE_URL). The project standardizes on PostgreSQL; the default
 points at the containerized Postgres on localhost:5432. SQLite handling is kept
 only for the backend's unit-test fixtures.
 
-Common commands (run from ui/backend, PowerShell-friendly):
+Common commands (run from apps/backend, PowerShell-friendly):
 
     # apply all migrations
     alembic upgrade head

@@ -2,7 +2,7 @@
 
 # Feature: pipeline-cinco-stages, Property 9: Conclusão automática dos
 # Estágios 2 e 4. Para um campaign curated, assim que o Estágio 3 conclui e o
-# environment é verificado isolated, o Estágio 4 (Provisionamento do Ambiente)
+# environment is verified isolated, Stage 4 (Environment Provisioning)
 # auto-conclui. Respeita o gate sequencial e não ocorre sem o material curated.
 
 Validates: Requirements 9.2, 9.3, 9.4
@@ -40,11 +40,11 @@ seguro no environment de dev.
    ``RuntimeError`` (inspector indisponível, fail-closed) ⇒
    ``isolation_unavailable=True``, não conclui.
 
-Isolamento
+Isolation
 ----------
 Cada exemplo constrói e descarta um engine SQLite **efêmero** (file
 temporário com o esquema completo via ``Base.metadata.create_all``, igual às
-fixtures de ``test_backfill_idempotente_property.py`` / ``test_stage_blocking_property.py``).
+fixtures de ``test_backfill_idempotent_property.py`` / ``test_stage_blocking_property.py``).
 O state dos Estágios é semeado diretamente como lines ``StageRun``.
 """
 
@@ -69,21 +69,21 @@ from app.services.environment.provisioner import ProvisioningResult
 from app.services.environment.stage_service import EnvironmentStageService
 from app.services.environment.topology_builder import TopologyResponse
 from app.services.stage.stage_service import (
-    ESTAGIO_OPERACIONALIZACAO,
-    ESTAGIO_PROVISIONAMENTO,
+    STAGE_OPERATIONALIZATION,
+    STAGE_PROVISIONING,
     VALID_STAGES,
 )
 
-_CASO = "campaign-prop9-environment"
+_CAMPAIGN = "campaign-prop9-environment"
 
 
 # ---------------------------------------------------------------------------
-# Provisionador falso e controlável — satisfaz ``EnvironmentProvisioner``
+# Fake, controllable provisioner — satisfies ``EnvironmentProvisioner``
 # estruturalmente (expõe ``prepare``), sem tocar no Docker/rede.
 # ---------------------------------------------------------------------------
 
 
-class _ProvisionadorFalso:
+class _FakeProvisioner:
     """Test double de :class:`EnvironmentProvisioner` com veredicto escolhido.
 
     ``prepare`` devolve um :class:`ProvisioningResult` com ``ready``/
@@ -200,13 +200,13 @@ def _seed_stage_runs(
     session.commit()
 
 
-def _estagio4_rows(session: Session, campaign_id: str) -> list[StageRun]:
+def _stage4_rows(session: Session, campaign_id: str) -> list[StageRun]:
     """Todas as lines ``StageRun`` de ``(campaign_id, stage=4)``."""
     return list(
         session.execute(
             select(StageRun)
             .where(StageRun.campaign_id == campaign_id)
-            .where(StageRun.stage == ESTAGIO_PROVISIONAMENTO)
+            .where(StageRun.stage == STAGE_PROVISIONING)
             .order_by(StageRun.id.asc())
         )
         .scalars()
@@ -214,14 +214,14 @@ def _estagio4_rows(session: Session, campaign_id: str) -> list[StageRun]:
     )
 
 
-def _count_estagio4_concluido(session: Session, campaign_id: str) -> int:
+def _count_stage4_completed(session: Session, campaign_id: str) -> int:
     """Quantas lines ``stage=4`` concluídas existem para ``campaign_id``."""
     return (
         session.execute(
             select(func.count())
             .select_from(StageRun)
             .where(StageRun.campaign_id == campaign_id)
-            .where(StageRun.stage == ESTAGIO_PROVISIONAMENTO)
+            .where(StageRun.stage == STAGE_PROVISIONING)
             .where(StageRun.state == StageState.COMPLETED)
         ).scalar_one()
     )
@@ -232,7 +232,7 @@ def _count_estagio4_concluido(session: Session, campaign_id: str) -> int:
 _OTHER_STAGES: tuple[int, ...] = tuple(
     e
     for e in VALID_STAGES
-    if e not in (ESTAGIO_OPERACIONALIZACAO, ESTAGIO_PROVISIONAMENTO)
+    if e not in (STAGE_OPERATIONALIZATION, STAGE_PROVISIONING)
 )
 
 
@@ -255,15 +255,15 @@ def _other_stage_states(draw) -> dict[int, Optional[StageState]]:
     suppress_health_check=[HealthCheck.too_slow],
 )
 @given(
-    estagio3=st.sampled_from(_NON_COMPLETED_CHOICES),
-    estagio4=st.sampled_from(_STATE_CHOICES),
+    stage3=st.sampled_from(_NON_COMPLETED_CHOICES),
+    stage4=st.sampled_from(_STATE_CHOICES),
     outros=_other_stage_states(),
     isolated=st.booleans(),
     material=st.booleans(),
 )
-def test_property9_gate_bloqueia_sem_estagio3_concluido(
-    estagio3: Optional[StageState],
-    estagio4: Optional[StageState],
+def test_property9_gate_blocks_without_stage3_completed(
+    stage3: Optional[StageState],
+    stage4: Optional[StageState],
     outros: dict[int, Optional[StageState]],
     isolated: bool,
     material: bool,
@@ -281,27 +281,27 @@ def test_property9_gate_bloqueia_sem_estagio3_concluido(
     # Feature: pipeline-cinco-stages, Property 9 (parte environment)
     Validates: Requirements 9.2, 9.3, 9.4
     """
-    assert estagio3 is not StageState.COMPLETED
+    assert stage3 is not StageState.COMPLETED
 
     session, db_path, engine = _build_ephemeral_session()
     try:
         states = dict(outros)
-        states[ESTAGIO_OPERACIONALIZACAO] = estagio3
-        states[ESTAGIO_PROVISIONAMENTO] = estagio4
-        _seed_stage_runs(session, _CASO, states)
+        states[STAGE_OPERATIONALIZATION] = stage3
+        states[STAGE_PROVISIONING] = stage4
+        _seed_stage_runs(session, _CAMPAIGN, states)
 
         # Linhas stage=4 concluídas presentes ANTES da chamada (semeadas), para
         # distingui-las de qualquer conclusão feita por esta chamada.
-        concluidas_antes = _count_estagio4_concluido(session, _CASO)
+        completed_before = _count_stage4_completed(session, _CAMPAIGN)
 
-        provisioner = _ProvisionadorFalso(isolated=isolated)
+        provisioner = _FakeProvisioner(isolated=isolated)
         service = EnvironmentStageService(
             session,
             provisioner=provisioner,
             compose_available=lambda: material,
         )
 
-        result = service.auto_complete_stage4(_CASO)
+        result = service.auto_complete_stage4(_CAMPAIGN)
 
         # Gate fechado tem precedência: não conclui, sinaliza o bloqueio, não
         # chama o provisioner e não cria nenhuma line stage=4 nova.
@@ -309,10 +309,10 @@ def test_property9_gate_bloqueia_sem_estagio3_concluido(
         assert result.blocked_by_gate is True
         assert provisioner.chamadas == 0
         # Nenhuma conclusão foi feita por esta chamada: a contagem permanece a
-        # mesma de antes (0 quando estagio4 não era completed; 1 quando já era).
-        assert _count_estagio4_concluido(session, _CASO) == concluidas_antes
-        assert concluidas_antes == (
-            1 if estagio4 is StageState.COMPLETED else 0
+        # mesma de antes (0 quando stage4 não era completed; 1 quando já era).
+        assert _count_stage4_completed(session, _CAMPAIGN) == completed_before
+        assert completed_before == (
+            1 if stage4 is StageState.COMPLETED else 0
         )
     finally:
         _teardown(session, db_path, engine)
@@ -329,12 +329,12 @@ def test_property9_gate_bloqueia_sem_estagio3_concluido(
     suppress_health_check=[HealthCheck.too_slow],
 )
 @given(
-    estagio4_inicial=st.sampled_from(_NON_COMPLETED_CHOICES),
+    stage4_initial=st.sampled_from(_NON_COMPLETED_CHOICES),
     outros=_other_stage_states(),
     n=st.integers(min_value=1, max_value=6),
 )
-def test_property9_auto_conclui_e_idempotente(
-    estagio4_inicial: Optional[StageState],
+def test_property9_auto_completes_and_idempotent(
+    stage4_initial: Optional[StageState],
     outros: dict[int, Optional[StageState]],
     n: int,
 ) -> None:
@@ -351,11 +351,11 @@ def test_property9_auto_conclui_e_idempotente(
     session, db_path, engine = _build_ephemeral_session()
     try:
         states = dict(outros)
-        states[ESTAGIO_OPERACIONALIZACAO] = StageState.COMPLETED
-        states[ESTAGIO_PROVISIONAMENTO] = estagio4_inicial
-        _seed_stage_runs(session, _CASO, states)
+        states[STAGE_OPERATIONALIZATION] = StageState.COMPLETED
+        states[STAGE_PROVISIONING] = stage4_initial
+        _seed_stage_runs(session, _CAMPAIGN, states)
 
-        provisioner = _ProvisionadorFalso(isolated=True)
+        provisioner = _FakeProvisioner(isolated=True)
         service = EnvironmentStageService(
             session,
             provisioner=provisioner,
@@ -363,14 +363,14 @@ def test_property9_auto_conclui_e_idempotente(
         )
 
         # 1ª chamada: auto-conclui o Estágio 4.
-        primeiro = service.auto_complete_stage4(_CASO)
-        assert primeiro.completed is True
-        assert primeiro.isolated is True
-        assert primeiro.blocked_by_gate is False
-        assert primeiro.missing_material is False
-        assert primeiro.stage_run_id is not None
+        first = service.auto_complete_stage4(_CAMPAIGN)
+        assert first.completed is True
+        assert first.isolated is True
+        assert first.blocked_by_gate is False
+        assert first.missing_material is False
+        assert first.stage_run_id is not None
 
-        rows_1 = _estagio4_rows(session, _CASO)
+        rows_1 = _stage4_rows(session, _CAMPAIGN)
         assert len(rows_1) == 1
         line = rows_1[0]
         assert line.state is StageState.COMPLETED
@@ -379,15 +379,15 @@ def test_property9_auto_conclui_e_idempotente(
 
         # Chamadas 2..N são no-ops idempotentes: mesma line única, mesmo id.
         for _ in range(n - 1):
-            repetido = service.auto_complete_stage4(_CASO)
-            assert repetido.completed is True
+            repeated = service.auto_complete_stage4(_CAMPAIGN)
+            assert repeated.completed is True
 
-        rows_n = _estagio4_rows(session, _CASO)
+        rows_n = _stage4_rows(session, _CAMPAIGN)
         assert len(rows_n) == 1
         assert rows_n[0].id == id_estavel
         assert rows_n[0].state is StageState.COMPLETED
         assert rows_n[0].progress == 100
-        assert _count_estagio4_concluido(session, _CASO) == 1
+        assert _count_stage4_completed(session, _CAMPAIGN) == 1
 
         # O provisioner não é reinvocado depois de concluído (idempotência não
         # repete a verificação): chamado só na 1ª vez.
@@ -407,12 +407,12 @@ def test_property9_auto_conclui_e_idempotente(
     suppress_health_check=[HealthCheck.too_slow],
 )
 @given(
-    estagio4_inicial=st.sampled_from(_NON_COMPLETED_CHOICES),
+    stage4_initial=st.sampled_from(_NON_COMPLETED_CHOICES),
     outros=_other_stage_states(),
     caminho=st.sampled_from(("nao_isolado", "sem_material", "indisponivel")),
 )
-def test_property9_nao_conclui_sem_isolamento_ou_material(
-    estagio4_inicial: Optional[StageState],
+def test_property9_does_not_complete_without_isolation_or_material(
+    stage4_initial: Optional[StageState],
     outros: dict[int, Optional[StageState]],
     caminho: str,
 ) -> None:
@@ -435,12 +435,12 @@ def test_property9_nao_conclui_sem_isolamento_ou_material(
     session, db_path, engine = _build_ephemeral_session()
     try:
         states = dict(outros)
-        states[ESTAGIO_OPERACIONALIZACAO] = StageState.COMPLETED
-        states[ESTAGIO_PROVISIONAMENTO] = estagio4_inicial
-        _seed_stage_runs(session, _CASO, states)
+        states[STAGE_OPERATIONALIZATION] = StageState.COMPLETED
+        states[STAGE_PROVISIONING] = stage4_initial
+        _seed_stage_runs(session, _CAMPAIGN, states)
 
         material = caminho != "sem_material"
-        provisioner = _ProvisionadorFalso(
+        provisioner = _FakeProvisioner(
             isolated=(caminho != "nao_isolado"),
             indisponivel=(caminho == "indisponivel"),
         )
@@ -450,12 +450,12 @@ def test_property9_nao_conclui_sem_isolamento_ou_material(
             compose_available=lambda: material,
         )
 
-        result = service.auto_complete_stage4(_CASO)
+        result = service.auto_complete_stage4(_CAMPAIGN)
 
         # Nenhum caminho conclui o Estágio 4.
         assert result.completed is False
         assert result.blocked_by_gate is False
-        assert _count_estagio4_concluido(session, _CASO) == 0
+        assert _count_stage4_completed(session, _CAMPAIGN) == 0
 
         if caminho == "sem_material":
             assert result.missing_material is True

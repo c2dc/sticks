@@ -115,7 +115,7 @@ describe("Stage1View (Req. 1.2 — three labelled sections render for a stage)",
 
     // ...and they are three distinct, separated panels. Scoped to the three
     // top-level stage panels (`CampaignStixBlock` carries its own nested
-    // `data-section="campanha-stix"` inside the Entrada, which is not a panel).
+    // `data-section="campaign-stix"` inside the Entrada, which is not a panel).
     const sections = container.querySelectorAll(
       '[data-section="entrada"], [data-section="processamento"], [data-section="saida"]',
     )
@@ -126,7 +126,7 @@ describe("Stage1View (Req. 1.2 — three labelled sections render for a stage)",
     // Sanity: the Input carries the STIX campaign identity (rich fields), and
     // NOT the old Caldera `stix_reference` (Property 3).
     const entrada = container.querySelector('[data-section="entrada"]')!
-    expect(within(entrada as HTMLElement).getByTestId("campanha-stix")).toBeInTheDocument()
+    expect(within(entrada as HTMLElement).getByTestId("campaign-stix")).toBeInTheDocument()
     expect(within(entrada as HTMLElement).getByText("APT41 DUST")).toBeInTheDocument()
     expect(entrada.textContent ?? "").not.toContain("attack-pattern--abc123")
 

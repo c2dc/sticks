@@ -154,7 +154,7 @@ def _not_isolated_verifier(
 @pytest.fixture(scope="module")
 def session_factory() -> Iterator[sessionmaker[Session]]:
     """A fresh temp-file SQLite engine + schema for the module."""
-    tmp_dir = tempfile.mkdtemp(prefix="pipeline_ui_emulacao_")
+    tmp_dir = tempfile.mkdtemp(prefix="pipeline_ui_emulation_")
     db_path = Path(tmp_dir) / "emulation.db"
     settings_obj = Settings(database_url=f"sqlite:///{db_path.as_posix()}")
 
@@ -258,7 +258,7 @@ def test_preview_returns_commands_and_containers_for_shadowray(
 # ---------------------------------------------------------------------------
 
 
-def test_emulacao_not_confirmed_runs_nothing(
+def test_emulation_not_confirmed_runs_nothing(
     session_factory: sessionmaker[Session],
 ) -> None:
     """confirmed=false => nothing started (Req. 6.6, 6.7)."""
@@ -276,7 +276,7 @@ def test_emulacao_not_confirmed_runs_nothing(
     assert body["operation_id"] is None
 
 
-def test_emulacao_external_destination_returns_409(
+def test_emulation_external_destination_returns_409(
     session_factory: sessionmaker[Session],
 ) -> None:
     """A case with an external destination -> 409 identifying the violation."""
@@ -285,10 +285,10 @@ def test_emulacao_external_destination_returns_409(
         transport=httpx.MockTransport(_healthy_router),
         isolation_verifier=_isolated_verifier,
     )
-    from app.api import emulation as emulacao_module
+    from app.api import emulation as emulation_module
 
-    original = emulacao_module._load_case_or_error
-    emulacao_module._load_case_or_error = (  # type: ignore[assignment]
+    original = emulation_module._load_case_or_error
+    emulation_module._load_case_or_error = (  # type: ignore[assignment]
         lambda campaign, case_service: _external_destination_case(campaign)
     )
     try:
@@ -357,22 +357,22 @@ def _client_with_internal_case(
     client = _make_client(
         session_factory, transport=transport, isolation_verifier=isolation_verifier
     )
-    from app.api import emulation as emulacao_module
+    from app.api import emulation as emulation_module
 
-    original_loader = emulacao_module._load_case_or_error
-    emulacao_module._load_case_or_error = (  # type: ignore[assignment]
+    original_loader = emulation_module._load_case_or_error
+    emulation_module._load_case_or_error = (  # type: ignore[assignment]
         lambda campaign, case_service: _internal_only_case(campaign)
     )
     return client, original_loader
 
 
 def _restore_loader(original_loader: object) -> None:
-    from app.api import emulation as emulacao_module
+    from app.api import emulation as emulation_module
 
-    emulacao_module._load_case_or_error = original_loader  # type: ignore[assignment]
+    emulation_module._load_case_or_error = original_loader  # type: ignore[assignment]
 
 
-def test_emulacao_non_isolated_container_returns_409(
+def test_emulation_non_isolated_container_returns_409(
     session_factory: sessionmaker[Session],
 ) -> None:
     """A non-isolated target container -> 409 identifying the container (Req. 6.4).
@@ -398,7 +398,7 @@ def test_emulacao_non_isolated_container_returns_409(
     assert detail["containers"], "the offending container must be identified"
 
 
-def test_emulacao_caldera_timeout_returns_503(
+def test_emulation_caldera_timeout_returns_503(
     session_factory: sessionmaker[Session],
 ) -> None:
     """Caldera silent within 10s -> 503 (Req. 4.6).
@@ -434,7 +434,7 @@ def test_runner_payload_preserves_technique_name() -> None:
     assert payload["technique_id"] == "T1105"
 
 
-def test_emulacao_caldera_api_error_returns_502(
+def test_emulation_caldera_api_error_returns_502(
     session_factory: sessionmaker[Session],
 ) -> None:
     """A reachable Caldera that rejects the request is an upstream 502."""
@@ -489,7 +489,7 @@ def _external_destination_case(campaign: str) -> object:
     assert detail["endpoint"] == ABILITIES_PATH
 
 
-def test_emulacao_happy_path_success_with_aggregate(
+def test_emulation_happy_path_success_with_aggregate(
     session_factory: sessionmaker[Session],
 ) -> None:
     """Internal-only + isolated + healthy Caldera -> success with aggregate."""

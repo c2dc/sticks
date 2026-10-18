@@ -74,7 +74,7 @@ export function EnvironmentParametersView({ campaignId }: { campaignId: string }
   } = parameters
 
   return (
-    <div className="flex flex-col gap-4" data-section="parametros-ambiente">
+    <div className="flex flex-col gap-4" data-section="environment-parameters">
       {/* Platform + translation origin. */}
       <StageSection
         data-section="plataforma"

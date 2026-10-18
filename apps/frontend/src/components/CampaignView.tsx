@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { CheckCircle2, Loader2 } from "lucide-react"
 
@@ -160,7 +160,7 @@ export function CampaignView({
     <div className="grid gap-4 md:grid-cols-3">
       {/* Bundle campaign list (Input) — campaign selection. */}
       <StageSection
-        data-section="campanhas"
+        data-section="campaigns"
         label={t("campanha.titulo")}
         kind="blue"
         description={t("campanha.descricao")}
@@ -189,10 +189,11 @@ export function CampaignView({
 }
 
 /**
- * Bundle campaign list. Selectable campaigns are choosable (8 curated on
- * version 18); the rest appear disabled with the unavailability note (Req. 6.2,
- * 6.5). The button completes the selection by calling `selectCampaign` with the
- * curated slug of the chosen campaign.
+ * Bundle campaign list. The Researcher can pick ANY campaign from the STIX
+ * bundle — there is no curated/non-curated distinction in the UI (the future AI
+ * operationalizer treats every campaign uniformly). A search box filters the
+ * list by name so a specific campaign (e.g. ShadowRay) is easy to find among
+ * the dozens in the bundle. No campaign is selected by default.
  */
 function CampaignList({
   campaigns,
@@ -208,6 +209,20 @@ function CampaignList({
   onSelect: (slug: string) => void
 }) {
   const { t } = useTranslation("pipeline")
+  const [query, setQuery] = useState("")
+
+  // The identifier sent to the backend selection: prefer the curated slug when
+  // present, otherwise fall back to the STIX id so every campaign is selectable.
+  const slugOf = (campaign: ListedCampaign): string =>
+    campaign.curated_slug ?? campaign.stix_id
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return campaigns
+    return campaigns.filter((c) =>
+      (c.name ?? "").toLowerCase().includes(q),
+    )
+  }, [campaigns, query])
 
   if (campaigns.length === 0) {
     return <EmptyNote>{t("campanha.semCampanhas")}</EmptyNote>
@@ -215,43 +230,56 @@ function CampaignList({
 
   return (
     <div className="flex flex-col gap-3">
-      <ul className="flex flex-col gap-2" aria-label={t("campanha.listaLabel")}>
-        {campaigns.map((campaign) => {
-          const slug = campaign.curated_slug
-          const selectable = campaign.selectable && Boolean(slug)
-          const selected = selectable && slug === selectedSlug
-          return (
-            <li key={campaign.stix_id}>
-              <button
-                type="button"
-                aria-pressed={selected}
-                disabled={!selectable || selecting}
-                onClick={() => slug && onSelectSlug(slug)}
-                className={cn(
-                  "flex w-full flex-col items-start gap-0.5 rounded-md border p-3 text-left text-sm transition-colors",
-                  selected
-                    ? "border-team-blue ring-1 ring-team-blue"
-                    : "hover:bg-muted/50",
-                  !selectable && "cursor-not-allowed opacity-60",
-                )}
-                title={!selectable ? t("campanha.naoSelecionavel") : undefined}
-              >
-                <span className="font-medium">{campaign.name}</span>
-                {campaign.description ? (
-                  <span className="line-clamp-2 text-xs text-muted-foreground">
-                    {campaign.description}
-                  </span>
-                ) : null}
-                {!selectable ? (
-                  <span className="text-xs text-muted-foreground">
-                    {t("campanha.naoSelecionavel")}
-                  </span>
-                ) : null}
-              </button>
-            </li>
-          )
-        })}
-      </ul>
+      <input
+        type="search"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder={t("campanha.buscarPlaceholder")}
+        aria-label={t("campanha.buscarLabel")}
+        className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-team-blue"
+      />
+
+      <p className="text-xs text-muted-foreground" aria-live="polite">
+        {t("campanha.contagem", { count: filtered.length })}
+      </p>
+
+      {filtered.length === 0 ? (
+        <EmptyNote>{t("campanha.semResultados")}</EmptyNote>
+      ) : (
+        <ul
+          className="flex max-h-96 flex-col gap-2 overflow-y-auto pr-1"
+          aria-label={t("campanha.listaLabel")}
+        >
+          {filtered.map((campaign) => {
+            const slug = slugOf(campaign)
+            const selected = slug === selectedSlug
+            return (
+              <li key={campaign.stix_id}>
+                <button
+                  type="button"
+                  aria-pressed={selected}
+                  disabled={selecting}
+                  onClick={() => onSelectSlug(slug)}
+                  className={cn(
+                    "flex w-full flex-col items-start gap-0.5 rounded-md border p-3 text-left text-sm transition-colors",
+                    selected
+                      ? "border-team-blue ring-1 ring-team-blue"
+                      : "hover:bg-muted/50",
+                    selecting && "cursor-not-allowed opacity-60",
+                  )}
+                >
+                  <span className="font-medium">{campaign.name}</span>
+                  {campaign.description ? (
+                    <span className="line-clamp-2 text-xs text-muted-foreground">
+                      {campaign.description}
+                    </span>
+                  ) : null}
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      )}
 
       <div className="flex items-center justify-end">
         <Button
@@ -310,7 +338,7 @@ function ExtractedAttributes({
       {selection.completed ? (
         <p
           className="flex items-center gap-1.5 rounded-md border border-team-blue/40 bg-team-blue/10 px-3 py-2 text-xs text-team-blue"
-          data-testid="campanha-concluida"
+          data-testid="campaign-completed"
           role="status"
         >
           <CheckCircle2 className="size-4" aria-hidden />
@@ -320,7 +348,7 @@ function ExtractedAttributes({
         <div
           className="flex flex-col gap-1 rounded-md border border-team-red/30 bg-team-red/5 px-3 py-2 text-team-red"
           role="alert"
-          data-testid="campanha-falha"
+          data-testid="campaign-failure"
         >
           <p className="text-xs">{selection.error_message || t("campanha.falha")}</p>
           {selection.failed_step ? (

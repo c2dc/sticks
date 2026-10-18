@@ -1,13 +1,14 @@
 // Multiplataforma dev runner para a Pipeline_UI.
 //
-// Sobe backend (FastAPI/uvicorn) e frontend (Vite) de uma vez, aplicando
-// antes as migracoes do Alembic. Escrito em Node (sem sintaxe de shell)
-// para rodar igual em Windows, Linux e macOS:
-//   * detecta o venv em .venv/Scripts (Windows) ou .venv/bin (Unix);
-//   * usa a API programatica do concurrently (sem shell, sem quebra de args);
-//   * a URL do banco vem do ambiente / do .env do backend (nao e cravada aqui).
+// Brings up backend (FastAPI/uvicorn) and frontend (Vite) at once, applying
+// the Alembic migrations first. Written in Node (no shell syntax)
+// to run the same on Windows, Linux and macOS:
+//   * detects the venv in .venv/Scripts (Windows) or .venv/bin (Unix);
+//   * invokes Python tools via `python -m <tool>` (robust across shells);
+//   * uses the concurrently programmatic API (no shell, no arg splitting);
+//   * the DB URL comes from the environment / the backend .env (not hardcoded here).
 //
-// Uso: npm run dev (ver package.json).
+// Usage: npm run dev (see package.json).
 
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -17,31 +18,30 @@ import concurrently from "concurrently";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(scriptDir, "..");
-const backendDir = path.join(root, "ui", "backend");
+const backendDir = path.join(root, "apps", "backend");
 const isWindows = process.platform === "win32";
 
-// Caminho dos executaveis do venv: Scripts no Windows, bin no restante.
+// Path of the venv python: Scripts on Windows, bin elsewhere. We invoke the
+// backend tools as `python -m <tool>` so we never depend on the alembic/uvicorn
+// console-script shims (which can exit 1 spuriously on some Windows shells).
 const venvBin = path.join(backendDir, ".venv", isWindows ? "Scripts" : "bin");
-const exe = (name) => path.join(venvBin, isWindows ? `${name}.exe` : name);
+const venvPython = path.join(venvBin, isWindows ? "python.exe" : "python");
 
-const alembic = exe("alembic");
-const uvicorn = exe("uvicorn");
-
-if (!existsSync(alembic) || !existsSync(uvicorn)) {
+if (!existsSync(venvPython)) {
   console.error(
-    `\n[dev] venv do backend nao encontrado em ${venvBin}.\n` +
-      `[dev] Rode primeiro:  npm run setup\n`
+    `\n[dev] backend venv python not found at ${venvPython}.\n` +
+      `[dev] Run first:  npm run setup\n`
   );
   process.exit(1);
 }
 
-// A URL do banco vem do ambiente; se nao definida, o backend usa o default
-// do .env/Settings.
+// The DB URL comes from the environment; if unset, the backend uses the default
+// from .env/Settings.
 const backendEnv = { ...process.env };
 
-// 1) Migracoes antes de servir (schema sempre presente).
-console.log("[dev] aplicando migracoes do Alembic...");
-const migrate = spawn(alembic, ["upgrade", "head"], {
+// 1) Migrations before serving (schema always present).
+console.log("[dev] applying Alembic migrations...");
+const migrate = spawn(venvPython, ["-m", "alembic", "upgrade", "head"], {
   stdio: "inherit",
   cwd: backendDir,
   env: backendEnv,
@@ -49,33 +49,33 @@ const migrate = spawn(alembic, ["upgrade", "head"], {
 
 migrate.on("exit", (code) => {
   if (code !== 0) {
-    console.error(`[dev] alembic upgrade falhou (codigo ${code}).`);
+    console.error(`[dev] alembic upgrade failed (code ${code}).`);
     process.exit(code ?? 1);
   }
 
-  // 2) Backend + frontend em paralelo via API do concurrently.
-  // Cada comando tem seu proprio cwd; o argv do backend vai como string
-  // unica citada para o shell do concurrently (evita quebra no Windows).
+  // 2) Backend + frontend in parallel via the concurrently API.
+  // Each command has its own cwd; the backend argv goes as a single quoted
+  // string for the concurrently shell (avoids splitting on Windows).
   const q = (s) => (isWindows ? `"${s}"` : `'${s}'`);
 
   const { result } = concurrently(
     [
       {
         name: "backend",
-        command: `${q(uvicorn)} app.main:app --host 127.0.0.1 --port 8010 --reload`,
+        command: `${q(venvPython)} -m uvicorn app.main:app --host 127.0.0.1 --port 8010 --reload`,
         cwd: backendDir,
         env: backendEnv,
         prefixColor: "cyan",
       },
       {
         name: "frontend",
-        command: "npm --silent run dev --workspace ui/frontend",
+        command: "npm --silent run dev --workspace apps/frontend",
         cwd: root,
         prefixColor: "magenta",
       },
     ],
     {
-      killOthers: ["failure"],
+      killOthersOn: ["failure"],
       prefix: "name",
     }
   );

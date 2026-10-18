@@ -2,8 +2,8 @@
 
 # Feature: pipeline-cinco-stages, Property 2: campaign totalmente concluído sse os
 # cinco Estágios completed. Para qualquer distribuição de states dos Estágios
-# entre os 8 Casos curados, o progress aggregate de replicação é igual à
-# count de Casos cujos cinco Estágios estão todos no state "concluído" —
+# across the 8 curated Campaigns, the aggregate replication progress equals the
+# count of Campaigns whose five Stages are all in the "concluido" state —
 # nem mais, nem menos.
 
 Validates: Requirements 5.5 (adaptado para 1..5), 1.6, 8.2

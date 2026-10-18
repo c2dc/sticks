@@ -3,7 +3,7 @@
 ⚠️  LAB-ONLY — **A execute exclusivamente na máquina de laboratório do
 usuário. NÃO rodar no environment de desenvolvimento nem em CI.**
 
-While ``test_provisionador_estagio5.py`` (task 7.2) drives
+While ``test_provisioner_stage5.py`` (task 7.2) drives
 ``CurationEnvironmentProvisioner.provision`` with a **fake** Caldera loader
 and a **fake** read-only container inspector (no network, no daemon), this suite
 provisions the **curated environment for real**: it loads the ordered Abilities
@@ -120,7 +120,7 @@ def real_caldera() -> Iterator[CalderaClient]:
         client.close()
 
 
-def _derive_parameters(caso_slug: str) -> EnvironmentParameters:
+def _derive_parameters(campaign_slug: str) -> EnvironmentParameters:
     """Derive the real curated ``EnvironmentParameters`` of a case from disk.
 
     Reuses the real :class:`CurationOperationalizer` (Stage-4), which reads the
@@ -129,20 +129,20 @@ def _derive_parameters(caso_slug: str) -> EnvironmentParameters:
     path; the derivation itself reads the curated nodes directly from disk.
     """
     case_service = CaseService()
-    operacionalizador = CurationOperationalizer(case_service=case_service)
+    operationalizer = CurationOperationalizer(case_service=case_service)
     dag_view = DagView(
-        campaign_id=caso_slug,
-        name=case_service.list_cases().get(caso_slug, caso_slug),
+        campaign_id=campaign_slug,
+        name=case_service.list_cases().get(campaign_slug, campaign_slug),
         curated=True,
         can_advance=True,
     )
-    produzido = operacionalizador.operationalize(caso_slug, dag_view)
-    return produzido.parameters
+    produced = operationalizer.operationalize(campaign_slug, dag_view)
+    return produced.parameters
 
 
-@pytest.mark.parametrize("caso_slug", _lab_cases())
-def test_real_provisionar_loads_abilities_and_verifies_isolation(
-    caso_slug: str,
+@pytest.mark.parametrize("campaign_slug", _lab_cases())
+def test_real_provision_loads_abilities_and_verifies_isolation(
+    campaign_slug: str,
     real_caldera: CalderaClient,
 ) -> None:
     """Provision the curated environment against the REAL lab and verify isolation.
@@ -162,8 +162,8 @@ def test_real_provisionar_loads_abilities_and_verifies_isolation(
     inspector (no mocks). It is inert off the lab machine because the module
     guards keep it skipped.
     """
-    params = _derive_parameters(caso_slug)
-    assert params.campaign_id == caso_slug
+    params = _derive_parameters(campaign_slug)
+    assert params.campaign_id == campaign_slug
     assert params.platform is EnvironmentPlatform.CONTAINER
 
     provisioner = CurationEnvironmentProvisioner(
@@ -177,7 +177,7 @@ def test_real_provisionar_loads_abilities_and_verifies_isolation(
     environment = provisioner.provision(params)
 
     # Saída tipada do Estágio 5 carimbada com a origin de curation (Req. 9.4).
-    assert environment.campaign_id == caso_slug
+    assert environment.campaign_id == campaign_slug
     assert environment.platform is EnvironmentPlatform.CONTAINER
     assert environment.origin is TranslationSource.HUMAN_CURATION
     assert environment.compose_file is not None
@@ -193,7 +193,7 @@ def test_real_provisionar_loads_abilities_and_verifies_isolation(
         "as Abilities curadas devem ter sido carregadas no Caldera real"
     )
 
-    # Isolamento verificado read-only contra o Docker real ANTES de complete
+    # Isolation verified read-only against the real Docker BEFORE completing
     # (Req. 9.6): na máquina de laboratório endurecida todos os contêineres-target
     # estão isolados, então o result geral aprova e cada verdict é isolated.
     assert environment.isolation.approved is True, (

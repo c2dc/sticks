@@ -132,11 +132,11 @@ describe("EnvironmentStageView (Stage 4 â€” Environment Provisioning, Req. 5.4â€
     const stub = await screen.findByTestId("mermaid-stub")
     expect(stub).toHaveTextContent("flowchart TD")
 
-    // Internal networks (nome + subnet).
+    // Internal networks (name + subnet).
     expect(screen.getByText("ataque")).toBeInTheDocument()
     expect(screen.getByText("192.168.20.0/24")).toBeInTheDocument()
 
-    // Hosts (nome / container / IPs).
+    // Hosts (name / container / IPs).
     expect(screen.getByText("attacker-kali")).toBeInTheDocument()
     expect(screen.getByText("c0026-victim")).toBeInTheDocument()
     expect(screen.getByText("192.168.10.5")).toBeInTheDocument()

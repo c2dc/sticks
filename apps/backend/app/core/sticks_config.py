@@ -25,17 +25,17 @@ class SticksConfigError(RuntimeError):
 
 
 def _repo_root() -> Path:
-    """Return the repository root (the folder that contains ``sticks/``).
+    """Return the repository root (the folder that contains ``packages/cli/``).
 
-    Layout:  <repo>/ui/backend/app/core/sticks_config.py
-             <repo>/sticks/config/config.py
+    Layout:  <repo>/apps/backend/app/core/sticks_config.py
+             <repo>/packages/cli/config/config.py
     """
-    # sticks_config.py -> core -> app -> backend -> ui -> <repo>
+    # sticks_config.py -> core -> app -> backend -> apps -> <repo>
     return Path(__file__).resolve().parents[4]
 
 
 def _sticks_config_path() -> Path:
-    return _repo_root() / "sticks" / "config" / "config.py"
+    return _repo_root() / "packages" / "cli" / "config" / "config.py"
 
 
 @lru_cache(maxsize=1)

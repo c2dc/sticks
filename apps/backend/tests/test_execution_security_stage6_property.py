@@ -11,7 +11,7 @@ Validates: Requirements 10.2, 13.4, 13.5, 14.2, 14.4, 14.5, 9.6, 9.7
 
 Este teste dirige :meth:`ExecutionStageService.execute` através de um
 ``OperationRunner`` **real** com *fakes* injetados — exatamente o seam de
-integração de ``test_execucao_estagio6.py`` — para que os quatro gates (ordem do
+integração de ``test_execution_stage6.py`` — para que os quatro gates (ordem do
 design: confirmação → contenção → isolation → disponibilidade) rodem de fato:
 
 * **Caldera** é um :class:`CalderaClient` real sobre ``httpx.MockTransport`` que
@@ -73,7 +73,7 @@ from app.services.containment.isolation import (
 )
 from app.services.environment.execution import ExecutionStageService
 from app.services.operation.runner import OperationRunner, RunOutcome
-from app.services.stage.stage_service import ESTAGIO_EXECUCAO
+from app.services.stage.stage_service import STAGE_EXECUTION
 
 
 _SLUG = "shadowray"  # a registered curated slug (CURATED_CASES)
@@ -100,7 +100,7 @@ def _ephemeral_session() -> Iterator[Session]:
     created" assertion. This context manager builds and tears down a brand-new
     SQLite database for each example, so every example starts from a clean slate.
     """
-    tmp = Path(tempfile.mkdtemp(prefix="pipeline_ui_estagio6_seg_db_"))
+    tmp = Path(tempfile.mkdtemp(prefix="pipeline_ui_stage6_seg_db_"))
     db_path = tmp / "test.db"
     settings_obj = Settings(database_url=f"sqlite:///{db_path}")
     engine = create_db_engine(settings_obj)
@@ -288,7 +288,7 @@ def _stage6_state(session: Session, campaign: str) -> StageState | None:
         session.execute(
             select(StageRun)
             .where(StageRun.campaign_id == campaign)
-            .where(StageRun.stage == ESTAGIO_EXECUCAO)
+            .where(StageRun.stage == STAGE_EXECUTION)
         )
         .scalars()
         .first()
@@ -333,7 +333,7 @@ def test_property7_no_execution_with_external_or_unisolated(
     Validates: Requirements 10.2, 13.4, 13.5, 14.2, 14.4, 14.5, 9.6, 9.7
     """
     dest_kind, command = destination
-    tmp = Path(tempfile.mkdtemp(prefix="pipeline_ui_estagio6_seg_"))
+    tmp = Path(tempfile.mkdtemp(prefix="pipeline_ui_stage6_seg_"))
     try:
         with _ephemeral_session() as session:
             result = _run_once(
@@ -389,7 +389,7 @@ def test_property7_internal_and_isolated_always_executes(
     # Oracle sanity: this combination is exactly the one allowed to execute.
     assert _deve_executar("internal", True) is True
 
-    tmp = Path(tempfile.mkdtemp(prefix="pipeline_ui_estagio6_seg_"))
+    tmp = Path(tempfile.mkdtemp(prefix="pipeline_ui_stage6_seg_"))
     try:
         with _ephemeral_session() as session:
             result = _run_once(

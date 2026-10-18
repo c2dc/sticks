@@ -1,6 +1,7 @@
 /**
- * Typed API wrappers for the emulation preview + run endpoints, used by the
- * EmulationConfirmModal (Task 12.4, Req. 6.5, 6.6, 6.7, 6.2, 6.4, 4.6).
+ * Typed API wrappers for the emulation preview + run endpoints. The preview is
+ * consumed by the Stage-6 embedded inline confirmation in Stage3View (Req. 1.6,
+ * 6.5) — the pre-confirmation command/target list rendered without any modal.
  *
  * Backend contracts (built in task 11.2) are the source of truth (see the
  * pipeline-ui design "REST endpoints"):

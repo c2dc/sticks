@@ -34,6 +34,11 @@ reporting surface (pure reads over the persisted ``StageRun`` rows):
   to push (Req. 1.4, 1.5, 1.6).
 """
 
+from app.services.stage.execution_stage_service import (
+    ExecutionStageService,
+    Stage6StartResult,
+    TERMINAL_OPERATION_STATES,
+)
 from app.services.stage.stage_service import (
     AggregateProgress,
     CaseStageStates,
@@ -109,4 +114,8 @@ __all__ = [
     "VALID_STAGES",
     "FIRST_STAGE",
     "LAST_STAGE",
+    # Stage 6 — ExecutionStageService (task 7.1)
+    "ExecutionStageService",
+    "Stage6StartResult",
+    "TERMINAL_OPERATION_STATES",
 ]

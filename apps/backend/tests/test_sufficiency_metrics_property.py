@@ -90,8 +90,8 @@ def _cenario(draw: st.DrawFn):
             st.one_of(st.none(), st.sampled_from(_TECH_IDS + _FOREIGN_TECH_IDS))
         )
 
-    # --- Resultados por Ability (inclui ruído: ability_id None/desconhecido). ---
-    def _resultado() -> AbilityMeasurementResult:
+    # --- Per-Ability results (includes noise: ability_id None/unknown). ---
+    def _result() -> AbilityMeasurementResult:
         aid = draw(st.one_of(st.none(), st.sampled_from(_ABILITY_IDS + ["desconhecida"])))
         tempo = draw(
             st.one_of(
@@ -109,7 +109,7 @@ def _cenario(draw: st.DrawFn):
             telemetry=telemetry,
         )
 
-    results = [_resultado() for _ in range(draw(st.integers(min_value=0, max_value=10)))]
+    results = [_result() for _ in range(draw(st.integers(min_value=0, max_value=10)))]
     return dag, technique_by_ability, results
 
 
@@ -169,7 +169,7 @@ def _oraculo(dag, technique_by_ability, results):
 # consistentes com os results.
 @settings(max_examples=200)
 @given(_cenario())
-def test_metricas_suficiencia_sao_consistentes(cenario) -> None:
+def test_sufficiency_metrics_are_consistent(cenario) -> None:
     """As métricas derivadas honram cada invariante contra um oráculo independente.
 
     # Feature: pipeline-seis-stages, Property 10: Métricas de suficiência
@@ -250,7 +250,7 @@ def test_metricas_suficiencia_sao_consistentes(cenario) -> None:
 # consistentes com os results (parte consolidação do relatório).
 @settings(max_examples=200)
 @given(_cenario())
-def test_relatorio_consolida_as_mesmas_metricas(cenario) -> None:
+def test_report_consolidates_the_same_metrics(cenario) -> None:
     """O relatório consolida EXATAMENTE as mesmas métricas medidas (Req. 15.7, 10.6).
 
     # Feature: pipeline-seis-stages, Property 10: Métricas de suficiência

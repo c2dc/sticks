@@ -22,7 +22,7 @@ from app.services.dag.dag_service import (
     DagService,
     DagView,
 )
-from app.services.dag.gerador import (
+from app.services.dag.generator import (
     CurationDagGenerator,
     DagGenerator,
     ProducedDag,

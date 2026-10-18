@@ -204,7 +204,7 @@ def _seed_distribution(
     suppress_health_check=[HealthCheck.too_slow],
 )
 @given(distribution=_distribution_strategy)
-def test_property3_stage_state_derived_exactly_from_stage_run_seis(
+def test_property3_stage_state_derived_exactly_from_stage_run_six(
     distribution: dict[int, Optional[tuple[StageState, int]]],
 ) -> None:
     """Cada Estágio em 1..6 deriva exatamente a sua StageRun (ou nao_iniciado/0 quando ausente).
@@ -279,7 +279,7 @@ def test_property3_stage_state_derived_exactly_from_stage_run_seis(
     state=st.sampled_from(_STATE_VALUES),
     progress=st.integers(min_value=0, max_value=100),
 )
-def test_property3_absent_stages_default_to_nao_iniciado_zero_seis(
+def test_property3_absent_stages_default_to_not_started_zero_six(
     present_stage: int,
     state: StageState,
     progress: int,

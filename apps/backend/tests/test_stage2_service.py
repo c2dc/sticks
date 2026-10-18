@@ -1,23 +1,23 @@
-"""Testes de exemplo do serviço fino do Estágio 2 — Seleção da campaign (task 3.1).
+"""Example tests of the thin Stage 2 service — Campaign selection (task 3.1).
 
-Cobrem a orquestração de :class:`app.services.stix.estagio2_service.Stage2Service`
+They cover the orchestration of :class:`app.services.stix.stage2_service.Stage2Service`
 que reusa o :class:`app.services.stix.stix_service.StixService` (listagem das
-campaigns do bundle, marcando ``curated``/``curated_slug``/``selectable``) e o
+bundle campaigns, marking ``curated``/``curated_slug``/``selectable``) and the
 :class:`app.services.stage.stage_service.StageService`
-(``_build_campaign_stix`` para a identidade/aliases e ``run_stage1`` para as
-técnicas associadas, extraídas do DAG curated):
+(``_build_campaign_stix`` for the identity/aliases and ``run_stage1`` for the
+associated techniques, extracted from the curated DAG):
 
-* ``list_campaigns`` marca as campaigns curadas como ``selectable`` e as
-  demais como não selecionáveis (Req. 6.2, 6.5);
-* ``select`` extrai a identidade + técnicas e conclui o Estágio quando a
-  extração tem success (Req. 6.3, 6.4, 6.6);
-* ``select`` mantém o Estágio não concluído com a causa reportada quando a
-  extração failure / o slug é inexistente (Req. 6.7).
+* ``list_campaigns`` marks the curated campaigns as ``selectable`` and the rest
+  as non-selectable (Req. 6.2, 6.5);
+* ``select`` extracts the identity + techniques and concludes the Stage when the
+  extraction succeeds (Req. 6.3, 6.4, 6.6);
+* ``select`` keeps the Stage not completed with the reported cause when the
+  extraction fails / the slug is nonexistent (Req. 6.7).
 
-Isolamento: usa os artefatos curados REAIS do repositório (``sticks/data``) para
-o DAG do Estágio 2 e um bundle STIX temporário (``data_dir`` isolated) para a
-listagem/identidade — nenhuma rede, nenhum ``sticks/data/stix`` real tocado. A
-persistência corre num SQLite efêmero por teste.
+Isolation: uses the REAL curated artifacts from the repository (``sticks/data``)
+for the Stage 2 DAG and a temporary STIX bundle (isolated ``data_dir``) for the
+listing/identity — no network, no real ``sticks/data/stix`` touched. Persistence
+runs in an ephemeral per-test SQLite.
 
 _Requirements: 6.2, 6.3, 6.4, 6.5, 6.6, 6.7_
 """
@@ -38,14 +38,14 @@ from app.db.base import Base, import_models
 from app.db.session import create_db_engine
 from app.services.campaign_service import CaseService
 from app.services.stage.stage_service import StageService
-from app.services.stix.estagio2_service import (
+from app.services.stix.stage2_service import (
     ListedCampaign,
     Stage2Service,
     CampaignSelectionResult,
 )
 from app.services.stix.stix_service import StixService
 
-VERSAO = "18.0"
+VERSION = "18.0"
 
 
 # ---------------------------------------------------------------------------
@@ -54,8 +54,8 @@ VERSAO = "18.0"
 
 
 def _real_data_dir() -> Path:
-    """tests/ -> backend/ -> ui/ -> repo root -> sticks/data (read-only)."""
-    return Path(__file__).resolve().parents[3] / "sticks" / "data"
+    """tests/ -> backend/ -> apps/ -> repo root -> packages/cli/data (read-only)."""
+    return Path(__file__).resolve().parents[3] / "packages" / "cli" / "data"
 
 
 def _case_files_present(data_dir: Path, slug: str) -> bool:
@@ -67,7 +67,7 @@ def _case_files_present(data_dir: Path, slug: str) -> bool:
 
 
 def _bundle_com_shadowray() -> dict:
-    """Bundle STIX mínimo com a campaign curated ShadowRay (C0045) + uma não curated."""
+    """Minimal STIX bundle with the curated ShadowRay campaign (C0045) + one non-curated."""
     return {
         "type": "bundle",
         "objects": [
@@ -81,7 +81,7 @@ def _bundle_com_shadowray() -> dict:
             {
                 "type": "campaign",
                 "id": "campaign--outra",
-                "name": "Campanha Não Curada",
+                "name": "Non-Curated Campaign",
                 "external_references": [{"external_id": "C9999"}],
             },
         ],
@@ -95,8 +95,8 @@ def _bundle_com_shadowray() -> dict:
 
 @pytest.fixture()
 def session() -> Iterator[Session]:
-    tmp_dir = Path(tempfile.mkdtemp(prefix="pipeline_ui_estagio2_"))
-    db_path = tmp_dir / "estagio2.db"
+    tmp_dir = Path(tempfile.mkdtemp(prefix="pipeline_ui_stage2_"))
+    db_path = tmp_dir / "stage2.db"
     settings_obj = Settings(database_url=f"sqlite:///{db_path.as_posix()}")
 
     engine = create_db_engine(settings_obj)
@@ -124,14 +124,14 @@ def session() -> Iterator[Session]:
 def stix_tmp(tmp_path: Path) -> StixService:
     """A ``StixService`` apontando para um ``data_dir`` isolated com o bundle 18."""
     stix = StixService(data_dir=tmp_path)
-    caminho = stix.base_path(VERSAO)
-    caminho.parent.mkdir(parents=True, exist_ok=True)
-    caminho.write_text(json.dumps(_bundle_com_shadowray()), encoding="utf-8")
+    path_ = stix.base_path(VERSION)
+    path_.parent.mkdir(parents=True, exist_ok=True)
+    path_.write_text(json.dumps(_bundle_com_shadowray()), encoding="utf-8")
     return stix
 
 
 def _service(session: Session, stix_tmp: StixService) -> Stage2Service:
-    """Monta o Estágio 2 reusando os dados curados reais + o bundle temporário."""
+    """Builds Stage 2 reusing the real curated data + the temporary bundle."""
     stage = StageService(
         session,
         case_service=CaseService(data_dir=_real_data_dir()),
@@ -145,22 +145,22 @@ def _service(session: Session, stix_tmp: StixService) -> Stage2Service:
 # ---------------------------------------------------------------------------
 
 
-def test_listar_campanhas_marca_curada_selecionavel(
+def test_list_campaigns_marks_curated_selectable(
     session: Session, stix_tmp: StixService
 ) -> None:
-    """A campaign curated fica selecionável; a não curated não (Req. 6.2, 6.5)."""
+    """The curated campaign is selectable; the non-curated one is not (Req. 6.2, 6.5)."""
     service = _service(session, stix_tmp)
 
-    campaigns = service.list_campaigns(VERSAO)
+    campaigns = service.list_campaigns(VERSION)
 
     assert all(isinstance(c, ListedCampaign) for c in campaigns)
     por_slug = {c.curated_slug: c for c in campaigns if c.curated}
     assert "shadowray" in por_slug
     assert por_slug["shadowray"].selectable is True
 
-    nao_curadas = [c for c in campaigns if not c.curated]
-    assert nao_curadas, "esperava ao menos uma campaign não curated no bundle"
-    assert all(c.selectable is False for c in nao_curadas)
+    non_curated = [c for c in campaigns if not c.curated]
+    assert non_curated, "expected at least one non-curated campaign in the bundle"
+    assert all(c.selectable is False for c in non_curated)
 
 
 # ---------------------------------------------------------------------------
@@ -168,10 +168,10 @@ def test_listar_campanhas_marca_curada_selecionavel(
 # ---------------------------------------------------------------------------
 
 
-def test_selecionar_curada_extrai_atributos_e_conclui(
+def test_select_curated_extracts_attributes_and_concludes(
     session: Session, stix_tmp: StixService
 ) -> None:
-    """Selecionar a campaign curated extrai identidade + técnicas e conclui.
+    """Selecting the curated campaign extracts identity + techniques and concludes.
 
     _Requirements: 6.3, 6.4, 6.6_
     """
@@ -181,7 +181,7 @@ def test_selecionar_curada_extrai_atributos_e_conclui(
 
     service = _service(session, stix_tmp)
 
-    result = service.select("shadowray", VERSAO)
+    result = service.select("shadowray", VERSION)
 
     assert isinstance(result, CampaignSelectionResult)
     assert result.completed is True
@@ -194,35 +194,35 @@ def test_selecionar_curada_extrai_atributos_e_conclui(
     assert result.identity.external_id == "C0045"
     assert "Shadow Ray" in result.identity.aliases
 
-    # Técnicas associadas extraídas do DAG curated (Saída do Estágio 2).
-    assert result.techniques, "esperava técnicas extraídas do DAG curated"
+    # Associated techniques extracted from the curated DAG (Stage 2 Output).
+    assert result.techniques, "expected techniques extracted from the curated DAG"
     assert all(t.technique_id for t in result.techniques)
 
 
 # ---------------------------------------------------------------------------
-# select — failure de extração (Req. 6.7)
+# select — extraction failure (Req. 6.7)
 # ---------------------------------------------------------------------------
 
 
-def test_selecionar_slug_inexistente_nao_conclui_com_causa(
+def test_select_nonexistent_slug_does_not_complete_with_cause(
     session: Session, stix_tmp: StixService
 ) -> None:
-    """Um campaign sem DAG estrutural mantém o Estágio não concluído com a causa.
+    """A campaign without a structural DAG keeps the Stage not completed with the cause.
 
-    Usa um ``CaseService`` apontando para um ``data_dir`` vazio: o DAG curated do
-    campaign não existe, então ``run_stage1`` reporta failure e o Estágio 2 não
-    conclui, com a causa reportada (Req. 6.7).
+    Usa um ``CaseService`` apontando para um ``data_dir`` empty: o DAG curated do
+    campaign does not exist, so ``run_stage1`` reports a failure and Stage 2 does not
+    conclude, with the reported cause (Req. 6.7).
     """
-    vazio = Path(tempfile.mkdtemp(prefix="pipeline_ui_estagio2_vazio_"))
+    empty = Path(tempfile.mkdtemp(prefix="pipeline_ui_stage2_empty_"))
     try:
         stage = StageService(
             session,
-            case_service=CaseService(data_dir=vazio),
+            case_service=CaseService(data_dir=empty),
             stix_service=stix_tmp,
         )
         service = Stage2Service(stage)
 
-        result = service.select("shadowray", VERSAO)
+        result = service.select("shadowray", VERSION)
 
         assert result.completed is False
         assert result.error_message
@@ -230,4 +230,4 @@ def test_selecionar_slug_inexistente_nao_conclui_com_causa(
         assert result.identity is not None
         assert result.techniques == []
     finally:
-        shutil.rmtree(vazio, ignore_errors=True)
+        shutil.rmtree(empty, ignore_errors=True)

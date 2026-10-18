@@ -1,20 +1,22 @@
-"""Testes de exemplo da seleção de campaign no Estágio 2 (task 3.3).
+"""Example tests of the campaign selection in Stage 2 (task 3.3).
 
-Complementam os testes de orquestração de ``test_estagio2_service.py`` (task 3.1)
-focando especificamente nodes exemplos exigidos pela task 3.3, sem duplicá-los:
+They complement the orchestration tests in ``test_stage2_service.py`` (task 3.1)
+focusing specifically on the example nodes required by task 3.3, without
+duplicating them:
 
-* **Versão 18 lista as 8 campaigns curadas selecionáveis** — um bundle da versão
-  curated contendo exatamente as 8 campaigns curadas (resolvidas via
-  ``SLUG_PARA_STIX``) + campaigns não curadas resulta em ``selectable is True``
-  para exatamente as 8 curadas e ``False`` para as demais (Req. 6.2, 6.5);
-* **Selecionar extrai os atributos e conclui** — select cada campaign curated
-  (com os artefatos curados REAIS presentes) extrai identidade + técnicas e
-  conclui o Estágio (``completed is True``), sem erro (Req. 6.2, 6.6);
-* **Slug inexistente / extração failure mantém não concluído com causa** — tanto um
-  campaign com DAG curated ausente quanto um slug fora do catálogo mantêm o Estágio
-  não concluído com a causa reportada (Req. 6.6, 6.7).
+* **Version 18 lists the 8 selectable curated campaigns** — a bundle of the
+  curated version containing exactly the 8 curated campaigns (resolved via
+  ``SLUG_TO_STIX``) + non-curated campaigns yields ``selectable is True`` for
+  exactly the 8 curated ones and ``False`` for the rest (Req. 6.2, 6.5);
+* **Selecting extracts the attributes and concludes** — selecting each curated
+  campaign (with the REAL curated artifacts present) extracts identity +
+  techniques and concludes the Stage (``completed is True``), with no error
+  (Req. 6.2, 6.6);
+* **Nonexistent slug / extraction failure stays not completed with a cause** —
+  both a campaign with a missing curated DAG and a slug outside the catalog keep
+  the Stage not completed with the reported cause (Req. 6.6, 6.7).
 
-Isolamento: usa os artefatos curados REAIS do repositório (``sticks/data``) para
+Isolation: uses the REAL curated artifacts from the repository (``sticks/data``) for
 os DAGs do Estágio 2 e um bundle STIX temporário (``data_dir`` isolated) para a
 listagem/identidade — nenhuma rede, nenhum ``sticks/data/stix`` real tocado. A
 persistência corre num SQLite efêmero por teste.
@@ -38,14 +40,14 @@ from app.db.base import Base, import_models
 from app.db.session import create_db_engine
 from app.services.campaign_service import CURATED_CASES, CaseService
 from app.services.stage.stage_service import StageService
-from app.services.stix.estagio2_service import (
+from app.services.stix.stage2_service import (
     ListedCampaign,
     Stage2Service,
     CampaignSelectionResult,
 )
-from app.services.stix.stix_service import SLUG_PARA_STIX, StixService
+from app.services.stix.stix_service import SLUG_TO_STIX, StixService
 
-VERSAO = "18.0"
+VERSION = "18.0"
 
 
 # ---------------------------------------------------------------------------
@@ -54,8 +56,8 @@ VERSAO = "18.0"
 
 
 def _real_data_dir() -> Path:
-    """tests/ -> backend/ -> ui/ -> repo root -> sticks/data (read-only)."""
-    return Path(__file__).resolve().parents[3] / "sticks" / "data"
+    """tests/ -> backend/ -> apps/ -> repo root -> packages/cli/data (read-only)."""
+    return Path(__file__).resolve().parents[3] / "packages" / "cli" / "data"
 
 
 def _case_files_present(data_dir: Path, slug: str) -> bool:
@@ -69,12 +71,12 @@ def _case_files_present(data_dir: Path, slug: str) -> bool:
 def _campaign_objeto(slug: str) -> dict:
     """Monta o objeto STIX ``campaign`` de uma campaign curated do catálogo.
 
-    Usa o mapeamento ``SLUG_PARA_STIX`` como fonte da verdade: quando há uma
+    Usa o mapeamento ``SLUG_TO_STIX`` como fonte da verdade: quando há uma
     ``referencia`` (ex.: ``C0045``) ela é emitida em ``external_references`` (o
     canal de resolução prioritário); do contrário o ``nome_canonico`` resolve a
     campaign pelo name (campaign de ``salesforce_data_exfiltration``, sem código).
     """
-    mapeamento = SLUG_PARA_STIX[slug]
+    mapeamento = SLUG_TO_STIX[slug]
     referencias = mapeamento["referencias"]
     objeto: dict = {
         "type": "campaign",
@@ -94,13 +96,13 @@ def _bundle_com_8_curadas() -> dict:
             {
                 "type": "campaign",
                 "id": "campaign--nao-curated-1",
-                "name": "Campanha Não Curada 1",
+                "name": "Non-Curated Campaign 1",
                 "external_references": [{"external_id": "C9998"}],
             },
             {
                 "type": "campaign",
                 "id": "campaign--nao-curated-2",
-                "name": "Campanha Não Curada 2",
+                "name": "Non-Curated Campaign 2",
                 "external_references": [{"external_id": "C9999"}],
             },
         ]
@@ -115,8 +117,8 @@ def _bundle_com_8_curadas() -> dict:
 
 @pytest.fixture()
 def session() -> Iterator[Session]:
-    tmp_dir = Path(tempfile.mkdtemp(prefix="pipeline_ui_estagio2_t33_"))
-    db_path = tmp_dir / "estagio2.db"
+    tmp_dir = Path(tempfile.mkdtemp(prefix="pipeline_ui_stage2_t33_"))
+    db_path = tmp_dir / "stage2.db"
     settings_obj = Settings(database_url=f"sqlite:///{db_path.as_posix()}")
 
     engine = create_db_engine(settings_obj)
@@ -144,9 +146,9 @@ def session() -> Iterator[Session]:
 def stix_tmp(tmp_path: Path) -> StixService:
     """A ``StixService`` apontando para um ``data_dir`` isolated com o bundle 18."""
     stix = StixService(data_dir=tmp_path)
-    caminho = stix.base_path(VERSAO)
-    caminho.parent.mkdir(parents=True, exist_ok=True)
-    caminho.write_text(json.dumps(_bundle_com_8_curadas()), encoding="utf-8")
+    path_ = stix.base_path(VERSION)
+    path_.parent.mkdir(parents=True, exist_ok=True)
+    path_.write_text(json.dumps(_bundle_com_8_curadas()), encoding="utf-8")
     return stix
 
 
@@ -165,7 +167,7 @@ def _service(session: Session, stix_tmp: StixService) -> Stage2Service:
 # ---------------------------------------------------------------------------
 
 
-def test_versao_18_lista_as_8_curadas_selecionaveis(
+def test_version_18_lists_the_8_curated_selectable(
     session: Session, stix_tmp: StixService
 ) -> None:
     """A versão 18 marca exatamente as 8 campaigns curadas como selecionáveis.
@@ -175,7 +177,7 @@ def test_versao_18_lista_as_8_curadas_selecionaveis(
     """
     service = _service(session, stix_tmp)
 
-    campaigns = service.list_campaigns(VERSAO)
+    campaigns = service.list_campaigns(VERSION)
 
     assert all(isinstance(c, ListedCampaign) for c in campaigns)
 
@@ -194,15 +196,15 @@ def test_versao_18_lista_as_8_curadas_selecionaveis(
 
 
 # ---------------------------------------------------------------------------
-# Selecionar extrai os atributos e conclui — Req. 6.2, 6.6
+# Selecting extracts the attributes and concludes — Req. 6.2, 6.6
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize("slug", sorted(CURATED_CASES))
-def test_selecionar_cada_curada_extrai_atributos_e_conclui(
+def test_select_each_curated_extracts_attributes_and_concludes(
     session: Session, stix_tmp: StixService, slug: str
 ) -> None:
-    """Selecionar qualquer campaign curated extrai identidade + técnicas e conclui.
+    """Selecting any curated campaign extracts identity + techniques and concludes.
 
     Varre as 8 campaigns curadas: com os artefatos curados REAIS presentes, a
     seleção extrai a identidade do bundle e as técnicas do DAG curated, e conclui
@@ -215,7 +217,7 @@ def test_selecionar_cada_curada_extrai_atributos_e_conclui(
 
     service = _service(session, stix_tmp)
 
-    result = service.select(slug, VERSAO)
+    result = service.select(slug, VERSION)
 
     assert isinstance(result, CampaignSelectionResult)
     assert result.campaign_id == slug
@@ -237,7 +239,7 @@ def test_selecionar_cada_curada_extrai_atributos_e_conclui(
 # ---------------------------------------------------------------------------
 
 
-def test_selecionar_curada_sem_dag_nao_conclui_com_causa(
+def test_select_curated_without_dag_does_not_complete_with_cause(
     session: Session, stix_tmp: StixService
 ) -> None:
     """Uma campaign curated cujo DAG curated está ausente não conclui, com causa.
@@ -247,7 +249,7 @@ def test_selecionar_curada_sem_dag_nao_conclui_com_causa(
     concluído, com a causa reportada e sem técnicas (Req. 6.6, 6.7). A identidade
     continua montada defensivamente.
     """
-    vazio = Path(tempfile.mkdtemp(prefix="pipeline_ui_estagio2_vazio_t33_"))
+    vazio = Path(tempfile.mkdtemp(prefix="pipeline_ui_stage2_vazio_t33_"))
     try:
         stage = StageService(
             session,
@@ -256,7 +258,7 @@ def test_selecionar_curada_sem_dag_nao_conclui_com_causa(
         )
         service = Stage2Service(stage)
 
-        result = service.select("shadowray", VERSAO)
+        result = service.select("shadowray", VERSION)
 
         assert result.completed is False
         assert result.error_message
@@ -267,7 +269,7 @@ def test_selecionar_curada_sem_dag_nao_conclui_com_causa(
         shutil.rmtree(vazio, ignore_errors=True)
 
 
-def test_selecionar_slug_inexistente_nao_conclui_com_causa(
+def test_select_nonexistent_slug_does_not_complete_with_cause(
     session: Session, stix_tmp: StixService
 ) -> None:
     """Um slug fora do catálogo curated mantém o Estágio não concluído, com causa.
@@ -280,7 +282,7 @@ def test_selecionar_slug_inexistente_nao_conclui_com_causa(
     """
     service = _service(session, stix_tmp)
 
-    result = service.select("slug_que_nao_existe", VERSAO)
+    result = service.select("slug_que_nao_existe", VERSION)
 
     assert result.completed is False
     assert result.error_message

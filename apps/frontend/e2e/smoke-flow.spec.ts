@@ -29,17 +29,17 @@ test("landing → bases", async ({ page }) => {
   ).toBeVisible()
 
   // A base card for version "19.1" must be present.
-  const card191 = page.locator('[data-versao="19.1"]')
+  const card191 = page.locator('[data-version="19.1"]')
   await expect(card191).toBeVisible()
 
   // The first not-downloaded base shows a "Baixar" button and must NOT carry a
   // "Já baixada" badge. We pick the first card flagged as not-downloaded.
-  const primeiroNaoBaixado = page.locator('[data-baixada="false"]').first()
-  await expect(primeiroNaoBaixado).toBeVisible()
+  const firstNotDownloaded = page.locator('[data-downloaded="false"]').first()
+  await expect(firstNotDownloaded).toBeVisible()
   await expect(
-    primeiroNaoBaixado.getByRole("button", { name: /Baixar/i }),
+    firstNotDownloaded.getByRole("button", { name: /Baixar/i }),
   ).toBeVisible()
-  await expect(primeiroNaoBaixado.getByText(/Já baixada/i)).toHaveCount(0)
+  await expect(firstNotDownloaded.getByText(/Já baixada/i)).toHaveCount(0)
 
   await page.screenshot({ path: "e2e/__screenshots__/bases.png", fullPage: true })
 })

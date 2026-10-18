@@ -30,8 +30,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         title=settings.app_name,
         version="0.1.0",
         description=(
-            "Backend da Pipeline_UI para o projeto sticks "
-            "(ATT&CK-in-STIX / emulacao de APT contida)."
+            "Pipeline UI backend for the sticks project "
+            "(ATT&CK-in-STIX / contained APT emulation)."
         ),
     )
 

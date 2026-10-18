@@ -30,7 +30,7 @@ Engine API mocked (no real Caldera, no real Docker daemon):
 
 Difference from the sibling suites
 ----------------------------------
-``test_emulacao_endpoints.py`` (task 11.2) and ``test_api_endpoints.py`` (task
+``test_emulation_endpoints.py`` (task 11.2) and ``test_api_endpoints.py`` (task
 11.4) verify the endpoint contracts and outcome mapping in isolation. This suite
 ties the **full sequence** together on a single shared Operation and, crucially,
 closes the loop the others do not: it drives a run with **multiple executed
@@ -219,8 +219,8 @@ def _isolated_verifier(containers: list[str], _inspector: object) -> IsolationRe
 @pytest.fixture(scope="module")
 def session_factory() -> Iterator[sessionmaker[Session]]:
     """A fresh temp-file SQLite engine + schema for the module."""
-    tmp_dir = tempfile.mkdtemp(prefix="pipeline_ui_e2e_emulacao_")
-    db_path = Path(tmp_dir) / "e2e_emulacao.db"
+    tmp_dir = tempfile.mkdtemp(prefix="pipeline_ui_e2e_emulation_")
+    db_path = Path(tmp_dir) / "e2e_emulation.db"
     settings_obj = Settings(database_url=f"sqlite:///{db_path.as_posix()}")
 
     engine = create_db_engine(settings_obj)
@@ -296,11 +296,11 @@ class _internal_case_loader:
     """
 
     def __enter__(self) -> "_internal_case_loader":
-        from app.api import emulation as emulacao_module
+        from app.api import emulation as emulation_module
 
-        self._module = emulacao_module
-        self._original = emulacao_module._load_case_or_error
-        emulacao_module._load_case_or_error = (  # type: ignore[assignment]
+        self._module = emulation_module
+        self._original = emulation_module._load_case_or_error
+        emulation_module._load_case_or_error = (  # type: ignore[assignment]
             lambda campaign, case_service: _internal_only_case(campaign)
         )
         return self

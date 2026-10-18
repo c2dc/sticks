@@ -124,7 +124,7 @@ def _seed_case(
 
 @pytest.fixture()
 def data_dir() -> Iterator[Path]:
-    tmp = Path(tempfile.mkdtemp(prefix="pipeline_ui_estagio4_"))
+    tmp = Path(tempfile.mkdtemp(prefix="pipeline_ui_stage4_"))
     (tmp / "api").mkdir(parents=True, exist_ok=True)
     (tmp / "dag").mkdir(parents=True, exist_ok=True)
     try:
@@ -138,7 +138,7 @@ def _stub_dag(campaign: str = _SLUG) -> DagView:
     return DagView(campaign_id=campaign, name="Seed", curated=True, can_advance=True)
 
 
-def _operacionalizador(data_dir: Path) -> CurationOperationalizer:
+def _operationalizer(data_dir: Path) -> CurationOperationalizer:
     return CurationOperationalizer(case_service=CaseService(data_dir=data_dir))
 
 
@@ -147,9 +147,9 @@ def _operacionalizador(data_dir: Path) -> CurationOperationalizer:
 # ---------------------------------------------------------------------------
 
 
-def test_curadoria_satisfies_the_protocol(data_dir: Path) -> None:
+def test_curation_satisfies_the_protocol(data_dir: Path) -> None:
     """``CurationOperationalizer`` satisfies the Stage-4 Protocol (Req. 8.6, 16.2)."""
-    op = _operacionalizador(data_dir)
+    op = _operationalizer(data_dir)
     assert isinstance(op, OperationalizerByOrigin)
     assert op.origin() is TranslationSource.HUMAN_CURATION
 
@@ -178,22 +178,22 @@ def test_produces_two_separate_typed_artifacts(data_dir: Path) -> None:
     """Saída dupla: Abilities ordenadas E EnvironmentParameters, em campos distintos.
     _Requirements: 8.2, 8.4, 8.5, 8.7, 8.8_"""
     _seed_case(data_dir, _SLUG)
-    produzida = _operacionalizador(data_dir).operationalize(_SLUG, _stub_dag())
+    produced = _operationalizer(data_dir).operationalize(_SLUG, _stub_dag())
 
-    assert isinstance(produzida, ProducedOperationalization)
-    assert produzida.campaign_id == _SLUG
-    assert produzida.origin is TranslationSource.HUMAN_CURATION
+    assert isinstance(produced, ProducedOperationalization)
+    assert produced.campaign_id == _SLUG
+    assert produced.origin is TranslationSource.HUMAN_CURATION
 
     # Artifact 1 — ordered Abilities (reused Stage2Output).
-    assert produzida.abilities is not None
-    assert produzida.abilities.translation_source is TranslationSource.HUMAN_CURATION
+    assert produced.abilities is not None
+    assert produced.abilities.translation_source is TranslationSource.HUMAN_CURATION
     # atomic_ordering drives the order (ab-2 before ab-1).
-    assert produzida.abilities.ordering == [f"{_SLUG}-ab-2", f"{_SLUG}-ab-1"]
+    assert produced.abilities.ordering == [f"{_SLUG}-ab-2", f"{_SLUG}-ab-1"]
 
     # Artifact 2 — EnvironmentParameters (separate typed object).
-    assert isinstance(produzida.parameters, EnvironmentParameters)
-    assert produzida.parameters.platform is EnvironmentPlatform.CONTAINER
-    assert produzida.parameters.origin is TranslationSource.HUMAN_CURATION
+    assert isinstance(produced.parameters, EnvironmentParameters)
+    assert produced.parameters.platform is EnvironmentPlatform.CONTAINER
+    assert produced.parameters.origin is TranslationSource.HUMAN_CURATION
 
 
 # ---------------------------------------------------------------------------
@@ -205,7 +205,7 @@ def test_derives_host_address_and_container_from_commands(data_dir: Path) -> Non
     """attacker_commands -> parse_command -> container_for_ip resolves address/container.
     _Requirements: 8.3_"""
     _seed_case(data_dir, _SLUG)
-    params = _operacionalizador(data_dir).operationalize(_SLUG, _stub_dag()).parameters
+    params = _operationalizer(data_dir).operationalize(_SLUG, _stub_dag()).parameters
 
     assert len(params.hosts) == 1
     host = params.hosts[0]
@@ -217,7 +217,7 @@ def test_derives_host_type_and_vulnerabilities_and_network_notes(data_dir: Path)
     """target_host_type -> host_type; target_vuln_host_a -> vulnerabilities; network_context -> notas.
     _Requirements: 8.3_"""
     _seed_case(data_dir, _SLUG)
-    params = _operacionalizador(data_dir).operationalize(_SLUG, _stub_dag()).parameters
+    params = _operationalizer(data_dir).operationalize(_SLUG, _stub_dag()).parameters
 
     host = params.hosts[0]
     assert host.host_type == "macos"
@@ -231,7 +231,7 @@ def test_infers_services_from_commands(data_dir: Path) -> None:
     """Services are inferred from the commands (Flask/HTTP here) with technique origin.
     _Requirements: 8.3_"""
     _seed_case(data_dir, _SLUG)
-    params = _operacionalizador(data_dir).operationalize(_SLUG, _stub_dag()).parameters
+    params = _operationalizer(data_dir).operationalize(_SLUG, _stub_dag()).parameters
 
     descricoes = [s.description for s in params.services]
     assert any("Flask" in d or "HTTP" in d for d in descricoes)
@@ -257,7 +257,7 @@ def test_resolves_second_internal_host_from_nested_ssh(data_dir: Path) -> None:
         }
     ]
     _seed_case(data_dir, _SLUG, structural_nodes=nodes)
-    params = _operacionalizador(data_dir).operationalize(_SLUG, _stub_dag()).parameters
+    params = _operationalizer(data_dir).operationalize(_SLUG, _stub_dag()).parameters
 
     rotulos = {h.label: h for h in params.hosts}
     assert "host_a" in rotulos and "host_b" in rotulos
@@ -287,7 +287,7 @@ def test_merges_same_target_container_across_nodes(data_dir: Path) -> None:
         },
     ]
     _seed_case(data_dir, _SLUG, structural_nodes=nodes)
-    params = _operacionalizador(data_dir).operationalize(_SLUG, _stub_dag()).parameters
+    params = _operationalizer(data_dir).operationalize(_SLUG, _stub_dag()).parameters
 
     nginx_hosts = [h for h in params.hosts if h.container == _INTERNAL_CONTAINER]
     assert len(nginx_hosts) == 1
@@ -325,13 +325,13 @@ def test_delegates_abilities_to_injected_stage_service(data_dir: Path) -> None:
     _seed_case(data_dir, _SLUG)
     op = CurationOperationalizer(stage_service=FakeStageService())  # type: ignore[arg-type]
 
-    produzida = op.operationalize(_SLUG, _stub_dag())
+    produced = op.operationalize(_SLUG, _stub_dag())
 
     # The Abilities artifact is exactly what the injected service returned.
-    assert produzida.abilities is sentinel
+    assert produced.abilities is sentinel
     assert calls == [_SLUG]
     # Parameters are still derived from the (shared) curated DAG on disk.
-    assert produzida.parameters.hosts and produzida.parameters.hosts[0].container == _INTERNAL_CONTAINER
+    assert produced.parameters.hosts and produced.parameters.hosts[0].container == _INTERNAL_CONTAINER
 
 
 def test_missing_dag_yields_empty_parameters_without_raising(data_dir: Path) -> None:
@@ -339,9 +339,9 @@ def test_missing_dag_yields_empty_parameters_without_raising(data_dir: Path) -> 
     _Requirements: 11.3, 11.4_"""
     # Seed abilities/adversary but NO dag file.
     _write_json(data_dir / "api" / f"{_SLUG}_dag-ability.json", [])
-    produzida = _operacionalizador(data_dir).operationalize(_SLUG, _stub_dag())
+    produced = _operationalizer(data_dir).operationalize(_SLUG, _stub_dag())
 
-    assert produzida.parameters.hosts == []
-    assert produzida.parameters.services == []
-    assert produzida.parameters.network_context == []
-    assert produzida.parameters.platform is EnvironmentPlatform.CONTAINER
+    assert produced.parameters.hosts == []
+    assert produced.parameters.services == []
+    assert produced.parameters.network_context == []
+    assert produced.parameters.platform is EnvironmentPlatform.CONTAINER

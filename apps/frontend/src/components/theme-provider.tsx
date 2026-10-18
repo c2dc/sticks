@@ -11,7 +11,7 @@ import * as React from "react"
  *
  * Persistence is delegated to the caller through `onThemeChange`: whenever the
  * theme changes as a result of a user action, the provider invokes it so the
- * caller can persist via `PUT /api/preferencias` (Req. 7.4). The `theme` prop
+ * caller can persist via `PUT /api/preferences` (Req. 7.4). The `theme` prop
  * lets the caller restore the last persisted theme on open (Req. 7.5).
  */
 

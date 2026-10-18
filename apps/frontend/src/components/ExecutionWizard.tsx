@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { ArrowLeft, ArrowRight, Loader2, Play, RotateCcw } from "lucide-react"
+import { ArrowLeft, ArrowRight, Loader2, RotateCcw } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -54,11 +54,8 @@ const LAST_STAGE = PIPELINE_STAGES[PIPELINE_STAGES.length - 1]
  * `deriveStates` (sequential gating over 1..6).
  */
 export function ExecutionWizard({
-  onRequestEmulation,
   onExitToStart,
 }: {
-  /** Opens the emulation confirm modal for the selected campaign id. */
-  onRequestEmulation?: (campaignId: string) => void
   /**
    * "Back" on Stage 1 leaves the wizard and returns to the Landing. When
    * absent, the Back button stays disabled on Stage 1. Does not affect the
@@ -354,7 +351,7 @@ export function ExecutionWizard({
         {currentStagePreCompleted ? (
           <p
             className="rounded-md border border-team-blue/40 bg-team-blue/10 px-3 py-2 text-xs text-team-blue"
-            data-testid="pre-concluido-nota"
+            data-testid="pre-completed-note"
           >
             {t("wizard.preConcluidoNota")}
           </p>
@@ -406,7 +403,14 @@ export function ExecutionWizard({
           ) : null}
           {currentStage === 6 && campaignId ? (
             <div className="flex flex-col gap-4">
-              <Stage3View campaignId={campaignId} onRequestEmulation={onRequestEmulation} />
+              <Stage3View
+                campaignId={campaignId}
+                // Auto-start blocked (Stage 5 not ready): send the researcher
+                // back to Stage 5 within ≤ 3s (Req. 1.4).
+                onRedirectToStage={(stage) =>
+                  setCurrentStage(Math.min(Math.max(stage, 1), LAST_STAGE) as StageNumber)
+                }
+              />
               <ReportView campaignId={campaignId} />
             </div>
           ) : null}
@@ -450,18 +454,8 @@ export function ExecutionWizard({
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Stage 6 (Execution): run emulation (Finish). */}
-            {currentStage === LAST_STAGE && onRequestEmulation && campaignId ? (
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => onRequestEmulation(campaignId)}
-                disabled={busy}
-              >
-                <Play className="mr-1 size-4" aria-hidden />
-                {t("wizard.runEmulation")}
-              </Button>
-            ) : null}
+            {/* Stage 6 (Execution) auto-starts via the inline confirmation
+                embedded in Stage3View (Req. 1.1, 1.3) — no run button here. */}
 
             {/* Next (stages 1..5). */}
             {currentStage < LAST_STAGE ? (

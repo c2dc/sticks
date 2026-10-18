@@ -124,7 +124,7 @@ def _seed_case(session: Session, slug: str = "shadowray") -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_estagios_channel_emits_frame_reflecting_persisted_stage_run(
+def test_stages_channel_emits_frame_reflecting_persisted_stage_run(
     client: TestClient, session_factory: sessionmaker[Session]
 ) -> None:
     """Connecting yields a stage frame reflecting the persisted StageRun.
@@ -161,7 +161,7 @@ def test_estagios_channel_emits_frame_reflecting_persisted_stage_run(
     assert frame["previous_state"] is None
 
 
-def test_estagios_channel_pushes_repeatedly_while_em_andamento(
+def test_stages_channel_pushes_repeatedly_while_in_progress(
     client: TestClient, session_factory: sessionmaker[Session]
 ) -> None:
     """While ``em_andamento`` the channel keeps pushing frames (Req. 1.5).
@@ -200,7 +200,7 @@ def test_estagios_channel_pushes_repeatedly_while_em_andamento(
 
 
 @pytest.mark.parametrize("stage", [1, 2, 3, 4, 5, 6])
-def test_estagios_channel_accepts_all_six_stages(
+def test_stages_channel_accepts_all_six_stages(
     client: TestClient,
     session_factory: sessionmaker[Session],
     stage: int,
@@ -242,7 +242,7 @@ def test_estagios_channel_accepts_all_six_stages(
 
 
 @pytest.mark.parametrize("stage", [0, 7])
-def test_estagios_channel_rejects_out_of_range_stage(
+def test_stages_channel_rejects_out_of_range_stage(
     client: TestClient,
     session_factory: sessionmaker[Session],
     stage: int,
@@ -268,7 +268,7 @@ def test_estagios_channel_rejects_out_of_range_stage(
     assert "message" in frame
 
 
-def test_estagios_channel_reports_not_started_when_no_stage_run(
+def test_stages_channel_reports_not_started_when_no_stage_run(
     client: TestClient, session_factory: sessionmaker[Session]
 ) -> None:
     """A case with no StageRun rows reports ``nao_iniciado`` at 0% (Req. 9.5).
@@ -295,7 +295,7 @@ def test_estagios_channel_reports_not_started_when_no_stage_run(
 # ---------------------------------------------------------------------------
 
 
-def test_operacao_channel_emits_per_ability_and_final_aggregate(
+def test_operation_channel_emits_per_ability_and_final_aggregate(
     client: TestClient, session_factory: sessionmaker[Session]
 ) -> None:
     """A finished Operation yields per-Ability frames + a final aggregate.
@@ -358,7 +358,7 @@ def test_operacao_channel_emits_per_ability_and_final_aggregate(
     assert results["ability-bad"]["command_output"] == "err output"
 
 
-def test_operacao_channel_pushes_while_running_then_stops_on_max_frames(
+def test_operation_channel_pushes_while_running_then_stops_on_max_frames(
     client: TestClient, session_factory: sessionmaker[Session]
 ) -> None:
     """A running Operation keeps pushing per-Ability status frames (Req. 4.3).
@@ -406,7 +406,7 @@ def test_operacao_channel_pushes_while_running_then_stops_on_max_frames(
     )
 
 
-def test_operacao_channel_reports_not_found_for_missing_operation(
+def test_operation_channel_reports_not_found_for_missing_operation(
     client: TestClient,
 ) -> None:
     """A missing Operation id yields a single ``not_found`` frame and closes."""

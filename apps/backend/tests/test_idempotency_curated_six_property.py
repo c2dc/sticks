@@ -13,7 +13,7 @@ No pipeline de **seis** Estágios, o Estágio 3 "Geração do DAG" de uma campai
 curated lê o DAG curated **diretamente de disco** (``data/dag/{slug}_dag.json`` via
 :class:`~app.services.case_service.CaseService`), **sem rede e sem IA**
 (Req. 7.4, 11.1, 11.3, 11.4). A costura
-:class:`~app.services.dag.gerador.CurationDagGenerator` carimba
+:class:`~app.services.dag.generator.CurationDagGenerator` carimba
 ``origin = curadoria_humana`` e
 :meth:`~app.services.dag.dag_service.DagService.sync_curated_dags`
 persiste com **backfill idempotente**, reconciliando pela chave
@@ -72,7 +72,7 @@ from app.models.domain import Dag as DagModel
 from app.models.enums import DagOrigin
 from app.services.campaign_service import CURATED_CASES, CaseService
 from app.services.dag.dag_service import DagService
-from app.services.dag.gerador import CurationDagGenerator, StructuralModeling
+from app.services.dag.generator import CurationDagGenerator, StructuralModeling
 
 
 # Um slug de campaign curated real: a geração de curation só produz um DAG para
@@ -200,7 +200,7 @@ def _persisted_tuples(session: Session, campaign: str) -> list[tuple]:
 # artefatos curados (foco no DAG do Estágio 3).
 @settings(max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture])
 @given(structural_nodes=_acyclic_dag(), n=st.integers(min_value=1, max_value=6))
-def test_property5_leitura_curada_dag_e_idempotente(
+def test_property5_curated_dag_read_is_idempotent(
     structural_nodes: list[dict], n: int
 ) -> None:
     """Ler/backfill o DAG curated N vezes == 1 vez: mesma leitura, sem duplicar.
@@ -220,22 +220,22 @@ def test_property5_leitura_curada_dag_e_idempotente(
         _write_case_fixture(data_dir, _CURATED_SLUG, structural_nodes)
 
         case_service = CaseService(data_dir=data_dir)
-        gerador = CurationDagGenerator(case_service)
+        generator = CurationDagGenerator(case_service)
         service = DagService(
             session=session,
             case_service=case_service,
-            gerador=gerador,
+            generator=generator,
         )
 
         # (1) Leitura pura equivalente (Estágio 3, sem rede/IA — Req. 7.4, 11.1,
         # 11.3, 11.4): N leituras produzem exatamente o mesmo ProducedDag.
         # ``modeling`` é ignorada pela curation (o grafo já existe em disco).
-        leitura_1 = gerador.generate(_CURATED_SLUG, StructuralModeling())
+        leitura_1 = generator.generate(_CURATED_SLUG, StructuralModeling())
         assert len(leitura_1) == 1
         assert leitura_1[0].origin == DagOrigin.HUMAN_CURATION
         assert leitura_1[0].identifier == _CURATED_SLUG
         for _ in range(n - 1):
-            leitura_k = gerador.generate(_CURATED_SLUG, StructuralModeling())
+            leitura_k = generator.generate(_CURATED_SLUG, StructuralModeling())
             # Equivalência de conteúdo entre leituras repetidas (idempotência da
             # leitura curated): o mesmo artefato é lido do disco a cada chamada.
             assert [d.model_dump() for d in leitura_k] == [
@@ -245,13 +245,13 @@ def test_property5_leitura_curada_dag_e_idempotente(
         # (2) Backfill não duplica (Req. 11.1): 1ª chamada insere exatamente um
         # Dag curadoria_humana reconciliado por (campaign_id, origin, identifier).
         listagem_1 = service.sync_curated_dags(_CURATED_SLUG)
-        tuplas_1 = _persisted_tuples(session, _CURATED_SLUG)
+        tuples_1 = _persisted_tuples(session, _CURATED_SLUG)
 
-        assert len(tuplas_1) == 1
-        _, caso_id_1, origem_1, identificador_1 = tuplas_1[0]
-        assert origem_1 == DagOrigin.HUMAN_CURATION
-        assert caso_id_1 == _CURATED_SLUG
-        assert identificador_1 == _CURATED_SLUG  # curation usa identifier=slug
+        assert len(tuples_1) == 1
+        _, campaign_id_1, origin_1, identifier_1 = tuples_1[0]
+        assert origin_1 == DagOrigin.HUMAN_CURATION
+        assert campaign_id_1 == _CURATED_SLUG
+        assert identifier_1 == _CURATED_SLUG  # curation usa identifier=slug
 
         # Chamadas 2..N são no-ops reconciliadas pela mesma chave.
         listagem_n = listagem_1
@@ -262,7 +262,7 @@ def test_property5_leitura_curada_dag_e_idempotente(
 
         # Conjunto persistido após N chamadas == após 1 chamada: mesma contagem,
         # mesmas tuplas, MESMOS ids (no-op, não re-inserção). Sem duplicar.
-        assert tuplas_n == tuplas_1
+        assert tuplas_n == tuples_1
         assert len(tuplas_n) == 1
 
         # A chave (campaign_id, origin, identifier) permanece única.

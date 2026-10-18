@@ -63,7 +63,7 @@ previous stage completes. The auto-completion is triggered on the state reads th
 wizard consumes — ``GET /api/campaigns`` and ``GET /api/campaigns/{campaign}`` — and
 also on opening the respective stage's screen (``GET .../stage/3`` and
 ``.../stage/5``), delegating to the ``DagService.auto_complete_stage2`` seam
-(operates over ``ESTAGIO_GERACAO_DAG == 3``, historical name) and
+(operates over ``STAGE_DAG_GENERATION == 3``, historical name) and
 ``EnvironmentStageService.auto_complete_stage4``. Both respect the sequential
 gate, are idempotent/transactional and do **not** complete without the curated
 material (derivable DAG / environment verified isolated), so repeating the read
@@ -87,7 +87,12 @@ from app.services.campaign_service import (
     CaseLoadError,
     CaseService,
 )
-from app.models.enums import OperationState, TranslationSource
+from app.models.enums import (
+    AbilityResultStatus,
+    OperationState,
+    StageState,
+    TranslationSource,
+)
 # Injection dependencies + preview models/mapping reused from the emulation
 # router (task 11.2): Stage 6 (Execution) reuses the same runner *factory*
 # (injectable Caldera client + isolation checker) and the same preview
@@ -116,7 +121,27 @@ from app.services.environment.provisioner import (
 )
 from app.services.environment.health import HealthSummary
 from app.services.environment.report import ExecutionReport
-from app.services.operation.runner import RunOutcome
+from app.services.operation.runner import (
+    AbilityRunResult,
+    OperationRunner,
+    OperationRunResult as RunnerOperationRunResult,
+    RunOutcome,
+)
+# Stage 6 auto-start seam (task 7.1) and its typed result (task 10.1). Aliased to
+# avoid clashing with the manual-execution ``ExecutionStageService``
+# (``app.services.environment.execution``) already imported above; the auto-start
+# service lives in ``app.services.stage`` and delegates to the ``OperationRunner``
+# through the structural ``OperationRunnerProtocol``.
+from app.services.stage.execution_stage_service import (
+    ExecutionStageService as AutostartExecutionStageService,
+    Stage6StartResult,
+)
+# Ability projection reused for the real-runner adapter (same projection the
+# manual Stage 6 execution + emulation endpoints use — no duplication).
+from app.services.environment.execution import (
+    _adversary_payload as _runner_adversary_payload,
+    _runner_abilities,
+)
 from app.services.dag.dag_service import (
     DagDetail,
     DagSummary,
@@ -140,25 +165,29 @@ from app.services.session.session_state_service import (
     SessionStateService,
 )
 from app.services.stage.stage_service import (
-    ESTAGIO_GERACAO_DAG,
-    ESTAGIO_OPERACIONALIZACAO,
+    STAGE_DAG_GENERATION,
+    STAGE_ENVIRONMENT,
+    STAGE_OPERATIONALIZATION,
     AggregateProgress,
     CaseStageStates,
     LogLineView,
+    OperationRunResult as StageOperationRunResult,
     Stage1Result,
     Stage2Output,
+    Stage3Aggregate,
     Stage3AbilityResult,
     Stage3Input,
+    Stage3Output,
     StageService,
 )
-from app.services.stix.estagio1_service import (
+from app.services.stix.stage1_service import (
     Stage1Service,
     Stage1ResultStix,
 )
 # Imports the Stage 2 service directly from the submodule (not from the
 # ``app.services.stix`` package): there is a known import cycle when re-exporting
 # the service from the package root, so the submodule is the direct source.
-from app.services.stix.estagio2_service import (
+from app.services.stix.stage2_service import (
     ListedCampaign,
     Stage2Service,
     CampaignSelectionResult,
@@ -167,11 +196,11 @@ from app.services.stix.stix_service import (
     StixFileError,
 )
 
-router = APIRouter(prefix="/api", tags=["casos"])
+router = APIRouter(prefix="/api", tags=["campaigns"])
 
 
 # ---------------------------------------------------------------------------
-# Response models specific to the casos listing / detail endpoints
+# Response models specific to the campaigns listing / detail endpoints
 # ---------------------------------------------------------------------------
 
 
@@ -229,12 +258,12 @@ class CaseAdversaryView(BaseModel):
 
 
 class CaseDetailResponse(BaseModel):
-    """``GET /api/casos/{campaign}`` payload — case detail.
+    """``GET /api/campaigns/{campaign}`` payload — case detail.
 
     Abilities, Adversary, ordering and translation source. ``atomic_ordering``
     mirrors the adversary's ordering (empty when there is no Adversary).
     ``states`` carries the per-stage state (same :class:`CaseStageStates` shape
-    as ``GET /api/casos``, covering all 6 Stages) so the wizard can tell which
+    as ``GET /api/campaigns``, covering all 6 Stages) so the wizard can tell which
     stages are ``completed`` and enable "Next"/Advance.
     """
 
@@ -396,19 +425,46 @@ class Stage4ProvisioningResponse(BaseModel):
     logs: list[LogLineView] = Field(default_factory=list)
 
 
+class Stage5Verdict(BaseModel):
+    """Read-only Stage-5 (environment) verdict surfaced in the Stage-6 snapshot.
+
+    Stage 6 **never** re-runs any Stage-5 environment verification (Req. 5.2); it
+    only reads the already-produced verdict so the page can show the environment
+    panel read-only (Req. 5.4). The fields mirror the Stage-5 read: whether Stage
+    5 is concluded, whether the targets are isolated (and whether the isolation
+    could be verified), the human-readable reason when not ready, and the per-
+    container health summary. All of it is derived with no side effects — the
+    read creates/starts nothing.
+    """
+
+    concluded: bool = False
+    isolated: bool = False
+    isolation_unavailable: bool = False
+    reason: Optional[str] = None
+    health: HealthSummary = Field(default_factory=HealthSummary)
+
+
 class Stage5Response(BaseModel):
-    """``GET /api/campaigns/{campaign}/stage/5`` payload — Execution (Req. 1.3, 1.7).
+    """``GET /api/campaigns/{campaign}/stage/6`` payload — Execution snapshot (read-only).
 
     In the six-stage scheme, Execution + measurement + report is **Stage 6** (the
     old Campaign Execution). Input = Adversary + curated Abilities
     (:class:`Stage3Input`, assembled with no side effect); accumulated output =
     the per-Ability operation results + aggregate persisted so far for the case
     (from :class:`SessionStateService.get_operation_results`). The execution
-    itself is not triggered here (that is task 8.2).
+    itself is **not** triggered here — the auto-start is the ``POST
+    .../stage/6/execute`` (task 10.1).
+
+    DELTA (task 10.1 — redesign): the snapshot additionally surfaces the Stage-5
+    verdict read-only (``stage5``), so the Stage-6 page can render the
+    environment panel without re-running any Stage-5 verification (Req. 5.2, 5.4).
+    The field is **optional/additive**: ``input`` + ``output`` are unchanged and
+    backward-compatible.
     """
 
     input: Stage3Input
     output: list[OperationResultView] = Field(default_factory=list)
+    stage5: Optional[Stage5Verdict] = None
 
 
 class OperationResponse(BaseModel):
@@ -630,7 +686,7 @@ def detail_campaign(
     result = case_service.try_load_case(campaign)
     if not result.ok or result.case is None:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=(result.error.detail if result.error else f"Falha ao ler {campaign!r}."),
         )
 
@@ -699,18 +755,18 @@ def get_stage1(
     200 with the typed result on all paths.
 
     When ``version`` is omitted, it applies the curated version
-    (:data:`~app.services.stix.stix_service.VERSAO_CURADA`) as the flow default, so
+    (:data:`~app.services.stix.stix_service.CURATED_VERSION`) as the flow default, so
     opening the screen without an explicit selection starts from the base that
     loads the 8 curated campaigns (Req. 5.5, 5.6). The ``campaign`` is validated
     against the 8 curated campaigns (404 for an unknown slug), keeping consistency
     with the other routes of ``campaigns.py``.
     """
-    from app.services.stix.stix_service import VERSAO_CURADA
+    from app.services.stix.stix_service import CURATED_VERSION
 
     case_service = CaseService()
     _known_slug_or_404(campaign, case_service)
 
-    effective_version = version if version is not None else VERSAO_CURADA
+    effective_version = version if version is not None else CURATED_VERSION
     return Stage1Service().complete(effective_version)
 
 
@@ -754,7 +810,7 @@ def execute_stage1(
     response_model=Stage2Response,
     summary="Campaign selection (Stage 2): bundle campaigns + extracted attributes",
     responses={
-        status.HTTP_422_UNPROCESSABLE_ENTITY: {
+        status.HTTP_422_UNPROCESSABLE_CONTENT: {
             "description": "STIX bundle missing/malformed/invalid."
         },
     },
@@ -782,7 +838,7 @@ def get_stage2(
 
     The input is the STIX bundle selected in Stage 1 (Req. 6.1); when ``version``
     is omitted the curated version
-    (:data:`~app.services.stix.stix_service.VERSAO_CURADA`) applies, so opening the
+    (:data:`~app.services.stix.stix_service.CURATED_VERSION`) applies, so opening the
     screen without an explicit selection starts from the base that loads the 8
     curated campaigns.
 
@@ -790,19 +846,19 @@ def get_stage2(
     ``bundle_invalido`` contract (422), consistent with the Stage 1 precedent. An
     unknown Campaign slug is a 404.
     """
-    from app.services.stix.stix_service import VERSAO_CURADA
+    from app.services.stix.stix_service import CURATED_VERSION
 
     case_service = CaseService()
     _known_slug_or_404(campaign, case_service)
 
-    effective_version = version if version is not None else VERSAO_CURADA
+    effective_version = version if version is not None else CURATED_VERSION
     stage2 = Stage2Service(StageService(db, case_service=case_service))
 
     try:
         campaigns = stage2.list_campaigns(effective_version)
     except StixFileError as exc:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail={"motivo": "bundle_invalido", "mensagem": exc.detail},
         ) from exc
 
@@ -843,12 +899,12 @@ def select_campaign(
     default curated version (Stage 1/2 input, Req. 6.1). The Campaign slug in the
     route is validated against the 8 curated campaigns (404 for an unknown slug).
     """
-    from app.services.stix.stix_service import VERSAO_CURADA
+    from app.services.stix.stix_service import CURATED_VERSION
 
     case_service = CaseService()
     _known_slug_or_404(campaign, case_service)
 
-    effective_version = body.version if body.version is not None else VERSAO_CURADA
+    effective_version = body.version if body.version is not None else CURATED_VERSION
     stage2 = Stage2Service(StageService(db, case_service=case_service))
     return stage2.select(body.slug, effective_version)
 
@@ -865,7 +921,7 @@ def get_stage3(
     """Return the Stage-3 (DAG generation) view — DagView/Mermaid (Req. 7.2, 7.3).
 
     In the **six**-stage scheme, DAG generation is **Stage 3**
-    (``ESTAGIO_GERACAO_DAG == 3``): the input is the attributes of the campaign
+    (``STAGE_DAG_GENERATION == 3``): the input is the attributes of the campaign
     selected in Stage 2 and the output is the ready curated DAG, with the explicit
     ``origin`` (``curadoria_humana``). The stage screen shows the DAG as a graph
     (nodes + edges) and the Mermaid diagram.
@@ -875,7 +931,7 @@ def get_stage3(
     ``CaseService`` — **with no network and no AI** on any path (Req. 7.4, 11.1).
     Before building the view, it triggers the idempotent Stage 3 auto-completion
     (:meth:`DagService.auto_complete_stage2`, whose name is historical but operates
-    over ``ESTAGIO_GERACAO_DAG``): it respects the sequential gate, does the
+    over ``STAGE_DAG_GENERATION``): it respects the sequential gate, does the
     curated backfill and completes Stage 3 only when there is a derivable DAG,
     without duplicating state on repeated reads (Req. 7.4, 11.3, 11.4).
 
@@ -961,12 +1017,12 @@ def complete_stage4(
     """Complete Stage 4 (Operationalization) when the two artifacts exist (Req. 8.7, 8.8).
 
     In the **six**-stage scheme, the Operationalization is Stage 4
-    (:data:`ESTAGIO_OPERACIONALIZACAO`). The operationalization is curated (the
+    (:data:`STAGE_OPERATIONALIZATION`). The operationalization is curated (the
     artifacts derive from the on-disk material), so "advancing from 4" is,
     semantically, "completing 4". Two preconditions, in this order:
 
     * **Sequential blocking (Req. 3.x):** it only completes Stage 4 if **Stage 3**
-      (DAG generation, :data:`ESTAGIO_GERACAO_DAG`) is already ``completed`` —
+      (DAG generation, :data:`STAGE_DAG_GENERATION`) is already ``completed`` —
       otherwise 409, without persisting.
     * **Both artifacts produced (Req. 8.8):** it builds the dual output via
       :func:`_operationalize` and requires that the **ordered Abilities** and the
@@ -990,7 +1046,7 @@ def complete_stage4(
 
     # (1) Sequential blocking: Stage 4 only completes if 3 is completed.
     stage3 = next(
-        (e for e in states.stages if e.stage == ESTAGIO_GERACAO_DAG), None
+        (e for e in states.stages if e.stage == STAGE_DAG_GENERATION), None
     )
     if stage3 is None or stage3.state is not StageState.COMPLETED:
         raise HTTPException(
@@ -1019,7 +1075,7 @@ def complete_stage4(
         )
 
     result = SessionStateService(db).persist_stage_completion(
-        campaign, ESTAGIO_OPERACIONALIZACAO
+        campaign, STAGE_OPERATIONALIZATION
     )
     if not result.saved:
         raise HTTPException(
@@ -1259,13 +1315,13 @@ def provision_stage5(
     # guided flow guarantees.
     states = stage_service.get_stage_states(campaign)
     stage4 = next(
-        (e for e in states.stages if e.stage == ESTAGIO_OPERACIONALIZACAO), None
+        (e for e in states.stages if e.stage == STAGE_OPERATIONALIZATION), None
     )
     if stage4 is None or stage4.state is not StageState.COMPLETED:
         produced = _operationalize(db, case_service, campaign)
         if _both_artifacts_produced(produced):
             SessionStateService(db).persist_stage_completion(
-                campaign, ESTAGIO_OPERACIONALIZACAO
+                campaign, STAGE_OPERATIONALIZATION
             )
 
     # Delegates to the active seam: streaming provisioning with the shared buffer
@@ -1366,7 +1422,58 @@ def get_stage6(
     stage_service = StageService(db, case_service=case_service)
     input = stage_service.assemble_stage3(campaign)
     output = SessionStateService(db).get_operation_results(campaign)
-    return Stage5Response(input=input, output=output)
+    stage5 = _read_stage5_verdict(db, case_service, campaign)
+    return Stage5Response(input=input, output=output, stage5=stage5)
+
+
+def _read_stage5_verdict(
+    db: Session, case_service: CaseService, campaign: str
+) -> Stage5Verdict:
+    """Build the read-only Stage-5 verdict for the Stage-6 snapshot (Req. 5.2, 5.4).
+
+    Reads the already-produced Stage-5 environment verdict **without** re-running
+    any verification: the Stage-5 concluded flag from the per-stage state, the
+    isolation verdict from the curation provisioner's read-only ``prepare`` (which
+    creates/starts nothing) and the persisted health summary (empty when no
+    provisioning was recorded). Stage 6 only *reads* this (Req. 5.2); any failure
+    to resolve the environment degrades gracefully to a not-ready verdict so the
+    snapshot read never fails.
+    """
+    states = stage_service_states(db, case_service, campaign)
+    stage5_entry = next(
+        (e for e in states.stages if e.stage == STAGE_ENVIRONMENT), None
+    )
+    concluded = (
+        stage5_entry is not None and stage5_entry.state is StageState.COMPLETED
+    )
+
+    try:
+        env_service = EnvironmentStageService(db)
+        prepared = env_service.provisioner.prepare(campaign)
+        isolated = prepared.isolated
+        reason = None if isolated else prepared.isolation.summary()
+        environment = env_service.persisted_environment(campaign)
+        health = environment.health if environment is not None else HealthSummary()
+        return Stage5Verdict(
+            concluded=concluded,
+            isolated=isolated,
+            reason=reason,
+            health=health,
+        )
+    except Exception:  # noqa: BLE001 - read-only snapshot must never fail the GET
+        return Stage5Verdict(
+            concluded=concluded,
+            isolated=False,
+            isolation_unavailable=True,
+            reason="Verdito de ambiente do Estágio 5 indisponível no momento.",
+        )
+
+
+def stage_service_states(
+    db: Session, case_service: CaseService, campaign: str
+) -> CaseStageStates:
+    """Thin helper: the per-stage state for ``campaign`` (read-only)."""
+    return StageService(db, case_service=case_service).get_stage_states(campaign)
 
 
 # ---------------------------------------------------------------------------
@@ -1485,7 +1592,7 @@ def preview_execution_stage6(
         ) from exc
     except ValueError as exc:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=str(exc),
         ) from exc
     return _preview_view(campaign, preview)
@@ -1620,6 +1727,330 @@ def execute_stage6(
     return result
 
 
+# ---------------------------------------------------------------------------
+# Stage 6 — auto-start surface (redesign, task 10.1)
+#
+# The redesign (``stage6-execution-redesign``) replaces the manual
+# "provision/execute" clicks with an **automatic start** when the Researcher
+# enters Stage 6 (Req. 1.1). The HTTP surface is:
+#
+#   * ``POST /api/campaigns/{campaign}/stage/6/execute`` — delegates to
+#     :meth:`AutostartExecutionStageService.autostart`, forwarding the inline
+#     consent ``confirmed`` (Req. 1.6). The service enforces the Stage-5
+#     prerequisite (Req. 1.4 → **200** with ``blocked``/``redirect_to_stage`` so
+#     the frontend performs the ≤3s redirect) and idempotency (Req. 1.5 → re-show
+#     the persisted snapshot without re-running). When a run is actually started,
+#     the real ``OperationRunner`` enforces the four pre-flight gates
+#     (confirmation → containment → isolation → availability); this handler maps
+#     the typed refusals/exceptions to the design's HTTP:
+#       - :class:`CalderaUnavailable` (Caldera silent within 10s) → **503**;
+#       - :class:`CalderaApiError` (Caldera responded with an error) → **502**;
+#       - ``CONTAINMENT_REFUSED`` / ``ISOLATION_FAILED`` / ``ISOLATION_BROKEN``
+#         (containment/isolation refusal) → **409** with the offending detail
+#         (Req. 6.2);
+#       - started / idempotent reuse / blocked / not-confirmed → **200** with the
+#         snapshot the frontend renders (Req. 1.1, 1.4, 1.5).
+#   * ``GET /api/campaigns/{campaign}/stage/6`` — the read-only snapshot
+#     (persisted operation result + the Stage-5 verdict). It is kept
+#     backward-compatible (``input`` + ``output`` unchanged) and extended with the
+#     read-only ``stage5`` verdict (Req. 5.2) — Stage 6 never re-runs any Stage-5
+#     environment verification.
+#
+# The ``OperationRunner`` is built via the same injectable ``get_runner_factory``
+# the manual ``execute_stage6`` uses (overridable in tests with a mock Caldera +
+# fake isolation verifier). Because the auto-start service talks to the runner
+# through the structural ``OperationRunnerProtocol`` (``run(case, *, confirmed)``)
+# while the real ``OperationRunner`` has a different ``run(...)`` signature, a thin
+# adapter (:class:`_AutostartRunnerAdapter`) bridges the two: it adapts the call,
+# projects the runner's result into the stage-shaped ``OperationRunResult`` the
+# service consumes, and **raises** typed refusal signals for the
+# containment/isolation gates so the handler maps them to 409 (mirroring the way
+# ``CalderaUnavailable``/``CalderaApiError`` already propagate).
+# ---------------------------------------------------------------------------
+
+
+class _RunnerRefusalError(Exception):
+    """A containment/isolation gate refusal surfaced by the real runner.
+
+    Raised by :class:`_AutostartRunnerAdapter` when the ``OperationRunner``
+    refused to execute because a command reached an external destination
+    (``CONTAINMENT_REFUSED``) or a target container was not isolated
+    (``ISOLATION_FAILED`` / ``ISOLATION_BROKEN``). The handler maps it to HTTP
+    409 with the offending detail (Req. 6.2), the same contract the manual
+    ``execute_stage6`` uses. Carrying the typed outcome + offending detail here
+    (instead of flattening it into ``Stage6StartResult.message``) keeps the 409
+    body precise.
+    """
+
+    def __init__(
+        self,
+        *,
+        outcome: RunOutcome,
+        message: str,
+        violations: list[str],
+        containers: list[str],
+    ) -> None:
+        super().__init__(message)
+        self.outcome = outcome
+        self.message = message
+        self.violations = violations
+        self.containers = containers
+
+
+class _AutostartRunnerAdapter:
+    """Adapt the real :class:`OperationRunner` to the ``OperationRunnerProtocol``.
+
+    The auto-start :class:`AutostartExecutionStageService` delegates through the
+    structural ``OperationRunnerProtocol`` seam — ``run(case, *, confirmed) ->
+    OperationRunResult`` (stage-shaped). The real ``OperationRunner`` exposes a
+    different ``run(campaign_id, abilities, adversary_id, confirmed,
+    adversary_payload)`` returning its own richer result, so this adapter:
+
+    * builds the runner payload with the **same** projection the manual Stage 6
+      execution uses (:func:`_runner_abilities` / :func:`_runner_adversary_payload`
+      — no duplication);
+    * on a containment/isolation refusal, **raises** :class:`_RunnerRefusalError`
+      with the offending detail so the handler returns 409 (Req. 6.2) — the
+      ``CalderaUnavailable``/``CalderaApiError`` the runner raises propagate
+      untouched for the 503/502 mapping;
+    * otherwise projects the runner's result into the stage-shaped
+      :class:`StageOperationRunResult` the service maps into a
+      :class:`Stage6StartResult` (started / audit-abort / not-confirmed).
+    """
+
+    def __init__(self, runner: OperationRunner, campaign: str) -> None:
+        self._runner = runner
+        self._campaign = campaign
+
+    def run(self, case, *, confirmed: bool) -> StageOperationRunResult:  # noqa: ANN001
+        adversary_id = case.adversary.id if case.adversary else ""
+        result = self._runner.run(
+            campaign_id=self._campaign,
+            abilities=_runner_abilities(case.abilities),
+            adversary_id=adversary_id,
+            confirmed=confirmed,
+            adversary_payload=_runner_adversary_payload(case),
+        )
+        return self._project(result)
+
+    def _project(self, result: RunnerOperationRunResult) -> StageOperationRunResult:
+        """Project the runner result; raise on a containment/isolation refusal."""
+        if result.outcome is RunOutcome.CONTAINMENT_REFUSED:
+            violations = (
+                result.containment.describe_violations() if result.containment else []
+            )
+            raise _RunnerRefusalError(
+                outcome=result.outcome,
+                message=result.message,
+                violations=list(violations),
+                containers=[],
+            )
+        if result.outcome in (RunOutcome.ISOLATION_FAILED, RunOutcome.ISOLATION_BROKEN):
+            containers = (
+                [v.container for v in result.isolation.offending]
+                if result.isolation
+                else []
+            )
+            raise _RunnerRefusalError(
+                outcome=result.outcome,
+                message=result.message,
+                violations=[],
+                containers=containers,
+            )
+
+        # NOT_CONFIRMED / COMPLETED / ABORTED / INCOMPLETE_TIMEOUT → stage-shaped
+        # result. ``executed`` is False only for NOT_CONFIRMED (nothing ran); the
+        # audit-abort (ABORTED) and the collection timeout still "ran" and carry
+        # their partial per-Ability results, so the snapshot reflects them.
+        executed = result.outcome is not RunOutcome.NOT_CONFIRMED
+        results = [
+            Stage3AbilityResult(
+                ability_id=ar.ability_id or "",
+                status=ar.status,
+                command_output=ar.output,
+            )
+            for ar in result.ability_results
+        ]
+        error_message = (
+            result.message if result.outcome is RunOutcome.ABORTED else None
+        )
+        return StageOperationRunResult(
+            results=results,
+            total_success=result.total_success,
+            total_failure=result.total_failure,
+            state=result.state,
+            operation_id=result.operation_id,
+            executed=executed,
+            message=result.message,
+            error_message=error_message,
+        )
+
+
+class Stage6ExecuteRequest(BaseModel):
+    """Body of ``POST /api/campaigns/{campaign}/stage/6/execute`` (Req. 1.6).
+
+    ``confirmed`` is the Researcher's **inline** consent (the redesign replaces
+    the pop-up/modal with an embedded confirmation — Req. 1.3, 1.6). It is
+    forwarded verbatim to :meth:`AutostartExecutionStageService.autostart`, which
+    hands it to the ``OperationRunner``; the runner is the single enforcement
+    point of the explicit-confirmation gate (nothing executes unless
+    ``confirmed`` is exactly ``True``) and the isolation gate — neither is
+    bypassable (Req. 6.5).
+    """
+
+    confirmed: bool = Field(
+        default=False,
+        description=(
+            "The Researcher's explicit inline consent. The execution only starts "
+            "with confirmed=true; otherwise no attack command is executed."
+        ),
+    )
+
+
+class Stage6AutostartResponse(BaseModel):
+    """``POST /api/campaigns/{campaign}/stage/6/execute`` payload (Req. 1.1, 1.4, 1.5).
+
+    A read-only projection of :class:`Stage6StartResult` the frontend uses to
+    render the Stage 6 page without a pop-up. Exactly one situation is encoded,
+    readable from the flags:
+
+    * **blocked** (``blocked=True``) — Stage 5 is not concluded (Req. 1.4):
+      nothing ran, ``redirect_to_stage`` carries ``5`` so the frontend redirects
+      in ≤3s and ``message`` explains the block.
+    * **idempotent reuse** (``reused=True``) — a terminal Operation is already
+      persisted (Req. 1.5): ``output`` carries the persisted snapshot; no new run.
+    * **started** (``executed=True``) — the runner ran: ``output`` carries the
+      per-Ability results + aggregate and ``operation_id`` links the Operation.
+    * **not executed** (``executed=False``, ``reused=False``, ``blocked=False``)
+      — the runner refused for a non-409 reason (missing confirmation / audit
+      abort): ``message`` / ``error_message`` carry the reason, ``output`` is
+      ``None`` (Req. 1.6). Containment/isolation refusals are a 409 instead.
+    """
+
+    campaign_id: str
+    executed: bool = False
+    blocked: bool = False
+    reused: bool = False
+    redirect_to_stage: Optional[int] = None
+    output: Optional[Stage3Output] = None
+    operation_id: Optional[int] = None
+    message: Optional[str] = None
+    error_message: Optional[str] = None
+
+    @classmethod
+    def from_result(cls, result: Stage6StartResult) -> "Stage6AutostartResponse":
+        """Project a service :class:`Stage6StartResult` into the response model."""
+        return cls(
+            campaign_id=result.campaign_id,
+            executed=result.executed,
+            blocked=result.blocked,
+            reused=result.reused,
+            redirect_to_stage=result.redirect_to_stage,
+            output=result.output,
+            operation_id=result.operation_id,
+            message=result.message,
+            error_message=result.error_message,
+        )
+
+
+@router.post(
+    "/campaigns/{campaign}/stage/6/execute",
+    response_model=Stage6AutostartResponse,
+    summary="Stage 6: auto-start the execution (inline consent); maps gate refusals to HTTP",
+    responses={
+        status.HTTP_409_CONFLICT: {
+            "description": (
+                "Containment violated — external destination or non-isolated "
+                "target container (Req. 6.2). Nothing was executed."
+            )
+        },
+        status.HTTP_503_SERVICE_UNAVAILABLE: {
+            "description": "Caldera did not respond within 10s. Nothing was executed."
+        },
+        status.HTTP_502_BAD_GATEWAY: {
+            "description": "Caldera responded with an error when receiving the operation."
+        },
+    },
+)
+def execute_stage6_autostart(
+    body: Stage6ExecuteRequest,
+    campaign: str = Path(..., description="Curated campaign slug"),
+    db: Session = Depends(get_db),
+    runner_factory: RunnerFactory = Depends(get_runner_factory),
+) -> Stage6AutostartResponse:
+    """Auto-start the Stage 6 execution, forwarding the inline consent (Req. 1.1).
+
+    Thin handler: it builds the auto-start
+    :class:`AutostartExecutionStageService` wired to a thin adapter over the real
+    :class:`OperationRunner` (built via the overridable
+    :func:`~app.api.emulation.get_runner_factory`) and delegates to
+    :meth:`~AutostartExecutionStageService.autostart`, forwarding ``confirmed``.
+    The service:
+
+    * returns a **blocked** result when Stage 5 is not concluded (Req. 1.4) →
+      **200** with ``blocked=True`` + ``redirect_to_stage=5`` so the frontend
+      redirects in ≤3s (no exception — the block is an expected flow);
+    * re-displays a persisted terminal Operation without re-running (idempotency,
+      Req. 1.5) → **200** with ``reused=True``;
+    * otherwise delegates to the runner (which enforces the four gates); the
+      handler maps the gate refusals to HTTP:
+        - :class:`CalderaUnavailable` → **503** (nothing started);
+        - :class:`CalderaApiError` → **502** (upstream);
+        - containment/isolation refusal → **409** with the offending detail;
+        - started / not-confirmed → **200** with the snapshot.
+
+    An unknown ``slug`` is a 404; a missing/malformed Campaign file is a 422
+    (surfaced by the ``CaseService`` the service loads, consistent with the other
+    Stage 6 handlers).
+    """
+    case_service = CaseService()
+    _known_slug_or_404(campaign, case_service)
+
+    adapter = _AutostartRunnerAdapter(runner_factory(db), campaign)
+    service = AutostartExecutionStageService(
+        db, operation_runner=adapter, case_service=case_service
+    )
+
+    try:
+        result = service.autostart(campaign, confirmed=body.confirmed)
+    except _RunnerRefusalError as exc:
+        # Gates 2/3 (Req. 6.2): containment/isolation refusal → 409 with the
+        # offending detail. Nothing ran.
+        motivo = (
+            "contencao_recusada"
+            if exc.outcome is RunOutcome.CONTAINMENT_REFUSED
+            else "isolamento_falhou"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "motivo": motivo,
+                "mensagem": exc.message,
+                "violations": exc.violations,
+                "containers": exc.containers,
+            },
+        ) from exc
+    except CalderaUnavailable as exc:
+        # Caldera silent within 10s → 503. Nothing started.
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from exc
+    except CalderaApiError as exc:
+        # Caldera responded, but refused/failed to process the payload → 502.
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail={
+                "motivo": "caldera_api_error",
+                "mensagem": str(exc),
+                "endpoint": exc.path,
+                "status_caldera": exc.status_code,
+            },
+        ) from exc
+
+    return Stage6AutostartResponse.from_result(result)
+
+
 @router.get(
     "/campaigns/{campaign}/report",
     response_model=ExecutionReport,
@@ -1660,7 +2091,7 @@ def get_report(
     campaign_result = case_service.try_load_case(campaign)
     if not campaign_result.ok or campaign_result.case is None:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=(
                 campaign_result.error.detail
                 if campaign_result.error
@@ -1753,7 +2184,7 @@ def get_dag(
 
 # ---------------------------------------------------------------------------
 # Stage 3 — DAG generation: listing and choice of persisted DAGs
-# (Req. 7.2, 7.3; ``ESTAGIO_GERACAO_DAG == 3`` in the six-stage scheme).
+# (Req. 7.2, 7.3; ``STAGE_DAG_GENERATION == 3`` in the six-stage scheme).
 # The stage view is served by ``GET .../stage/3`` (DagView/Mermaid, above);
 # these endpoints keep/reuse the *persisted* DAGs (with ``dag_id``): the list
 # ``GET .../dags``, the detail ``GET .../dags/{dag_id}`` and the choice
@@ -1856,7 +2287,7 @@ def choose_dag(
     """Choose a DAG for the execution, completing Stage 3 (Req. 7.2, 7.3).
 
     In the **six**-stage scheme, DAG generation is **Stage 3**
-    (``ESTAGIO_GERACAO_DAG == 3``), so the route becomes ``.../stage/3/choose-dag``,
+    (``STAGE_DAG_GENERATION == 3``), so the route becomes ``.../stage/3/choose-dag``,
     aligned with the single source of the stage number in ``stage_service``. It
     delegates to :meth:`DagService.choose_dag`, which writes ``chosen_dag_id``
     on the Stage 3 (DAG generation) ``StageRun`` and completes it (progress 100),

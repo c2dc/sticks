@@ -12,7 +12,7 @@ em que o DAG (Estágio 2) é derivado da Modelagem Estrutural (Estágio 1)
 2. Um *stub* ``gerado_ia`` — que apenas expõe ``origin()`` e ``gerar(campaign,
    modeling)`` **sem** herdar de ``DagGenerator`` — também satisfaz o Protocol,
    provando que uma origin futura (IA), que **recebe a Modelagem** para produzir
-   o grafo, encaixa na costura sem redesenho (Req. 3.1, 10.1).
+   the graph, fits the seam without redesign (Req. 3.1, 10.1).
 3. Um objeto que **não** expõe ``origin``/``gerar`` NÃO satisfaz o Protocol,
    confirmando que a verificação estrutural de fato exige a assinatura.
 
@@ -32,7 +32,7 @@ I/O, nem rede — apenas a verificação estrutural do Protocol.
 from __future__ import annotations
 
 from app.models.enums import DagOrigin
-from app.services.dag.gerador import (
+from app.services.dag.generator import (
     CurationDagGenerator,
     ProducedDag,
     DagGenerator,
@@ -46,7 +46,7 @@ class _StubGeradoIa:
     Expõe apenas ``origin()`` e ``gerar(campaign, modeling)`` com as assinaturas da
     nova costura, carimbando ``DagOrigin.AI_GENERATED`` — exatamente o ponto da
     costura: uma origin futura **recebe a Modelagem** (Estágio 1) e encaixa por
-    *duck typing* estrutural, sem redesenho (Req. 3.1, 10.1).
+    structural *duck typing*, without redesign (Req. 3.1, 10.1).
     """
 
     def origin(self) -> DagOrigin:
@@ -76,21 +76,21 @@ class _NaoConforma:
         ...
 
 
-def test_curadoria_satisfaz_o_protocol_gerador_de_dag() -> None:
+def test_curation_satisfies_the_dag_generator_protocol() -> None:
     """``CurationDagGenerator`` satisfaz ``DagGenerator`` via isinstance (Req. 3.1)."""
-    gerador = CurationDagGenerator()
+    generator = CurationDagGenerator()
 
-    assert isinstance(gerador, DagGenerator)
+    assert isinstance(generator, DagGenerator)
 
 
-def test_curadoria_origem_devolve_curadoria_humana() -> None:
+def test_curation_origin_returns_human_curation() -> None:
     """``origin()`` da curation carimba exatamente ``HUMAN_CURATION`` (Req. 3.1)."""
-    gerador = CurationDagGenerator()
+    generator = CurationDagGenerator()
 
-    assert gerador.origin() == DagOrigin.HUMAN_CURATION
+    assert generator.origin() == DagOrigin.HUMAN_CURATION
 
 
-def test_stub_gerado_ia_tambem_satisfaz_o_protocol() -> None:
+def test_stub_ai_generated_also_satisfies_the_protocol() -> None:
     """Um stub ``gerado_ia`` satisfaz o Protocol sem herança — extensível (Req. 3.1, 10.1)."""
     stub = _StubGeradoIa()
 
@@ -98,7 +98,7 @@ def test_stub_gerado_ia_tambem_satisfaz_o_protocol() -> None:
     assert stub.origin() == DagOrigin.AI_GENERATED
 
 
-def test_stub_gerado_ia_gerar_recebe_modelagem_e_produz_gerado_ia() -> None:
+def test_stub_ai_generated_generate_receives_modeling_and_produces_ai_generated() -> None:
     """O stub ``gerado_ia`` aceita a Modelagem e produz ``ProducedDag`` gerado_ia (Req. 3.1, 10.1)."""
     stub = _StubGeradoIa()
 
@@ -109,7 +109,7 @@ def test_stub_gerado_ia_gerar_recebe_modelagem_e_produz_gerado_ia() -> None:
     assert all(dag.origin == DagOrigin.AI_GENERATED for dag in produzidos)
 
 
-def test_objeto_sem_origem_e_gerar_nao_satisfaz_o_protocol() -> None:
+def test_object_without_origin_and_generate_does_not_satisfy_the_protocol() -> None:
     """Um objeto sem ``origin``/``gerar`` NÃO satisfaz o Protocol (Req. 3.1)."""
     assert not isinstance(_NaoConforma(), DagGenerator)
     assert not isinstance(object(), DagGenerator)

@@ -1,14 +1,14 @@
 /**
- * Ícones de bandeira em SVG (vetor), usados no seletor de idioma.
+ * SVG (vector) flag icons, used in the language selector.
  *
- * Por que não usar emoji (🇧🇷 / 🇺🇸)? Os emojis de bandeira são formados por
- * "regional indicator symbols" e dependem de uma fonte de emoji que saiba
- * combiná-los. O Windows não inclui essa fonte para bandeiras, então o sistema
- * renderiza apenas as letras ("BR", "US") em vez da bandeira. SVG resolve isso
- * de forma consistente em qualquer sistema operacional e navegador.
+ * Why not use emoji (🇧🇷 / 🇺🇸)? Flag emojis are composed of "regional
+ * indicator symbols" and depend on an emoji font that knows how to combine
+ * them. Windows does not ship that flag font, so the system renders only the
+ * letters ("BR", "US") instead of the flag. SVG solves this consistently
+ * across any operating system and browser.
  *
- * Estes SVGs são desenhos vetoriais das bandeiras reais (proporção 3:2),
- * simplificados o suficiente para ficarem nítidos em tamanho de ícone.
+ * These SVGs are vector drawings of the real flags (3:2 ratio), simplified
+ * enough to stay crisp at icon size.
  */
 
 type FlagProps = {

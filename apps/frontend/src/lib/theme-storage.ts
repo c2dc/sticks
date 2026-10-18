@@ -11,7 +11,7 @@
  *   2. Otherwise, the OS preference via `prefers-color-scheme: dark`.
  *   3. Otherwise, Modo_Claro (the product default, Req. 7.6).
  *
- * The backend (`PUT /api/preferencias`) stays as secondary, cross-machine
+ * The backend (`PUT /api/preferences`) stays as secondary, cross-machine
  * persistence — but it is no longer what the first paint depends on.
  */
 import type { Theme } from "@/components/theme-provider"

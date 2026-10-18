@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils"
 import {
   getReport,
   type AbilityResultStatus,
+  type SufficiencyMetrics,
   type TechniqueMetric,
   type ExecutionReport,
 } from "@/lib/stages"
@@ -62,16 +63,22 @@ export function ReportView({ campaignId }: { campaignId: string }) {
   }
 
   const {
-    metrics,
     environment_deprovisioned: environmentDeprovisioned,
     generated_at: generatedAt,
   } = report
+  // Consume the report as **final**: normalize the metrics so no technique is
+  // ever rendered in a non-terminal state and the displayed counts respect the
+  // invariants of Req. 3.4 — the sum of techniques per state equals the total,
+  // and the failed-node count equals the number of techniques in `falha`. The
+  // backend `ReportBuilder` already guarantees this; this guard keeps the view
+  // consistent even if a stale/divergent payload ever reaches it (Req. 3.5).
+  const metrics = toFinalMetrics(report.metrics)
 
   return (
-    <div className="flex flex-col gap-4" data-section="relatorio">
+    <div className="flex flex-col gap-4" data-section="report">
       {/* Overall verdict + environment deprovisioning. */}
       <StageSection
-        data-section="veredito"
+        data-section="verdict"
         label={t("relatorio.titulo")}
         kind={metrics.success_verdict ? "blue" : "red"}
         description={`${t("relatorio.geradoEm")}: ${formatDate(generatedAt)}`}
@@ -109,7 +116,7 @@ export function ReportView({ campaignId }: { campaignId: string }) {
 
       {/* Failed DAG nodes (Req. 10.6, 15.4). */}
       <StageSection
-        data-section="nos-falhos"
+        data-section="failed-nodes"
         label={t("metricas.nosFalhos.titulo")}
         kind="red"
       >
@@ -132,7 +139,7 @@ export function ReportView({ campaignId }: { campaignId: string }) {
 
       {/* Per-technique telemetry (Req. 15.2, 15.4, 15.7). */}
       <StageSection
-        data-section="telemetria"
+        data-section="telemetry"
         label={t("relatorio.telemetria.titulo")}
         kind="neutral"
       >
@@ -162,7 +169,7 @@ function VerdictBadge({ success }: { success: boolean }) {
             ? "bg-team-blue/10 text-team-blue"
             : "bg-team-red/10 text-team-red",
         )}
-        data-veredito={success ? "sucesso" : "falha"}
+        data-verdict={success ? "sucesso" : "falha"}
       >
         {success ? (
           <CheckCircle2 className="size-4" aria-hidden />
@@ -185,7 +192,7 @@ function DeprovisioningBadge({
 }) {
   const { t } = useTranslation("pipeline")
   return (
-    <p className="text-xs text-muted-foreground" data-desprovisionado={deprovisioned}>
+    <p className="text-xs text-muted-foreground" data-deprovisioned={deprovisioned}>
       {deprovisioned
         ? t("relatorio.ambiente.desprovisionado")
         : t("relatorio.ambiente.naoDesprovisionado")}
@@ -221,7 +228,7 @@ function TechniqueCard({ metric }: { metric: TechniqueMetric }) {
   const { t } = useTranslation("pipeline")
   const title = metric.technique_id ?? metric.node_id ?? "—"
   return (
-    <li className="flex flex-col gap-1 rounded-md border p-2" data-tecnica={title}>
+    <li className="flex flex-col gap-1 rounded-md border p-2" data-technique={title}>
       <div className="flex items-center justify-between gap-2">
         <span className="inline-flex min-w-0 items-center gap-1.5 truncate text-sm font-medium">
           <Target className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
@@ -285,6 +292,64 @@ function StatusBadge({ status }: { status: AbilityResultStatus }) {
       {t(`stage3.status.${status}`)}
     </span>
   )
+}
+
+/**
+ * Normalize the sufficiency metrics into a **final** report (Req. 3.4).
+ *
+ * A final report admits only terminal per-technique states and must satisfy the
+ * consistency invariants of Req. 3.4. The backend `ReportBuilder` already builds
+ * such a report, but this view defends against any stale or divergent payload
+ * (Req. 3.5) by recomputing the metrics from the per-technique entries:
+ *
+ * - **(d)** every technique is forced to a terminal state — `sucesso` stays
+ *   `sucesso` and anything else (`falha`, `pendente`, `em_execucao`) becomes
+ *   `falha` (a technique that never completed did not succeed), so a non-terminal
+ *   status is never rendered;
+ * - **(b)** `successful_techniques + (total − successful) === total_dag_techniques`
+ *   because every technique lands in exactly one terminal bucket, and the total
+ *   is pinned to the number of per-technique entries;
+ * - **(c)** `failed_nodes` is rebuilt from exactly the techniques normalized to
+ *   `falha`, so its length equals the failure count;
+ * - **(a)** `success_rate` is recomputed from the counts and `success_verdict` is
+ *   derived deterministically from it (true iff there is at least one technique
+ *   and every technique succeeded).
+ *
+ * `procedural_coverage` and `total_time_s` are carried through unchanged — they
+ * are not part of the Req. 3.4 invariants.
+ */
+function toFinalMetrics(metrics: SufficiencyMetrics): SufficiencyMetrics {
+  const perTechnique: TechniqueMetric[] = []
+  const failedNodes: string[] = []
+  let successful = 0
+
+  for (const metric of metrics.per_technique) {
+    if (metric.status === "sucesso") {
+      successful += 1
+      perTechnique.push({ ...metric, status: "sucesso" })
+    } else {
+      // Normalize non-success (incl. non-terminal) to `falha` so a final report
+      // never carries a pending/running technique (d) and the failed-node count
+      // tracks the failures exactly (c).
+      perTechnique.push({ ...metric, status: "falha" })
+      failedNodes.push(metric.node_id ?? metric.technique_id ?? "")
+    }
+  }
+
+  const total = perTechnique.length
+  const successRate = total > 0 ? successful / total : 0
+
+  return {
+    ...metrics,
+    total_dag_techniques: total,
+    successful_techniques: successful,
+    success_rate: successRate,
+    per_technique: perTechnique,
+    failed_nodes: failedNodes,
+    // Deterministic verdict from the computed success rate (a): a run succeeds
+    // iff it has at least one technique and every technique succeeded.
+    success_verdict: total > 0 && successRate >= 1,
+  }
 }
 
 /**

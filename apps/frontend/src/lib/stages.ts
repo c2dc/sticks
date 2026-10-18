@@ -300,19 +300,43 @@ export interface Stage3Input {
   note?: string | null
 }
 
-/** Result of a single Ability within an Operation (Req. 4.4). */
+/**
+ * Result of a single Ability within an Operation (Req. 4.4).
+ *
+ * `command`, `target_container` and `attacker_host` are additive enrichment
+ * fields mirroring the backend `AbilityResult` columns (Req. 2.4): the concrete
+ * command of the link, the target container (e.g. `"nginx (192.168.20.30)"`) and
+ * the attacker host (e.g. `"kali"`). They are optional/nullable — older snapshots
+ * and in-flight frames may omit them, and the UI shows "não disponível" when
+ * absent (Req. 2.5).
+ */
 export interface AbilityResult {
   ability_id: string
   status: AbilityResultStatus
   command_output: string
+  /** Concrete command of the link; `null`/absent when not available (Req. 2.4). */
+  command?: string | null
+  /** Target container (e.g. `"nginx (192.168.20.30)"`); `null`/absent when not available (Req. 2.4). */
+  target_container?: string | null
+  /** Attacker host (e.g. `"kali"`); `null`/absent when not available (Req. 2.4). */
+  attacker_host?: string | null
 }
 
-/** Overall Operation state (from `GET /api/campaigns/{campaign}/stage/6`). */
+/**
+ * Overall Operation state (from `GET /api/campaigns/{campaign}/stage/6`).
+ *
+ * `"incompleta_timeout"` is a terminal state produced when the collection loop
+ * reaches the timeout without the Operation reaching a Caldera-terminal state:
+ * partial results are preserved and the run does NOT count as a success
+ * (backend `OperationState.INCOMPLETE_TIMEOUT`, Req. 3.2). The union stays open
+ * (`string & {}`) so new backend states surface without breaking the contract.
+ */
 export type OperationState =
   | "nao_iniciada"
   | "em_execucao"
   | "concluida"
   | "falha"
+  | "incompleta_timeout"
   | (string & {})
 
 /**
@@ -327,10 +351,39 @@ export interface OperationResultView {
   results: AbilityResult[]
 }
 
+/**
+ * Read-only Stage-5 (environment) verdict surfaced in the Stage-6 snapshot
+ * (backend `Stage5Verdict`, task 10.1 / Req. 5.2, 5.4).
+ *
+ * Stage 6 NEVER re-runs any Stage-5 environment verification — it only reads the
+ * already-produced verdict so the page can render the environment panel
+ * read-only (no provision/verify controls, Req. 5.4). The field is additive on
+ * {@link Stage3Result} (`stage5?`): older snapshots omit it, and its absence
+ * must never block the Stage-6 page.
+ */
+export interface Stage5Verdict {
+  /** `true` iff Stage 5 (environment creation) is concluded. */
+  concluded: boolean
+  /** `true` iff all target containers are isolated. */
+  isolated: boolean
+  /** `true` when isolation could not be verified (fail-closed). */
+  isolation_unavailable: boolean
+  /** Human-readable reason when not ready; `null`/absent when isolated. */
+  reason?: string | null
+  /** Per-container health summary (read-only). */
+  health?: HealthSummary
+}
+
 /** Response of `GET /api/campaigns/{campaign}/stage/6` (Campaign Execution). */
 export interface Stage3Result {
   input: Stage3Input
   output: OperationResultView[]
+  /**
+   * Read-only Stage-5 environment verdict (task 10.1 / Req. 5.4). Optional and
+   * additive: when present the Stage-6 page renders it read-only; when absent the
+   * page falls back to the existing read-only topology context.
+   */
+  stage5?: Stage5Verdict | null
 }
 
 /**
@@ -344,6 +397,59 @@ export interface Stage3Result {
  */
 export function getStage3(campaign: string): Promise<Stage3Result> {
   return api.get<Stage3Result>(`/campaigns/${encodeURIComponent(campaign)}/stage/6`)
+}
+
+/**
+ * Typed result of the Stage-6 auto-start (`POST /api/campaigns/{campaign}/stage/6/execute`),
+ * mirroring the backend `Stage6StartResult` (Req. 1.1, 1.4, 1.5). Exactly one
+ * situation is encoded, readable from the flags:
+ *
+ * - **blocked** (`blocked === true`) — Stage 5 is not concluded (environment not
+ *   ready): nothing ran and the Researcher must be redirected back to Stage 5.
+ *   `redirect_to_stage` carries `5` and `message` the reason.
+ * - **idempotent re-display** (`blocked === false`, `executed === false`,
+ *   `reused === true`) — a terminal Operation is already persisted: `output`
+ *   carries the persisted snapshot rebuilt from the per-Ability rows + aggregate;
+ *   no new run was started.
+ * - **started** (`blocked === false`, `executed === true`) — the runner ran:
+ *   `output` carries the per-Ability results + aggregate and `operation_id` links
+ *   the persisted Operation.
+ * - **not executed by the runner** (`blocked === false`, `executed === false`,
+ *   `reused === false`) — the runner refused (missing confirmation, containment/
+ *   isolation violation, Caldera unavailable, audit failure): `message` /
+ *   `error_message` carry the reason and `output` is `null` (Req. 1.6, 6.2).
+ */
+export interface Stage6StartResult {
+  campaign_id: string
+  executed: boolean
+  blocked: boolean
+  reused: boolean
+  redirect_to_stage?: number | null
+  /** Per-Ability results + aggregate; `null` on blocked/not-executed paths. */
+  output?: OperationResultView | null
+  operation_id?: number | null
+  message?: string | null
+  error_message?: string | null
+}
+
+/**
+ * Auto-start the Stage-6 execution for a campaign
+ * (`POST /api/campaigns/{campaign}/stage/6/execute`, task 10.1 / Req. 1.1).
+ *
+ * Forwards the inline-consent `confirmed` flag in the body `{ confirmed }`; the
+ * backend `OperationRunner` enforces the explicit-confirmation and isolation
+ * gates (this wrapper only carries the flag). The typed {@link Stage6StartResult}
+ * encodes the four situations (blocked / idempotent re-display / started / not
+ * executed) via its flags — none of them is an HTTP error.
+ */
+export function startExecution(
+  campaign: string,
+  confirmed: boolean,
+): Promise<Stage6StartResult> {
+  return api.post<Stage6StartResult>(
+    `/campaigns/${encodeURIComponent(campaign)}/stage/6/execute`,
+    { confirmed },
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -360,6 +466,12 @@ export interface OperationAbilityFrame {
   ability_id: string
   status: AbilityResultStatus
   command_output: string
+  /** Concrete command of the link; `null`/absent when not available (Req. 2.4). */
+  command?: string | null
+  /** Target container (e.g. `"nginx (192.168.20.30)"`); `null`/absent when not available (Req. 2.4). */
+  target_container?: string | null
+  /** Attacker host (e.g. `"kali"`); `null`/absent when not available (Req. 2.4). */
+  attacker_host?: string | null
 }
 
 /**
@@ -378,17 +490,45 @@ export interface OperationAggregateFrame {
 export type OperationFrame = OperationAbilityFrame | OperationAggregateFrame
 
 /**
+ * Lifecycle callbacks for {@link connectOperation}, surfacing the connection
+ * state so the UI can show a "connection lost" indicator and resume updating on
+ * reconnect WITHOUT reloading the page (Req. 2.8).
+ *
+ * `onOpen` fires on connect and on every successful reconnect; `onClose` fires
+ * when the socket drops. The underlying {@link connectWs} already reconnects on
+ * an abnormal close, so a drop → `onClose` → (reconnect) → `onOpen` sequence lets
+ * the Stage-6 page flip a transient "connection lost" banner on and off.
+ */
+export interface OperationChannelHandlers {
+  onFrame: (frame: OperationFrame) => void
+  /** Fired on connect and on every successful reconnect (Req. 2.8). */
+  onOpen?: () => void
+  /** Fired when the socket drops (connection lost, Req. 2.8). */
+  onClose?: () => void
+}
+
+/**
  * Subscribe to the per-Operation channel. `onFrame` receives per-Ability status
  * updates and the final aggregate (Req. 4.3, 4.4, 4.5). Reconnects on drop so
- * the UI keeps reflecting real-time status.
+ * the UI keeps reflecting real-time status (Req. 2.8).
+ *
+ * Backward-compatible: a bare `onFrame` callback is still accepted. Pass an
+ * {@link OperationChannelHandlers} object instead to also observe the connection
+ * state (`onOpen`/`onClose`) for the "connection lost" indicator (Req. 2.8).
  */
 export function connectOperation(
   operation: string,
-  onFrame: (frame: OperationFrame) => void,
+  handlers: ((frame: OperationFrame) => void) | OperationChannelHandlers,
 ): WsConnection {
+  const resolved: OperationChannelHandlers =
+    typeof handlers === "function" ? { onFrame: handlers } : handlers
   return connectWs<OperationFrame>(
     `/ws/operation/${encodeURIComponent(operation)}`,
-    { onMessage: onFrame },
+    {
+      onMessage: resolved.onFrame,
+      onOpen: resolved.onOpen,
+      onClose: resolved.onClose ? () => resolved.onClose?.() : undefined,
+    },
   )
 }
 

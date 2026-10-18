@@ -95,7 +95,7 @@ from app.services.environment.topology_builder import (
     compose_path,
     build_hosts,
     build_networks,
-    container_names,
+    target_container_names,
     build_mermaid,
 )
 
@@ -570,8 +570,9 @@ class CurationEnvironmentProvisioner:
         :class:`~app.services.environment.operationalization.EnvironmentParameters`
         (derived from the curated DAG commands); falls back to the curated lab's
         containers (:func:`...topology_builder.container_names`) when the
-        parameters resolved none (Req. 9.4). Preserves order and removes
-        duplicates.
+        parameters resolved none (Req. 9.4) — and that fallback is the
+        **target** containers only (not the attacker/C2 hosts), consistent with
+        the Execution gate. Preserves order and removes duplicates.
         """
         resolved: list[str] = []
         for host in params.hosts:
@@ -587,7 +588,7 @@ class CurationEnvironmentProvisioner:
                     resolved.append(name)
         if resolved:
             return resolved
-        return container_names()
+        return target_container_names()
 
     def _get_caldera(self) -> CalderaLoader:
         """Return the Caldera client, building a real one lazily if needed.
@@ -1122,7 +1123,12 @@ class CurationEnvironmentProvisioner:
         hosts = build_hosts()
         networks = build_networks()
 
-        containers = container_names()
+        # Verify isolation of the TARGET containers only (the victim hosts the
+        # campaign attacks), NOT the attacker/C2 hosts. The Caldera C2 legitimately
+        # joins a non-internal management network so the operator can reach its UI;
+        # including it here would be a false negative. This mirrors exactly what the
+        # Execution gate (OperationRunner) verifies, so Stage 5 and Stage 6 agree.
+        containers = target_container_names()
         isolation = inspect_isolation(containers, self._inspector)
 
         topology = TopologyResponse(

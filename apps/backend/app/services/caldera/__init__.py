@@ -22,6 +22,7 @@ from __future__ import annotations
 from app.services.caldera.client import (
     ABILITIES_PATH,
     ADVERSARIES_PATH,
+    AGENTS_PATH,
     DEFAULT_GROUP,
     DEFAULT_JITTER,
     DEFAULT_PLANNER,
@@ -30,6 +31,7 @@ from app.services.caldera.client import (
     OPERATIONS_PATH,
     AbilityRef,
     AdversaryRef,
+    AgentRef,
     AvailabilityResult,
     CalderaApiError,
     CalderaClient,
@@ -42,6 +44,7 @@ from app.services.caldera.client import (
 __all__ = [
     "ABILITIES_PATH",
     "ADVERSARIES_PATH",
+    "AGENTS_PATH",
     "DEFAULT_GROUP",
     "DEFAULT_JITTER",
     "DEFAULT_PLANNER",
@@ -50,6 +53,7 @@ __all__ = [
     "OPERATIONS_PATH",
     "AbilityRef",
     "AdversaryRef",
+    "AgentRef",
     "AvailabilityResult",
     "CalderaApiError",
     "CalderaClient",
