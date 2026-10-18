@@ -1,0 +1,385 @@
+{
+  "overview": {
+    "title": "Visão do Pipeline",
+    "aggregate": {
+      "label": "Progresso de replicação",
+      "summary": "{{concluidos}} de {{total}} casos concluídos",
+      "empty": "Nenhum caso concluído ainda"
+    },
+    "selectCasePrompt": "Selecione um caso para acompanhar seus estágios."
+  },
+  "stages": {
+    "1": {
+      "name": "Estágio 1 — Seleção da base STIX",
+      "short": "Estágio 1"
+    },
+    "2": {
+      "name": "Estágio 2 — Seleção da campanha",
+      "short": "Estágio 2"
+    },
+    "3": {
+      "name": "Estágio 3 — Geração do DAG",
+      "short": "Estágio 3"
+    },
+    "4": {
+      "name": "Estágio 4 — Operacionalização",
+      "short": "Estágio 4"
+    },
+    "5": {
+      "name": "Estágio 5 — Criação do ambiente de emulação",
+      "short": "Estágio 5"
+    },
+    "6": {
+      "name": "Estágio 6 — Execução, medição e relatório",
+      "short": "Estágio 6"
+    }
+  },
+  "sections": {
+    "entrada": "Entrada",
+    "processamento": "Processamento",
+    "saida": "Saída",
+    "placeholder": "Detalhes disponíveis na tela dedicada do estágio."
+  },
+  "state": {
+    "nao_iniciado": "Não iniciado",
+    "em_andamento": "Em andamento",
+    "concluido": "Concluído",
+    "preConcluido": "Pré-concluído (curado)",
+    "erro": "Erro",
+    "bloqueado": "Bloqueado"
+  },
+  "progress": {
+    "label": "Progresso",
+    "value": "{{value}}%"
+  },
+  "actions": {
+    "select": "Selecionar estágio",
+    "selected": "Estágio selecionado",
+    "openStage": "Abrir {{stage}}"
+  },
+  "error": {
+    "unknown": "Ocorreu um erro neste estágio.",
+    "loadCases": "Não foi possível carregar os casos."
+  },
+  "stageView": {
+    "loading": "Carregando os dados do estágio…",
+    "loadError": "Não foi possível carregar os dados deste estágio.",
+    "back": "Voltar à visão geral"
+  },
+  "baseStix": {
+    "titulo": "Seleção da base STIX",
+    "descricao": "Escolha a versão do pacote STIX. A base é baixada da fonte oficial do MITRE quando ainda não há cópia em disco; em seguida, o dashboard do bundle é exibido.",
+    "selecionada": "Base selecionada: v{{versao}}",
+    "trocarBase": "Trocar base",
+    "pronto": "Base em disco e dashboard exibido — o Estágio 1 pode ser concluído.",
+    "aguardando": "Selecione uma base e visualize o dashboard para concluir o Estágio 1.",
+    "verificando": "Verificando a disponibilidade do bundle…",
+    "erro": "Não foi possível concluir a Seleção da base STIX."
+  },
+  "stage1": {
+    "entrada": {
+      "stix": "Referência STIX",
+      "campanhaStix": "Campanha STIX",
+      "nome": "Nome",
+      "stixId": "ID STIX",
+      "externalId": "External ID",
+      "descricao": "Descrição",
+      "aliases": "Aliases",
+      "firstSeen": "Visto pela primeira vez",
+      "lastSeen": "Visto pela última vez",
+      "versaoBase": "Versão da base STIX",
+      "naoEncontrada": "Campanha não encontrada nesta base STIX."
+    },
+    "processamento": {
+      "description": "Modelagem estrutural automatizada do dataset STIX.",
+      "failedStep": "Etapa da falha: {{step}}"
+    },
+    "saida": {
+      "notRun": "A modelagem ainda não foi executada. Clique em “Executar modelagem” para gerar a saída.",
+      "empty": "Nenhum elemento estrutural foi extraído para este caso.",
+      "techniques_one": "{{count}} técnica ATT&CK",
+      "techniques_other": "{{count}} técnicas ATT&CK",
+      "noTechniques": "Nenhuma técnica extraída.",
+      "relationships": "Relacionamentos",
+      "indicators": "Indicadores",
+      "infrastructure": "Infraestrutura",
+      "malware": "Malware",
+      "metadata": "Metadados de campanha"
+    }
+  },
+  "campanha": {
+    "titulo": "Campanhas do bundle",
+    "descricao": "Selecione uma campanha do pacote STIX para extrair seus atributos (identidade, aliases e técnicas).",
+    "listaLabel": "Campanhas do bundle",
+    "selecionar": "Selecionar campanha",
+    "selecionando": "Selecionando…",
+    "selecionada": "Campanha selecionada",
+    "naoSelecionavel": "Não selecionável (sem artefatos curados)",
+    "semCampanhas": "Nenhuma campanha disponível neste bundle.",
+    "atributos": "Atributos extraídos",
+    "tecnicas": "Técnicas ATT&CK",
+    "tecnicas_one": "{{count}} técnica ATT&CK",
+    "tecnicas_other": "{{count}} técnicas ATT&CK",
+    "semTecnicas": "Nenhuma técnica extraída.",
+    "naoExtraido": "Selecione uma campanha para extrair e exibir os seus atributos.",
+    "concluido": "Atributos extraídos — Estágio 2 concluído.",
+    "falha": "Não foi possível extrair os atributos da campanha selecionada.",
+    "falhaEtapa": "Etapa da falha: {{step}}"
+  },
+  "stage2": {
+    "entrada": {
+      "noInput": "O Estágio 1 não produziu técnicas; não há Entrada para o Estágio 2."
+    },
+    "processamento": {
+      "description": "Tradução de comportamentos abstratos em passos executáveis."
+    },
+    "translationSource": {
+      "label": "Origem da tradução",
+      "curadoria_humana": "Curadoria humana"
+    },
+    "saida": {
+      "suppressed": "Sem Entrada do Estágio 1; a Saída do Estágio 2 foi suprimida.",
+      "noAbilities": "Este caso não possui Abilities curadas.",
+      "noAdversary": "Não há agrupamento de Abilities em Adversary para este caso.",
+      "abilities_one": "{{count}} Ability curada",
+      "abilities_other": "{{count}} Abilities curadas",
+      "tactic": "Tática",
+      "ordering": "Ordem e dependências",
+      "adversary": "Adversary",
+      "adversaryOrdering_one": "{{count}} Ability no agrupamento",
+      "adversaryOrdering_other": "{{count}} Abilities no agrupamento"
+    }
+  },
+  "stage3": {
+    "entrada": {
+      "adversary": "Adversary",
+      "noAdversary": "Este caso não possui Adversary para emular.",
+      "abilities_one": "{{count}} Ability",
+      "abilities_other": "{{count}} Abilities",
+      "requestEmulation": "Solicitar emulação"
+    },
+    "processamento": {
+      "noOperation": "Nenhuma Operação em andamento para este caso.",
+      "pending": "Aguardando o status das Abilities…"
+    },
+    "ambiente": {
+      "titulo": "Ambiente-alvo (contido)",
+      "descricao": "A emulação cria/usa este ambiente isolado no seu Docker. Hoje a topologia é provisionada pelo docker-compose do laboratório.",
+      "isolado": "Isolado — as redes do plano de ataque são internal (sem rota ao host ou à internet). O ataque não sai do ambiente controlado.",
+      "diagrama": "Topologia da rede",
+      "redes": "Redes internas",
+      "composeFile": "Arquivo de ambiente (docker-compose)",
+      "atacante": "Atacante",
+      "alvo": "Alvo"
+    },
+    "status": {
+      "pendente": "Pendente",
+      "em_execucao": "Em execução",
+      "sucesso": "Sucesso",
+      "falha": "Falha"
+    },
+    "saida": {
+      "noResults": "Nenhum resultado de Operação ainda.",
+      "success": "{{count}} com sucesso",
+      "failure": "{{count}} com falha"
+    }
+  },
+  "stage4": {
+    "topologia": {
+      "titulo": "Topologia do ambiente contido",
+      "descricao": "Laboratório isolado provisionado no seu Docker: hosts e redes internas contra os quais a campanha é emulada.",
+      "diagrama": "Diagrama da rede",
+      "redes": "Redes internas",
+      "semRedes": "Nenhuma rede interna provisionada.",
+      "hosts": "Hosts",
+      "semHosts": "Nenhum host provisionado.",
+      "composeFile": "Arquivo de ambiente (docker-compose)",
+      "papel": {
+        "attacker": "Atacante",
+        "target": "Alvo"
+      }
+    },
+    "isolamento": {
+      "titulo": "Estado de isolamento",
+      "isolado": "Ambiente isolado — pronto para o Estágio 5",
+      "isoladoDescricao": "As redes do plano de ataque são internal (sem rota ao host ou à internet). O Estágio 4 foi concluído automaticamente e a Execução da Campanha está liberada.",
+      "naoIsolado": "Ambiente não isolado — Estágio 5 bloqueado",
+      "indisponivel": "Isolamento não verificável — Estágio 5 bloqueado",
+      "indisponivelDescricao": "O isolamento não pôde ser verificado (daemon Docker indisponível). Por segurança (fail-closed), o Estágio 4 não é concluído e a Execução da Campanha permanece bloqueada. A topologia continua sendo exibida.",
+      "bloqueado": "O Estágio 5 (Execução da Campanha) permanece bloqueado até que o isolamento seja confirmado."
+    }
+  },
+  "stage5": {
+    "provisionamento": {
+      "console": {
+        "titulo": "Terminal de provisionamento",
+        "vazio": "Aguardando o início do provisionamento…",
+        "etapas": {
+          "subir_conteineres": "Subir contêineres",
+          "aguardar_saude": "Aguardar saúde",
+          "carregar_abilities": "Carregar Abilities",
+          "verificar_isolamento": "Verificar isolamento",
+          "desprovisionar": "Desprovisionar",
+          "concluir": "Concluir"
+        },
+        "fluxo": {
+          "comando": "Comando",
+          "stdout": "stdout",
+          "stderr": "stderr",
+          "info": "Info"
+        }
+      },
+      "prerequisitos": {
+        "titulo": "Pré-requisitos de execução",
+        "conteineresSaudaveis": "Contêineres saudáveis",
+        "abilitiesCarregadas": "Abilities carregadas no Caldera",
+        "isolamentoAprovado": "Isolamento aprovado",
+        "pendente": "Pendente",
+        "ok": "OK",
+        "falha": "Falha",
+        "pronto": "Ambiente pronto — todos os pré-requisitos foram verificados."
+      },
+      "falha": {
+        "titulo": "Provisionamento falhou",
+        "estagio6Bloqueado": "O Estágio 6 (Execução da Campanha) permanece bloqueado até que o provisionamento conclua."
+      }
+    }
+  },
+  "parametrosAmbiente": {
+    "titulo": "Parâmetros de ambiente",
+    "descricao": "Artefato derivado dos nós curados do DAG; define o ambiente de emulação para o Estágio 5.",
+    "plataforma": {
+      "label": "Plataforma",
+      "conteiner": "Contêiner",
+      "maquina_virtual": "Máquina virtual"
+    },
+    "hosts": {
+      "titulo": "Hosts-alvo",
+      "vazio": "Nenhum host-alvo derivado para este caso.",
+      "rotulo": "Rótulo",
+      "endereco": "Endereço",
+      "container": "Container",
+      "hostType": "Tipo de host",
+      "vulnerabilidades": "Vulnerabilidades",
+      "semVulnerabilidades": "Nenhuma vulnerabilidade registrada."
+    },
+    "servicos": {
+      "titulo": "Serviços requeridos",
+      "vazio": "Nenhum serviço requerido derivado.",
+      "descricao": "Descrição",
+      "tecnicaOrigem": "Técnica de origem"
+    },
+    "networkContext": {
+      "titulo": "Contexto de rede",
+      "vazio": "Nenhuma nota de rede derivada."
+    },
+    "origem": {
+      "label": "Origem",
+      "curadoria_humana": "Curadoria humana",
+      "gerado_ia": "Gerado por IA"
+    }
+  },
+  "relatorio": {
+    "titulo": "Relatório de execução",
+    "descricao": "Consolidação dos resultados da execução, medição de suficiência e veredito do Estágio 6.",
+    "notRun": "A execução ainda não foi concluída; o relatório estará disponível ao final do Estágio 6.",
+    "geradoEm": "Gerado em",
+    "veredito": {
+      "label": "Veredito",
+      "sucesso": "Sucesso",
+      "falha": "Falha"
+    },
+    "ambiente": {
+      "desprovisionado": "Ambiente desprovisionado",
+      "naoDesprovisionado": "Ambiente não desprovisionado",
+      "recursosRemanescentes": "Recursos remanescentes: {{recursos}}"
+    },
+    "resultados": {
+      "titulo": "Resultados por Ability",
+      "vazio": "Nenhum resultado de execução registrado.",
+      "ability": "Ability",
+      "status": "Status",
+      "tecnica": "Técnica"
+    },
+    "telemetria": {
+      "titulo": "Telemetria por técnica",
+      "vazio": "Nenhuma telemetria registrada."
+    }
+  },
+  "metricas": {
+    "titulo": "Métricas de suficiência procedural",
+    "nota": "Proposta inicial de medição, a refinar.",
+    "totalTecnicasDag": "Técnicas no DAG",
+    "tecnicasSucesso": "Técnicas com sucesso",
+    "taxaSucesso": "Taxa de sucesso",
+    "coberturaProcedural": "Cobertura procedural",
+    "tempoTotal": "Tempo total",
+    "tempoTecnica": "Tempo por técnica",
+    "no": "Nó",
+    "etapaFalha": "Etapa da falha",
+    "telemetria": "Telemetria",
+    "nosFalhos": {
+      "titulo": "Nós que falharam",
+      "vazio": "Nenhum nó falhou."
+    },
+    "porcentagem": "{{value}}%",
+    "segundos": "{{value}} s"
+  },
+  "emulation": {
+    "title": "Confirmar emulação de adversário",
+    "description": "Revise a lista completa dos comandos concretos e o container de destino de cada um antes de confirmar. Nada é executado até a confirmação explícita.",
+    "close": "Fechar",
+    "cancel": "Cancelar",
+    "confirm": "Confirmar execução",
+    "running": "Executando…",
+    "done": "Concluir",
+    "previewLoading": "Carregando os comandos que serão executados…",
+    "previewError": "Não foi possível carregar a prévia dos comandos.",
+    "noCommands": "Não há comandos concretos para emular neste caso.",
+    "targets": "Container de destino",
+    "destinations": "Destinos",
+    "localCommand": "Comando local (sem destino externo)",
+    "noTarget": "Sem container de destino definido",
+    "destinationInternal": "Destino interno (redes internas do laboratório)",
+    "destinationExternal": "Destino externo — a Operação será recusada",
+    "externalBadge": "Destino externo",
+    "externalWarning": "Um ou mais comandos apontam para um destino externo às redes internas. A execução será recusada pela contenção até que sejam corrigidos.",
+    "notStarted": "Nenhuma Operação foi iniciada.",
+    "startedBody": "Emulação iniciada.",
+    "error": {
+      "contencao": {
+        "title": "Contenção não satisfeita",
+        "body": "Um comando aponta para um destino externo às redes internas; a Operação foi recusada.",
+        "destination": "Destino externo: {{destino}}"
+      },
+      "isolamento": {
+        "title": "Isolamento não satisfeito",
+        "body": "Um container de destino não está isolado; a Operação foi abortada.",
+        "containers": "Containers que falharam na verificação"
+      },
+      "indisponivel": {
+        "title": "Ambiente Docker indisponível",
+        "body": "A Caldera não respondeu no endereço configurado dentro de 10 segundos. Nenhuma Operação foi iniciada."
+      },
+      "unknown": {
+        "title": "Falha na emulação",
+        "body": "Não foi possível iniciar a emulação."
+      }
+    }
+  },
+  "wizard": {
+    "stepIndicator": "Passo {{atual}} de {{total}}",
+    "back": "Voltar",
+    "next": "Próximo",
+    "runStage1": "Executar modelagem",
+    "runEmulation": "Executar emulação",
+    "restart": "Reiniciar",
+    "running": "Executando...",
+    "blockedHint": "Conclua o estágio anterior para avançar.",
+    "stage1ErrorHint": "A modelagem falhou. Corrija o problema para avançar.",
+    "openWizard": "Iniciar execução guiada",
+    "nextAria": "Avançar para o próximo estágio",
+    "preConcluidoNota": "Este estágio já estava pronto por curadoria: o resultado existia antes de você agir.",
+    "selectCampaignFirst": "Selecione uma campanha no Estágio 2 para habilitar este estágio."
+  }
+}

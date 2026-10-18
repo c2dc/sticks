@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pipeline-ui-backend"
+version = "0.1.0"
+description = "Backend FastAPI da Pipeline_UI para o projeto sticks (ATT&CK-in-STIX / APT emulation)."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "sticks project" }]
+
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "pydantic>=2.7",
+    "pydantic-settings>=2.3",
+    "sqlalchemy>=2.0",
+    "alembic>=1.13",
+    "psycopg[binary]>=3.1",
+    "httpx>=0.27",
+    "docker>=7.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.2",
+    "hypothesis>=6.100",
+    "pytest-asyncio>=0.23",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+# ``-m "not lab"`` deselects the lab-only end-to-end test (task 15.3) by
+# default, so the full suite stays green in dev/CI without a real Caldera +
+# hardened Docker environment. Run the lab test explicitly on the lab machine
+# with ``PIPELINE_UI_LAB=1`` and ``pytest -m lab`` (see LAB.md).
+addopts = "-ra -m \"not lab\""
+markers = [
+    "lab: end-to-end test requiring the REAL lab Caldera + hardened Docker environment (task 15.3); deselected by default and additionally guarded by the PIPELINE_UI_LAB env var",
+]

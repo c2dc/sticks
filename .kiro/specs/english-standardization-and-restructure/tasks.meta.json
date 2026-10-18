@@ -1,0 +1,453 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1. Freeze terminology and establish a completion baseline": [
+      {
+        "executionId": "7da8b4dc-b38d-4716-874e-0c941200b9d7",
+        "chatSessionId": "sess_1e0d6018-012e-478b-bc84-19951c3c1502",
+        "timestamp": 1792153727051
+      },
+      {
+        "executionId": "7da8b4dc-b38d-4716-874e-0c941200b9d7",
+        "chatSessionId": "sess_1e0d6018-012e-478b-bc84-19951c3c1502",
+        "timestamp": 1792153737884
+      },
+      {
+        "executionId": "7da8b4dc-b38d-4716-874e-0c941200b9d7",
+        "chatSessionId": "sess_1e0d6018-012e-478b-bc84-19951c3c1502",
+        "timestamp": 1792153916762
+      }
+    ],
+    "2.1 Rename backend API route paths to English/STIX paths (§3a)": [
+      {
+        "executionId": "7da8b4dc-b38d-4716-874e-0c941200b9d7",
+        "chatSessionId": "sess_1e0d6018-012e-478b-bc84-19951c3c1502",
+        "timestamp": 1792153727174
+      },
+      {
+        "executionId": "7da8b4dc-b38d-4716-874e-0c941200b9d7",
+        "chatSessionId": "sess_1e0d6018-012e-478b-bc84-19951c3c1502",
+        "timestamp": 1792153924943
+      },
+      {
+        "executionId": "7da8b4dc-b38d-4716-874e-0c941200b9d7",
+        "chatSessionId": "sess_1e0d6018-012e-478b-bc84-19951c3c1502",
+        "timestamp": 1792153938961
+      },
+      {
+        "executionId": "7da8b4dc-b38d-4716-874e-0c941200b9d7",
+        "chatSessionId": "sess_1e0d6018-012e-478b-bc84-19951c3c1502",
+        "timestamp": 1792154222176
+      },
+      {
+        "executionId": "7da8b4dc-b38d-4716-874e-0c941200b9d7",
+        "chatSessionId": "sess_1e0d6018-012e-478b-bc84-19951c3c1502",
+        "timestamp": 1792155472571
+      }
+    ],
+    "2.2 Rename backend API module files and update router registration (§3b)": [
+      {
+        "executionId": "7da8b4dc-b38d-4716-874e-0c941200b9d7",
+        "chatSessionId": "sess_1e0d6018-012e-478b-bc84-19951c3c1502",
+        "timestamp": 1792153727306
+      },
+      {
+        "executionId": "7da8b4dc-b38d-4716-874e-0c941200b9d7",
+        "chatSessionId": "sess_1e0d6018-012e-478b-bc84-19951c3c1502",
+        "timestamp": 1792153926317
+      },
+      {
+        "executionId": "7da8b4dc-b38d-4716-874e-0c941200b9d7",
+        "chatSessionId": "sess_1e0d6018-012e-478b-bc84-19951c3c1502",
+        "timestamp": 1792154213035
+      }
+    ],
+    "2.3 Rename backend environment service module files (§3b)": [
+      {
+        "executionId": "7da8b4dc-b38d-4716-874e-0c941200b9d7",
+        "chatSessionId": "sess_1e0d6018-012e-478b-bc84-19951c3c1502",
+        "timestamp": 1792153727399
+      },
+      {
+        "executionId": "7da8b4dc-b38d-4716-874e-0c941200b9d7",
+        "chatSessionId": "sess_1e0d6018-012e-478b-bc84-19951c3c1502",
+        "timestamp": 1792153927160
+      },
+      {
+        "executionId": "7da8b4dc-b38d-4716-874e-0c941200b9d7",
+        "chatSessionId": "sess_1e0d6018-012e-478b-bc84-19951c3c1502",
+        "timestamp": 1792154213927
+      }
+    ],
+    "2.4 Rename backend Python symbols, DTOs, functions, and payload fields; rewrite docstrings/comments to English (§3c)": [
+      {
+        "executionId": "7da8b4dc-b38d-4716-874e-0c941200b9d7",
+        "chatSessionId": "sess_1e0d6018-012e-478b-bc84-19951c3c1502",
+        "timestamp": 1792153727486
+      },
+      {
+        "executionId": "7da8b4dc-b38d-4716-874e-0c941200b9d7",
+        "chatSessionId": "sess_1e0d6018-012e-478b-bc84-19951c3c1502",
+        "timestamp": 1792155480350
+      },
+      {
+        "executionId": "7da8b4dc-b38d-4716-874e-0c941200b9d7",
+        "chatSessionId": "sess_1e0d6018-012e-478b-bc84-19951c3c1502",
+        "timestamp": 1792156468362
+      },
+      {
+        "executionId": "7da8b4dc-b38d-4716-874e-0c941200b9d7",
+        "chatSessionId": "sess_1e0d6018-012e-478b-bc84-19951c3c1502",
+        "timestamp": 1792156473429
+      },
+      {
+        "executionId": "7da8b4dc-b38d-4716-874e-0c941200b9d7",
+        "chatSessionId": "sess_1e0d6018-012e-478b-bc84-19951c3c1502",
+        "timestamp": 1792163863969
+      },
+      {
+        "executionId": "7da8b4dc-b38d-4716-874e-0c941200b9d7",
+        "chatSessionId": "sess_1e0d6018-012e-478b-bc84-19951c3c1502",
+        "timestamp": 1792163873384
+      },
+      {
+        "executionId": "4e56fe66-c222-4a79-ac84-481844b0ac77",
+        "chatSessionId": "sess_7a7799f4-a979-4fca-96a7-8c4d988b7c35",
+        "timestamp": 1792186250367
+      },
+      {
+        "executionId": "4e56fe66-c222-4a79-ac84-481844b0ac77",
+        "chatSessionId": "sess_7a7799f4-a979-4fca-96a7-8c4d988b7c35",
+        "timestamp": 1792186258226
+      },
+      {
+        "executionId": "4e56fe66-c222-4a79-ac84-481844b0ac77",
+        "chatSessionId": "sess_7a7799f4-a979-4fca-96a7-8c4d988b7c35",
+        "timestamp": 1792191973800
+      }
+    ],
+    "2.5 Verify the backend code layer": [
+      {
+        "executionId": "7da8b4dc-b38d-4716-874e-0c941200b9d7",
+        "chatSessionId": "sess_1e0d6018-012e-478b-bc84-19951c3c1502",
+        "timestamp": 1792153727587
+      },
+      {
+        "executionId": "4e56fe66-c222-4a79-ac84-481844b0ac77",
+        "chatSessionId": "sess_7a7799f4-a979-4fca-96a7-8c4d988b7c35",
+        "timestamp": 1792194943470
+      },
+      {
+        "executionId": "4e56fe66-c222-4a79-ac84-481844b0ac77",
+        "chatSessionId": "sess_7a7799f4-a979-4fca-96a7-8c4d988b7c35",
+        "timestamp": 1792197291379
+      }
+    ],
+    "3.1 Rename frontend lib files and update imports (§3d)": [
+      {
+        "executionId": "7da8b4dc-b38d-4716-874e-0c941200b9d7",
+        "chatSessionId": "sess_1e0d6018-012e-478b-bc84-19951c3c1502",
+        "timestamp": 1792153727691
+      },
+      {
+        "executionId": "7da8b4dc-b38d-4716-874e-0c941200b9d7",
+        "chatSessionId": "sess_1e0d6018-012e-478b-bc84-19951c3c1502",
+        "timestamp": 1792153943365
+      },
+      {
+        "executionId": "7da8b4dc-b38d-4716-874e-0c941200b9d7",
+        "chatSessionId": "sess_1e0d6018-012e-478b-bc84-19951c3c1502",
+        "timestamp": 1792154215302
+      }
+    ],
+    "3.2 Rename frontend component files and update imports/references (§3d)": [
+      {
+        "executionId": "7da8b4dc-b38d-4716-874e-0c941200b9d7",
+        "chatSessionId": "sess_1e0d6018-012e-478b-bc84-19951c3c1502",
+        "timestamp": 1792153727799
+      },
+      {
+        "executionId": "7da8b4dc-b38d-4716-874e-0c941200b9d7",
+        "chatSessionId": "sess_1e0d6018-012e-478b-bc84-19951c3c1502",
+        "timestamp": 1792153944627
+      },
+      {
+        "executionId": "7da8b4dc-b38d-4716-874e-0c941200b9d7",
+        "chatSessionId": "sess_1e0d6018-012e-478b-bc84-19951c3c1502",
+        "timestamp": 1792154216747
+      }
+    ],
+    "3.3 Rename Portuguese test-file suffixes (§3d)": [
+      {
+        "executionId": "7da8b4dc-b38d-4716-874e-0c941200b9d7",
+        "chatSessionId": "sess_1e0d6018-012e-478b-bc84-19951c3c1502",
+        "timestamp": 1792153727895
+      },
+      {
+        "executionId": "7da8b4dc-b38d-4716-874e-0c941200b9d7",
+        "chatSessionId": "sess_1e0d6018-012e-478b-bc84-19951c3c1502",
+        "timestamp": 1792153945567
+      },
+      {
+        "executionId": "7da8b4dc-b38d-4716-874e-0c941200b9d7",
+        "chatSessionId": "sess_1e0d6018-012e-478b-bc84-19951c3c1502",
+        "timestamp": 1792154217480
+      }
+    ],
+    "3.4 Retarget frontend API wrappers to the renamed routes (lockstep with 2.1)": [
+      {
+        "executionId": "7da8b4dc-b38d-4716-874e-0c941200b9d7",
+        "chatSessionId": "sess_1e0d6018-012e-478b-bc84-19951c3c1502",
+        "timestamp": 1792153727995
+      },
+      {
+        "executionId": "7da8b4dc-b38d-4716-874e-0c941200b9d7",
+        "chatSessionId": "sess_1e0d6018-012e-478b-bc84-19951c3c1502",
+        "timestamp": 1792155481698
+      },
+      {
+        "executionId": "7da8b4dc-b38d-4716-874e-0c941200b9d7",
+        "chatSessionId": "sess_1e0d6018-012e-478b-bc84-19951c3c1502",
+        "timestamp": 1792156435308
+      }
+    ],
+    "3.5 Rename frontend TypeScript identifiers, types, and mirrored field keys (lockstep with 2.4) (§3e)": [
+      {
+        "executionId": "7da8b4dc-b38d-4716-874e-0c941200b9d7",
+        "chatSessionId": "sess_1e0d6018-012e-478b-bc84-19951c3c1502",
+        "timestamp": 1792153728092
+      },
+      {
+        "executionId": "4e56fe66-c222-4a79-ac84-481844b0ac77",
+        "chatSessionId": "sess_7a7799f4-a979-4fca-96a7-8c4d988b7c35",
+        "timestamp": 1792186259563
+      },
+      {
+        "executionId": "4e56fe66-c222-4a79-ac84-481844b0ac77",
+        "chatSessionId": "sess_7a7799f4-a979-4fca-96a7-8c4d988b7c35",
+        "timestamp": 1792194938690
+      }
+    ],
+    "3.6 Verify the frontend code layer and i18n guard": [
+      {
+        "executionId": "7da8b4dc-b38d-4716-874e-0c941200b9d7",
+        "chatSessionId": "sess_1e0d6018-012e-478b-bc84-19951c3c1502",
+        "timestamp": 1792153728189
+      },
+      {
+        "executionId": "4e56fe66-c222-4a79-ac84-481844b0ac77",
+        "chatSessionId": "sess_7a7799f4-a979-4fca-96a7-8c4d988b7c35",
+        "timestamp": 1792194944251
+      },
+      {
+        "executionId": "4e56fe66-c222-4a79-ac84-481844b0ac77",
+        "chatSessionId": "sess_7a7799f4-a979-4fca-96a7-8c4d988b7c35",
+        "timestamp": 1792197292297
+      }
+    ],
+    "4.1 Create the reversible Alembic rename migration (§4, Option A)": [
+      {
+        "executionId": "7da8b4dc-b38d-4716-874e-0c941200b9d7",
+        "chatSessionId": "sess_1e0d6018-012e-478b-bc84-19951c3c1502",
+        "timestamp": 1792153728286
+      },
+      {
+        "executionId": "4e56fe66-c222-4a79-ac84-481844b0ac77",
+        "chatSessionId": "sess_7a7799f4-a979-4fca-96a7-8c4d988b7c35",
+        "timestamp": 1792197297917
+      },
+      {
+        "executionId": "4e56fe66-c222-4a79-ac84-481844b0ac77",
+        "chatSessionId": "sess_7a7799f4-a979-4fca-96a7-8c4d988b7c35",
+        "timestamp": 1792197561921
+      }
+    ],
+    "4.2 Update the ORM to the English physical names (no `name=` fallback)": [
+      {
+        "executionId": "7da8b4dc-b38d-4716-874e-0c941200b9d7",
+        "chatSessionId": "sess_1e0d6018-012e-478b-bc84-19951c3c1502",
+        "timestamp": 1792153728398
+      },
+      {
+        "executionId": "4e56fe66-c222-4a79-ac84-481844b0ac77",
+        "chatSessionId": "sess_7a7799f4-a979-4fca-96a7-8c4d988b7c35",
+        "timestamp": 1792197298846
+      },
+      {
+        "executionId": "4e56fe66-c222-4a79-ac84-481844b0ac77",
+        "chatSessionId": "sess_7a7799f4-a979-4fca-96a7-8c4d988b7c35",
+        "timestamp": 1792197562714
+      }
+    ],
+    "4.3 Verify the migration round-trip and backend suite": [
+      {
+        "executionId": "7da8b4dc-b38d-4716-874e-0c941200b9d7",
+        "chatSessionId": "sess_1e0d6018-012e-478b-bc84-19951c3c1502",
+        "timestamp": 1792153728493
+      },
+      {
+        "executionId": "4e56fe66-c222-4a79-ac84-481844b0ac77",
+        "chatSessionId": "sess_7a7799f4-a979-4fca-96a7-8c4d988b7c35",
+        "timestamp": 1792197567273
+      },
+      {
+        "executionId": "4e56fe66-c222-4a79-ac84-481844b0ac77",
+        "chatSessionId": "sess_7a7799f4-a979-4fca-96a7-8c4d988b7c35",
+        "timestamp": 1792198340944
+      }
+    ],
+    "5.1 Rename docs files to English (§3f)": [
+      {
+        "executionId": "7da8b4dc-b38d-4716-874e-0c941200b9d7",
+        "chatSessionId": "sess_1e0d6018-012e-478b-bc84-19951c3c1502",
+        "timestamp": 1792153728597
+      },
+      {
+        "executionId": "4e56fe66-c222-4a79-ac84-481844b0ac77",
+        "chatSessionId": "sess_7a7799f4-a979-4fca-96a7-8c4d988b7c35",
+        "timestamp": 1792198346386
+      },
+      {
+        "executionId": "4e56fe66-c222-4a79-ac84-481844b0ac77",
+        "chatSessionId": "sess_7a7799f4-a979-4fca-96a7-8c4d988b7c35",
+        "timestamp": 1792198442633
+      }
+    ],
+    "5.2 Rewrite docs and README contents into English": [
+      {
+        "executionId": "7da8b4dc-b38d-4716-874e-0c941200b9d7",
+        "chatSessionId": "sess_1e0d6018-012e-478b-bc84-19951c3c1502",
+        "timestamp": 1792153728682
+      },
+      {
+        "executionId": "4e56fe66-c222-4a79-ac84-481844b0ac77",
+        "chatSessionId": "sess_7a7799f4-a979-4fca-96a7-8c4d988b7c35",
+        "timestamp": 1792198447000
+      },
+      {
+        "executionId": "4e56fe66-c222-4a79-ac84-481844b0ac77",
+        "chatSessionId": "sess_7a7799f4-a979-4fca-96a7-8c4d988b7c35",
+        "timestamp": 1792198726140
+      }
+    ],
+    "6.1 Remove `architecture.png` and fix its references": [
+      {
+        "executionId": "7da8b4dc-b38d-4716-874e-0c941200b9d7",
+        "chatSessionId": "sess_1e0d6018-012e-478b-bc84-19951c3c1502",
+        "timestamp": 1792153728780
+      },
+      {
+        "executionId": "4e56fe66-c222-4a79-ac84-481844b0ac77",
+        "chatSessionId": "sess_7a7799f4-a979-4fca-96a7-8c4d988b7c35",
+        "timestamp": 1792198347824
+      },
+      {
+        "executionId": "4e56fe66-c222-4a79-ac84-481844b0ac77",
+        "chatSessionId": "sess_7a7799f4-a979-4fca-96a7-8c4d988b7c35",
+        "timestamp": 1792198439549
+      }
+    ],
+    "6.2 Remove stray root log files": [
+      {
+        "executionId": "7da8b4dc-b38d-4716-874e-0c941200b9d7",
+        "chatSessionId": "sess_1e0d6018-012e-478b-bc84-19951c3c1502",
+        "timestamp": 1792153728878
+      },
+      {
+        "executionId": "4e56fe66-c222-4a79-ac84-481844b0ac77",
+        "chatSessionId": "sess_7a7799f4-a979-4fca-96a7-8c4d988b7c35",
+        "timestamp": 1792198348783
+      },
+      {
+        "executionId": "4e56fe66-c222-4a79-ac84-481844b0ac77",
+        "chatSessionId": "sess_7a7799f4-a979-4fca-96a7-8c4d988b7c35",
+        "timestamp": 1792198441869
+      }
+    ],
+    "6.3 Update `.gitignore` with English comments and dev-runner globs": [
+      {
+        "executionId": "7da8b4dc-b38d-4716-874e-0c941200b9d7",
+        "chatSessionId": "sess_1e0d6018-012e-478b-bc84-19951c3c1502",
+        "timestamp": 1792153728974
+      },
+      {
+        "executionId": "4e56fe66-c222-4a79-ac84-481844b0ac77",
+        "chatSessionId": "sess_7a7799f4-a979-4fca-96a7-8c4d988b7c35",
+        "timestamp": 1792198349661
+      },
+      {
+        "executionId": "4e56fe66-c222-4a79-ac84-481844b0ac77",
+        "chatSessionId": "sess_7a7799f4-a979-4fca-96a7-8c4d988b7c35",
+        "timestamp": 1792198440371
+      }
+    ],
+    "7.1 Move directories into the Proposal 2 layout": [
+      {
+        "executionId": "7da8b4dc-b38d-4716-874e-0c941200b9d7",
+        "chatSessionId": "sess_1e0d6018-012e-478b-bc84-19951c3c1502",
+        "timestamp": 1792153729077
+      },
+      {
+        "executionId": "4e56fe66-c222-4a79-ac84-481844b0ac77",
+        "chatSessionId": "sess_7a7799f4-a979-4fca-96a7-8c4d988b7c35",
+        "timestamp": 1792198731742
+      }
+    ],
+    "7.2 Update build/config path couplings to the new layout": [
+      {
+        "executionId": "7da8b4dc-b38d-4716-874e-0c941200b9d7",
+        "chatSessionId": "sess_1e0d6018-012e-478b-bc84-19951c3c1502",
+        "timestamp": 1792153729175
+      }
+    ],
+    "8. Final verification gate": [
+      {
+        "executionId": "7da8b4dc-b38d-4716-874e-0c941200b9d7",
+        "chatSessionId": "sess_1e0d6018-012e-478b-bc84-19951c3c1502",
+        "timestamp": 1792153729267
+      }
+    ],
+    "9. (Optional) Commit the refactor on the feature branch": [
+      {
+        "executionId": "7da8b4dc-b38d-4716-874e-0c941200b9d7",
+        "chatSessionId": "sess_1e0d6018-012e-478b-bc84-19951c3c1502",
+        "timestamp": 1792153729359
+      }
+    ],
+    "2. Backend code layer — routes, modules, symbols, docstrings (paths still `ui/backend`)": [
+      {
+        "executionId": "4e56fe66-c222-4a79-ac84-481844b0ac77",
+        "chatSessionId": "sess_7a7799f4-a979-4fca-96a7-8c4d988b7c35",
+        "timestamp": 1792197291507
+      }
+    ],
+    "3. Frontend code layer — files, components, test suffixes, TS identifiers (IN LOCKSTEP with task 2)": [
+      {
+        "executionId": "4e56fe66-c222-4a79-ac84-481844b0ac77",
+        "chatSessionId": "sess_7a7799f4-a979-4fca-96a7-8c4d988b7c35",
+        "timestamp": 1792197292395
+      }
+    ],
+    "4. Database layer — Option A reversible English rename migration": [
+      {
+        "executionId": "4e56fe66-c222-4a79-ac84-481844b0ac77",
+        "chatSessionId": "sess_7a7799f4-a979-4fca-96a7-8c4d988b7c35",
+        "timestamp": 1792198341049
+      }
+    ],
+    "6. Clutter and obsolete-asset removal (§6)": [
+      {
+        "executionId": "4e56fe66-c222-4a79-ac84-481844b0ac77",
+        "chatSessionId": "sess_7a7799f4-a979-4fca-96a7-8c4d988b7c35",
+        "timestamp": 1792198441958
+      }
+    ],
+    "5. Docs layer — rename and translate docs and READMEs to English": [
+      {
+        "executionId": "4e56fe66-c222-4a79-ac84-481844b0ac77",
+        "chatSessionId": "sess_7a7799f4-a979-4fca-96a7-8c4d988b7c35",
+        "timestamp": 1792198726298
+      }
+    ]
+  }
+}

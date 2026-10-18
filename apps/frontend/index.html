@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/x-icon" href="/sticks-favicon.ico" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>STICKS</title>
+    <!--
+      Aplica o tema ANTES do React montar, para não haver "flash" ao recarregar.
+      Modo_Claro é o padrão: só fica escuro se o usuário escolheu "escuro"
+      explicitamente (persistido localmente). A preferência do sistema NÃO é
+      seguida. Precisa ficar em sincronia com src/lib/theme-storage.ts.
+    -->
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem("sticks.tema");
+          document.documentElement.classList.toggle("dark", stored === "escuro");
+        } catch (e) {
+          /* storage indisponível: mantém o padrão (Modo_Claro). */
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

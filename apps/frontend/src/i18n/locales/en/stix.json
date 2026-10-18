@@ -1,0 +1,70 @@
+{
+  "landing": {
+    "titulo": "Emulate real adversary campaigns, safely",
+    "subtitulo": "From STIX threat intelligence to contained emulation: pick a base, explore campaigns and actors, and replay the adversary's journey in an isolated environment.",
+    "cta": "Start campaign"
+  },
+  "dashboard": {
+    "titulo": "Base intelligence",
+    "base": "{{nome}} — v{{versao}}",
+    "carregando": "Loading the base intelligence…",
+    "erro": "This STIX base could not be read.",
+    "semContagens": "No counts available for this base.",
+    "irParaSelecao": "Select campaign/actor"
+  },
+  "stix": {
+    "bases": {
+      "titulo": "STIX bases",
+      "carregando": "Loading the available bases…",
+      "erroCarregar": "The STIX bases could not be loaded.",
+      "jaBaixada": "Already downloaded",
+      "baixar": "Download",
+      "baixando": "Downloading…",
+      "selecionar": "Select",
+      "erroDownload": "This base could not be downloaded. Please try again."
+    },
+    "selecao": {
+      "titulo": "Choose what to emulate",
+      "subtitulo": "Browse by campaign or by threat actor to select the journey you want to replay.",
+      "alternar": "Toggle between campaign and actor",
+      "porCampanha": "By campaign",
+      "porAtor": "By threat actor",
+      "carregando": "Loading…",
+      "erro": "This list could not be loaded.",
+      "tentarNovamente": "Try again",
+      "jaCurada": "Already curated",
+      "semAtor": "No associated actor",
+      "semCampanhas": "No campaigns found.",
+      "semAtores": "No actors found.",
+      "campanhasDoAtor_one": "{{count}} campaign",
+      "campanhasDoAtor_other": "{{count}} campaigns",
+      "buscar": "Search",
+      "buscarPlaceholder": "Search by name or description…",
+      "limparBusca": "Clear search",
+      "soCuradas": "Curated only",
+      "resultados_one": "{{count}} of {{total}} campaign",
+      "resultados_other": "{{count}} of {{total}} campaigns",
+      "semResultados": "No campaign matches your search.",
+      "resultadosAtores_one": "{{count}} of {{total}} actor",
+      "resultadosAtores_other": "{{count}} of {{total}} actors",
+      "semResultadosAtores": "No actor matches your search."
+    },
+    "dag": {
+      "titulo": "Directed Acyclic Graph (DAG) generation",
+      "passaDireto": "This campaign does not have a curated DAG yet. The flow passes straight through, with no automatic generation.",
+      "erro": "The DAG for this case could not be loaded.",
+      "avancar": "Advance",
+      "voltar": "Back",
+      "carregando": "Loading the DAG…",
+      "gerarComIa": "Generate with AI",
+      "emBreve": "coming soon",
+      "selecionar": "Select DAG",
+      "semDag": "This campaign does not have a DAG yet. Generate a DAG to advance.",
+      "origem": {
+        "label": "DAG source",
+        "curadoria_humana": "Human curation",
+        "gerado_ia": "AI-generated"
+      }
+    }
+  }
+}

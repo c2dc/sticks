@@ -1,0 +1,70 @@
+{
+  "landing": {
+    "titulo": "Emule campanhas reais de adversário, com segurança",
+    "subtitulo": "Do conhecimento de ameaça STIX à emulação contida: escolha uma base, explore campanhas e atores e replique a jornada do adversário em um ambiente isolado.",
+    "cta": "Iniciar campanha"
+  },
+  "dashboard": {
+    "titulo": "Inteligência da base",
+    "base": "{{nome}} — v{{versao}}",
+    "carregando": "Carregando a inteligência da base…",
+    "erro": "Não foi possível ler esta base STIX.",
+    "semContagens": "Nenhuma contagem disponível para esta base.",
+    "irParaSelecao": "Selecionar campanha/ator"
+  },
+  "stix": {
+    "bases": {
+      "titulo": "Bases STIX",
+      "carregando": "Carregando as bases disponíveis…",
+      "erroCarregar": "Não foi possível carregar as bases STIX.",
+      "jaBaixada": "Já baixada",
+      "baixar": "Baixar",
+      "baixando": "Baixando…",
+      "selecionar": "Selecionar",
+      "erroDownload": "Não foi possível baixar esta base. Tente novamente."
+    },
+    "selecao": {
+      "titulo": "Escolha o que emular",
+      "subtitulo": "Navegue por campanha ou por ator de ameaça para selecionar a jornada que você quer replicar.",
+      "alternar": "Alternar entre campanha e ator",
+      "porCampanha": "Por campanha",
+      "porAtor": "Por ator de ameaça",
+      "carregando": "Carregando…",
+      "erro": "Não foi possível carregar esta lista.",
+      "tentarNovamente": "Tentar novamente",
+      "jaCurada": "Já curada",
+      "semAtor": "Sem ator associado",
+      "semCampanhas": "Nenhuma campanha encontrada.",
+      "semAtores": "Nenhum ator encontrado.",
+      "campanhasDoAtor_one": "{{count}} campanha",
+      "campanhasDoAtor_other": "{{count}} campanhas",
+      "buscar": "Buscar",
+      "buscarPlaceholder": "Buscar por nome ou descrição…",
+      "limparBusca": "Limpar busca",
+      "soCuradas": "Só curadas",
+      "resultados_one": "{{count}} de {{total}} campanha",
+      "resultados_other": "{{count}} de {{total}} campanhas",
+      "semResultados": "Nenhuma campanha corresponde à busca.",
+      "resultadosAtores_one": "{{count}} de {{total}} ator",
+      "resultadosAtores_other": "{{count}} de {{total}} atores",
+      "semResultadosAtores": "Nenhum ator corresponde à busca."
+    },
+    "dag": {
+      "titulo": "Geração do Grafo Acíclico Dirigido (DAG)",
+      "passaDireto": "Esta campanha ainda não possui um DAG curado. O fluxo segue direto, sem geração automática.",
+      "erro": "Não foi possível carregar o DAG deste caso.",
+      "avancar": "Avançar",
+      "voltar": "Voltar",
+      "carregando": "Carregando o DAG…",
+      "gerarComIa": "Gerar com IA",
+      "emBreve": "em breve",
+      "selecionar": "Selecionar DAG",
+      "semDag": "Esta campanha ainda não possui um DAG. Gere um DAG para avançar.",
+      "origem": {
+        "label": "Origem do DAG",
+        "curadoria_humana": "Curadoria humana",
+        "gerado_ia": "Gerado por IA"
+      }
+    }
+  }
+}

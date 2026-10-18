@@ -9,11 +9,11 @@ This repository accompanies the paper:
 
 It provides an experimental environment to evaluate **procedural completeness of STIX-based threat intelligence** and its ability to reproduce **APT campaign behaviors** in a controlled laboratory environment.
 
-## Acompanhamento do desenvolvimento
+## Development tracking
 
-- [Status atual e roteiro para a reunião](docs/status-projeto.md)
-- [Diário de desenvolvimento](docs/diario/README.md)
-- [Checklist executável do Kiro](.kiro/specs/pipeline-ui/tasks.md)
+- [Current status and meeting roadmap](docs/project-status.md)
+- [Development journal](docs/journal/README.md)
+- [Kiro executable checklist](.kiro/specs/pipeline-ui/tasks.md)
 
 The repository includes:
 
@@ -27,10 +27,6 @@ The repository includes:
 # Architecture
 
 The environment uses multiple Docker containers connected through static networks.
-
-<p align="center">
-  <img src="architecture.png" alt="Network Architecture" width="85%">
-</p>
 
 ---
 
@@ -51,8 +47,6 @@ The environment uses multiple Docker containers connected through static network
 
 ```
 .
-├── architecture.png        # Network architecture diagram
-│
 ├── docker/                 # Docker environment and network configuration
 │   ├── docker-compose.yml
 │   ├── kali-data/          # Persistent data for Kali container
