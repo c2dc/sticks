@@ -200,36 +200,92 @@ def _unique_containers() -> st.SearchStrategy[list[GenContainer]]:
 # ---------------------------------------------------------------------------
 
 
-def _expected_isolated(container: GenContainer) -> bool:
+def _registered_network_names(containers: list["GenContainer"]) -> set[str]:
+    """Network names that WILL be resolvable in the inspector (global view).
+
+    A network name is registered by any container that owns it and is NOT
+    skipping it. Mirrors Docker reality: a network name is a GLOBAL unique key,
+    so an attachment is resolvable iff *some* source registered that name. A
+    container flagged ``missing_network`` skips only the FIRST DISTINCT custom
+    network name it owns; the same name registered by another container (or by a
+    later distinct-name position) is still globally resolvable.
+    """
+    registered: set[str] = set()
+    for c in containers:
+        skipped = _skipped_network_name(c)
+        for net in c.custom_networks:
+            if net.name == skipped:
+                continue
+            registered.add(net.name)
+    return registered
+
+
+def _skipped_network_name(container: "GenContainer") -> str | None:
+    """The single network name this container does NOT register, if any.
+
+    When ``missing_network`` is set and the container has custom networks, it
+    skips registering its FIRST DISTINCT custom network name (so that specific
+    name is non-verifiable *unless another source registers it*). Returns
+    ``None`` when nothing is skipped.
+    """
+    if not (container.missing_network and container.custom_networks):
+        return None
+    return container.custom_networks[0].name
+
+
+def _expected_isolated(
+    container: GenContainer,
+    registered_names: set[str] | None = None,
+) -> bool:
     """Expected per-container verdict computed directly from the model.
 
     Mirrors the Requirement 6.1 rule WITHOUT calling the implementation. A
     container is isolated iff it is verifiable and attached only to internal
     networks (with internal subnets when declared) with no external DNS. Any
-    non-verifiable condition (missing container, or a missing/unregistered
-    attached network) is NOT isolated (fail-closed).
+    non-verifiable condition (missing container, or an attached network name that
+    NO source registered) is NOT isolated (fail-closed).
+
+    ``registered_names`` is the GLOBAL set of resolvable network names (from
+    :func:`_registered_network_names`). When ``None`` (single-container helper
+    use) it is derived from this container alone, honouring its own skip.
     """
     # Non-verifiable: the inspector cannot resolve the container at all.
     if container.missing_container:
         return False
 
-    all_attachments = list(container.bridge_names) + [
-        n.name for n in container.custom_networks
-    ]
+    if registered_names is None:
+        registered_names = _registered_network_names([container])
+
+    # Production reads the container's attached network NAMES (dict keys →
+    # deduplicated). Dedupe here the same way, preserving first-seen order.
+    attached_names: list[str] = []
+    for name in list(container.bridge_names) + [n.name for n in container.custom_networks]:
+        if name not in attached_names:
+            attached_names.append(name)
+
     # Rule 1: attached to at least one network.
-    if not all_attachments:
+    if not attached_names:
         return False
 
     # Rule 2a: no known external bridge name.
-    if container.bridge_names:
+    if any(name in KNOWN_EXTERNAL_NETWORK_NAMES for name in attached_names):
         return False
 
-    # Non-verifiable: a declared custom network is not registered.
-    if container.missing_network and container.custom_networks:
-        return False
-
-    # Rule 2b: every custom network internal (and internal subnet if declared).
+    # Map custom-network name -> its definition (first occurrence wins, matching
+    # how the inspector registers a single NetworkInfo per unique name).
+    net_by_name: dict[str, GenNetwork] = {}
     for net in container.custom_networks:
+        net_by_name.setdefault(net.name, net)
+
+    for name in attached_names:
+        net = net_by_name.get(name)
+        if net is None:
+            # A bridge name already handled above; anything else is unexpected.
+            continue
+        # Non-verifiable: this network name is not registered by ANY source.
+        if name not in registered_names:
+            return False
+        # Rule 2b: internal, and (if subnets declared) an internal subnet.
         if not net.internal:
             return False
         if net.subnets and not any(is_internal_subnet(cidr) for cidr in net.subnets):
@@ -244,27 +300,38 @@ def _expected_isolated(container: GenContainer) -> bool:
 
 
 def _build_inspector(containers: list[GenContainer]) -> FakeInspector:
-    """Populate a FakeInspector, honouring the missing_* fail-closed flags."""
+    """Populate a FakeInspector consistent with the global registration view.
+
+    Containers are registered unless flagged ``missing_container``. Networks are
+    registered from the GLOBAL set computed by :func:`_registered_network_names`,
+    so a name skipped by one container but owned by another stays resolvable —
+    exactly as Docker treats a network name as a global unique key.
+    """
     inspector = FakeInspector()
+    registered_names = _registered_network_names(containers)
+    # One NetworkInfo per unique registered name (first occurrence wins).
+    net_defs: dict[str, GenNetwork] = {}
+    for c in containers:
+        for net in c.custom_networks:
+            net_defs.setdefault(net.name, net)
+
     for c in containers:
         if not c.missing_container:
-            network_names = tuple(c.bridge_names) + tuple(
-                n.name for n in c.custom_networks
-            )
+            # Attached names as the inspector/Docker would expose them (dict keys
+            # → deduplicated, preserving first-seen order).
+            attached: list[str] = []
+            for name in tuple(c.bridge_names) + tuple(n.name for n in c.custom_networks):
+                if name not in attached:
+                    attached.append(name)
             inspector.containers[c.name] = ContainerNetworkInfo(
-                name=c.name, network_names=network_names, dns=c.dns
+                name=c.name, network_names=tuple(attached), dns=c.dns
             )
-        # Register custom networks UNLESS the container is flagged to have a
-        # missing network: in that case we skip the first custom network so its
-        # lookup raises NetworkNotFound (non-verifiable attachment).
-        nets = list(c.custom_networks)
-        skip_first = c.missing_network and nets
-        for i, net in enumerate(nets):
-            if skip_first and i == 0:
-                continue
-            inspector.networks[net.name] = NetworkInfo(
-                name=net.name, internal=net.internal, subnets=net.subnets
-            )
+
+    for name in registered_names:
+        net = net_defs[name]
+        inspector.networks[name] = NetworkInfo(
+            name=name, internal=net.internal, subnets=net.subnets
+        )
     return inspector
 
 
@@ -289,7 +356,10 @@ def test_property12_isolated_iff_all_targets_satisfy_rule(
 
     result = inspect_isolation(names, inspector=inspector)
 
-    expected_isolated = {c.name: _expected_isolated(c) for c in containers}
+    registered_names = _registered_network_names(containers)
+    expected_isolated = {
+        c.name: _expected_isolated(c, registered_names) for c in containers
+    }
     expected_all = all(expected_isolated.values())
 
     # The biconditional: aggregate is "isolado" iff ALL targets satisfy the rule.

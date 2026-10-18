@@ -48,8 +48,9 @@ from typing import Any, Optional
 
 from pydantic import BaseModel, Field
 
-from app.core.sticks_config import _repo_root, load_sticks_config
+from app.core.sticks_config import load_sticks_config
 from app.services.campaign_service import CURATED_CASES
+from app.services.stix.stix_paths import resolve_stix_data_dir
 
 
 # ---------------------------------------------------------------------------
@@ -355,12 +356,26 @@ class StixService:
         self,
         data_dir: Optional[Path] = None,
         http_client: Any = None,
+        stix_dir_override: Optional[str] = None,
     ) -> None:
-        # Default to <repo>/packages/cli/data/stix, resolved via the same repo-root
-        # strategy used by sticks_config / CaseService. All paths are pathlib
-        # for portability.
-        self._data_dir: Path = (
-            Path(data_dir) if data_dir is not None else _repo_root() / "packages" / "cli" / "data" / "stix"
+        # Resolve the STIX data directory via the pure path resolver with strict
+        # precedence: injected ``data_dir`` > ``PIPELINE_UI_STIX_DIR`` override >
+        # OS default in the user's persistent cache (Req. 1.1, 2.1, 2.2, 5.4).
+        # When ``stix_dir_override`` is not supplied it defaults to
+        # ``get_settings().stix_dir`` — resolved lazily/defensively so a config
+        # import failure never breaks StixService instantiation. This call is a
+        # pure Path computation: no ``mkdir``, no network (Req. 5.4); directory
+        # creation still happens only in ``download_base`` (Req. 3.3).
+        if stix_dir_override is None:
+            try:
+                from app.core.config import get_settings
+
+                stix_dir_override = get_settings().stix_dir
+            except Exception:  # noqa: BLE001 — config unavailable; fall back to default.
+                stix_dir_override = None
+        self._data_dir: Path = resolve_stix_data_dir(
+            injected=data_dir,
+            override=stix_dir_override,
         )
         self._http_client = http_client
 
