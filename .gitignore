@@ -68,3 +68,11 @@ infra/docker/.docker/caldera/plugins/magma/dist/
 
 # ── Development database (SQLite) ──
 apps/backend/pipeline_ui.db
+
+# ── Metasploit cache (regenerated at runtime inside the kali container) ──
+infra/docker/kali-data/.msf4/
+
+# ── STIX bundles (downloaded from the official MITRE source on demand; not
+#    versioned to keep the repository small — see README "STIX base selection") ──
+packages/cli/data/stix/*.json
+sticks/data/stix/*.json
