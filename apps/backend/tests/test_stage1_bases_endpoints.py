@@ -2,7 +2,7 @@
 
 No esquema de SEIS Estágios, o Estágio 1 é a "Seleção da base STIX". A tarefa 2.3
 adiciona/alinha os seus contratos REST (JSON pt-BR), todos reusando o
-:class:`~app.services.stix.estagio1_service.Stage1Service` (que, por sua vez,
+:class:`~app.services.stix.stage1_service.Stage1Service` (que, por sua vez,
 delega ao ``StixService``):
 
 * ``GET  /api/stix/bases`` — lista as versões conhecidas com ``downloaded`` /
@@ -13,14 +13,14 @@ delega ao ``StixService``):
 * ``POST /api/stix/bases/{version}/download`` — o Estágio 1 garante o pacote da
   versão em disco: reusa o pacote quando presente (sem download de novo — Req. 5.3)
   e, quando ausente, aciona o **único egresso de rede** (valida ``version`` contra
-  ``VERSOES_CONHECIDAS`` **antes** de tocar disco/rede — Req. 5.2). Falhas são
+  ``KNOWN_VERSIONS`` **antes** de tocar disco/rede — Req. 5.2). Falhas são
   mapeadas ao contrato ``falha_download``: 422 (versão desconhecida, rejeitada no
   pré-voo) / 502 (failure de rede/conteúdo/escrita — Req. 5.9).
 
-Isolamento total
+Full isolation
 ----------------
 Os handlers do router ``campaigns``/``stix`` constroem ``Stage1Service()`` (sem
-injeção na rota), que resolve ``StixService()`` no módulo ``estagio1_service``.
+injeção na rota), que resolve ``StixService()`` no módulo ``stage1_service``.
 Monkeypatcheamos esse símbolo para uma fábrica que fixa ``data_dir`` num
 ``tmp_path`` isolated e injeta um ``http_client`` **falso** no único egresso de
 rede, de modo que nenhum file real ou HTTP real seja tocado.
@@ -37,11 +37,11 @@ import pytest
 from fastapi.testclient import TestClient
 
 import app.api.stix as stix_api
-import app.services.stix.estagio1_service as estagio1_module
+import app.services.stix.stage1_service as stage1_module
 from app.main import create_app
 from app.services.stix.stix_service import (
-    VERSAO_CURADA,
-    VERSOES_CONHECIDAS,
+    CURATED_VERSION,
+    KNOWN_VERSIONS,
     StixService,
 )
 
@@ -94,7 +94,7 @@ class _ClienteHttpFake:
         return self._resposta
 
 
-def _pin_estagio1(
+def _pin_stage1(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     http: "_ClienteHttpFake | None" = None,
@@ -102,7 +102,7 @@ def _pin_estagio1(
     """Pin the ``Stage1Service``'s ``StixService`` to ``tmp_path`` (+ fake http).
 
     The route builds ``Stage1Service()`` → ``StixService()`` resolved in the
-    ``estagio1_service`` module; patching that symbol redirects every disk read
+    ``stage1_service`` module; patching that symbol redirects every disk read
     (and the single network egress) into the isolated temp dir / fake client.
     """
 
@@ -111,10 +111,10 @@ def _pin_estagio1(
 
     # The ``POST .../download`` and ``GET .../stage/1`` handlers (router campaigns)
     # build ``Stage1Service()`` → ``StixService()`` resolved in the
-    # ``estagio1_service`` module; ``GET /api/stix/bases`` (router stix) builds
+    # ``stage1_service`` module; ``GET /api/stix/bases`` (router stix) builds
     # ``Stage1Service(StixService())`` with the ``StixService`` symbol of the
     # ``app.api.stix`` module. Patch both so every route is isolated to tmp_path.
-    monkeypatch.setattr(estagio1_module, "StixService", _factory)
+    monkeypatch.setattr(stage1_module, "StixService", _factory)
     monkeypatch.setattr(stix_api, "StixService", _factory)
 
 
@@ -123,23 +123,23 @@ def _pin_estagio1(
 # ---------------------------------------------------------------------------
 
 
-def test_get_bases_projeta_flag_curada_e_nenhuma_baixada(
+def test_get_bases_projects_curated_flag_and_none_downloaded(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """``GET /api/stix/bases`` → 200 com a flag ``curated`` por versão (``True``
     só para a versão curated) e nenhuma downloaded num diretório vazio (Req. 5.4,
     5.5, 5.6)."""
-    _pin_estagio1(monkeypatch, tmp_path)
+    _pin_stage1(monkeypatch, tmp_path)
     client = TestClient(create_app())
 
     resp = client.get("/api/stix/bases")
 
     assert resp.status_code == 200, resp.text
     bases = resp.json()["bases"]
-    assert {b["version"] for b in bases} == set(VERSOES_CONHECIDAS)
+    assert {b["version"] for b in bases} == set(KNOWN_VERSIONS)
     # Flag curated: exatamente a versão curated vem True.
     curadas = {b["version"] for b in bases if b["curated"]}
-    assert curadas == {VERSAO_CURADA}
+    assert curadas == {CURATED_VERSION}
     # Diretório vazio: nada downloaded por padrão.
     for base in bases:
         assert base["downloaded"] is False
@@ -152,54 +152,54 @@ def test_get_bases_projeta_flag_curada_e_nenhuma_baixada(
 # ---------------------------------------------------------------------------
 
 
-def test_post_baixar_baixa_quando_ausente(
+def test_post_download_downloads_when_absent(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """``POST /api/stix/bases/{version}/download`` ausente → 200, baixa via o único
     egresso de rede e marca ``downloaded=True`` (Req. 5.2)."""
     http = _ClienteHttpFake(_RespostaFake(json.dumps(_bundle_curado())))
-    _pin_estagio1(monkeypatch, tmp_path, http)
+    _pin_stage1(monkeypatch, tmp_path, http)
     client = TestClient(create_app())
 
-    resp = client.post(f"/api/stix/bases/{VERSAO_CURADA}/download")
+    resp = client.post(f"/api/stix/bases/{CURATED_VERSION}/download")
 
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    assert body["version"] == VERSAO_CURADA
+    assert body["version"] == CURATED_VERSION
     assert body["downloaded"] is True
     assert body["file"]
     # Houve exatamente um egresso de rede (o download).
     assert len(http.chamadas) == 1
 
 
-def test_post_baixar_reusa_disco_sem_rede(
+def test_post_download_reuses_disk_no_network(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """``POST .../download`` com o pacote já em disco → 200 e **nenhum** egresso de
     rede (reusa o disco — Req. 5.3)."""
     # Semeia o bundle em disco.
-    base = StixService(data_dir=tmp_path).base_path(VERSAO_CURADA)
+    base = StixService(data_dir=tmp_path).base_path(CURATED_VERSION)
     base.parent.mkdir(parents=True, exist_ok=True)
     base.write_text(json.dumps(_bundle_curado()), encoding="utf-8")
 
     http = _ClienteHttpFake(RuntimeError("não deveria haver rede"))
-    _pin_estagio1(monkeypatch, tmp_path, http)
+    _pin_stage1(monkeypatch, tmp_path, http)
     client = TestClient(create_app())
 
-    resp = client.post(f"/api/stix/bases/{VERSAO_CURADA}/download")
+    resp = client.post(f"/api/stix/bases/{CURATED_VERSION}/download")
 
     assert resp.status_code == 200, resp.text
     assert resp.json()["downloaded"] is True
     assert http.chamadas == []  # disco reusado, sem rede
 
 
-def test_post_baixar_versao_desconhecida_422(
+def test_post_download_unknown_version_422(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """``POST .../download`` com versão desconhecida → 422 ``falha_download``,
     rejeitada antes de tocar disco/rede (Req. 5.2)."""
     http = _ClienteHttpFake(_RespostaFake("irrelevante"))
-    _pin_estagio1(monkeypatch, tmp_path, http)
+    _pin_stage1(monkeypatch, tmp_path, http)
     client = TestClient(create_app())
 
     resp = client.post("/api/stix/bases/999.0/download")
@@ -210,18 +210,18 @@ def test_post_baixar_versao_desconhecida_422(
     assert http.chamadas == []
 
 
-def test_post_baixar_falha_download_502(
+def test_post_download_download_failure_502(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """``POST .../download`` com failure de rede → 502 ``falha_download`` e nenhum
     file parcial em disco (Req. 5.9)."""
     http = _ClienteHttpFake(RuntimeError("rede caiu"))
-    _pin_estagio1(monkeypatch, tmp_path, http)
+    _pin_stage1(monkeypatch, tmp_path, http)
     client = TestClient(create_app())
 
-    resp = client.post(f"/api/stix/bases/{VERSAO_CURADA}/download")
+    resp = client.post(f"/api/stix/bases/{CURATED_VERSION}/download")
 
     assert resp.status_code == 502, resp.text
     assert resp.json()["detail"]["motivo"] == "falha_download"
     # Nenhum file parcial deixado em disco.
-    assert not StixService(data_dir=tmp_path).base_path(VERSAO_CURADA).exists()
+    assert not StixService(data_dir=tmp_path).base_path(CURATED_VERSION).exists()

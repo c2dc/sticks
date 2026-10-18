@@ -54,7 +54,7 @@ Decisões de implementação (seguindo a design.md e o precedente de
   espelhando ``_portable_enum`` do modelo: o CHECK de ``plataforma`` já aceita
   ``maquina_virtual`` e o de ``origem`` já aceita ``gerado_ia``, de modo que
   valores futuros não exigem migração de esquema (Req. 16.4, 17.2). A tabela
-  ``versoes_stix`` é **semeada** com a versão curada (``VERSAO_CURADA`` =
+  ``versoes_stix`` é **semeada** com a versão curada (``CURATED_VERSION`` =
   ``"18.0"``, ``curada = true`` — Req. 5.5, 5.6).
 * **Sem CHECK em ``estagio``.** O modelo ``StageRun`` persiste ``estagio`` como
   ``Integer`` puro (sem enum, sem ``CHECK`` de intervalo); as migrações
@@ -91,7 +91,7 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 # Versão STIX curada semeada em ``versoes_stix`` — fonte única em código é a
-# constante ``VERSAO_CURADA`` de ``app.services.stix.stix_service`` (Req. 5.5,
+# constante ``CURATED_VERSION`` de ``app.services.stix.stix_service`` (Req. 5.5,
 # 5.6). Replicada aqui como literal para manter a migração autossuficiente e
 # independente de imports da aplicação (seguindo o precedente das migrações
 # anteriores, que não importam código da app).
@@ -242,7 +242,7 @@ def upgrade() -> None:
     )
 
     # (6) Semear versoes_stix com a versão curada (18.0 curada=true — Req. 5.5,
-    # 5.6). Fonte única em código: VERSAO_CURADA (replicada como literal aqui).
+    # 5.6). Fonte única em código: CURATED_VERSION (replicada como literal aqui).
     bind.execute(
         sa.text(
             "INSERT INTO versoes_stix (versao, curada, artefatos_curados_path) "

@@ -6,10 +6,10 @@
 # Docker Engine API (socket, read-only) for isolation inspection.
 #
 # NOTE on the sticks integration:
-#   app/core/sticks_config.py loads <repo>/sticks/config/config.py by resolving
+#   app/core/sticks_config.py loads <repo>/packages/cli/config/config.py by resolving
 #   parents[4] from its own file location. To preserve that layout at runtime,
 #   docker-compose bind-mounts the repository root read-only at /repo and sets
-#   the working directory to /repo/ui/backend. The image itself only
+#   the working directory to /repo/apps/backend. The image itself only
 #   provides the Python environment + installed dependencies.
 
 FROM python:3.11-slim
@@ -29,8 +29,8 @@ COPY app ./app
 RUN pip install --upgrade pip \
     && pip install .
 
-# Default working directory is overridden by compose to /repo/ui/backend
-# so that app/core/sticks_config.py can resolve <repo>/sticks/config/config.py.
+# Default working directory is overridden by compose to /repo/apps/backend
+# so that app/core/sticks_config.py can resolve <repo>/packages/cli/config/config.py.
 # When run standalone (no repo mount) the image still boots the API.
 EXPOSE 8000
 

@@ -1,6 +1,6 @@
 """Testes de exemplo do serviço fino do Estágio 1 — Seleção da base STIX (task 2.2).
 
-Cobrem a orquestração de :class:`app.services.stix.estagio1_service.Stage1Service`
+Cobrem a orquestração de :class:`app.services.stix.stage1_service.Stage1Service`
 que reusa o :class:`app.services.stix.stix_service.StixService`:
 
 * ``list_bases`` projeta a flag ``curated`` e o state de disco (Req. 5.4, 5.5);
@@ -11,7 +11,7 @@ que reusa o :class:`app.services.stix.stix_service.StixService`:
   não concluído com a causa reportada e sem file parcial (Req. 5.9);
 * a Saída (dashboard + campaigns) alimenta o Estágio 2 (Req. 2.2).
 
-Isolamento total: cada teste usa ``StixService(data_dir=tmp_path)`` (nunca toca o
+Full isolation: each test uses ``StixService(data_dir=tmp_path)`` (never touches the
 ``sticks/data/stix`` real) e um ``http_client`` **falso** para o único egresso de
 rede — não há HTTP real nesta suíte.
 """
@@ -23,14 +23,14 @@ from pathlib import Path
 
 import pytest
 
-from app.services.stix.estagio1_service import (
+from app.services.stix.stage1_service import (
     BaseStixListada,
     Stage1Service,
     Stage1ResultStix,
 )
 from app.services.stix.stix_service import (
-    VERSAO_CURADA,
-    VERSOES_CONHECIDAS,
+    CURATED_VERSION,
+    KNOWN_VERSIONS,
     StixDownloadError,
     StixService,
 )
@@ -95,7 +95,7 @@ class _ClienteHttpFake:
 # ---------------------------------------------------------------------------
 
 
-def test_listar_bases_projeta_flag_curada_e_disco(tmp_path: Path) -> None:
+def test_list_bases_projects_curated_flag_and_disk(tmp_path: Path) -> None:
     """Each listed base carries ``curated`` (True only for 18.0) and no base is
     downloaded by default (Req. 5.4, 5.5, 5.6)."""
     service = Stage1Service(StixService(data_dir=tmp_path))
@@ -103,23 +103,23 @@ def test_listar_bases_projeta_flag_curada_e_disco(tmp_path: Path) -> None:
     bases = service.list_bases()
 
     assert all(isinstance(b, BaseStixListada) for b in bases)
-    assert {b.version for b in bases} == set(VERSOES_CONHECIDAS)
+    assert {b.version for b in bases} == set(KNOWN_VERSIONS)
     # Exactly one curated version (18.0), and nothing downloaded by default.
     curadas = [b.version for b in bases if b.curated]
-    assert curadas == [VERSAO_CURADA]
+    assert curadas == [CURATED_VERSION]
     assert all(not b.downloaded and not b.selectable for b in bases)
 
 
-def test_listar_bases_reflete_bundle_on_disk(tmp_path: Path) -> None:
+def test_list_bases_reflects_bundle_on_disk(tmp_path: Path) -> None:
     """A materialised bundle flips ``downloaded``/``selectable`` for that version."""
     stix = StixService(data_dir=tmp_path)
-    _escrever_bundle(stix.base_path(VERSAO_CURADA))
+    _escrever_bundle(stix.base_path(CURATED_VERSION))
     service = Stage1Service(stix)
 
-    base = next(b for b in service.list_bases() if b.version == VERSAO_CURADA)
+    base = next(b for b in service.list_bases() if b.version == CURATED_VERSION)
 
     assert base.downloaded and base.selectable
-    assert base.file == str(stix.base_path(VERSAO_CURADA))
+    assert base.file == str(stix.base_path(CURATED_VERSION))
     assert base.curated is True
 
 
@@ -128,33 +128,33 @@ def test_listar_bases_reflete_bundle_on_disk(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_baixar_base_reusa_disco_sem_rede(tmp_path: Path) -> None:
+def test_download_base_reuses_disk_no_network(tmp_path: Path) -> None:
     """When the bundle is already on disk, no network egress happens (Req. 5.3)."""
     cliente = _ClienteHttpFake(_RespostaFake(json.dumps(_bundle_curado())))
     stix = StixService(data_dir=tmp_path, http_client=cliente)
-    _escrever_bundle(stix.base_path(VERSAO_CURADA))
+    _escrever_bundle(stix.base_path(CURATED_VERSION))
     service = Stage1Service(stix)
 
-    info = service.download_base(VERSAO_CURADA)
+    info = service.download_base(CURATED_VERSION)
 
     assert info.downloaded and info.selectable
     assert cliente.chamadas == []  # reused disk — the only egress never ran
 
 
-def test_baixar_base_baixa_quando_ausente(tmp_path: Path) -> None:
+def test_download_base_downloads_when_absent(tmp_path: Path) -> None:
     """When absent, the single network egress runs and writes the bundle (Req. 5.2)."""
     cliente = _ClienteHttpFake(_RespostaFake(json.dumps(_bundle_curado())))
     stix = StixService(data_dir=tmp_path, http_client=cliente)
     service = Stage1Service(stix)
 
-    info = service.download_base(VERSAO_CURADA)
+    info = service.download_base(CURATED_VERSION)
 
     assert info.downloaded and info.selectable
     assert len(cliente.chamadas) == 1
-    assert stix.base_path(VERSAO_CURADA).exists()
+    assert stix.base_path(CURATED_VERSION).exists()
 
 
-def test_baixar_base_versao_desconhecida_recusa_sem_disco(tmp_path: Path) -> None:
+def test_download_base_unknown_version_refuses_no_disk(tmp_path: Path) -> None:
     """An unknown version is rejected before touching disk/network (Req. 5.2)."""
     cliente = _ClienteHttpFake(_RespostaFake("irrelevante"))
     stix = StixService(data_dir=tmp_path, http_client=cliente)
@@ -172,14 +172,14 @@ def test_baixar_base_versao_desconhecida_recusa_sem_disco(tmp_path: Path) -> Non
 # ---------------------------------------------------------------------------
 
 
-def test_concluir_sucesso_monta_dashboard_e_campanhas(tmp_path: Path) -> None:
+def test_complete_success_builds_dashboard_and_campaigns(tmp_path: Path) -> None:
     """Success: bundle on disk + dashboard assembled → completed; the Saída
     (dashboard + campaigns) feeds Stage 2 (Req. 5.8, 5.10, 2.2)."""
     cliente = _ClienteHttpFake(_RespostaFake(json.dumps(_bundle_curado())))
     stix = StixService(data_dir=tmp_path, http_client=cliente)
     service = Stage1Service(stix)
 
-    result = service.complete(VERSAO_CURADA)
+    result = service.complete(CURATED_VERSION)
 
     assert isinstance(result, Stage1ResultStix)
     assert result.completed is True
@@ -197,37 +197,37 @@ def test_concluir_sucesso_monta_dashboard_e_campanhas(tmp_path: Path) -> None:
     assert result.campaigns[0].curated_slug == "shadowray"
 
 
-def test_concluir_reusa_bundle_on_disk_sem_rede(tmp_path: Path) -> None:
+def test_complete_reuses_bundle_on_disk_no_network(tmp_path: Path) -> None:
     """A pre-existing bundle concludes Stage 1 without any network egress."""
     cliente = _ClienteHttpFake(_RespostaFake("nunca-usado"))
     stix = StixService(data_dir=tmp_path, http_client=cliente)
-    _escrever_bundle(stix.base_path(VERSAO_CURADA))
+    _escrever_bundle(stix.base_path(CURATED_VERSION))
     service = Stage1Service(stix)
 
-    result = service.complete(VERSAO_CURADA)
+    result = service.complete(CURATED_VERSION)
 
     assert result.completed is True
     assert cliente.chamadas == []
 
 
-def test_concluir_falha_download_nao_conclui_sem_arquivo_parcial(tmp_path: Path) -> None:
+def test_complete_download_failure_does_not_complete_no_partial_file(tmp_path: Path) -> None:
     """Download failure: Stage not concluded, cause reported, no partial file
     on disk (Req. 5.9)."""
     cliente = _ClienteHttpFake(RuntimeError("rede caiu"))
     stix = StixService(data_dir=tmp_path, http_client=cliente)
     service = Stage1Service(stix)
 
-    result = service.complete(VERSAO_CURADA)
+    result = service.complete(CURATED_VERSION)
 
     assert result.completed is False
     assert result.bundle_on_disk is False
     assert result.dashboard is None
     assert result.campaigns == []
     assert result.error_message is not None and result.error_message != ""
-    assert not stix.base_path(VERSAO_CURADA).exists()  # no partial file
+    assert not stix.base_path(CURATED_VERSION).exists()  # no partial file
 
 
-def test_concluir_versao_desconhecida_nao_conclui_com_causa(tmp_path: Path) -> None:
+def test_complete_unknown_version_does_not_complete_with_cause(tmp_path: Path) -> None:
     """An unknown version keeps the Stage not concluded with a reported cause,
     without touching disk or network (Req. 5.9)."""
     cliente = _ClienteHttpFake(_RespostaFake("irrelevante"))
@@ -241,15 +241,15 @@ def test_concluir_versao_desconhecida_nao_conclui_com_causa(tmp_path: Path) -> N
     assert cliente.chamadas == []
 
 
-def test_concluir_conteudo_invalido_nao_conclui(tmp_path: Path) -> None:
+def test_complete_invalid_content_does_not_complete(tmp_path: Path) -> None:
     """Downloaded content that is not a STIX bundle fails the download, keeping
     the Stage not concluded with no partial file (Req. 5.9)."""
     cliente = _ClienteHttpFake(_RespostaFake("isto nao e json"))
     stix = StixService(data_dir=tmp_path, http_client=cliente)
     service = Stage1Service(stix)
 
-    result = service.complete(VERSAO_CURADA)
+    result = service.complete(CURATED_VERSION)
 
     assert result.completed is False
     assert result.dashboard is None
-    assert not stix.base_path(VERSAO_CURADA).exists()
+    assert not stix.base_path(CURATED_VERSION).exists()

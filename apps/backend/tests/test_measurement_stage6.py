@@ -59,7 +59,7 @@ def _res(ability_id: str | None, status: AbilityResultStatus, **kwargs: object) 
 # ---------------------------------------------------------------------------
 
 
-def test_taxa_sucesso_e_contagens() -> None:
+def test_success_rate_and_counts() -> None:
     dag = _dag(
         _no("n1", "T1", node_type="recon"),
         _no("n2", "T2", node_type="exec"),
@@ -83,7 +83,7 @@ def test_taxa_sucesso_e_contagens() -> None:
     assert metrics.success_rate == 0.75
 
 
-def test_taxa_sucesso_dag_vazio_sem_divisao_por_zero() -> None:
+def test_success_rate_empty_dag_no_division_by_zero() -> None:
     metrics = MeasurementService().measure(
         results=[_res("a1", AbilityResultStatus.SUCCESS)],
         dag=_dag(),
@@ -95,7 +95,7 @@ def test_taxa_sucesso_dag_vazio_sem_divisao_por_zero() -> None:
     assert metrics.success_verdict is False
 
 
-def test_dag_none_zera_as_metricas() -> None:
+def test_dag_none_zeroes_the_metrics() -> None:
     metrics = MeasurementService().measure(
         results=[], dag=None, technique_by_ability={}
     )
@@ -130,7 +130,7 @@ def test_cobertura_procedural_proporcao_de_tentadas() -> None:
     assert 0.0 <= metrics.procedural_coverage <= 1.0
 
 
-def test_tecnica_duplicada_no_dag_conta_uma_vez() -> None:
+def test_duplicate_technique_in_dag_counts_once() -> None:
     # T1 aparece em dois nós; conta como UMA técnica distinta.
     dag = _dag(_no("n1", "T1"), _no("n2", "T1"), _no("n3", "T2"))
     metrics = MeasurementService().measure(
@@ -172,7 +172,7 @@ def test_nos_falhos_registram_etapa_do_dag() -> None:
     assert ok.failed_step is None
 
 
-def test_etapa_falha_cai_para_tactic_e_depois_indice() -> None:
+def test_failed_step_falls_back_to_tactic_then_index() -> None:
     dag = _dag(
         _no("n1", "T1", tactic="execution"),  # sem node_type → usa tactic
         _no("n2", "T2", node_index=7),  # sem node_type/tactic → usa índice
@@ -190,7 +190,7 @@ def test_etapa_falha_cai_para_tactic_e_depois_indice() -> None:
     assert etapas["T2"] == "node_7"
 
 
-def test_falha_e_sucesso_na_mesma_tecnica_consolida_sucesso() -> None:
+def test_failure_and_success_in_same_technique_consolidates_success() -> None:
     # Uma técnica com duas Abilities: uma failure, outra success ⇒ success.
     dag = _dag(_no("n1", "T1"))
     mapa = {"a1": "T1", "a1b": "T1"}
@@ -230,7 +230,7 @@ def test_tempo_por_tecnica_e_total() -> None:
     assert metrics.total_time_s == 5.0
 
 
-def test_telemetria_por_tecnica_deduplicada() -> None:
+def test_telemetry_per_technique_deduplicated() -> None:
     dag = _dag(_no("n1", "T1"))
     mapa = {"a1": "T1", "a1b": "T1"}
     results = [
@@ -251,7 +251,7 @@ def test_telemetria_por_tecnica_deduplicada() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_veredito_sucesso_quando_todas_tecnicas_sucesso() -> None:
+def test_verdict_success_when_all_techniques_succeed() -> None:
     dag = _dag(_no("n1", "T1"), _no("n2", "T2"))
     mapa = {"a1": "T1", "a2": "T2"}
     results = [
@@ -264,7 +264,7 @@ def test_veredito_sucesso_quando_todas_tecnicas_sucesso() -> None:
     assert metrics.success_verdict is True
 
 
-def test_veredito_falha_quando_alguma_tecnica_nao_sucesso() -> None:
+def test_verdict_failure_when_some_technique_not_success() -> None:
     dag = _dag(_no("n1", "T1"), _no("n2", "T2"))
     mapa = {"a1": "T1", "a2": "T2"}
     # T2 nunca executada (não coberta) → não é success total.
@@ -276,7 +276,7 @@ def test_veredito_falha_quando_alguma_tecnica_nao_sucesso() -> None:
     assert metrics.success_verdict is False
 
 
-def test_ability_sem_tecnica_mapeada_e_ignorada() -> None:
+def test_ability_without_mapped_technique_is_ignored() -> None:
     dag = _dag(_no("n1", "T1"))
     mapa = {"a1": "T1", "a_fora": "TX"}  # TX não está no DAG
     results = [
@@ -298,7 +298,7 @@ def test_ability_sem_tecnica_mapeada_e_ignorada() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_consolidar_monta_relatorio() -> None:
+def test_consolidate_builds_report() -> None:
     metrics = SufficiencyMetrics(total_dag_techniques=1, successful_techniques=1, success_rate=1.0)
     results = [Stage3AbilityResult(ability_id="a1", status=AbilityResultStatus.SUCCESS)]
     gerado = dt.datetime(2024, 5, 6, 7, 8, 9)
@@ -318,7 +318,7 @@ def test_consolidar_monta_relatorio() -> None:
     assert report.generated_at == gerado
 
 
-def test_consolidar_default_gerado_em_e_sem_resultados() -> None:
+def test_consolidate_default_generated_at_and_no_results() -> None:
     report = MeasurementService().consolidate(
         campaign_id="demo", metrics=SufficiencyMetrics()
     )
@@ -331,7 +331,7 @@ def test_consolidar_default_gerado_em_e_sem_resultados() -> None:
 # ---------------------------------------------------------------------------
 
 
-def _caso() -> CaseData:
+def _campaign() -> CaseData:
     return CaseData(
         id="demo",
         name="Demo",
@@ -346,8 +346,8 @@ def _caso() -> CaseData:
     )
 
 
-def test_medir_do_caso_usa_dag_e_abilities_do_caso() -> None:
-    campaign = _caso()
+def test_measure_from_campaign_uses_campaign_dag_and_abilities() -> None:
+    campaign = _campaign()
     results = [
         _res("a1", AbilityResultStatus.SUCCESS),
         _res("a2", AbilityResultStatus.FAILURE),
@@ -359,8 +359,8 @@ def test_medir_do_caso_usa_dag_e_abilities_do_caso() -> None:
     assert metrics.failed_nodes == ["n2"]
 
 
-def test_relatorio_do_caso_mede_e_consolida() -> None:
-    campaign = _caso()
+def test_report_from_campaign_measures_and_consolidates() -> None:
+    campaign = _campaign()
     ability_results = [
         _res("a1", AbilityResultStatus.SUCCESS, execution_time_s=2.0, telemetry=("processo",)),
         _res("a2", AbilityResultStatus.FAILURE, execution_time_s=1.0),
@@ -391,7 +391,7 @@ def test_relatorio_do_caso_mede_e_consolida() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_de_execucao_normaliza_resultado_duck_typed() -> None:
+def test_from_execution_normalizes_duck_typed_result() -> None:
     from app.services.environment.execution import ExecutionAbilityResult
 
     ear = ExecutionAbilityResult(

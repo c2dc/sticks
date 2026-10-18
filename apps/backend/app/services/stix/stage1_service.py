@@ -17,7 +17,7 @@ The Stage 1 orchestration (thin, new service, reusing ``StixService``) is:
 2. **Download when absent** — :meth:`Stage1Service.download_base` downloads the
    bundle **only** when it is not on disk (reuses the on-disk copy when present,
    Req. 5.3), delegating to ``StixService.download_base`` — the system's **only
-   network egress**, which validates ``version`` against ``VERSOES_CONHECIDAS``
+   network egress**, which validates ``version`` against ``KNOWN_VERSIONS``
    before touching disk/network, writes atomically and raises
    ``StixDownloadError`` without leaving a partial file on failure (Req. 5.2,
    5.9).
@@ -31,7 +31,7 @@ The Stage 1 orchestration (thin, new service, reusing ``StixService``) is:
    failure keeps the stage **not completed** with the reported cause (Req. 5.9),
    without raising.
 
-The curated-version flag (``VERSAO_CURADA`` / ``version_is_curated``, task 2.1)
+The curated-version flag (``CURATED_VERSION`` / ``version_is_curated``, task 2.1)
 is projected into each version of the Output so the UI knows which base carries
 the 8 curated campaigns (Req. 5.5, 5.6) — with no request-time lookup.
 
@@ -72,7 +72,7 @@ class BaseStixListada(BaseStixInfo):
     ``name``, ``downloaded``, ``selectable``, ``file``) with the ``curated``
     field, projected from
     :func:`~app.services.stix.stix_service.version_is_curated` (single source in
-    ``VERSAO_CURADA``, Req. 5.5, 5.6). This way the Stage 1 screen knows, with no
+    ``CURATED_VERSION``, Req. 5.5, 5.6). This way the Stage 1 screen knows, with no
     per-request lookup, which version carries the 8 curated campaigns — version
     18 is the only one with ``curated == True``.
     """
@@ -176,7 +176,7 @@ class Stage1Service:
         Reuses the on-disk package without re-downloading when already present
         (Req. 5.3); otherwise downloads via ``StixService.download_base`` — the
         **only network egress** (validates ``version`` against
-        ``VERSOES_CONHECIDAS`` before touching disk/network, atomic write,
+        ``KNOWN_VERSIONS`` before touching disk/network, atomic write,
         Req. 5.2). On a download failure it propagates ``StixDownloadError`` (no
         partial file stays on disk, Req. 5.9); the caller — :meth:`complete` —
         catches it and keeps the stage not completed with the reported cause.

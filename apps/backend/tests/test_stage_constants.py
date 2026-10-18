@@ -7,10 +7,10 @@ rejeita valores fora do intervalo:
 
 1. Constantes — ``FIRST_STAGE == 1``, ``LAST_STAGE == 6`` e
    ``VALID_STAGES == (1, 2, 3, 4, 5, 6)`` (Req. 1.1, 1.2).
-2. Constantes nomeadas dos seis Estágios — ``ESTAGIO_SELECAO_BASE == 1``,
-   ``ESTAGIO_SELECAO_CAMPANHA == 2``, ``ESTAGIO_GERACAO_DAG == 3``,
-   ``ESTAGIO_OPERACIONALIZACAO == 4``, ``ESTAGIO_AMBIENTE == 5`` e
-   ``ESTAGIO_EXECUCAO == 6`` (Req. 1.1).
+2. Constantes nomeadas dos seis Estágios — ``STAGE_BASE_SELECTION == 1``,
+   ``STAGE_CAMPAIGN_SELECTION == 2``, ``STAGE_DAG_GENERATION == 3``,
+   ``STAGE_OPERATIONALIZATION == 4``, ``STAGE_ENVIRONMENT == 5`` e
+   ``STAGE_EXECUTION == 6`` (Req. 1.1).
 3. ``_validate_stage`` — aceita cada um de 1, 2, 3, 4, 5, 6 sem levantar erro e
    rejeita 0 e 7 levantando ``ValueError`` (a mensagem cita ``VALID_STAGES``).
 
@@ -22,12 +22,12 @@ from __future__ import annotations
 import pytest
 
 from app.services.stage.stage_service import (
-    ESTAGIO_AMBIENTE,
-    ESTAGIO_EXECUCAO,
-    ESTAGIO_GERACAO_DAG,
-    ESTAGIO_OPERACIONALIZACAO,
-    ESTAGIO_SELECAO_BASE,
-    ESTAGIO_SELECAO_CAMPANHA,
+    STAGE_ENVIRONMENT,
+    STAGE_EXECUTION,
+    STAGE_DAG_GENERATION,
+    STAGE_OPERATIONALIZATION,
+    STAGE_BASE_SELECTION,
+    STAGE_CAMPAIGN_SELECTION,
     FIRST_STAGE,
     LAST_STAGE,
     VALID_STAGES,
@@ -49,12 +49,12 @@ def test_valid_stages_is_one_through_six() -> None:
 
 def test_named_stage_constants() -> None:
     # Papéis dos seis Estágios após a renumeração (fonte única por número).
-    assert ESTAGIO_SELECAO_BASE == 1
-    assert ESTAGIO_SELECAO_CAMPANHA == 2
-    assert ESTAGIO_GERACAO_DAG == 3
-    assert ESTAGIO_OPERACIONALIZACAO == 4
-    assert ESTAGIO_AMBIENTE == 5
-    assert ESTAGIO_EXECUCAO == 6
+    assert STAGE_BASE_SELECTION == 1
+    assert STAGE_CAMPAIGN_SELECTION == 2
+    assert STAGE_DAG_GENERATION == 3
+    assert STAGE_OPERATIONALIZATION == 4
+    assert STAGE_ENVIRONMENT == 5
+    assert STAGE_EXECUTION == 6
 
 
 @pytest.mark.parametrize("stage", [1, 2, 3, 4, 5, 6])

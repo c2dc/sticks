@@ -90,7 +90,7 @@ def db_session(sqlite_engine: Engine) -> Iterator[Session]:
 # ---------------------------------------------------------------------------
 
 
-def test_origem_dag_covers_exactly_two_members() -> None:
+def test_origin_dag_covers_exactly_two_members() -> None:
     """``DagOrigin`` cobre exatamente curadoria_humana e gerado_ia.
     _Requirements: 4.6, 9.4_"""
     assert {member.value for member in DagOrigin} == {
@@ -99,7 +99,7 @@ def test_origem_dag_covers_exactly_two_members() -> None:
     }
 
 
-def test_origem_dag_member_values() -> None:
+def test_origin_dag_member_values() -> None:
     """Os valores dos membros são as strings pt-BR corretas (``str`` Enum).
     _Requirements: 4.3, 4.6_"""
     assert DagOrigin.HUMAN_CURATION.value == "curadoria_humana"
@@ -144,18 +144,18 @@ def test_dag_has_expected_columns(sqlite_engine: Engine) -> None:
     }
 
 
-def test_dag_caso_id_is_fk_to_casos(sqlite_engine: Engine) -> None:
+def test_dag_campaign_id_is_fk_to_campaigns(sqlite_engine: Engine) -> None:
     """``Dag.campaign_id`` é FK → ``campaigns.id`` (1 campaign → N Dags).
     _Requirements: 4.1, 4.2_"""
     inspector = inspect(sqlite_engine)
     fks = inspector.get_foreign_keys("dags")
 
-    caso_fk = next(fk for fk in fks if fk["constrained_columns"] == ["campaign_id"])
-    assert caso_fk["referred_table"] == "campaigns"
-    assert caso_fk["referred_columns"] == ["id"]
+    campaign_fk = next(fk for fk in fks if fk["constrained_columns"] == ["campaign_id"])
+    assert campaign_fk["referred_table"] == "campaigns"
+    assert campaign_fk["referred_columns"] == ["id"]
 
 
-def test_dag_origem_defaults_to_curadoria_humana(db_session: Session) -> None:
+def test_dag_origin_defaults_to_human_curation(db_session: Session) -> None:
     """``Dag.origin`` default é ``HUMAN_CURATION`` quando não informado.
     _Requirements: 4.3_"""
     _make_case(db_session)
@@ -191,7 +191,7 @@ def test_dag_rotulo_is_nullable(db_session: Session) -> None:
     assert dag.label is None
 
 
-def test_dag_persists_gerado_ia_without_new_migration(
+def test_dag_persists_ai_generated_without_new_migration(
     db_session: Session, sqlite_engine: Engine
 ) -> None:
     """Persistir um ``Dag`` com ``origin=gerado_ia`` e lê-lo de volta.
@@ -237,7 +237,7 @@ def test_dag_persists_gerado_ia_without_new_migration(
 # ---------------------------------------------------------------------------
 
 
-def test_stage_run_has_dag_escolhido_id_column(sqlite_engine: Engine) -> None:
+def test_stage_run_has_chosen_dag_id_column(sqlite_engine: Engine) -> None:
     """``stage_runs`` tem a coluna nullable ``chosen_dag_id``.
     _Requirements: 4.7_"""
     inspector = inspect(sqlite_engine)
@@ -249,7 +249,7 @@ def test_stage_run_has_dag_escolhido_id_column(sqlite_engine: Engine) -> None:
     assert column["nullable"] is True
 
 
-def test_stage_run_dag_escolhido_id_is_fk_to_dags(sqlite_engine: Engine) -> None:
+def test_stage_run_chosen_dag_id_is_fk_to_dags(sqlite_engine: Engine) -> None:
     """``StageRun.chosen_dag_id`` é FK → ``dags.id``. _Requirements: 4.7_"""
     inspector = inspect(sqlite_engine)
     fks = inspector.get_foreign_keys("stage_runs")
@@ -261,7 +261,7 @@ def test_stage_run_dag_escolhido_id_is_fk_to_dags(sqlite_engine: Engine) -> None
     assert dag_fk["referred_columns"] == ["id"]
 
 
-def test_stage_run_dag_escolhido_id_defaults_to_null(db_session: Session) -> None:
+def test_stage_run_chosen_dag_id_defaults_to_null(db_session: Session) -> None:
     """Um ``StageRun`` sem DAG escolhido tem ``chosen_dag_id`` NULL.
     _Requirements: 4.7_"""
     _make_case(db_session)

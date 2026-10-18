@@ -44,7 +44,7 @@ function makeBases(): BaseStixInfo[] {
 
 /** The rendered base cards, in DOM order (which must mirror the input order). */
 function baseCards(container: HTMLElement): HTMLElement[] {
-  return Array.from(container.querySelectorAll<HTMLElement>("[data-versao]"))
+  return Array.from(container.querySelectorAll<HTMLElement>("[data-version]"))
 }
 
 describe("StixBasesList (Req. 2 — bases listing, badge, download)", () => {
@@ -63,8 +63,8 @@ describe("StixBasesList (Req. 2 — bases listing, badge, download)", () => {
     const cards = baseCards(container)
     expect(cards).toHaveLength(2)
     // Order preserved: 15.1 first, 14.0 second (Req. 2.1).
-    expect(cards[0].getAttribute("data-versao")).toBe("15.1")
-    expect(cards[1].getAttribute("data-versao")).toBe("14.0")
+    expect(cards[0].getAttribute("data-version")).toBe("15.1")
+    expect(cards[1].getAttribute("data-version")).toBe("14.0")
 
     // "Já baixada" badge only on the downloaded base (14.0) (Req. 2.2).
     const badges = screen.getAllByText("Já baixada")

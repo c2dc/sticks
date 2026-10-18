@@ -45,7 +45,7 @@ with the ``<data_dir>/{api,dag}/`` layout (same as the real one), into which we
 write (or not) a generated ``{slug}_dag.json``, and builds a ``DagService`` over
 an **ephemeral** SQLite ``Session`` (engine on a temporary file with the full
 schema via ``Base.metadata.create_all``, same as the
-``test_backfill_idempotente_property.py`` / ``test_escolha_dag_property.py``
+``test_backfill_idempotent_property.py`` / ``test_dag_choice_property.py``
 fixtures). The ``DagService`` receives the real ``CurationDagGenerator`` over
 the same ``CaseService``; ``_get_modeling`` materializes the campaign attributes
 from the same fixture. The generated DAGs are acyclic by construction.
@@ -72,10 +72,10 @@ from app.models.domain import StageRun
 from app.models.enums import DagOrigin, StageState
 from app.services.campaign_service import CURATED_CASES, CaseService
 from app.services.dag.dag_service import DagService
-from app.services.dag.gerador import CurationDagGenerator
+from app.services.dag.generator import CurationDagGenerator
 from app.services.stage.stage_service import (
-    ESTAGIO_GERACAO_DAG,
-    ESTAGIO_SELECAO_CAMPANHA,
+    STAGE_DAG_GENERATION,
+    STAGE_CAMPAIGN_SELECTION,
     VALID_STAGES,
     StageService,
 )
@@ -87,7 +87,7 @@ assert _CURATED_SLUG in CURATED_CASES  # guard: keep the curated-fixture slug
 
 
 # ---------------------------------------------------------------------------
-# Ephemeral DB fixture (same as test_escolha_dag_property.py).
+# Ephemeral DB fixture (same as test_dag_choice_property.py).
 # ---------------------------------------------------------------------------
 
 
@@ -216,7 +216,7 @@ _NON_COMPLETED_CHOICES: tuple[Optional[StageState], ...] = tuple(
 _OTHER_STAGES: tuple[int, ...] = tuple(
     e
     for e in VALID_STAGES
-    if e not in (ESTAGIO_SELECAO_CAMPANHA, ESTAGIO_GERACAO_DAG)
+    if e not in (STAGE_CAMPAIGN_SELECTION, STAGE_DAG_GENERATION)
 )
 
 
@@ -248,13 +248,13 @@ def _seed_stage_runs(
     session.commit()
 
 
-def _estagio_dag_rows(session: Session, campaign_id: str) -> list[StageRun]:
+def _dag_stage_rows(session: Session, campaign_id: str) -> list[StageRun]:
     """All ``StageRun`` rows of ``(campaign_id, stage=3)``, by ``id``."""
     return list(
         session.execute(
             select(StageRun)
             .where(StageRun.campaign_id == campaign_id)
-            .where(StageRun.stage == ESTAGIO_GERACAO_DAG)
+            .where(StageRun.stage == STAGE_DAG_GENERATION)
             .order_by(StageRun.id.asc())
         )
         .scalars()
@@ -262,14 +262,14 @@ def _estagio_dag_rows(session: Session, campaign_id: str) -> list[StageRun]:
     )
 
 
-def _count_estagio_dag_concluido(session: Session, campaign_id: str) -> int:
+def _count_dag_stage_completed(session: Session, campaign_id: str) -> int:
     """How many completed ``stage=3`` (DAG) rows exist for ``campaign_id``."""
     return (
         session.execute(
             select(func.count())
             .select_from(StageRun)
             .where(StageRun.campaign_id == campaign_id)
-            .where(StageRun.stage == ESTAGIO_GERACAO_DAG)
+            .where(StageRun.stage == STAGE_DAG_GENERATION)
             .where(StageRun.state == StageState.COMPLETED)
         ).scalar_one()
     )
@@ -294,7 +294,7 @@ def _build_dag_service(
     dag_service = DagService(
         session=session,
         case_service=case_service,
-        gerador=CurationDagGenerator(case_service),
+        generator=CurationDagGenerator(case_service),
     )
     stage_service = StageService(session, case_service=case_service)
     return dag_service, stage_service
@@ -312,14 +312,14 @@ def _build_dag_service(
     suppress_health_check=[HealthCheck.function_scoped_fixture, HealthCheck.too_slow],
 )
 @given(
-    estagio2=st.sampled_from(_NON_COMPLETED_CHOICES),
-    estagio3=st.sampled_from(_STATE_CHOICES),
+    stage2=st.sampled_from(_NON_COMPLETED_CHOICES),
+    stage3=st.sampled_from(_STATE_CHOICES),
     outros=_other_stage_states(),
     structural_nodes=_acyclic_dag(),
 )
-def test_property9_gate_bloqueia_sem_estagio2_concluido(
-    estagio2: Optional[StageState],
-    estagio3: Optional[StageState],
+def test_property9_gate_blocks_without_stage2_completed(
+    stage2: Optional[StageState],
+    stage3: Optional[StageState],
     outros: dict[int, Optional[StageState]],
     structural_nodes: list[dict],
 ) -> None:
@@ -335,7 +335,7 @@ def test_property9_gate_bloqueia_sem_estagio2_concluido(
 
     Validates: Requirements 9.1, 9.3, 9.4
     """
-    assert estagio2 is not StageState.COMPLETED
+    assert stage2 is not StageState.COMPLETED
 
     data_dir = Path(tempfile.mkdtemp(prefix="pipeline6_dag_auto_data_"))
     factory, db_tmp_dir = _make_session_factory()
@@ -347,11 +347,11 @@ def test_property9_gate_bloqueia_sem_estagio2_concluido(
         dag_service, _stage_service = _build_dag_service(session, data_dir)
 
         states = dict(outros)
-        states[ESTAGIO_SELECAO_CAMPANHA] = estagio2
-        states[ESTAGIO_GERACAO_DAG] = estagio3
+        states[STAGE_CAMPAIGN_SELECTION] = stage2
+        states[STAGE_DAG_GENERATION] = stage3
         _seed_stage_runs(session, _CURATED_SLUG, states)
 
-        concluidas_antes = _count_estagio_dag_concluido(session, _CURATED_SLUG)
+        completed_before = _count_dag_stage_completed(session, _CURATED_SLUG)
 
         result = dag_service.auto_complete_stage2(_CURATED_SLUG)
 
@@ -360,13 +360,13 @@ def test_property9_gate_bloqueia_sem_estagio2_concluido(
         assert result.blocked_by_gate is True
         assert result.no_dag is False
         # No completion was done by this call: the count stays the same as
-        # before (0 when estagio3 was not completed; 1 when it already was).
+        # before (0 when stage3 was not completed; 1 when it already was).
         assert (
-            _count_estagio_dag_concluido(session, _CURATED_SLUG)
-            == concluidas_antes
+            _count_dag_stage_completed(session, _CURATED_SLUG)
+            == completed_before
         )
-        assert concluidas_antes == (
-            1 if estagio3 is StageState.COMPLETED else 0
+        assert completed_before == (
+            1 if stage3 is StageState.COMPLETED else 0
         )
         # The gate closes before the backfill: no Dag is persisted.
         assert _count_dags(session, _CURATED_SLUG) == 0
@@ -389,13 +389,13 @@ def test_property9_gate_bloqueia_sem_estagio2_concluido(
     suppress_health_check=[HealthCheck.function_scoped_fixture, HealthCheck.too_slow],
 )
 @given(
-    estagio3_inicial=st.sampled_from(_NON_COMPLETED_CHOICES),
+    stage3_initial=st.sampled_from(_NON_COMPLETED_CHOICES),
     outros=_other_stage_states(),
     structural_nodes=_acyclic_dag(),
     n=st.integers(min_value=1, max_value=6),
 )
-def test_property9_auto_conclui_carregando_dag_e_idempotente(
-    estagio3_inicial: Optional[StageState],
+def test_property9_auto_completes_loading_dag_and_idempotent(
+    stage3_initial: Optional[StageState],
     outros: dict[int, Optional[StageState]],
     structural_nodes: list[dict],
     n: int,
@@ -419,27 +419,27 @@ def test_property9_auto_conclui_carregando_dag_e_idempotente(
         dag_service, stage_service = _build_dag_service(session, data_dir)
 
         states = dict(outros)
-        states[ESTAGIO_SELECAO_CAMPANHA] = StageState.COMPLETED
-        states[ESTAGIO_GERACAO_DAG] = estagio3_inicial
+        states[STAGE_CAMPAIGN_SELECTION] = StageState.COMPLETED
+        states[STAGE_DAG_GENERATION] = stage3_initial
         _seed_stage_runs(session, _CURATED_SLUG, states)
 
         # BEFORE: Stage 4 is blocked while Stage 3 is not completed.
         assert stage_service.is_stage_startable(_CURATED_SLUG, 4) is False
 
         # 1st call: auto-completes Stage 3 by loading the curated DAG.
-        primeiro = dag_service.auto_complete_stage2(_CURATED_SLUG)
-        assert primeiro.completed is True
-        assert primeiro.blocked_by_gate is False
-        assert primeiro.no_dag is False
-        assert primeiro.total_dags == 1
-        assert primeiro.stage_run_id is not None
+        first = dag_service.auto_complete_stage2(_CURATED_SLUG)
+        assert first.completed is True
+        assert first.blocked_by_gate is False
+        assert first.no_dag is False
+        assert first.total_dags == 1
+        assert first.stage_run_id is not None
 
-        rows_1 = _estagio_dag_rows(session, _CURATED_SLUG)
+        rows_1 = _dag_stage_rows(session, _CURATED_SLUG)
         assert len(rows_1) == 1
         line = rows_1[0]
         assert line.state is StageState.COMPLETED
         assert line.progress == 100
-        id_estavel = line.id
+        stable_id = line.id
 
         # AFTER: Stage 3 completed ⇒ Stage 4 released (sequential gate).
         assert stage_service.is_stage_startable(_CURATED_SLUG, 4) is True
@@ -447,16 +447,16 @@ def test_property9_auto_conclui_carregando_dag_e_idempotente(
         # Calls 2..N are idempotent no-ops: same single row, same id, and the
         # backfill still holds exactly one persisted Dag.
         for _ in range(n - 1):
-            repetido = dag_service.auto_complete_stage2(_CURATED_SLUG)
-            assert repetido.completed is True
-            assert repetido.stage_run_id == id_estavel
+            repeated = dag_service.auto_complete_stage2(_CURATED_SLUG)
+            assert repeated.completed is True
+            assert repeated.stage_run_id == stable_id
 
-        rows_n = _estagio_dag_rows(session, _CURATED_SLUG)
+        rows_n = _dag_stage_rows(session, _CURATED_SLUG)
         assert len(rows_n) == 1
-        assert rows_n[0].id == id_estavel
+        assert rows_n[0].id == stable_id
         assert rows_n[0].state is StageState.COMPLETED
         assert rows_n[0].progress == 100
-        assert _count_estagio_dag_concluido(session, _CURATED_SLUG) == 1
+        assert _count_dag_stage_completed(session, _CURATED_SLUG) == 1
         # Idempotent backfill: exactly one curated Dag, no duplication.
         assert _count_dags(session, _CURATED_SLUG) == 1
     finally:
@@ -478,12 +478,12 @@ def test_property9_auto_conclui_carregando_dag_e_idempotente(
     suppress_health_check=[HealthCheck.function_scoped_fixture, HealthCheck.too_slow],
 )
 @given(
-    estagio3_inicial=st.sampled_from(_NON_COMPLETED_CHOICES),
+    stage3_initial=st.sampled_from(_NON_COMPLETED_CHOICES),
     outros=_other_stage_states(),
     n=st.integers(min_value=1, max_value=6),
 )
-def test_property9_sem_dag_nao_conclui_e_avanco_bloqueado(
-    estagio3_inicial: Optional[StageState],
+def test_property9_no_dag_does_not_complete_and_advance_blocked(
+    stage3_initial: Optional[StageState],
     outros: dict[int, Optional[StageState]],
     n: int,
 ) -> None:
@@ -506,8 +506,8 @@ def test_property9_sem_dag_nao_conclui_e_avanco_bloqueado(
         dag_service, stage_service = _build_dag_service(session, data_dir)
 
         states = dict(outros)
-        states[ESTAGIO_SELECAO_CAMPANHA] = StageState.COMPLETED
-        states[ESTAGIO_GERACAO_DAG] = estagio3_inicial
+        states[STAGE_CAMPAIGN_SELECTION] = StageState.COMPLETED
+        states[STAGE_DAG_GENERATION] = stage3_initial
         _seed_stage_runs(session, _CURATED_SLUG, states)
 
         for _ in range(n):
@@ -521,7 +521,7 @@ def test_property9_sem_dag_nao_conclui_e_avanco_bloqueado(
 
         # Nothing completed: no completed ``stage=3`` row and Stage 4 stays
         # blocked by the sequential gate (Req. 9.4).
-        assert _count_estagio_dag_concluido(session, _CURATED_SLUG) == 0
+        assert _count_dag_stage_completed(session, _CURATED_SLUG) == 0
         assert stage_service.is_stage_startable(_CURATED_SLUG, 4) is False
         # Idempotent backfill: no invalid Dag is persisted.
         assert _count_dags(session, _CURATED_SLUG) == 0

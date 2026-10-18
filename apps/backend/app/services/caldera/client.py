@@ -68,6 +68,7 @@ HEALTH_PATH: str = "/api/v2/health"
 ABILITIES_PATH: str = "/api/v2/abilities"
 ADVERSARIES_PATH: str = "/api/v2/adversaries"
 OPERATIONS_PATH: str = "/api/v2/operations"
+AGENTS_PATH: str = "/api/v2/agents"
 
 # Operation conventions matching the existing pipeline (``sticks/lib/operation.py``):
 # the atomic planner, the "red" group and a "2/8" jitter. Kept as module
@@ -204,6 +205,44 @@ class AdversaryRef:
 
 
 @dataclass(frozen=True)
+class AgentRef:
+    """A registered agent as returned by ``GET /api/v2/agents`` (Req. 4.1/4.3/4.4).
+
+    Agents are the Caldera processes running on the attacking host (``kali``)
+    that beacon and execute commands. The Stage 5 health gate uses these to
+    require **≥ 1 agent with ``alive=true``** in the expected group and to detect
+    **orphan** agents (``alive=false``) left behind by rebuilt images.
+
+    Attributes:
+        paw: The agent identifier (``paw`` in the v2 payload).
+        group: The agent group it belongs to, if present.
+        alive: Whether Caldera reports the agent as alive. Central to Req. 4
+            (release requires ≥ 1 alive; ``alive=false`` signals an orphan).
+        host: The host the agent runs on, if present.
+        last_seen: The last-seen timestamp string, if present.
+        raw: The full decoded payload, for callers needing more fields.
+    """
+
+    paw: str
+    group: str | None = None
+    alive: bool = False
+    host: str | None = None
+    last_seen: str | None = None
+    raw: Mapping[str, Any] = field(default_factory=dict)
+
+    @classmethod
+    def from_payload(cls, payload: Mapping[str, Any]) -> "AgentRef":
+        return cls(
+            paw=str(payload.get("paw", "")),
+            group=payload.get("group"),
+            alive=bool(payload.get("alive", False)),
+            host=payload.get("host"),
+            last_seen=payload.get("last_seen"),
+            raw=dict(payload),
+        )
+
+
+@dataclass(frozen=True)
 class CreatedOperation:
     """The Operation created by ``POST /api/v2/operations``.
 
@@ -316,6 +355,13 @@ class OperationStateResult:
 # Caldera link status sentinels. A running (uncollected) link uses -3; a
 # successfully finished command uses 0; any other finished status is a failure.
 _LINK_STATUS_RUNNING = -3
+
+# Terminal Caldera operation `state` strings. Centralized here (Req. 3.2) so both
+# the operation runner's incremental collection loop and the WS progress channel
+# share a single source of truth instead of re-declaring the set inline.
+TERMINAL_OPERATION_STATES: frozenset[str] = frozenset(
+    {"finished", "out_of_time", "cleanup"}
+)
 
 
 def _derive_link_status(status_code: int | None) -> AbilityResultStatus:
@@ -756,6 +802,40 @@ class CalderaClient:
             adv.adversary_id == adversary_id for adv in self.list_adversaries()
         )
 
+    # -- agents (task 2.1) ---------------------------------------------------
+
+    def list_agents(self, group: str | None = None) -> list[AgentRef]:
+        """List registered agents via ``GET /api/v2/agents`` (Req. 4.1/4.3/4.4).
+
+        Maps each agent payload to a typed :class:`AgentRef`. When ``group`` is
+        given, only agents whose ``group`` matches it are returned; otherwise all
+        agents are returned. The Stage 5 health gate uses this to require ≥ 1
+        agent with ``alive=true`` in the expected group and to detect orphan
+        (``alive=false``) agents, using the current v2 route and the running
+        environment's host/group names (Req. 4.4).
+
+        Args:
+            group: Optional agent group to filter by. When ``None`` (default) no
+                group filtering is applied.
+
+        Returns:
+            The matching agents as typed :class:`AgentRef` values.
+
+        Raises:
+            CalderaUnavailable: on timeout / connection failure.
+            CalderaApiError: on a non-2xx HTTP status.
+        """
+        payload = self._request_json("GET", AGENTS_PATH)
+        items = payload or []
+        agents = [
+            AgentRef.from_payload(item)
+            for item in items
+            if isinstance(item, Mapping)
+        ]
+        if group is None:
+            return agents
+        return [agent for agent in agents if agent.group == group]
+
     # -- operations (task 6.2) -----------------------------------------------
 
     def create_operation(
@@ -867,12 +947,11 @@ class CalderaClient:
             The last :class:OperationStateResult observed (terminal when the
             operation finished in time; otherwise the latest in-flight snapshot).
         """
-        terminal_states = {"finished", "out_of_time", "cleanup"}
         deadline = time.monotonic() + max(0.0, float(timeout))
         last = self.get_operation(operation_id)
         while True:
             state = (last.state or "").lower()
-            if state in terminal_states:
+            if state in TERMINAL_OPERATION_STATES:
                 return last
             if time.monotonic() >= deadline:
                 return last

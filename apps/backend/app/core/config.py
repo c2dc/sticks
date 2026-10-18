@@ -29,6 +29,11 @@ def get_sticks_config() -> ModuleType:
     return load_sticks_config()
 
 
+def _clamp(value: float, lower: float, upper: float) -> float:
+    """Clamp ``value`` into the inclusive range ``[lower, upper]``."""
+    return max(lower, min(value, upper))
+
+
 class Settings(BaseSettings):
     """Backend settings.
 
@@ -56,6 +61,49 @@ class Settings(BaseSettings):
     # Optional override of the Caldera URL for local/mocked testing. When unset
     # the value comes from the existing sticks config (single source of truth).
     caldera_url_override: Optional[str] = None
+
+    # ---- Stage 6 operation collection settings (Req. 3.1) --------------------
+
+    # Seconds between polls while collecting an Operation's state. The runner
+    # clamps the effective interval to the inclusive range 1..10 where the value
+    # is consumed (see ``operation_poll_interval_clamped``). Default: 2.0s.
+    operation_poll_interval_seconds: float = 2.0
+
+    # Total collection timeout (seconds) counted from the start of the Operation.
+    # When no terminal state is observed within this budget the runner marks the
+    # Operation ``INCOMPLETE_TIMEOUT`` and preserves partial results (Req. 3.2).
+    # The default is configurable via PIPELINE_UI_OPERATION_COLLECTION_TIMEOUT_SECONDS.
+    operation_collection_timeout_seconds: float = 600.0
+
+    # Maximum interval (seconds) between periodic isolation re-checks performed by
+    # the runner **during** execution (Req. 6.3): the containment gate is
+    # re-verified at least this often while the Operation runs. The requirement
+    # caps the interval at 30s, so the value is clamped to the inclusive range
+    # 0..30 where it is consumed (see ``isolation_recheck_interval_clamped``).
+    # Default: 30.0s (the requirement's maximum).
+    isolation_recheck_interval_seconds: float = 30.0
+
+    @property
+    def operation_poll_interval_clamped(self) -> float:
+        """Poll interval clamped to the inclusive range 1..10 seconds (Req. 3.1).
+
+        The raw ``operation_poll_interval_seconds`` may be configured to any
+        value; consumers (the ``OperationRunner`` collection loop) must use the
+        clamped value so the effective interval between polls is always
+        ``clamp(value, 1, 10)``.
+        """
+        return _clamp(self.operation_poll_interval_seconds, 1.0, 10.0)
+
+    @property
+    def isolation_recheck_interval_clamped(self) -> float:
+        """Isolation re-check interval clamped to 0..30 seconds (Req. 6.3).
+
+        The runner re-verifies container isolation during execution at least
+        every ``isolation_recheck_interval`` seconds; the requirement caps the
+        interval at 30s, so consumers use the clamped value to guarantee the
+        effective re-check interval never exceeds 30 seconds.
+        """
+        return _clamp(self.isolation_recheck_interval_seconds, 0.0, 30.0)
 
     # ---- Reused-from-sticks values (no duplication) --------------------------
 

@@ -1,17 +1,17 @@
 # ============================================================
-# SUT-B — alvo backend (192.168.30.40)
+# SUT-B — backend target (192.168.30.40)
 # ============================================================
-# Mesma motivação do SUT-A (nginx): os scripts *_sutb.sh instalavam pacotes em
-# runtime via apt-get, o que falha nas redes `internal: true` (sem internet).
-# Instalação movida para o BUILD-TIME (ver LAB.md). Em runtime os scripts só
-# configuram e iniciam serviços. Apesar do nome "db", a imagem base é nginx e o
-# container também serve conteúdo web (porta 80) além do MariaDB.
+# Same rationale as SUT-A (nginx): the *_sutb.sh scripts installed packages at
+# runtime via apt-get, which fails on `internal: true` networks (no internet).
+# Installation moved to BUILD-TIME (see LAB.md). At runtime the scripts only
+# configure and start services. Despite the "db" name, the base image is nginx and
+# the container also serves web content (port 80) besides MariaDB.
 # ============================================================
 FROM nginx:trixie
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Pacotes base + superconjunto exigido por TODOS os scripts *_sutb.sh dos 8 casos.
+# Base packages + the superset required by ALL *_sutb.sh scripts of the 8 cases.
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         iputils-ping procps lsof net-tools vim iproute2 \

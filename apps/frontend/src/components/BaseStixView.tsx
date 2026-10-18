@@ -190,7 +190,7 @@ function CompletionBanner({
       <p
         className="rounded-md border border-team-red/40 bg-team-red/10 px-3 py-2 text-sm text-team-red"
         role="alert"
-        data-section="conclusao"
+        data-section="completion"
       >
         {error}
       </p>
@@ -202,7 +202,7 @@ function CompletionBanner({
       <p
         className="text-sm text-muted-foreground"
         role="status"
-        data-section="conclusao"
+        data-section="completion"
       >
         {t("baseStix.verificando")}
       </p>
@@ -219,8 +219,8 @@ function CompletionBanner({
           : "text-muted-foreground",
       )}
       role="status"
-      data-section="conclusao"
-      data-concluido={completed}
+      data-section="completion"
+      data-completed={completed}
     >
       {completed ? <CheckCircle2 className="size-4" aria-hidden /> : null}
       {completed ? t("baseStix.pronto") : t("baseStix.aguardando")}

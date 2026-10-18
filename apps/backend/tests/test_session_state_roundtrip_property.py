@@ -19,7 +19,7 @@ Per Req. 9.1 / the design's Data Models, the persisted Estado_de_Sessão is the
 combination of three things:
 
 * the **current case** (``current_campaign``) — stored directly on the single
-  ``estado_sessao`` row and written via ``set_current_case``;
+  ``session_state`` row and written via ``set_current_case``;
 * the **completed stages per case** — derived from the ``StageRun`` rows in the
   ``completed`` state (a stage is "concluido" exactly when its ``StageRun`` is
   ``completed``), written here via ``persist_stage_completion`` (the service's
@@ -113,7 +113,7 @@ _OP_STATE_CHOICES: tuple[OperationState, ...] = tuple(OperationState)
 # The current case: one of the pool slugs, or None (no case selected — Req. 9.5
 # renders that as nothing selected). Only slugs from the pool are used so the
 # generated state stays internally consistent.
-_caso_atual_strategy = st.one_of(st.none(), st.sampled_from(_CASE_IDS))
+_current_campaign_strategy = st.one_of(st.none(), st.sampled_from(_CASE_IDS))
 
 # Completed stages of a single case: an arbitrary subset of {1, 2, 3}. ``{}``
 # means no stage completed for that case (omitted from the derived map).
@@ -160,7 +160,7 @@ _operations_by_case_strategy = st.dictionaries(
 # The whole arbitrary Estado_de_Sessão.
 _session_state_strategy = st.fixed_dictionaries(
     {
-        "current_campaign": _caso_atual_strategy,
+        "current_campaign": _current_campaign_strategy,
         "completed_by_case": _completed_by_case_strategy,
         "operations_by_case": _operations_by_case_strategy,
     }

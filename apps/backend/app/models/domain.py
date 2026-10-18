@@ -241,7 +241,23 @@ class Operation(Base):
 
 
 class AbilityResult(Base):
-    """Per-Ability result of an Operation (status + command output)."""
+    """Per-Ability result of an Operation (status + command output).
+
+    For the live technique-by-technique tracking of Stage 6 (Req. 2.4), the
+    per-Ability result carries, besides the pre-existing ``status`` and
+    ``command_output``, the fields shown in the UI. These additive, nullable
+    columns are mapped by ``OperationRunner._reconcile`` from the Caldera
+    ``OperationLink`` (which exposes ``command``, ``paw`` and ``output``):
+
+    * ``command`` — the concrete command of the link.
+    * ``target_container`` — e.g. ``"nginx (192.168.20.30)"``.
+    * ``attacker_host`` — the attacker host (e.g. ``kali``), via ``link.paw`` /
+      the agent.
+
+    All three are nullable so the migration is purely additive and existing
+    rows need no backfill; the serialization layer resolves an explicit
+    "not available" indicator for any null/empty value (Req. 2.5).
+    """
 
     __tablename__ = "ability_results"
 
@@ -259,6 +275,12 @@ class AbilityResult(Base):
     )
     # command stdout/stderr
     command_output: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # concrete executed command of the link (Req. 2.4)
+    command: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # target container + IP, e.g. "nginx (192.168.20.30)" (Req. 2.4)
+    target_container: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    # attacker host (e.g. "kali"), via link.paw / agent (Req. 2.4)
+    attacker_host: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
 
 class AuditLogEntry(Base):
@@ -323,7 +345,7 @@ class UserPreferences(Base):
 class StixVersion(Base):
     """Curated-version flag per STIX version (Req. 5.5, 5.6).
 
-    Persistable source of the curated-version flag. The ``VERSAO_CURADA``
+    Persistable source of the curated-version flag. The ``CURATED_VERSION``
     constant (in :mod:`app.services.stix.stix_service`) is the single source in
     code and seeds this table in the migration; here we only define the portable
     schema.

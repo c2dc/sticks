@@ -5,7 +5,7 @@
 # curation ``CurationDagGenerator`` sempre carimba ``curadoria_humana``; a
 # costura ``DagGenerator`` é satisfeita estruturalmente (``@runtime_checkable``
 # Protocol); e um stub ``gerado_ia`` também satisfaz a costura — provando que a
-# origin ``gerado_ia`` encaixa sem redesenho (sem alterar a assinatura nem o
+# origin ``gerado_ia`` fits without redesign (without changing the signature nor the
 # artefato DAG).
 
 Validates: Requirements 7.5, 16.1, 16.4
@@ -13,8 +13,8 @@ Validates: Requirements 7.5, 16.1, 16.4
 Esta é uma property test de *feature* (``pipeline-seis-stages`` é uma feature,
 não um bugfix): a propriedade é esperada **valer** sobre a implementação atual.
 Foca a parte **Estágio 3** da Property 13 — a costura de geração de DAG
-(:class:`~app.services.dag.gerador.DagGenerator` /
-:class:`~app.services.dag.gerador.CurationDagGenerator`). As partes dos
+(:class:`~app.services.dag.generator.DagGenerator` /
+:class:`~app.services.dag.generator.CurationDagGenerator`). As partes dos
 Estágios 4 e 5 são cobertas pelas tasks 5.5 e 7.5.
 
 A Property 13 (lado Estágio 3) afirma, para qualquer input:
@@ -27,7 +27,7 @@ A Property 13 (lado Estágio 3) afirma, para qualquer input:
 2. **Conformidade estrutural do Protocol** (Req. 16.1) — a instância de
    curation satisfaz o ``@runtime_checkable`` ``DagGenerator`` por *duck typing*
    estrutural (``isinstance`` é ``True``), sem herança explícita.
-3. **Extensibilidade sem redesenho** (Req. 16.1, 16.4) — um stub ``gerado_ia``
+3. **Extensibility without redesign** (Req. 16.1, 16.4) — a ``gerado_ia`` stub
    que apenas expõe ``origin()`` + ``gerar(campaign, modeling)`` (sem herdar de
    ``DagGenerator``) também satisfaz o Protocol e produz ``ProducedDag`` com
    ``origin == DagOrigin.AI_GENERATED`` **sem** alterar a assinatura da costura nem
@@ -60,7 +60,7 @@ from hypothesis import strategies as st
 
 from app.models.enums import DagOrigin
 from app.services.campaign_service import CURATED_CASES, CaseService
-from app.services.dag.gerador import (
+from app.services.dag.generator import (
     CurationDagGenerator,
     ProducedDag,
     DagGenerator,
@@ -209,7 +209,7 @@ def _modelagem(draw) -> StructuralModeling:
 #   (1) a curation carimba curadoria_humana em origin() e em cada ProducedDag;
 #   (2) a curation satisfaz o Protocol DagGenerator estruturalmente;
 #   (3) um stub gerado_ia também satisfaz o Protocol e produz origin gerado_ia,
-#       com assinatura e artefato inalterados (extensível sem redesenho).
+#       with unchanged signature and artifact (extensible without redesign).
 # ===========================================================================
 
 
@@ -217,7 +217,7 @@ def _modelagem(draw) -> StructuralModeling:
 # Estágios 3, 4 e 5 (parte Estágio 3 / DAG).
 @settings(max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture])
 @given(structural_nodes=_acyclic_dag(), modeling=_modelagem())
-def test_property13_estagio3_origem_explicita_e_extensivel(
+def test_property13_stage3_origin_explicit_and_extensible(
     structural_nodes: list[dict],
     modeling: StructuralModeling,
     tmp_path_factory: pytest.TempPathFactory,
@@ -226,7 +226,7 @@ def test_property13_estagio3_origem_explicita_e_extensivel(
 
     Validates: Requirements 7.5, 16.1, 16.4
     """
-    data_dir = tmp_path_factory.mktemp("origem_extensivel_estagio3")
+    data_dir = tmp_path_factory.mktemp("origin_extensible_stage3")
     _write_case_fixture(data_dir, _CURATED_SLUG, structural_nodes)
 
     curation = CurationDagGenerator(case_service=CaseService(data_dir=data_dir))
@@ -245,7 +245,7 @@ def test_property13_estagio3_origem_explicita_e_extensivel(
     assert isinstance(curation, DagGenerator)
 
     # (3) Um stub gerado_ia também satisfaz o Protocol e produz origin gerado_ia
-    #     — extensibilidade sem redesenho: mesma assinatura, mesmo artefato
+    #     — extensibility without redesign: same signature, same artifact
     #     ProducedDag, origin distinta (Req. 16.1, 16.4).
     stub = _StubGeradoIa()
     assert isinstance(stub, DagGenerator)
@@ -255,7 +255,7 @@ def test_property13_estagio3_origem_explicita_e_extensivel(
     assert all(p.origin == DagOrigin.AI_GENERATED for p in produzidos_ia)
 
     # A assinatura da costura é a MESMA para ambas as origens — a extensão não
-    # redesenha ``gerar`` (Req. 16.1): mesmos parâmetros ``(campaign, modeling)``.
+    # redesigns ``generate`` (Req. 16.1): same parameters ``(campaign, modeling)``.
     assert list(inspect.signature(curation.generate).parameters) == ["campaign", "modeling"]
     assert list(inspect.signature(stub.generate).parameters) == ["campaign", "modeling"]
 

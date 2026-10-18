@@ -163,8 +163,8 @@ function BaseCard({
         selectable &&
           "cursor-pointer hover:border-team-blue focus-within:border-team-blue",
       )}
-      data-versao={base.version}
-      data-baixada={base.downloaded}
+      data-version={base.version}
+      data-downloaded={base.downloaded}
       onClick={selectable ? onSelect : undefined}
       role={selectable ? "button" : undefined}
       tabIndex={selectable ? 0 : undefined}

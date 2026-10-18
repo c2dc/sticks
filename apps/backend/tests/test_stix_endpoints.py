@@ -34,7 +34,7 @@ from fastapi.testclient import TestClient
 import app.api.stix as stix_api
 from app.main import create_app
 from app.services.stix.stix_service import (
-    VERSOES_CONHECIDAS,
+    KNOWN_VERSIONS,
     StixService,
     _semantic_version_key,
 )
@@ -57,7 +57,7 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
     return TestClient(create_app())
 
 
-def test_get_bases_200_ordenadas_e_todas_nao_baixadas(client: TestClient) -> None:
+def test_get_bases_200_ordered_and_all_not_downloaded(client: TestClient) -> None:
     """``GET /api/stix/bases`` returns 200 with every known base, ordered
     newest->oldest, all ``downloaded``/``selectable`` false on a fresh dir."""
     resp = client.get("/api/stix/bases")
@@ -65,7 +65,7 @@ def test_get_bases_200_ordenadas_e_todas_nao_baixadas(client: TestClient) -> Non
     body = resp.json()
 
     bases = body["bases"]
-    assert {b["version"] for b in bases} == set(VERSOES_CONHECIDAS)
+    assert {b["version"] for b in bases} == set(KNOWN_VERSIONS)
 
     # Strictly descending by semantic version (newest first).
     keys = [_semantic_version_key(b["version"]) for b in bases]
@@ -79,10 +79,10 @@ def test_get_bases_200_ordenadas_e_todas_nao_baixadas(client: TestClient) -> Non
         assert base["file"] is None
 
 
-def test_get_dashboard_base_nao_baixada_422_bundle_invalido(client: TestClient) -> None:
+def test_get_dashboard_base_not_downloaded_422_invalid_bundle(client: TestClient) -> None:
     """A dashboard request for a not-downloaded base is 422 ``bundle_invalido``
     (no partial counts)."""
-    version = VERSOES_CONHECIDAS[0]
+    version = KNOWN_VERSIONS[0]
     resp = client.get(f"/api/stix/bases/{version}/dashboard")
     assert resp.status_code == 422, resp.text
     detail = resp.json()["detail"]
@@ -92,9 +92,9 @@ def test_get_dashboard_base_nao_baixada_422_bundle_invalido(client: TestClient) 
     assert "counts" not in resp.json()
 
 
-def test_get_campanhas_base_nao_baixada_422_bundle_invalido(client: TestClient) -> None:
+def test_get_campaigns_base_not_downloaded_422_invalid_bundle(client: TestClient) -> None:
     """A campaigns request for a not-downloaded base is 422 ``bundle_invalido``."""
-    version = VERSOES_CONHECIDAS[0]
+    version = KNOWN_VERSIONS[0]
     resp = client.get(f"/api/stix/bases/{version}/campaigns")
     assert resp.status_code == 422, resp.text
     detail = resp.json()["detail"]
@@ -102,9 +102,9 @@ def test_get_campanhas_base_nao_baixada_422_bundle_invalido(client: TestClient) 
     assert detail["mensagem"]
 
 
-def test_get_atores_base_nao_baixada_422_bundle_invalido(client: TestClient) -> None:
+def test_get_adversaries_base_not_downloaded_422_invalid_bundle(client: TestClient) -> None:
     """An actors request for a not-downloaded base is 422 ``bundle_invalido``."""
-    version = VERSOES_CONHECIDAS[0]
+    version = KNOWN_VERSIONS[0]
     resp = client.get(f"/api/stix/bases/{version}/actors")
     assert resp.status_code == 422, resp.text
     detail = resp.json()["detail"]

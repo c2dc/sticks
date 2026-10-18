@@ -1,8 +1,8 @@
 """Property-based test for the aggregate progress over the SIX stages (task 1.3).
 
-# Feature: pipeline-seis-stages, Property 2: Campanha totalmente concluída sse
+# Feature: pipeline-seis-stages, Property 2: Campaign fully completed iff
 # os seis Estágios completed. Uma campaign conta como totalmente concluída no
-# progress aggregate se e somente se os seis Estágios estão "concluido".
+# aggregate progress if and only if the six Stages are "concluido".
 
 Validates: Requirements 1.5
 
@@ -160,7 +160,7 @@ def _build_ephemeral_session() -> tuple[Session, Path, object]:
     engine)`` so the caller can dispose the engine and remove the file
     afterward.
     """
-    tmp_dir = tempfile.mkdtemp(prefix="seis_estagios_agg_progress_")
+    tmp_dir = tempfile.mkdtemp(prefix="six_stages_agg_progress_")
     db_path = Path(tmp_dir) / "agg_progress.db"
     settings_obj = Settings(database_url=f"sqlite:///{db_path.as_posix()}")
 
@@ -228,7 +228,7 @@ def test_property2_aggregate_counts_exactly_fully_completed_campaigns(
 ) -> None:
     """The aggregate counts EXACTLY the campaigns whose six stages are completed.
 
-    # Feature: pipeline-seis-stages, Property 2: Campanha totalmente concluída
+    # Feature: pipeline-seis-stages, Property 2: Campaign fully completed
     # sse os seis Estágios completed.
     Validates: Requirements 1.5
     """
@@ -329,7 +329,7 @@ def test_property2_campaign_one_stage_short_never_counts(
     ``completed`` never counts — proving the "only if" direction of Req. 1.5
     even for the sixth stage.
 
-    # Feature: pipeline-seis-stages, Property 2: Campanha totalmente concluída
+    # Feature: pipeline-seis-stages, Property 2: Campaign fully completed
     # sse os seis Estágios completed.
     Validates: Requirements 1.5
     """
@@ -386,7 +386,7 @@ def test_valid_stages_span_six_stages() -> None:
     (driven by ``VALID_STAGES``) and this guard move together instead of
     silently covering the wrong span.
 
-    # Feature: pipeline-seis-stages, Property 2: Campanha totalmente concluída
+    # Feature: pipeline-seis-stages, Property 2: Campaign fully completed
     # sse os seis Estágios completed.
     Validates: Requirements 1.5
     """

@@ -101,16 +101,16 @@ Hard boundaries carried through every task:
     - Rewrite the Portuguese `.gitignore` comments into English and add explicit dev-runner globs (`*-dev.*.log`, `*-run.log`, `dev-*.log`, `dev-run.*.log`) so equivalent clutter cannot reappear.
     - _Requirements: 1.1, 7.4_
 
-- [ ] 7. Directory restructure LAST — Proposal 2, single mechanical step
-  - [-] 7.1 Move directories into the Proposal 2 layout
+- [x] 7. Directory restructure LAST — Proposal 2, single mechanical step
+  - [x] 7.1 Move directories into the Proposal 2 layout
     - Move `ui/backend`→`apps/backend`, `ui/frontend`→`apps/frontend`, `docker/`→`infra/docker/`, and the legacy CLI `sticks/`→`packages/cli/`; keep `scripts/` and `docs/` at root. Relocating the legacy CLI is move-only — **do NOT rename its identifiers** (Req 6.4); only fix its `architecture.png` README reference (handled in 6.1).
     - _Requirements: 6.1, 6.4, 6.5_
-  - [~] 7.2 Update build/config path couplings to the new layout
+  - [x] 7.2 Update build/config path couplings to the new layout
     - Update root `package.json` workspaces to `["apps/frontend", "packages/*"]`; rewrite the hard-coded `ui/backend`/`ui/frontend` paths in `scripts/dev.mjs`, `scripts/migrate.mjs`, `scripts/setup.mjs`; set the Alembic working directory to `apps/backend`; adjust Vite/`tsconfig` roots and import aliases; retarget Dockerfiles/compose build contexts and `docker/.docker/**` relative assets to `infra/docker/`.
     - Update README directory-tree snippets to reflect the new layout.
     - _Requirements: 6.5_
 
-- [~] 8. Final verification gate
+- [x] 8. Final verification gate
   - Run `pytest` from `apps/backend` and `vitest` in `apps/frontend`; confirm both green from the new locations.
   - Confirm the i18n parity/terminology tests still pass unweakened (`i18n.property.test.ts`, `pipeline-i18n-parity.property.test.ts`, `pipeline-parity.test.ts`, `stages.terminology.test.ts`).
   - Run the end-to-end six-stage ShadowRay flow through the UI across the renamed routes/fields and confirm it completes successfully, with the Stage 6 behavior and containment gates intact.

@@ -80,7 +80,7 @@ def _real_data_dir() -> Path:
     tests/ -> backend/ -> ui/ -> repo root -> sticks/data (read-only).
     """
     here = Path(__file__).resolve()
-    return here.parents[3] / "sticks" / "data"
+    return here.parents[3] / "packages" / "cli" / "data"
 
 
 def _case_files_present(data_dir: Path, slug: str) -> bool:

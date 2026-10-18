@@ -369,17 +369,17 @@ class CaseService:
     """
 
     def __init__(self, data_dir: Optional[Path] = None) -> None:
-        # Default to <repo>/sticks/data, resolved via the same repo-root
+        # Default to <repo>/packages/cli/data, resolved via the same repo-root
         # strategy used by sticks_config. All paths are pathlib for portability.
         self._data_dir: Path = (
-            Path(data_dir) if data_dir is not None else _repo_root() / "sticks" / "data"
+            Path(data_dir) if data_dir is not None else _repo_root() / "packages" / "cli" / "data"
         )
 
     # ---- path resolution (relative to the sticks data dir) -----------------
 
     @property
     def data_dir(self) -> Path:
-        """The resolved sticks data directory (``<repo>/sticks/data`` default)."""
+        """The resolved sticks data directory (``<repo>/packages/cli/data`` default)."""
         return self._data_dir
 
     def ability_path(self, slug: str) -> Path:

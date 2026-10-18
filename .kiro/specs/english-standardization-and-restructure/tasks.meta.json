@@ -391,6 +391,11 @@
         "executionId": "4e56fe66-c222-4a79-ac84-481844b0ac77",
         "chatSessionId": "sess_7a7799f4-a979-4fca-96a7-8c4d988b7c35",
         "timestamp": 1792198731742
+      },
+      {
+        "executionId": "4e56fe66-c222-4a79-ac84-481844b0ac77",
+        "chatSessionId": "sess_7a7799f4-a979-4fca-96a7-8c4d988b7c35",
+        "timestamp": 1792199011393
       }
     ],
     "7.2 Update build/config path couplings to the new layout": [
@@ -398,6 +403,16 @@
         "executionId": "7da8b4dc-b38d-4716-874e-0c941200b9d7",
         "chatSessionId": "sess_1e0d6018-012e-478b-bc84-19951c3c1502",
         "timestamp": 1792153729175
+      },
+      {
+        "executionId": "4e56fe66-c222-4a79-ac84-481844b0ac77",
+        "chatSessionId": "sess_7a7799f4-a979-4fca-96a7-8c4d988b7c35",
+        "timestamp": 1792199016216
+      },
+      {
+        "executionId": "4e56fe66-c222-4a79-ac84-481844b0ac77",
+        "chatSessionId": "sess_7a7799f4-a979-4fca-96a7-8c4d988b7c35",
+        "timestamp": 1792199456155
       }
     ],
     "8. Final verification gate": [
@@ -405,6 +420,16 @@
         "executionId": "7da8b4dc-b38d-4716-874e-0c941200b9d7",
         "chatSessionId": "sess_1e0d6018-012e-478b-bc84-19951c3c1502",
         "timestamp": 1792153729267
+      },
+      {
+        "executionId": "4e56fe66-c222-4a79-ac84-481844b0ac77",
+        "chatSessionId": "sess_7a7799f4-a979-4fca-96a7-8c4d988b7c35",
+        "timestamp": 1792199461153
+      },
+      {
+        "executionId": "4e56fe66-c222-4a79-ac84-481844b0ac77",
+        "chatSessionId": "sess_7a7799f4-a979-4fca-96a7-8c4d988b7c35",
+        "timestamp": 1792319789650
       }
     ],
     "9. (Optional) Commit the refactor on the feature branch": [
@@ -447,6 +472,13 @@
         "executionId": "4e56fe66-c222-4a79-ac84-481844b0ac77",
         "chatSessionId": "sess_7a7799f4-a979-4fca-96a7-8c4d988b7c35",
         "timestamp": 1792198726298
+      }
+    ],
+    "7. Directory restructure LAST — Proposal 2, single mechanical step": [
+      {
+        "executionId": "4e56fe66-c222-4a79-ac84-481844b0ac77",
+        "chatSessionId": "sess_7a7799f4-a979-4fca-96a7-8c4d988b7c35",
+        "timestamp": 1792199456255
       }
     ]
   }

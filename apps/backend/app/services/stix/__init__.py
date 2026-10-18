@@ -8,21 +8,21 @@ selection (Req. 4).
 
 This package exposes the typed response models (``BaseStixInfo``, ``TypeCount``,
 ``DashboardStix``, ``CampaignStix``, ``AdversaryStix``), the backend-maintained
-constants (``VERSOES_CONHECIDAS``, ``DESCRICOES_TIPO``, ``SLUG_PARA_STIX``) and
+constants (``KNOWN_VERSIONS``, ``TYPE_DESCRIPTIONS``, ``SLUG_TO_STIX``) and
 the service itself.
 
 The Stage 2 thin orchestrator (``Stage2Service``) is **not** re-exported here on
 purpose: it imports ``StageService`` (which in turn imports from
 :mod:`app.services.stix.stix_service`), so eagerly importing it in this package
 ``__init__`` would create an import cycle. Import it from its submodule instead
-(``from app.services.stix.estagio2_service import Stage2Service``).
+(``from app.services.stix.stage2_service import Stage2Service``).
 """
 
 from app.services.stix.stix_service import (
-    DESCRICOES_TIPO,
+    TYPE_DESCRIPTIONS,
     ROTULO_TIPO,
-    SLUG_PARA_STIX,
-    VERSOES_CONHECIDAS,
+    SLUG_TO_STIX,
+    KNOWN_VERSIONS,
     AdversaryStix,
     BaseStixInfo,
     CampaignStix,
@@ -40,8 +40,8 @@ __all__ = [
     "CampaignStix",
     "AdversaryStix",
     # Backend-maintained constants
-    "VERSOES_CONHECIDAS",
-    "DESCRICOES_TIPO",
+    "KNOWN_VERSIONS",
+    "TYPE_DESCRIPTIONS",
     "ROTULO_TIPO",
-    "SLUG_PARA_STIX",
+    "SLUG_TO_STIX",
 ]

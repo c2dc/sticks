@@ -7,7 +7,7 @@ duplicar — as suítes já existentes:
 
 * ``test_api_endpoints.py`` cobre partes da superfície REST (``GET /api/campaigns``,
   detalhe, reads 1/3/4/6, DAGs, sessão/preferências/audit, stream de emulação);
-* ``test_estagio6_execucao_endpoints.py`` cobre em profundidade o preview e os
+* ``test_stage6_execution_endpoints.py`` cobre em profundidade o preview e os
   gates da execução do Estágio 6 (409/503/200) + o relatório;
 * ``test_ws_channels.py`` cobre em profundidade o canal ``WS /ws/stages`` e o de
   operação.
@@ -59,7 +59,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 import app.db.session as db_session_module
 import app.services.stage.stage_service as stage_service_module
-import app.services.stix.estagio1_service as estagio1_module
+import app.services.stix.stage1_service as stage1_module
 from app.api.campaigns import get_provisioner
 from app.api.emulation import get_caldera_client, get_runner_factory
 from app.core.config import Settings
@@ -87,7 +87,7 @@ from app.services.environment.compose_executor import CommandResult
 from app.services.environment.provisioner import CurationEnvironmentProvisioner
 from app.services.environment.health import ContainerStateInfo
 from app.services.operation.runner import OperationRunner
-from app.services.stix.stix_service import VERSAO_CURADA, StixService
+from app.services.stix.stix_service import CURATED_VERSION, StixService
 
 
 # A real curated case present on disk (11 Abilities, no external destinations).
@@ -110,7 +110,7 @@ _CURATED_BUNDLE = {
             "type": "campaign",
             "id": "campaign--shadowray",
             "name": "ShadowRay",
-            "description": "Campanha curated semeada para o teste de contrato.",
+            "description": "Curated campaign seeded for the contract test.",
             "external_references": [
                 {"source_name": "mitre-attack", "external_id": "C0045"}
             ],
@@ -227,7 +227,7 @@ class _HealthyStateInspector:
 def stix_data_dir() -> Iterator[Path]:
     """A temp STIX data dir seeded with the curated bundle (no network)."""
     tmp_dir = Path(tempfile.mkdtemp(prefix="pipeline_ui_contratos_stix_"))
-    base = StixService(data_dir=tmp_dir).base_path(VERSAO_CURADA)
+    base = StixService(data_dir=tmp_dir).base_path(CURATED_VERSION)
     base.parent.mkdir(parents=True, exist_ok=True)
     base.write_text(json.dumps(_CURATED_BUNDLE), encoding="utf-8")
     try:
@@ -283,7 +283,7 @@ def pin_stix_to_temp_dir(
     seeded temp dir makes the bundle visible with **no network egress**.
     """
     monkeypatch.setattr(
-        estagio1_module,
+        stage1_module,
         "StixService",
         lambda *a, **k: StixService(data_dir=stix_data_dir),
     )
@@ -331,7 +331,7 @@ def _make_client(
 
         return _factory
 
-    def _get_provisionador_override() -> CurationEnvironmentProvisioner:
+    def _get_provisioner_override() -> CurationEnvironmentProvisioner:
         return CurationEnvironmentProvisioner(
             inspector=_IsolatedInspector(),
             caldera=_FakeCaldera(),
@@ -345,7 +345,7 @@ def _make_client(
     app.dependency_overrides[get_db] = _get_db_override
     app.dependency_overrides[get_caldera_client] = _get_caldera_override
     app.dependency_overrides[get_runner_factory] = _get_runner_factory_override
-    app.dependency_overrides[get_provisioner] = _get_provisionador_override
+    app.dependency_overrides[get_provisioner] = _get_provisioner_override
     return TestClient(app)
 
 
@@ -354,7 +354,7 @@ def _make_client(
 # ===========================================================================
 
 
-def test_listar_casos_retorna_seis_estagios_por_caso(
+def test_list_campaigns_returns_six_stages_per_campaign(
     session_factory: sessionmaker[Session],
 ) -> None:
     """``GET /api/campaigns`` lista os 8 campaigns, cada um com 6 Estágios 1..6 (Req. 1.1, 1.2)."""
@@ -371,7 +371,7 @@ def test_listar_casos_retorna_seis_estagios_por_caso(
         assert numeros == [1, 2, 3, 4, 5, 6]
 
 
-def test_detalhar_caso_retorna_seis_estagios(
+def test_detail_campaign_returns_six_stages(
     session_factory: sessionmaker[Session],
 ) -> None:
     """``GET /api/campaigns/{campaign}`` traz o state dos 6 Estágios 1..6 (Req. 1.1, 1.2)."""
@@ -390,7 +390,7 @@ def test_detalhar_caso_retorna_seis_estagios(
 # ===========================================================================
 
 
-def test_estagio1_contrato_dashboard_do_bundle(
+def test_stage1_contract_bundle_dashboard(
     session_factory: sessionmaker[Session],
     pin_stix_to_temp_dir: None,
 ) -> None:
@@ -399,13 +399,13 @@ def test_estagio1_contrato_dashboard_do_bundle(
     resp = client.get(f"/api/campaigns/{_SLUG}/stage/1")
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    assert body["version"] == VERSAO_CURADA
+    assert body["version"] == CURATED_VERSION
     assert body["bundle_on_disk"] is True
     assert body["dashboard"] is not None
     assert body["completed"] is True
 
 
-def test_estagio2_contrato_selecao_da_campanha(
+def test_stage2_contract_campaign_selection(
     session_factory: sessionmaker[Session],
     pin_stix_to_temp_dir: None,
 ) -> None:
@@ -421,7 +421,7 @@ def test_estagio2_contrato_selecao_da_campanha(
     body = resp.json()
 
     assert body["campaign_id"] == _SLUG
-    assert body["version"] == VERSAO_CURADA
+    assert body["version"] == CURATED_VERSION
     assert isinstance(body["campaigns"], list) and body["campaigns"]
     curated = next(c for c in body["campaigns"] if c["curated_slug"] == _SLUG)
     assert curated["curated"] is True
@@ -431,7 +431,7 @@ def test_estagio2_contrato_selecao_da_campanha(
     assert "completed" in body["selection"]
 
 
-def test_estagio3_contrato_geracao_do_dag(
+def test_stage3_contract_dag_generation(
     session_factory: sessionmaker[Session],
 ) -> None:
     """Estágio 3 (Geração do DAG): DagView/Mermaid do DAG curated (Req. 7.2, 7.3)."""
@@ -446,7 +446,7 @@ def test_estagio3_contrato_geracao_do_dag(
     assert body["mermaid"]
 
 
-def test_estagio4_contrato_operacionalizacao(
+def test_stage4_contract_operationalization(
     session_factory: sessionmaker[Session],
 ) -> None:
     """Estágio 4 (Operacionalização): Abilities ordenadas + EnvironmentParameters (Req. 8.4, 8.7)."""
@@ -464,7 +464,7 @@ def test_estagio4_contrato_operacionalizacao(
     assert body["both_produced"] is True
 
 
-def test_estagio5_contrato_criacao_do_ambiente(
+def test_stage5_contract_environment_creation(
     session_factory: sessionmaker[Session],
 ) -> None:
     """Estágio 5 (Criação do environment): topology + state de isolation (Req. 9.6, 9.7).
@@ -486,7 +486,7 @@ def test_estagio5_contrato_criacao_do_ambiente(
     assert numeros == [1, 2, 3, 4, 5, 6]
 
 
-def test_estagio6_contrato_entrada_e_saida_acumulada(
+def test_stage6_contract_input_and_accumulated_output(
     session_factory: sessionmaker[Session],
 ) -> None:
     """Estágio 6 (Execução): Entrada (Adversary+Abilities) + Saída acumulada (Req. 10.x)."""
@@ -498,7 +498,7 @@ def test_estagio6_contrato_entrada_e_saida_acumulada(
     assert isinstance(body["output"], list)
 
 
-def test_cada_estagio_1a6_responde_200_para_caso_valido(
+def test_each_stage_1to6_responds_200_for_valid_campaign(
     session_factory: sessionmaker[Session],
     pin_stix_to_temp_dir: None,
 ) -> None:
@@ -509,7 +509,7 @@ def test_cada_estagio_1a6_responde_200_para_caso_valido(
         assert resp.status_code == 200, (stage, resp.text)
 
 
-def test_estagio_1a6_slug_desconhecido_404(
+def test_stage_1to6_unknown_slug_404(
     session_factory: sessionmaker[Session],
 ) -> None:
     """Slug desconhecido é 404 em cada ``GET .../stage/{1..6}`` (Req. 1.2)."""
@@ -524,7 +524,7 @@ def test_estagio_1a6_slug_desconhecido_404(
 # ===========================================================================
 
 
-def test_execucao_nao_confirmada_retorna_200_sem_executar(
+def test_execution_not_confirmed_returns_200_without_executing(
     session_factory: sessionmaker[Session],
 ) -> None:
     """Gate de confirmação: ``confirmed=false`` → 200, nada iniciou (Req. 13.6)."""
@@ -539,7 +539,7 @@ def test_execucao_nao_confirmada_retorna_200_sem_executar(
     assert body["completed"] is False
 
 
-def test_execucao_container_nao_isolado_retorna_409(
+def test_execution_container_not_isolated_returns_409(
     session_factory: sessionmaker[Session],
 ) -> None:
     """Gate de isolation: contêiner-target não isolated → 409 identificando-o (Req. 10.2, 13.6)."""
@@ -557,7 +557,7 @@ def test_execucao_container_nao_isolado_retorna_409(
     assert detail["containers"]
 
 
-def test_execucao_caldera_indisponivel_retorna_503(
+def test_execution_caldera_unavailable_returns_503(
     session_factory: sessionmaker[Session],
 ) -> None:
     """Gate de disponibilidade: Caldera silencioso em 10s → 503, nada iniciou (Req. 10.2)."""
@@ -573,7 +573,7 @@ def test_execucao_caldera_indisponivel_retorna_503(
     assert "indisponível" in resp.json()["detail"].lower()
 
 
-def test_execucao_confirmada_isolada_caldera_ok_retorna_200(
+def test_execution_confirmed_isolated_caldera_ok_returns_200(
     session_factory: sessionmaker[Session],
 ) -> None:
     """Caminho feliz: confirmada + isolada + Caldera ok → 200 concluída (Req. 10.2, 13.6)."""
@@ -610,7 +610,7 @@ def ws_client(
 
 
 @pytest.mark.parametrize("stage", [1, 2, 3, 4, 5, 6])
-def test_ws_estagios_aceita_1_a_6(
+def test_ws_stages_accepts_1_to_6(
     ws_client: TestClient,
     session_factory: sessionmaker[Session],
     stage: int,
@@ -643,7 +643,7 @@ def test_ws_estagios_aceita_1_a_6(
 
 
 @pytest.mark.parametrize("stage", [0, 7])
-def test_ws_estagios_rejeita_fora_de_1_a_6(
+def test_ws_stages_rejects_outside_1_to_6(
     ws_client: TestClient,
     session_factory: sessionmaker[Session],
     stage: int,

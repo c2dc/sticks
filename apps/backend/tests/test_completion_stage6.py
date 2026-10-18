@@ -1,30 +1,29 @@
-"""Example-based tests for ``CompletionStage6Service`` — teardown + conclusão (task 8.4).
+"""Example-based tests for ``CompletionStage6Service`` — teardown + completion (task 8.4).
 
-A costura de conclusão do Estágio 6 amarra as três fases na ordem do design:
-executa (conclusão deferida) → mede/gera o relatório → **SEMPRE** desprovisiona
-→ conclui o Estágio 6 **somente** quando a execução concluiu, o environment foi
-deprovisioned e os results + relatório estão persistidos. Estes testes
-provam:
+The Stage 6 completion seam ties the three phases in the design's order:
+executes (deferred completion) → measures/generates the report → **ALWAYS**
+deprovisions → concludes Stage 6 **only** when the execution concluded, the
+environment was deprovisioned and the results + report are persisted. These
+tests prove:
 
-1. **Caminho feliz**: COMPLETED + FINISHED → teardown chamado, relatório marca
-   ``environment_deprovisioned=True``, relatório persistido, Estágio 6 concluído.
-2. **Falha de técnicas (ABORTED)**: o teardown é **ainda assim** chamado (Req.
-   10.8, 12.1); o relatório é gerado; o Estágio 6 **não** conclui (execução não
-   concluiu).
-3. **Recusa por gate (NOT_CONFIRMED)**: o teardown é chamado mesmo sem execução;
-   o Estágio 6 não conclui.
-4. **Falha de desprovisionamento**: ``deprovisioned=False`` reporta os recursos
-   remanescentes (Req. 12.3), o relatório marca ``environment_deprovisioned=False``
-   e o Estágio 6 **não** conclui, mesmo com execução COMPLETED.
-5. **Exceção do provisioner**: capturada e virada em failure de teardown que
-   identifica os recursos remanescentes — o stream não é derrubado.
-6. **Relatório não persistido**: o Estágio 6 não conclui mesmo com execução
-   COMPLETED e teardown bem-sucedido (Req. 10.9).
+1. **Happy path**: COMPLETED + FINISHED → teardown called, the report marks
+   ``environment_deprovisioned=True``, report persisted, Stage 6 completed.
+2. **Technique failure (ABORTED)**: the teardown is **still** called (Req.
+   10.8, 12.1); the report is generated; Stage 6 does **not** complete (execution
+   did not conclude).
+3. **Gate refusal (NOT_CONFIRMED)**: the teardown is called even with no execution;
+   Stage 6 does not complete.
+4. **Deprovisioning failure**: ``deprovisioned=False`` reports the remaining
+   resources (Req. 12.3), the report marks ``environment_deprovisioned=False``
+   and Stage 6 does **not** complete, even with a COMPLETED execution.
+5. **Provisioner exception**: caught and turned into a teardown failure that
+   identifies the remaining resources — the stream is not torn down.
+6. **Report not persisted**: Stage 6 does not complete even with a COMPLETED
+   execution and a successful teardown (Req. 10.9).
 
-Tudo external é *mockado*: um runner falso (projeção/single-call), um
-provisioner *fake* que registra o teardown, e um sink de relatório em memória —
-sem Caldera, Docker nem a tabela ``execution_reports``. A Base_de_Dados é um
-SQLite temporário.
+Everything external is *mocked*: a fake runner (projection/single-call), a *fake*
+provisioner that records the teardown, and an in-memory report sink — no Caldera,
+Docker nor the ``execution_reports`` table. The database is a temporary SQLite.
 
 _Requirements: 10.8, 10.9, 12.1, 12.2, 12.3_
 """
@@ -64,7 +63,7 @@ from app.services.operation.runner import (
     OperationRunResult,
     RunOutcome,
 )
-from app.services.stage.stage_service import ESTAGIO_EXECUCAO
+from app.services.stage.stage_service import STAGE_EXECUTION
 
 
 _SLUG = "shadowray"  # a registered curated slug (CURATED_CASES)
@@ -117,7 +116,7 @@ def _seed_case(data_dir: Path, slug: str, *, command: str = "cat /etc/passwd") -
 
 @pytest.fixture()
 def data_dir() -> Iterator[Path]:
-    tmp = Path(tempfile.mkdtemp(prefix="pipeline_ui_conclusao6_"))
+    tmp = Path(tempfile.mkdtemp(prefix="pipeline_ui_completion6_"))
     (tmp / "api").mkdir(parents=True, exist_ok=True)
     (tmp / "dag").mkdir(parents=True, exist_ok=True)
     try:
@@ -128,7 +127,7 @@ def data_dir() -> Iterator[Path]:
 
 @pytest.fixture()
 def session() -> Iterator[Session]:
-    tmp = Path(tempfile.mkdtemp(prefix="pipeline_ui_conclusao6_db_"))
+    tmp = Path(tempfile.mkdtemp(prefix="pipeline_ui_completion6_db_"))
     db_path = tmp / "test.db"
     settings = Settings(database_url=f"sqlite:///{db_path}")
     engine = create_db_engine(settings)
@@ -188,7 +187,7 @@ class _RecordingProvisioner:
 
 
 class _MemorySink:
-    """An in-memory ``RelatorioSink`` recording persisted reports.
+    """An in-memory ``ReportSink`` recording persisted reports.
 
     ``ok`` controls whether the sink confirms persistence (``True``) — the
     conclusion gate requires a persisted report (Req. 10.9).
@@ -203,7 +202,7 @@ class _MemorySink:
         return self.ok
 
 
-def _ambiente() -> ProvisionedEnvironment:
+def _environment() -> ProvisionedEnvironment:
     return ProvisionedEnvironment(
         campaign_id=_SLUG,
         target_containers=["victim-web", "victim-db"],
@@ -283,7 +282,7 @@ def _stage6_state(session: Session, campaign: str) -> StageState | None:
         session.execute(
             select(StageRun)
             .where(StageRun.campaign_id == campaign)
-            .where(StageRun.stage == ESTAGIO_EXECUCAO)
+            .where(StageRun.stage == STAGE_EXECUTION)
         )
         .scalars()
         .first()
@@ -312,7 +311,7 @@ def test_happy_path_tears_down_and_concludes(
         sink=sink,
     )
 
-    environment = _ambiente()
+    environment = _environment()
     result = service.execute_and_complete(_SLUG, confirmed=True, environment=environment)
 
     # Teardown was invoked with the provisioned environment (Req. 12.1, 12.2).
@@ -349,7 +348,7 @@ def test_aborted_execution_still_tears_down_but_does_not_conclude(
     )
 
     result = service.execute_and_complete(
-        _SLUG, confirmed=True, environment=_ambiente()
+        _SLUG, confirmed=True, environment=_environment()
     )
 
     # Teardown ran DESPITE the failed techniques (Req. 10.8, 12.1).
@@ -377,7 +376,7 @@ def test_not_confirmed_still_tears_down(session: Session, data_dir: Path) -> Non
     )
 
     result = service.execute_and_complete(
-        _SLUG, confirmed=False, environment=_ambiente()
+        _SLUG, confirmed=False, environment=_environment()
     )
 
     assert len(provisioner.torn_down) == 1
@@ -412,7 +411,7 @@ def test_teardown_failure_reports_remaining_resources_and_blocks_conclusion(
     )
 
     result = service.execute_and_complete(
-        _SLUG, confirmed=True, environment=_ambiente()
+        _SLUG, confirmed=True, environment=_environment()
     )
 
     # The remaining resources are identified (Req. 12.3).
@@ -445,7 +444,7 @@ def test_teardown_exception_is_caught_and_reported(
     )
 
     result = service.execute_and_complete(
-        _SLUG, confirmed=True, environment=_ambiente()
+        _SLUG, confirmed=True, environment=_environment()
     )
 
     # The exception did not propagate; it became a reported failure with the
@@ -480,7 +479,7 @@ def test_unpersisted_report_blocks_conclusion(
     )
 
     result = service.execute_and_complete(
-        _SLUG, confirmed=True, environment=_ambiente()
+        _SLUG, confirmed=True, environment=_environment()
     )
 
     assert result.deprovisioning.deprovisioned is True
@@ -507,5 +506,5 @@ def test_unknown_case_raises_keyerror(session: Session, data_dir: Path) -> None:
     )
     with pytest.raises(KeyError):
         service.execute_and_complete(
-            "does-not-exist", confirmed=True, environment=_ambiente()
+            "does-not-exist", confirmed=True, environment=_environment()
         )

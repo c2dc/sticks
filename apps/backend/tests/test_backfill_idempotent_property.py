@@ -64,7 +64,7 @@ from app.models.domain import Dag as DagModel
 from app.models.enums import DagOrigin
 from app.services.campaign_service import CURATED_CASES, CaseService
 from app.services.dag.dag_service import DagService
-from app.services.dag.gerador import CurationDagGenerator
+from app.services.dag.generator import CurationDagGenerator
 
 
 # A real curated campaign slug: curation generation only produces a DAG for
@@ -144,7 +144,7 @@ def _write_case_fixture(
 # ---------------------------------------------------------------------------
 # Hypothesis strategy — an acyclic DAG expressed via child_nodes (only
 # earlier->later, hence acyclic by topological order), same as the strategy in
-# test_gerador_curadoria_property.py.
+# test_curation_generator_property.py.
 # ---------------------------------------------------------------------------
 
 
@@ -211,7 +211,7 @@ def _persisted_tuples(session: Session, campaign: str) -> list[tuple]:
     suppress_health_check=[HealthCheck.function_scoped_fixture],
 )
 @given(structural_nodes=_acyclic_dag(), n=st.integers(min_value=1, max_value=6))
-def test_property11_backfill_e_idempotente(
+def test_property11_backfill_is_idempotent(
     structural_nodes: list[dict], n: int
 ) -> None:
     """``sync_curated_dags`` N times == 1 time: same set, no duplication.
@@ -234,19 +234,19 @@ def test_property11_backfill_e_idempotente(
         service = DagService(
             session=session,
             case_service=case_service,
-            gerador=CurationDagGenerator(case_service),
+            generator=CurationDagGenerator(case_service),
         )
 
         # 1st call: inserts exactly one Dag curadoria_humana (Req. 4.5, 5.1).
         listagem_1 = service.sync_curated_dags(_CURATED_SLUG)
-        tuplas_1 = _persisted_tuples(session, _CURATED_SLUG)
+        tuples_1 = _persisted_tuples(session, _CURATED_SLUG)
 
         # Exactly one curadoria_humana DAG after the 1st call.
-        assert len(tuplas_1) == 1
-        _, caso_id_1, origem_1, identificador_1 = tuplas_1[0]
-        assert origem_1 == DagOrigin.HUMAN_CURATION
-        assert caso_id_1 == _CURATED_SLUG
-        assert identificador_1 == _CURATED_SLUG  # curation uses identifier=slug
+        assert len(tuples_1) == 1
+        _, campaign_id_1, origin_1, identifier_1 = tuples_1[0]
+        assert origin_1 == DagOrigin.HUMAN_CURATION
+        assert campaign_id_1 == _CURATED_SLUG
+        assert identifier_1 == _CURATED_SLUG  # curation uses identifier=slug
 
         # Calls 2..N are no-ops reconciled by (campaign_id, origin, identifier).
         listagem_n = listagem_1
@@ -257,7 +257,7 @@ def test_property11_backfill_e_idempotente(
 
         # Persisted set after N calls == after 1 call: same count, same tuples,
         # SAME ids (proof of no-op, not re-insertion). No duplication.
-        assert tuplas_n == tuplas_1
+        assert tuplas_n == tuples_1
         assert len(tuplas_n) == 1
 
         # The (campaign_id, origin, identifier) key stays unique — no duplicates.

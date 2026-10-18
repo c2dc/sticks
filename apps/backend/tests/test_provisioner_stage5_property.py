@@ -1,6 +1,6 @@
 """Property-based test for Stage-5 isolation as a conclusion pre-condition (task 7.4).
 
-# Feature: pipeline-seis-stages, Property 8: Isolamento é pré-condição de
+# Feature: pipeline-seis-stages, Property 8: Isolation is a precondition for
 # conclusão do Estágio 5. Para qualquer environment provisionado, o Estágio 5 só
 # conclui quando o result geral de isolation é approved (todos os
 # contêineres-target exclusivamente em networks ``internal: true``, sem bridge external
@@ -11,7 +11,7 @@ Validates: Requirements 9.6, 9.7, 14.1, 14.2, 14.3
 
 This test drives ``CurationEnvironmentProvisioner.provision`` through a FAKE
 read-only :class:`ContainerInspector` (the same ``FakeInspector`` shape used by
-the example tests in ``test_provisionador_estagio5.py``), serving fabricated
+the example tests in ``test_provisioner_stage5.py``), serving fabricated
 ``ContainerNetworkInfo`` / ``NetworkInfo`` from Hypothesis-generated data. NO real
 Docker daemon, NO network and NO AI are touched — everything is pure in-memory,
 so it is safe on the Windows dev environment. The curated case is seeded into a
@@ -73,7 +73,7 @@ from app.services.environment.health import ContainerStateInfo
 class FakeInspector:
     """In-memory read-only :class:`ContainerInspector` (no Docker daemon).
 
-    Mirrors the ``FakeInspector`` of ``test_provisionador_estagio5.py``: it just
+    Mirrors the ``FakeInspector`` of ``test_provisioner_stage5.py``: it just
     looks up dictionaries populated from generated data. Unknown containers /
     networks raise the same lookup errors the real SDK adapter raises, so the
     fail-closed paths are exercised too.
@@ -276,11 +276,11 @@ def test_property8_isolation_is_precondition_of_stage5(
 ) -> None:
     """Stage-5 concludes (``isolation.approved``) IFF every target is isolated.
 
-    # Feature: pipeline-seis-stages, Property 8: Isolamento é pré-condição de
+    # Feature: pipeline-seis-stages, Property 8: Isolation is a precondition for
     # conclusão do Estágio 5.
     Validates: Requirements 9.6, 9.7, 14.1, 14.2, 14.3
     """
-    tmp = Path(tempfile.mkdtemp(prefix="pipeline_ui_estagio5_prop_"))
+    tmp = Path(tempfile.mkdtemp(prefix="pipeline_ui_stage5_prop_"))
     try:
         _seed_case(tmp, _SLUG)
         names = [c.name for c in containers]
@@ -356,14 +356,14 @@ def test_property8_all_isolated_targets_conclude(
 ) -> None:
     """A set built fully isolated always concludes Stage 5 (targeted direction).
 
-    # Feature: pipeline-seis-stages, Property 8: Isolamento é pré-condição de
+    # Feature: pipeline-seis-stages, Property 8: Isolation is a precondition for
     # conclusão do Estágio 5.
     Validates: Requirements 9.6, 14.1, 14.3
     """
     # Oracle sanity: everything built here is isolated by construction.
     assert all(_expected_isolated(c) for c in containers)
 
-    tmp = Path(tempfile.mkdtemp(prefix="pipeline_ui_estagio5_prop_"))
+    tmp = Path(tempfile.mkdtemp(prefix="pipeline_ui_stage5_prop_"))
     try:
         _seed_case(tmp, _SLUG)
         names = [c.name for c in containers]

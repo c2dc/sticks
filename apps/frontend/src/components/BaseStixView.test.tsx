@@ -29,7 +29,7 @@ vi.mock("@/components/StixBasesList", () => ({
     onSelectBase: (version: string) => void
   }) => (
     <button type="button" onClick={() => onSelectBase("18.0")}>
-      stub-selecionar-18
+      stub-select-18
     </button>
   ),
 }))
@@ -74,7 +74,7 @@ describe("BaseStixView (Stage 1 — STIX base selection)", () => {
     )
 
     // No version: the base list is shown, the dashboard is not (Req. 5.1–5.4).
-    expect(screen.getByText("stub-selecionar-18")).toBeInTheDocument()
+    expect(screen.getByText("stub-select-18")).toBeInTheDocument()
     expect(screen.queryByTestId("dashboard-stub")).toBeNull()
 
     // With no base selected, Stage 1 cannot be completed (Req. 5.10).
@@ -85,7 +85,7 @@ describe("BaseStixView (Stage 1 — STIX base selection)", () => {
     expect(getStageBaseStixMock).not.toHaveBeenCalled()
 
     // Picking a base propagates the chosen version to the wizard (Req. 5.1).
-    await userEvent.setup().click(screen.getByText("stub-selecionar-18"))
+    await userEvent.setup().click(screen.getByText("stub-select-18"))
     expect(onVersionSelected).toHaveBeenCalledWith("18.0")
   })
 
@@ -105,7 +105,7 @@ describe("BaseStixView (Stage 1 — STIX base selection)", () => {
     expect(await screen.findByTestId("dashboard-stub")).toHaveTextContent(
       "dashboard-18.0",
     )
-    expect(screen.queryByText("stub-selecionar-18")).toBeNull()
+    expect(screen.queryByText("stub-select-18")).toBeNull()
     expect(getStageBaseStixMock).toHaveBeenCalledWith("shadowray", "18.0")
 
     // Bundle on disk + dashboard shown → completion enabled (Req. 5.8, 5.10).

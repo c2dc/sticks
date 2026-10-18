@@ -65,7 +65,7 @@ from app.services.operation.runner import (
     OperationRunResult,
     RunOutcome,
 )
-from app.services.stage.stage_service import ESTAGIO_EXECUCAO
+from app.services.stage.stage_service import STAGE_EXECUTION
 
 
 _SLUG = "shadowray"  # a registered curated slug (CURATED_CASES)
@@ -126,7 +126,7 @@ def _seed_case(
 
 @pytest.fixture()
 def data_dir() -> Iterator[Path]:
-    tmp = Path(tempfile.mkdtemp(prefix="pipeline_ui_estagio6_"))
+    tmp = Path(tempfile.mkdtemp(prefix="pipeline_ui_stage6_"))
     (tmp / "api").mkdir(parents=True, exist_ok=True)
     (tmp / "dag").mkdir(parents=True, exist_ok=True)
     try:
@@ -138,7 +138,7 @@ def data_dir() -> Iterator[Path]:
 @pytest.fixture()
 def session() -> Iterator[Session]:
     """An ephemeral temp-file SQLite session (torn down per test)."""
-    tmp = Path(tempfile.mkdtemp(prefix="pipeline_ui_estagio6_db_"))
+    tmp = Path(tempfile.mkdtemp(prefix="pipeline_ui_stage6_db_"))
     db_path = tmp / "test.db"
     settings = Settings(database_url=f"sqlite:///{db_path}")
     engine = create_db_engine(settings)
@@ -261,12 +261,12 @@ def _stage6_state(session: Session, campaign: str) -> StageState | None:
     row = session.execute(
         select(StageRun)
         .where(StageRun.campaign_id == campaign)
-        .where(StageRun.stage == ESTAGIO_EXECUCAO)
+        .where(StageRun.stage == STAGE_EXECUTION)
     ).scalars().first()
     return row.state if row is not None else None
 
 
-def test_executar_completed_concludes_stage6(session: Session, data_dir: Path) -> None:
+def test_execute_completed_concludes_stage6(session: Session, data_dir: Path) -> None:
     """COMPLETED + FINISHED concludes Stage 6 via the single completion path.
     _Requirements: 13.1_"""
     _seed_case(data_dir, _SLUG)
@@ -282,7 +282,7 @@ def test_executar_completed_concludes_stage6(session: Session, data_dir: Path) -
     assert _stage6_state(session, _SLUG) is StageState.COMPLETED
 
 
-def test_executar_not_confirmed_does_not_conclude(
+def test_execute_not_confirmed_does_not_conclude(
     session: Session, data_dir: Path
 ) -> None:
     """NOT_CONFIRMED runs nothing and does not conclude Stage 6 (Req. 13.2)."""
@@ -360,7 +360,7 @@ def test_executar_isolation_failed_surfaces_containers(
     assert _stage6_state(session, _SLUG) is None
 
 
-def test_executar_aborted_does_not_conclude(session: Session, data_dir: Path) -> None:
+def test_execute_aborted_does_not_conclude(session: Session, data_dir: Path) -> None:
     """ABORTED (audit-trail failure) is a run but does not conclude Stage 6 (Req. 10.2)."""
     _seed_case(data_dir, _SLUG)
     aborted = OperationRunResult(

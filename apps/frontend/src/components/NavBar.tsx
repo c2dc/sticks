@@ -9,15 +9,15 @@ import { applyLanguage, normalizeLanguage } from "@/i18n"
 import { persistLanguage } from "@/lib/preferences"
 
 /**
- * Barra de navegação superior (topo) do site.
+ * Top navigation bar of the site.
  *
- * Contém a logomarca do projeto STICKS e os dois seletores globais:
- *  - Tema: botão com ícone de Sol (Modo Claro) / Lua (Modo Escuro).
- *  - Idioma: botão com bandeira SVG do Brasil (pt-BR) / EUA (en).
+ * Holds the STICKS project logo and the two global selectors:
+ *  - Theme: a button with a Sun icon (Light mode) / Moon icon (Dark mode).
+ *  - Language: a button with an SVG flag for Brazil (pt-BR) / USA (en).
  *
- * O carregamento do padrão do usuário (tema + idioma persistidos) acontece no
- * `App.tsx` na abertura; aqui apenas expomos as alternâncias, que aplicam a
- * mudança instantaneamente e persistem a escolha via `PUT /api/preferencias`.
+ * Loading the user's defaults (persisted theme + language) happens in
+ * `App.tsx` on open; here we only expose the toggles, which apply the change
+ * instantly and persist the choice via `PUT /api/preferences`.
  */
 export function NavBar() {
   const { t } = useTranslation("preferences")
@@ -82,15 +82,15 @@ export function NavBar() {
 }
 
 /**
- * Logomarca do projeto STICKS, responsiva:
+ * Responsive STICKS project logo:
  *
- *  - Em telas pequenas (mobile), mostra apenas o ícone/símbolo quadrado, que
- *    ocupa pouco espaço horizontal.
- *  - A partir de `sm`, mostra a logomarca completa (símbolo + wordmark),
- *    escolhendo a versão adequada ao tema (fundo claro x fundo escuro).
+ *  - On small screens (mobile), shows only the square icon/symbol, which takes
+ *    little horizontal space.
+ *  - From `sm` up, shows the full logo (symbol + wordmark), choosing the
+ *    variant suited to the theme (light background vs. dark background).
  *
- * Os arquivos ficam em `frontend/public/`. Se as imagens falharem ao carregar,
- * cai para uma marca textual para o site nunca ficar sem identidade.
+ * The files live in `frontend/public/`. If the images fail to load, it falls
+ * back to a text mark so the site is never left without an identity.
  */
 function Logo() {
   const { theme } = useTheme()

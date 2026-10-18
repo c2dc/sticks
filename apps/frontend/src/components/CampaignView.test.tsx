@@ -15,8 +15,8 @@ import type {
  *
  * We mock `@/lib/stages` to control `getStageCampaign` (list + read-only
  * selection) and `selectCampaign` (attribute extraction). We assert:
- * - the list of the 8 selectable curated campaigns + disabled non-selectable
- *   ones (Req. 6.2, 6.5);
+ * - every bundle campaign listed and selectable (no curated/non-curated
+ *   distinction in the UI, Req. 6.2);
  * - the propagation of the version to the wrappers (Req. 4.1);
  * - the selection that extracts and shows the attributes (identity + techniques)
  *   and completes the stage when `completed` (Req. 6.3, 6.5);
@@ -113,12 +113,12 @@ describe("CampaignView — Stage 2 (Req. 4.1, 6.2, 6.3, 6.5)", () => {
     selectCampaignMock.mockReset()
   })
 
-  it("lists the 8 selectable curated campaigns and disables the non-selectable ones", async () => {
+  it("lists every bundle campaign as selectable (no curated distinction)", async () => {
     getStageCampaignMock.mockResolvedValue(response(listWithEightCurated()))
 
     renderWithI18n(<CampaignView campaignId="shadowray" version="18.0" />)
 
-    // The 9 campaigns appear; the 8 curated ones have an enabled button.
+    // All 9 campaigns appear and every one is selectable (enabled).
     const curada1 = await screen.findByRole("button", { name: /Curada1/ })
     expect(curada1).not.toBeDisabled()
 
@@ -126,9 +126,9 @@ describe("CampaignView — Stage 2 (Req. 4.1, 6.2, 6.3, 6.5)", () => {
     expect(curated).toHaveLength(8)
     curated.forEach((btn) => expect(btn).not.toBeDisabled())
 
-    // The non-curated campaign appears but disabled.
+    // The non-curated campaign is now ALSO selectable (enabled).
     const externa = screen.getByRole("button", { name: /Externa/ })
-    expect(externa).toBeDisabled()
+    expect(externa).not.toBeDisabled()
   })
 
   it("propagates the version to getStageCampaign", async () => {
@@ -167,9 +167,9 @@ describe("CampaignView — Stage 2 (Req. 4.1, 6.2, 6.3, 6.5)", () => {
 
     // The extracted attributes are shown (identity reusing the Stage1View block
     // + techniques), and the completion indicator appears.
-    await screen.findByTestId("campanha-concluida")
+    await screen.findByTestId("campaign-completed")
     const attributes = screen
-      .getByTestId("campanha-concluida")
+      .getByTestId("campaign-completed")
       .closest('[data-section="atributos-extraidos"]') as HTMLElement
     expect(attributes).not.toBeNull()
     expect(attributes).toHaveTextContent("ShadowRay")
@@ -204,9 +204,9 @@ describe("CampaignView — Stage 2 (Req. 4.1, 6.2, 6.3, 6.5)", () => {
     fireEvent.click(curada1)
     fireEvent.click(screen.getByRole("button", { name: "Selecionar campanha" }))
 
-    const alert = await screen.findByTestId("campanha-falha")
+    const alert = await screen.findByTestId("campaign-failure")
     expect(alert).toHaveTextContent("Artefato curado ausente.")
-    expect(screen.queryByTestId("campanha-concluida")).toBeNull()
+    expect(screen.queryByTestId("campaign-completed")).toBeNull()
     // Extraction failed → the stage did not complete.
     expect(onCompleted).not.toHaveBeenCalled()
   })

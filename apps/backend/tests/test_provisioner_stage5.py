@@ -315,7 +315,7 @@ def _seed_case(data_dir: Path, slug: str, *, with_adversary: bool = True,
 
 @pytest.fixture()
 def data_dir() -> Iterator[Path]:
-    tmp = Path(tempfile.mkdtemp(prefix="pipeline_ui_estagio5_"))
+    tmp = Path(tempfile.mkdtemp(prefix="pipeline_ui_stage5_"))
     (tmp / "api").mkdir(parents=True, exist_ok=True)
     (tmp / "dag").mkdir(parents=True, exist_ok=True)
     try:
@@ -342,14 +342,14 @@ def _isolated_inspector(containers: list[str]) -> FakeInspector:
 # ---------------------------------------------------------------------------
 
 
-def test_curadoria_satisfies_the_protocol() -> None:
+def test_curation_satisfies_the_protocol() -> None:
     """``CurationEnvironmentProvisioner`` satisfies the Stage-5 Protocol."""
     prov = CurationEnvironmentProvisioner()
     assert isinstance(prov, EnvironmentProvisioner)
     assert prov.origin() is TranslationSource.HUMAN_CURATION
 
 
-def test_provisionar_loads_abilities_in_dag_order_and_concludes(data_dir: Path) -> None:
+def test_provision_loads_abilities_in_dag_order_and_concludes(data_dir: Path) -> None:
     """Isolated + loaded -> environment ready, abilities in atomic_ordering order.
     _Requirements: 9.5, 9.6, 9.8, 9.9_"""
     _seed_case(data_dir, _SLUG)
@@ -382,7 +382,7 @@ def test_provisionar_loads_abilities_in_dag_order_and_concludes(data_dir: Path) 
     assert caldera.loaded_adversary["adversary_id"] == f"{_SLUG}-adv"
 
 
-def test_provisionar_not_isolated_does_not_conclude(data_dir: Path) -> None:
+def test_provision_not_isolated_does_not_conclude(data_dir: Path) -> None:
     """A container on an external bridge keeps the stage non-concluded (Req. 9.7).
     _Requirements: 9.6, 9.7, 14.2, 14.4_"""
     _seed_case(data_dir, _SLUG)
@@ -411,7 +411,7 @@ def test_provisionar_not_isolated_does_not_conclude(data_dir: Path) -> None:
     assert environment.loaded_abilities is True
 
 
-def test_provisionar_empty_containers_is_fail_closed(data_dir: Path) -> None:
+def test_provision_empty_containers_is_fail_closed(data_dir: Path) -> None:
     """No resolvable target containers -> fail-closed (not approved).
     _Requirements: 9.7, 14.4_"""
     _seed_case(data_dir, _SLUG)
@@ -437,7 +437,7 @@ def test_provisionar_empty_containers_is_fail_closed(data_dir: Path) -> None:
     assert environment.isolation.approved is False
 
 
-def test_provisionar_daemon_unavailable_is_fail_closed(data_dir: Path) -> None:
+def test_provision_daemon_unavailable_is_fail_closed(data_dir: Path) -> None:
     """An unavailable Docker daemon (RuntimeError) reproves fail-closed.
     _Requirements: 9.7, 14.4_"""
     _seed_case(data_dir, _SLUG)
@@ -460,7 +460,7 @@ def test_provisionar_daemon_unavailable_is_fail_closed(data_dir: Path) -> None:
         assert any("indispon" in r.lower() for r in v.reasons)
 
 
-def test_provisionar_caldera_failure_marks_abilities_not_loaded(data_dir: Path) -> None:
+def test_provision_caldera_failure_marks_abilities_not_loaded(data_dir: Path) -> None:
     """A Caldera failure keeps ``loaded_abilities`` False (fail-closed load).
     _Requirements: 9.5, 9.9_"""
     _seed_case(data_dir, _SLUG)
@@ -483,7 +483,7 @@ def test_provisionar_caldera_failure_marks_abilities_not_loaded(data_dir: Path) 
     assert environment.ready is False
 
 
-def test_provisionar_no_abilities_marks_not_loaded(data_dir: Path) -> None:
+def test_provision_no_abilities_marks_not_loaded(data_dir: Path) -> None:
     """A case with no abilities loads nothing -> ``loaded_abilities`` False.
     _Requirements: 9.5, 9.9_"""
     _seed_case(data_dir, _SLUG, with_abilities=False, with_adversary=False)
@@ -503,7 +503,7 @@ def test_provisionar_no_abilities_marks_not_loaded(data_dir: Path) -> None:
     assert caldera.calls == []  # Caldera never touched when there are no abilities
 
 
-def test_provisionar_without_adversary_still_loads_abilities(data_dir: Path) -> None:
+def test_provision_without_adversary_still_loads_abilities(data_dir: Path) -> None:
     """No adversary -> abilities still load (load_adversary skipped).
     _Requirements: 9.5_"""
     _seed_case(data_dir, _SLUG, with_adversary=False)
@@ -583,7 +583,7 @@ def _curadoria(
 # ---------------------------------------------------------------------------
 
 
-def test_provisionar_caminho_feliz_conclui_com_tres_prerequisitos(data_dir: Path) -> None:
+def test_provision_happy_path_completes_with_three_prerequisites(data_dir: Path) -> None:
     """Quatro etapas ok → ``ready`` com saúde + Abilities + isolation aprovados.
     _Requirements: 5.3, 5.5, 7.1_"""
     containers = [_C1, _C2]
@@ -621,7 +621,7 @@ def test_provisionar_caminho_feliz_conclui_com_tres_prerequisitos(data_dir: Path
 # ---------------------------------------------------------------------------
 
 
-def test_provisionar_falha_subir_conteineres_bloqueia_pipeline(data_dir: Path) -> None:
+def test_provision_failure_bring_up_containers_blocks_pipeline(data_dir: Path) -> None:
     """``up`` com ``code != 0`` → ``failed_step='subir_conteineres'`` e para.
     _Requirements: 3.5, 7.1_"""
     containers = [_C1, _C2]
@@ -655,7 +655,7 @@ def test_provisionar_falha_subir_conteineres_bloqueia_pipeline(data_dir: Path) -
 # ---------------------------------------------------------------------------
 
 
-def test_provisionar_falha_aguardar_saude_bloqueia_pipeline(data_dir: Path) -> None:
+def test_provision_failure_await_health_blocks_pipeline(data_dir: Path) -> None:
     """Um contêiner ``unhealthy`` → ``failed_step='aguardar_saude'`` e para.
     _Requirements: 5.5, 7.1_"""
     containers = [_C1, _C2]
@@ -683,7 +683,7 @@ def test_provisionar_falha_aguardar_saude_bloqueia_pipeline(data_dir: Path) -> N
     assert environment.isolation.approved is False
 
 
-def test_provisionar_falha_saude_container_nao_running(data_dir: Path) -> None:
+def test_provision_failure_health_container_not_running(data_dir: Path) -> None:
     """Um contêiner fora de ``running`` também reprova ``aguardar_saude``.
     _Requirements: 5.5, 7.1_"""
     containers = [_C1, _C2]
@@ -709,7 +709,7 @@ def test_provisionar_falha_saude_container_nao_running(data_dir: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_provisionar_falha_carregar_abilities_bloqueia_pipeline(data_dir: Path) -> None:
+def test_provision_failure_load_abilities_blocks_pipeline(data_dir: Path) -> None:
     """Caldera indisponível → ``failed_step='carregar_abilities'`` e para.
     _Requirements: 4.4, 7.1_"""
     containers = [_C1, _C2]
@@ -729,7 +729,7 @@ def test_provisionar_falha_carregar_abilities_bloqueia_pipeline(data_dir: Path) 
     assert caldera.calls == ["load_abilities"]
 
 
-def test_provisionar_falha_carregar_abilities_caso_sem_abilities(data_dir: Path) -> None:
+def test_provision_failure_load_abilities_campaign_without_abilities(data_dir: Path) -> None:
     """campaign sem Abilities → ``failed_step='carregar_abilities'`` (fail-closed).
     _Requirements: 4.4, 7.1_"""
     containers = [_C1, _C2]
@@ -756,7 +756,7 @@ def test_provisionar_falha_carregar_abilities_caso_sem_abilities(data_dir: Path)
 # ---------------------------------------------------------------------------
 
 
-def test_provisionar_falha_verificar_isolamento_bloqueia_conclusao(data_dir: Path) -> None:
+def test_provision_failure_verify_isolation_blocks_completion(data_dir: Path) -> None:
     """Contêiner em bridge external → ``failed_step='verificar_isolamento'``.
     _Requirements: 5.3, 5.5, 7.1_"""
     containers = [_C1, _C2]
@@ -786,7 +786,7 @@ def test_provisionar_falha_verificar_isolamento_bloqueia_conclusao(data_dir: Pat
 # ---------------------------------------------------------------------------
 
 
-def test_desprovisionar_sucesso_sem_remanescentes(data_dir: Path) -> None:
+def test_deprovision_success_without_remaining(data_dir: Path) -> None:
     """``down`` com ``code=0`` → ``deprovisioned=True`` e sem remanescentes.
     _Requirements: 9.1_"""
     containers = [_C1, _C2]
@@ -814,7 +814,7 @@ def test_desprovisionar_sucesso_sem_remanescentes(data_dir: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_desprovisionar_falha_reporta_recursos_remanescentes(data_dir: Path) -> None:
+def test_deprovision_failure_reports_remaining_resources(data_dir: Path) -> None:
     """``down`` com ``code != 0`` → ``deprovisioned=False`` com remanescentes.
     _Requirements: 9.1_"""
     containers = [_C1, _C2]
@@ -839,7 +839,7 @@ def test_desprovisionar_falha_reporta_recursos_remanescentes(data_dir: Path) -> 
 # ---------------------------------------------------------------------------
 
 
-def test_pipeline_usa_apenas_fakes_sem_rede_publica(data_dir: Path) -> None:
+def test_pipeline_uses_only_fakes_no_public_network(data_dir: Path) -> None:
     """Todo o pipeline + teardown passam só pelos fakes — sem rede/daemon/subprocess.
     _Requirements: 9.1, 9.2_"""
     containers = [_C1, _C2]

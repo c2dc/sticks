@@ -184,7 +184,7 @@ def _build_ephemeral_session() -> tuple[Session, Path, Any]:
     suppress_health_check=[HealthCheck.too_slow],
 )
 @given(spec=_params_strategy)
-def test_property13_origem_persistida_extensivel_sem_migracao(spec: dict) -> None:
+def test_property13_persisted_origin_extensible_without_migration(spec: dict) -> None:
     """Persistir origin=gerado_ia e platform=maquina_virtual não exige migração.
 
     # Feature: pipeline-seis-stages, Property 13: Origem explícita e extensível

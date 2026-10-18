@@ -37,7 +37,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Path, status
 from pydantic import BaseModel, Field
 
-from app.services.stix.estagio1_service import BaseStixListada, Stage1Service
+from app.services.stix.stage1_service import BaseStixListada, Stage1Service
 from app.services.stix.stix_service import (
     AdversaryStix,
     BaseStixInfo,
@@ -63,7 +63,7 @@ class BasesResponse(BaseModel):
     Each base carries the ``baixada``/``selecionavel`` flags (live disk presence)
     plus the six-stage ``curada`` flag of the version (``True`` only for the
     curated version 18 — Req. 5.5, 5.6), projected via
-    :class:`~app.services.stix.estagio1_service.Stage1Service`. ``curada`` is an
+    :class:`~app.services.stix.stage1_service.Stage1Service`. ``curada`` is an
     additive field: existing consumers that read only ``version``/``baixada``/
     ``selecionavel``/``arquivo`` are unaffected.
     """
@@ -131,7 +131,7 @@ def get_dashboard(
         return StixService().dashboard(version)
     except StixFileError as exc:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail={"motivo": "bundle_invalido", "mensagem": exc.detail},
         ) from exc
 
@@ -153,7 +153,7 @@ def list_campaigns(
         campaigns = StixService().list_campaigns(version)
     except StixFileError as exc:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail={"motivo": "bundle_invalido", "mensagem": exc.detail},
         ) from exc
     return CampaignsResponse(version=version, campaigns=campaigns)
@@ -176,7 +176,7 @@ def list_adversaries(
         adversaries = StixService().list_adversaries(version)
     except StixFileError as exc:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail={"motivo": "bundle_invalido", "mensagem": exc.detail},
         ) from exc
     return AdversariesResponse(version=version, adversaries=adversaries)
@@ -208,11 +208,11 @@ def download_base(
     except StixDownloadError as exc:
         # Unknown version → 422 (rejected before any disk/network access);
         # any network/content/write failure → 502 (upstream/egress failure).
-        from app.services.stix.stix_service import VERSOES_CONHECIDAS
+        from app.services.stix.stix_service import KNOWN_VERSIONS
 
-        unknown = exc.version is not None and exc.version not in VERSOES_CONHECIDAS
+        unknown = exc.version is not None and exc.version not in KNOWN_VERSIONS
         http_code = (
-            status.HTTP_422_UNPROCESSABLE_ENTITY
+            status.HTTP_422_UNPROCESSABLE_CONTENT
             if unknown
             else status.HTTP_502_BAD_GATEWAY
         )

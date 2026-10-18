@@ -12,13 +12,13 @@ Cobre os três endpoints novos do esquema de seis Estágios adicionados em
     - contêiner-target não isolated → **409** identificando o contêiner (Req. 14.2);
     - Caldera silencioso em 10s → **503** (Req. 10.1);
     - caminho feliz (interno + isolated + Caldera saudável) → **200** com execução
-      concluída, relatório e desprovisionamento (Req. 10.7, 10.8, 12.1).
+      completed, report and deprovisioning (Req. 10.7, 10.8, 12.1).
 * ``GET /api/campaigns/{campaign}/report`` — o relatório consolidado + métricas de
   suficiência procedural derivadas dos results por Ability persistidos + o DAG
   curated (Req. 15.7).
 
 Tudo external é *mockado* (sem Caldera nem Docker reais), reusando o mesmo molde de
-``test_emulacao_endpoints.py``:
+``test_emulation_endpoints.py``:
 - a Base_de_Dados é um SQLite temporário por módulo, ligado via ``get_db``;
 - o Caldera é um :class:`CalderaClient` real sobre :class:`httpx.MockTransport`
   (saudável ou com timeout), injetado via ``get_caldera_client`` e no provisioner;
@@ -194,8 +194,8 @@ class _HealthyStateInspector:
 @pytest.fixture(scope="module")
 def session_factory() -> Iterator[sessionmaker[Session]]:
     """A fresh temp-file SQLite engine + schema for the module."""
-    tmp_dir = tempfile.mkdtemp(prefix="pipeline_ui_estagio6_")
-    db_path = Path(tmp_dir) / "estagio6.db"
+    tmp_dir = tempfile.mkdtemp(prefix="pipeline_ui_stage6_")
+    db_path = Path(tmp_dir) / "stage6.db"
     settings_obj = Settings(database_url=f"sqlite:///{db_path.as_posix()}")
 
     engine = create_db_engine(settings_obj)
@@ -256,7 +256,7 @@ def _make_client(
 
         return _factory
 
-    def _get_provisionador_override() -> CurationEnvironmentProvisioner:
+    def _get_provisioner_override() -> CurationEnvironmentProvisioner:
         # Fake inspector (never consulted — the fake verifier short-circuits
         # isolation) + fake Caldera loader + fakes de compose/state, so
         # provision() touches no subprocess nor daemon (pipeline da task 3.2).
@@ -270,7 +270,7 @@ def _make_client(
     app.dependency_overrides[get_db] = _get_db_override
     app.dependency_overrides[get_caldera_client] = _get_caldera_override
     app.dependency_overrides[get_runner_factory] = _get_runner_factory_override
-    app.dependency_overrides[get_provisioner] = _get_provisionador_override
+    app.dependency_overrides[get_provisioner] = _get_provisioner_override
     return TestClient(app)
 
 
@@ -315,7 +315,7 @@ def test_preview_unknown_case_returns_404(
 # ---------------------------------------------------------------------------
 
 
-def test_execucao_not_confirmed_runs_nothing(
+def test_execution_not_confirmed_runs_nothing(
     session_factory: sessionmaker[Session],
 ) -> None:
     """confirmed=false => nothing started; Stage 6 not concluded (Req. 13.2)."""
@@ -333,7 +333,7 @@ def test_execucao_not_confirmed_runs_nothing(
     assert body["deprovisioning"]["deprovisioned"] is True
 
 
-def test_execucao_non_isolated_container_returns_409(
+def test_execution_non_isolated_container_returns_409(
     session_factory: sessionmaker[Session],
 ) -> None:
     """A non-isolated target container -> 409 identifying the container (Req. 14.2)."""
@@ -351,7 +351,7 @@ def test_execucao_non_isolated_container_returns_409(
     assert detail["containers"], "the offending container must be identified"
 
 
-def test_execucao_caldera_timeout_returns_503(
+def test_execution_caldera_timeout_returns_503(
     session_factory: sessionmaker[Session],
 ) -> None:
     """Caldera silent within 10s -> 503; nothing started (Req. 10.1)."""
@@ -367,7 +367,7 @@ def test_execucao_caldera_timeout_returns_503(
     assert "indisponível" in resp.json()["detail"].lower()
 
 
-def test_execucao_happy_path_concludes_with_report_and_teardown(
+def test_execution_happy_path_concludes_with_report_and_teardown(
     session_factory: sessionmaker[Session],
 ) -> None:
     """Internal + isolated + healthy Caldera -> 200, concluded, report + teardown.
@@ -399,7 +399,7 @@ def test_execucao_happy_path_concludes_with_report_and_teardown(
 # ---------------------------------------------------------------------------
 
 
-def test_relatorio_shape_for_case_without_execution(
+def test_report_shape_for_case_without_execution(
     session_factory: sessionmaker[Session],
 ) -> None:
     """A case with no execution yet returns a reportable, zeroed report (Req. 15.7)."""
@@ -419,7 +419,7 @@ def test_relatorio_shape_for_case_without_execution(
     assert body["environment_deprovisioned"] is False
 
 
-def test_relatorio_unknown_case_returns_404(
+def test_report_unknown_case_returns_404(
     session_factory: sessionmaker[Session],
 ) -> None:
     """An unknown slug on the report endpoint is a 404."""

@@ -13,9 +13,9 @@ import type { Campaign, CampaignStates, CasesResponse } from "@/lib/campaigns"
  * (used only to list base/campaign options in Stages 1-2) and adopts the chosen
  * campaign id when CampaignView reports a selection, which unlocks Stages 3..6.
  *
- * We mock `fetchCases` + `getCaso`/`resetCaso` (network) and the Stage-4
+ * We mock `fetchCases` + `getCampaign`/`resetCampaign` (network) and the Stage-4
  * conclusion wrapper, and stub the stage body components. The CampaignView stub
- * fires `onConcluido("shadowray", …)` on mount so reaching Stage 2 selects the
+ * fires `onCompleted("shadowray", …)` on mount so reaching Stage 2 selects the
  * single curated campaign and unlocks the later stages.
  */
 
@@ -60,13 +60,13 @@ vi.mock("@/components/CampaignView", () => ({
     onCompleted?: (slug: string, result: unknown) => void
   }) => {
     return (
-      <div data-testid="campanha-view">
+      <div data-testid="campaign-view">
         <button
           type="button"
-          data-testid="selecionar-campanha"
+          data-testid="select-campaign"
           onClick={() => onCompleted?.("shadowray", { completed: true })}
         >
-          selecionar
+          select
         </button>
       </div>
     )
@@ -84,7 +84,7 @@ vi.mock("@/components/Stage2View", () => ({
 }))
 vi.mock("@/components/EnvironmentParametersView", () => ({
   EnvironmentParametersView: ({ campaignId }: { campaignId: string }) => (
-    <div data-testid="parametros-ambiente-view">{campaignId}</div>
+    <div data-testid="environment-parameters-view">{campaignId}</div>
   ),
 }))
 vi.mock("@/components/EnvironmentStageView", () => ({
@@ -99,7 +99,7 @@ vi.mock("@/components/Stage3View", () => ({
 }))
 vi.mock("@/components/ReportView", () => ({
   ReportView: ({ campaignId }: { campaignId: string }) => (
-    <div data-testid="relatorio-view">{campaignId}</div>
+    <div data-testid="report-view">{campaignId}</div>
   ),
 }))
 
@@ -142,8 +142,8 @@ async function selectCampaignAtStage2() {
     name: /Avançar para o próximo estágio/,
   })
   await userEvent.click(advance)
-  await screen.findByTestId("campanha-view")
-  await userEvent.click(screen.getByTestId("selecionar-campanha"))
+  await screen.findByTestId("campaign-view")
+  await userEvent.click(screen.getByTestId("select-campaign"))
 }
 
 // Controls whether the BaseStixView stub auto-reports Stage 1 as concluded.
@@ -190,7 +190,7 @@ describe("ExecutionWizard (6 stages — Req. 1.1, 1.2, 4.1–4.3)", () => {
     await waitFor(() => expect(getCampaignMock).toHaveBeenCalledWith("shadowray"))
 
     expect(await screen.findByTestId("base-stix-view")).toBeInTheDocument()
-    expect(screen.queryByTestId("campanha-view")).not.toBeInTheDocument()
+    expect(screen.queryByTestId("campaign-view")).not.toBeInTheDocument()
     expect(screen.queryByTestId("dag-stage-view")).not.toBeInTheDocument()
   })
 
@@ -225,7 +225,7 @@ describe("ExecutionWizard (6 stages — Req. 1.1, 1.2, 4.1–4.3)", () => {
     await userEvent.click(advance)
 
     expect(await screen.findByText("Passo 2 de 6")).toBeInTheDocument()
-    expect(screen.getByTestId("campanha-view")).toBeInTheDocument()
+    expect(screen.getByTestId("campaign-view")).toBeInTheDocument()
     expect(screen.queryByTestId("base-stix-view")).not.toBeInTheDocument()
   })
 
@@ -243,7 +243,7 @@ describe("ExecutionWizard (6 stages — Req. 1.1, 1.2, 4.1–4.3)", () => {
 
     // Stage 2 — CampaignView; selecting the campaign unlocks Stages 3..6.
     await selectCampaignAtStage2()
-    expect(screen.getByTestId("campanha-view")).toBeInTheDocument()
+    expect(screen.getByTestId("campaign-view")).toBeInTheDocument()
 
     // Stage 3 — DagStageView.
     await userEvent.click(advance())
@@ -252,7 +252,7 @@ describe("ExecutionWizard (6 stages — Req. 1.1, 1.2, 4.1–4.3)", () => {
     // Stage 4 — Stage2View + EnvironmentParametersView.
     await userEvent.click(advance())
     expect(await screen.findByTestId("stage2-view")).toBeInTheDocument()
-    expect(screen.getByTestId("parametros-ambiente-view")).toBeInTheDocument()
+    expect(screen.getByTestId("environment-parameters-view")).toBeInTheDocument()
 
     // Stage 5 — EnvironmentStageView.
     await userEvent.click(advance())
@@ -261,7 +261,7 @@ describe("ExecutionWizard (6 stages — Req. 1.1, 1.2, 4.1–4.3)", () => {
     // Stage 6 — Stage3View + ReportView; no "Avançar" on the last.
     await userEvent.click(advance())
     expect(await screen.findByTestId("stage3-view")).toBeInTheDocument()
-    expect(screen.getByTestId("relatorio-view")).toBeInTheDocument()
+    expect(screen.getByTestId("report-view")).toBeInTheDocument()
     expect(screen.getByText("Passo 6 de 6")).toBeInTheDocument()
     expect(
       screen.queryByRole("button", { name: /Avançar para o próximo estágio/ }),

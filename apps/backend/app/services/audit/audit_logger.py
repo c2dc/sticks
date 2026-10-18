@@ -10,7 +10,7 @@ exactly K rows for K executed commands).
 Design alignment
 ----------------
 * Maps directly onto the ``AuditLogEntry`` ORM model in
-  :mod:`app.models.domain` (table ``auditoria``). The NOT NULL columns
+  :mod:`app.models.domain` (table ``audit``). The NOT NULL columns
   (``command``, ``target_container``, ``recorded_at``) are always populated
   by :meth:`AuditLogger.log_command`.
 * The logger accepts an injected SQLAlchemy :class:`~sqlalchemy.orm.Session`, so
@@ -168,7 +168,7 @@ class AuditLogger:
         """Return the audit trail for an Operation, oldest first.
 
         Helper for the audit endpoint added later (task 11.1,
-        ``GET /api/auditoria/{operacao}``). Ordered by ``recorded_at`` then
+        ``GET /api/audit/{operation}``). Ordered by ``recorded_at`` then
         ``id`` so entries with identical timestamps keep insertion order.
         """
         stmt = (

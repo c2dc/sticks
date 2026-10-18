@@ -10,7 +10,7 @@ configuration of the existing `sticks/` package at the repository root.
 ## Structure
 
 ```
-ui/backend/
+apps/backend/
   app/
     core/       # configuration + integration with the existing sticks pipeline
     models/     # SQLAlchemy domain models
@@ -30,7 +30,7 @@ run natively on the host with hot-reload, pointing at the containerized Postgres
 
 ```bash
 # 1. start the infrastructure (includes Postgres published on 127.0.0.1:5432)
-cd docker && docker compose up -d
+cd infra/docker && docker compose up -d
 
 # 2. prepare the native environment once (backend venv + node_modules)
 #    from the repository root
@@ -54,7 +54,7 @@ uses mocks/fixtures.
 ## Tests
 
 ```powershell
-# from ui/backend, with the venv active
+# from apps/backend, with the venv active
 pytest
 ```
 

@@ -114,7 +114,6 @@
     "selecionar": "Select campaign",
     "selecionando": "Selecting…",
     "selecionada": "Campaign selected",
-    "naoSelecionavel": "Not selectable (no curated artifacts)",
     "semCampanhas": "No campaigns available in this bundle.",
     "atributos": "Extracted attributes",
     "tecnicas": "ATT&CK techniques",
@@ -124,7 +123,12 @@
     "naoExtraido": "Select a campaign to extract and show its attributes.",
     "concluido": "Attributes extracted — Stage 2 completed.",
     "falha": "Could not extract the attributes of the selected campaign.",
-    "falhaEtapa": "Failed step: {{step}}"
+    "falhaEtapa": "Failed step: {{step}}",
+    "buscarPlaceholder": "Search campaign by name...",
+    "buscarLabel": "Search campaign",
+    "semResultados": "No campaign matches your search.",
+    "contagem_one": "{{count}} campaign",
+    "contagem_other": "{{count}} campaigns"
   },
   "stage2": {
     "entrada": {
@@ -182,6 +186,39 @@
       "noResults": "No Operation results yet.",
       "success": "{{count}} succeeded",
       "failure": "{{count}} failed"
+    }
+  },
+  "stage6": {
+    "confirmation": {
+      "title": "Safety confirmation — real attack execution",
+      "description": "Review the concrete commands and target containers. Execution starts automatically in a moment; confirm to start now. No command is fired without the isolation gate approved.",
+      "previewLoading": "Loading the commands that will run…",
+      "targets": "Target",
+      "confirm": "Confirm and run now",
+      "starting": "Starting execution…"
+    },
+    "blocked": {
+      "body": "Environment not ready: Stage 5 is not concluded. Redirecting to Stage 5…"
+    },
+    "execution": {
+      "refused": "Execution did not start: the isolation/containment gate was not satisfied or Caldera is unavailable.",
+      "startError": "Could not start the Stage 6 execution."
+    },
+    "connection": {
+      "lost": "Connection lost — reconnecting to the execution channel. Updates resume automatically; no need to reload the page."
+    },
+    "live": {
+      "command": "Command",
+      "target": "Target (container + IP)",
+      "attacker": "Attacker host",
+      "logs": "Logs / output",
+      "notAvailable": "not available"
+    },
+    "stage5": {
+      "title": "Environment (Stage 5)",
+      "readOnly": "Read-only verdict produced in Stage 5. Stage 6 does not re-run any environment check.",
+      "ready": "Ready",
+      "notReady": "Not ready"
     }
   },
   "stage4": {

@@ -29,10 +29,10 @@ from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
 from app.services.stix.stix_service import (
-    DESCRICOES_TIPO,
+    TYPE_DESCRIPTIONS,
     ROTULO_TIPO,
-    SLUG_PARA_STIX,
-    VERSOES_CONHECIDAS,
+    SLUG_TO_STIX,
+    KNOWN_VERSIONS,
     StixDownloadError,
     StixFileError,
     StixLoadErrorType,
@@ -77,23 +77,23 @@ def _stix_id(prefix: str, n: int) -> str:
 
 # A strategy over non-empty subsets of the known versions, in arbitrary order,
 # so the sort key is checked across many inputs rather than only the real list.
-_versao_lists = st.lists(
-    st.sampled_from(VERSOES_CONHECIDAS), min_size=1, max_size=len(VERSOES_CONHECIDAS)
+_version_lists = st.lists(
+    st.sampled_from(KNOWN_VERSIONS), min_size=1, max_size=len(KNOWN_VERSIONS)
 ).map(lambda xs: list(dict.fromkeys(xs)))  # dedupe, preserve order
 
 
 # Feature: stream-stix-dashboard, Property 1: Bases sempre ordenadas da mais nova para a mais antiga
 @PROP_SETTINGS
-@given(versoes=_versao_lists)
+@given(versions=_version_lists)
 def test_property1_bases_ordenadas_mais_nova_primeiro(
-    tmp_path: Path, versoes: list[str]
+    tmp_path: Path, versions: list[str]
 ) -> None:
     """The semantic sort key is monotonic (strictly) descending, and the real
     ``list_bases()`` output is sorted newest->oldest by that same key."""
     # (a) The sort key applied to any generated subset yields a non-increasing
     #     sequence of numeric tuples when sorted descending.
     chaves = sorted(
-        (_semantic_version_key(v) for v in versoes), reverse=True
+        (_semantic_version_key(v) for v in versions), reverse=True
     )
     for anterior, proximo in zip(chaves, chaves[1:]):
         assert anterior >= proximo
@@ -102,7 +102,7 @@ def test_property1_bases_ordenadas_mais_nova_primeiro(
     #     descending by semantic version — no two known versions tie.
     service = StixService(data_dir=tmp_path)
     bases = service.list_bases()
-    assert len(bases) == len(VERSOES_CONHECIDAS)
+    assert len(bases) == len(KNOWN_VERSIONS)
     keys = [_semantic_version_key(b.version) for b in bases]
     for anterior, proximo in zip(keys, keys[1:]):
         assert anterior > proximo, (
@@ -115,15 +115,15 @@ def test_property1_bases_ordenadas_mais_nova_primeiro(
 # ---------------------------------------------------------------------------
 
 
-# Feature: stream-stix-dashboard, Property 2: "Baixada" e "selectable" refletem exatamente a presenca em disco
+# Feature: stream-stix-dashboard, Property 2: "Downloaded" and "selectable" reflect exactly the presence on disk
 @PROP_SETTINGS
 @given(
     presentes=st.lists(
-        st.sampled_from(VERSOES_CONHECIDAS),
-        max_size=len(VERSOES_CONHECIDAS),
+        st.sampled_from(KNOWN_VERSIONS),
+        max_size=len(KNOWN_VERSIONS),
     ).map(lambda xs: set(xs))
 )
-def test_property2_baixada_selecionavel_refletem_disco(
+def test_property2_downloaded_selectable_reflect_disk(
     tmp_path: Path, presentes: set[str]
 ) -> None:
     """For a generated subset of versions materialised as files in ``tmp_path``,
@@ -142,11 +142,11 @@ def test_property2_baixada_selecionavel_refletem_disco(
         _write_bundle(service.base_path(version), [])
 
     bases = service.list_bases()
-    assert {b.version for b in bases} == set(VERSOES_CONHECIDAS)
+    assert {b.version for b in bases} == set(KNOWN_VERSIONS)
 
     for base in bases:
-        esperado_baixada = base.version in presentes
-        assert base.downloaded is esperado_baixada
+        expected_downloaded = base.version in presentes
+        assert base.downloaded is expected_downloaded
         assert base.selectable == base.downloaded
         if base.downloaded:
             assert base.file == str(service.base_path(base.version))
@@ -194,7 +194,7 @@ def test_property3_contagens_iguais_aos_objetos(
     """Each ``TypeCount.count`` equals the number of generated objects
     of that STIX type; noise types never inflate a required count."""
     objetos, oraculo = dados
-    version = VERSOES_CONHECIDAS[0]
+    version = KNOWN_VERSIONS[0]
     service = StixService(data_dir=tmp_path)
     _write_bundle(service.base_path(version), objetos)
 
@@ -212,13 +212,13 @@ def test_property3_contagens_iguais_aos_objetos(
 # Feature: stream-stix-dashboard, Property 4: Todo type contabilizado tem description nao vazia
 @PROP_SETTINGS
 @given(dados=_bundle_de_contagens())
-def test_property4_toda_descricao_nao_vazia(
+def test_property4_every_description_not_empty(
     tmp_path: Path, dados: tuple[list[dict], dict[str, int]]
 ) -> None:
     """Every ``TypeCount`` in any produced dashboard has a non-empty pt-BR
-    description drawn from DESCRICOES_TIPO."""
+    description drawn from TYPE_DESCRIPTIONS."""
     objetos, _ = dados
-    version = VERSOES_CONHECIDAS[0]
+    version = KNOWN_VERSIONS[0]
     service = StixService(data_dir=tmp_path)
     _write_bundle(service.base_path(version), objetos)
 
@@ -227,7 +227,7 @@ def test_property4_toda_descricao_nao_vazia(
     for contagem in dashboard.counts:
         assert contagem.description, f"description vazia para {contagem.stix_type}"
         assert contagem.description.strip() != ""
-        assert contagem.description == DESCRICOES_TIPO[contagem.stix_type]
+        assert contagem.description == TYPE_DESCRIPTIONS[contagem.stix_type]
 
 
 # ---------------------------------------------------------------------------
@@ -235,14 +235,14 @@ def test_property4_toda_descricao_nao_vazia(
 # ---------------------------------------------------------------------------
 
 
-def test_bundle_invalido_erros_tipados(tmp_path: Path) -> None:
+def test_invalid_bundle_typed_errors(tmp_path: Path) -> None:
     """Malformed JSON, valid-JSON-without-objects and a missing file each raise
     a typed StixFileError with the right error_type — for both read_bundle and
     dashboard, which must never return partial counts."""
     service = StixService(data_dir=tmp_path)
 
     # (a) Malformed JSON -> MALFORMED_JSON.
-    v_mal = VERSOES_CONHECIDAS[0]
+    v_mal = KNOWN_VERSIONS[0]
     service.base_path(v_mal).parent.mkdir(parents=True, exist_ok=True)
     service.base_path(v_mal).write_text("{not valid json", encoding="utf-8")
     with pytest.raises(StixFileError) as exc_mal:
@@ -253,7 +253,7 @@ def test_bundle_invalido_erros_tipados(tmp_path: Path) -> None:
     assert exc_mal_dash.value.error_type is StixLoadErrorType.MALFORMED_JSON
 
     # (b) Valid JSON but no "objects" list -> INVALID_STRUCTURE.
-    v_inv = VERSOES_CONHECIDAS[1]
+    v_inv = KNOWN_VERSIONS[1]
     service.base_path(v_inv).write_text(
         json.dumps({"type": "bundle"}), encoding="utf-8"
     )
@@ -265,7 +265,7 @@ def test_bundle_invalido_erros_tipados(tmp_path: Path) -> None:
     assert exc_inv_dash.value.error_type is StixLoadErrorType.INVALID_STRUCTURE
 
     # (c) Missing file -> MISSING_FILE.
-    v_missing = VERSOES_CONHECIDAS[2]
+    v_missing = KNOWN_VERSIONS[2]
     with pytest.raises(StixFileError) as exc_missing:
         service.read_bundle(v_missing)
     assert exc_missing.value.error_type is StixLoadErrorType.MISSING_FILE
@@ -280,20 +280,20 @@ def test_bundle_invalido_erros_tipados(tmp_path: Path) -> None:
 
 
 @st.composite
-def _bundle_com_campanhas(draw: st.DrawFn) -> tuple[list[dict], list[str]]:
+def _bundle_with_campaigns(draw: st.DrawFn) -> tuple[list[dict], list[str]]:
     """Generate a bundle mixing campaign objects (tracked, in order) with noise
     objects. Returns the objects and the ordered list of campaign stix ids."""
     objetos: list[dict] = []
-    ids_campanhas: list[str] = []
+    campaign_ids: list[str] = []
     n = draw(st.integers(min_value=0, max_value=8))
     contador = 0
     for i in range(n):
         cid = _stix_id("campaign", contador)
         contador += 1
         objetos.append(
-            {"type": "campaign", "id": cid, "name": f"Campanha {i}"}
+            {"type": "campaign", "id": cid, "name": f"Campaign {i}"}
         )
-        ids_campanhas.append(cid)
+        campaign_ids.append(cid)
 
     # Interleave noise objects (never campaigns).
     for noise in _NOISE_TYPES + ["intrusion-set", "relationship"]:
@@ -309,26 +309,26 @@ def _bundle_com_campanhas(draw: st.DrawFn) -> tuple[list[dict], list[str]]:
     result: list[dict] = []
     ci = ri = 0
     while ci < len(campaigns) or ri < len(resto):
-        escolher_campanha = draw(st.booleans())
-        if ci < len(campaigns) and (escolher_campanha or ri >= len(resto)):
+        choose_campaign = draw(st.booleans())
+        if ci < len(campaigns) and (choose_campaign or ri >= len(resto)):
             result.append(campaigns[ci])
             ci += 1
         elif ri < len(resto):
             result.append(resto[ri])
             ri += 1
-    return result, ids_campanhas
+    return result, campaign_ids
 
 
 # Feature: stream-stix-dashboard, Property 5: Lista de campaigns igual aos objetos campaign do bundle
 @PROP_SETTINGS
-@given(dados=_bundle_com_campanhas())
-def test_property5_lista_campanhas_igual_aos_objetos(
+@given(dados=_bundle_with_campaigns())
+def test_property5_campaign_list_equals_objects(
     tmp_path: Path, dados: tuple[list[dict], list[str]]
 ) -> None:
     """``list_campaigns`` returns exactly the campaign-typed objects, in the
     same order, none lost or duplicated."""
     objetos, ids_esperados = dados
-    version = VERSOES_CONHECIDAS[0]
+    version = KNOWN_VERSIONS[0]
     service = StixService(data_dir=tmp_path)
     _write_bundle(service.base_path(version), objetos)
 
@@ -349,11 +349,11 @@ def _bundle_atribuicoes(draw: st.DrawFn) -> dict:
     Returns a dict with the generated ``objects`` and the independently-computed
     oracle mapping (actor id -> set of campaign ids, plus the unattributed set).
     """
-    n_atores = draw(st.integers(min_value=0, max_value=4))
-    n_campanhas = draw(st.integers(min_value=0, max_value=6))
+    n_adversaries = draw(st.integers(min_value=0, max_value=4))
+    n_campaigns = draw(st.integers(min_value=0, max_value=6))
 
-    adversaries = [_stix_id("intrusion-set", i) for i in range(n_atores)]
-    campaigns = [_stix_id("campaign", 100 + i) for i in range(n_campanhas)]
+    adversaries = [_stix_id("intrusion-set", i) for i in range(n_adversaries)]
+    campaigns = [_stix_id("campaign", 100 + i) for i in range(n_campaigns)]
 
     objetos: list[dict] = []
     for i, aid in enumerate(adversaries):
@@ -393,14 +393,14 @@ def _bundle_atribuicoes(draw: st.DrawFn) -> dict:
     }
 
 
-# Feature: stream-stix-dashboard, Property 6: Agrupamento Ator -> Campanhas reflete os relationships
+# Feature: stream-stix-dashboard, Property 6: Adversary -> Campaigns grouping reflects the relationships
 @PROP_SETTINGS
 @given(dados=_bundle_atribuicoes())
-def test_property6_agrupamento_ator_campanhas(tmp_path: Path, dados: dict) -> None:
+def test_property6_adversary_campaigns_grouping(tmp_path: Path, dados: dict) -> None:
     """Each campaign appears under exactly the actors it is attributed to (and
     unattributed campaigns under the synthetic 'sem-ator' group), none lost or
     duplicated."""
-    version = VERSOES_CONHECIDAS[0]
+    version = KNOWN_VERSIONS[0]
     service = StixService(data_dir=tmp_path)
     _write_bundle(service.base_path(version), dados["objects"])
 
@@ -417,7 +417,7 @@ def test_property6_agrupamento_ator_campanhas(tmp_path: Path, dados: dict) -> No
         assert obtido.get(aid, set()) == esperado
 
     # Unattributed campaigns live under the synthetic group iff any exist.
-    sem_ator = service.ATOR_SEM_ASSOCIACAO_ID
+    sem_ator = service.ADVERSARY_UNASSOCIATED_ID
     if dados["nao_atribuidas"]:
         assert obtido.get(sem_ator, set()) == dados["nao_atribuidas"]
     else:
@@ -431,20 +431,20 @@ def test_property6_agrupamento_ator_campanhas(tmp_path: Path, dados: dict) -> No
 # Known curated (slug, campaign spec) samples: by external_id and by name.
 _CURADAS_POR_ID = [
     (slug, mapa["referencias"][0])
-    for slug, mapa in SLUG_PARA_STIX.items()
+    for slug, mapa in SLUG_TO_STIX.items()
     if mapa.get("referencias")
 ]
 _CURADAS_POR_NOME = [
-    (slug, mapa["nome_canonico"]) for slug, mapa in SLUG_PARA_STIX.items()
+    (slug, mapa["nome_canonico"]) for slug, mapa in SLUG_TO_STIX.items()
 ]
 
 # External ids / names that are guaranteed NOT to match any curated case.
 _NAO_CURADAS_IDS = ["C9999", "C0000", "T1055", "G0001"]
-_NAO_CURADAS_NOMES = ["Campanha Qualquer", "Operation Nowhere", "Zzz Unknown"]
+_NON_CURATED_NAMES = ["Any Campaign", "Operation Nowhere", "Zzz Unknown"]
 
 
 @st.composite
-def _campanha_curada_ou_nao(draw: st.DrawFn) -> tuple[dict, str | None]:
+def _campaign_curated_or_not(draw: st.DrawFn) -> tuple[dict, str | None]:
     """Generate one campaign object plus the oracle slug (or None if not curated)."""
     modo = draw(st.sampled_from(["id", "name", "nao_id", "nao_nome"]))
     contador = draw(st.integers(min_value=0, max_value=10_000))
@@ -458,7 +458,7 @@ def _campanha_curada_ou_nao(draw: st.DrawFn) -> tuple[dict, str | None]:
         obj = {
             "type": "campaign",
             "id": cid,
-            "name": draw(st.sampled_from(_NAO_CURADAS_NOMES)),
+            "name": draw(st.sampled_from(_NON_CURATED_NAMES)),
             "external_references": [{"source_name": "mitre", "external_id": external_id}],
         }
         return obj, slug
@@ -472,7 +472,7 @@ def _campanha_curada_ou_nao(draw: st.DrawFn) -> tuple[dict, str | None]:
         obj = {
             "type": "campaign",
             "id": cid,
-            "name": draw(st.sampled_from(_NAO_CURADAS_NOMES)),
+            "name": draw(st.sampled_from(_NON_CURATED_NAMES)),
             "external_references": [
                 {"source_name": "mitre", "external_id": draw(st.sampled_from(_NAO_CURADAS_IDS))}
             ],
@@ -483,15 +483,15 @@ def _campanha_curada_ou_nao(draw: st.DrawFn) -> tuple[dict, str | None]:
     obj = {
         "type": "campaign",
         "id": cid,
-        "name": draw(st.sampled_from(_NAO_CURADAS_NOMES)),
+        "name": draw(st.sampled_from(_NON_CURATED_NAMES)),
     }
     return obj, None
 
 
 # Feature: stream-stix-dashboard, Property 7: Flag "curated" corresponde exatamente ao mapeamento de campaigns curados
 @PROP_SETTINGS
-@given(itens=st.lists(_campanha_curada_ou_nao(), min_size=1, max_size=8))
-def test_property7_flag_curada_corresponde_ao_mapeamento(
+@given(itens=st.lists(_campaign_curated_or_not(), min_size=1, max_size=8))
+def test_property7_curated_flag_matches_mapping(
     tmp_path: Path, itens: list[tuple[dict, str | None]]
 ) -> None:
     """``curated``/``curated_slug`` is set iff the campaign matches the curated
@@ -499,7 +499,7 @@ def test_property7_flag_curada_corresponde_ao_mapeamento(
     curated_slug is None."""
     objetos = [obj for obj, _ in itens]
     oraculos = [slug for _, slug in itens]
-    version = VERSOES_CONHECIDAS[0]
+    version = KNOWN_VERSIONS[0]
     service = StixService(data_dir=tmp_path)
     _write_bundle(service.base_path(version), objetos)
 
@@ -565,10 +565,10 @@ class _HttpErrorClient:
         return _FakeResponse("not found", status_code=404)
 
 
-def test_download_sucesso_escreve_atomico(tmp_path: Path) -> None:
+def test_download_success_writes_atomically(tmp_path: Path) -> None:
     """A mocked client returning a valid bundle: ``download_base`` writes the file
     into tmp_path and returns downloaded=True with the versioned URL requested."""
-    version = VERSOES_CONHECIDAS[0]
+    version = KNOWN_VERSIONS[0]
     bundle = json.dumps({"type": "bundle", "objects": [{"type": "campaign", "id": "x"}]})
     client = _OkClient(bundle)
     service = StixService(data_dir=tmp_path, http_client=client)
@@ -593,9 +593,9 @@ def test_download_sucesso_escreve_atomico(tmp_path: Path) -> None:
     assert restos == [], f"nenhum file temporario deve sobrar: {restos}"
 
 
-def test_download_falha_rede_sem_arquivo_parcial(tmp_path: Path) -> None:
+def test_download_network_failure_no_partial_file(tmp_path: Path) -> None:
     """A failing client (raises) -> StixDownloadError and NO file left behind."""
-    version = VERSOES_CONHECIDAS[0]
+    version = KNOWN_VERSIONS[0]
     client = _RaisingClient()
     service = StixService(data_dir=tmp_path, http_client=client)
 
@@ -608,9 +608,9 @@ def test_download_falha_rede_sem_arquivo_parcial(tmp_path: Path) -> None:
         assert list(tmp_path.iterdir()) == []
 
 
-def test_download_status_nao_ok_sem_arquivo(tmp_path: Path) -> None:
+def test_download_status_not_ok_no_file(tmp_path: Path) -> None:
     """A non-2xx response -> StixDownloadError and no file written."""
-    version = VERSOES_CONHECIDAS[0]
+    version = KNOWN_VERSIONS[0]
     service = StixService(data_dir=tmp_path, http_client=_HttpErrorClient())
 
     with pytest.raises(StixDownloadError):
@@ -618,7 +618,7 @@ def test_download_status_nao_ok_sem_arquivo(tmp_path: Path) -> None:
     assert not service.base_path(version).exists()
 
 
-def test_download_versao_desconhecida_sem_disco_nem_rede(tmp_path: Path) -> None:
+def test_download_unknown_version_no_disk_no_network(tmp_path: Path) -> None:
     """An unknown version is rejected before any disk/network access."""
     client = _RaisingClient()
     service = StixService(data_dir=tmp_path, http_client=client)

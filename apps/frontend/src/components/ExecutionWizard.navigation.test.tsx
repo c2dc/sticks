@@ -23,7 +23,7 @@ import type { Campaign, CampaignStates, CasesResponse } from "@/lib/campaigns"
  *     Stage 5 unfinished, so "Avançar" stays disabled.
  *
  * The stage bodies are stubbed. The BaseStixView stub exposes the current
- * `versao` and reselection buttons; the CampaignView stub echoes the `versao`
+ * `version` and reselection buttons; the CampaignView stub echoes the `versao`
  * it received and offers a button to report the chosen campaign slug.
  */
 
@@ -53,12 +53,12 @@ vi.mock("@/components/BaseStixView", async () => {
       ue(() => { onCompletionChange?.(true) }, [])
       return (
         <div data-testid="base-stix-view">
-          <span data-testid="base-versao">{version ?? "sem-versao"}</span>
+          <span data-testid="base-version">{version ?? "no-version"}</span>
           <button type="button" onClick={() => onVersionSelected?.("18.0")}>
-            escolher-18
+            choose-18
           </button>
           <button type="button" onClick={() => onVersionSelected?.("17.0")}>
-            escolher-17
+            choose-17
           </button>
         </div>
       )
@@ -66,7 +66,7 @@ vi.mock("@/components/BaseStixView", async () => {
   }
 })
 
-// CampaignView stub: echoes the propagated `versao` and lets the test report a
+// CampaignView stub: echoes the propagated `version` and lets the test report a
 // chosen campaign slug (sets campaignId in the wizard).
 vi.mock("@/components/CampaignView", () => ({
   CampaignView: ({
@@ -77,14 +77,14 @@ vi.mock("@/components/CampaignView", () => ({
     version?: string
     onCompleted?: (slug: string, result: unknown) => void
   }) => (
-    <div data-testid="campanha-view">
-      <span data-testid="campanha-versao">{version ?? "sem-versao"}</span>
+    <div data-testid="campaign-view">
+      <span data-testid="campaign-version">{version ?? "no-version"}</span>
       <button
         type="button"
-        data-testid="selecionar-campanha"
+        data-testid="select-campaign"
         onClick={() => onCompleted?.("shadowray", { completed: true })}
       >
-        selecionar
+        select
       </button>
     </div>
   ),
@@ -97,7 +97,7 @@ vi.mock("@/components/Stage2View", () => ({
   Stage2View: () => <div data-testid="stage2-view" />,
 }))
 vi.mock("@/components/EnvironmentParametersView", () => ({
-  EnvironmentParametersView: () => <div data-testid="parametros-ambiente-view" />,
+  EnvironmentParametersView: () => <div data-testid="environment-parameters-view" />,
 }))
 vi.mock("@/components/EnvironmentStageView", () => ({
   EnvironmentStageView: () => <div data-testid="environment-stage-view" />,
@@ -106,7 +106,7 @@ vi.mock("@/components/Stage3View", () => ({
   Stage3View: () => <div data-testid="stage3-view" />,
 }))
 vi.mock("@/components/ReportView", () => ({
-  ReportView: () => <div data-testid="relatorio-view" />,
+  ReportView: () => <div data-testid="report-view" />,
 }))
 
 import { getCampaign } from "@/lib/wizard"
@@ -154,21 +154,21 @@ describe("ExecutionWizard — Next/Back + reselection (Req. 4.2, 4.3)", () => {
 
     await screen.findByTestId("base-stix-view")
     // Choose a base so a version is propagated forward.
-    await userEvent.click(screen.getByRole("button", { name: "escolher-18" }))
+    await userEvent.click(screen.getByRole("button", { name: "choose-18" }))
     expect(screen.getByText("Passo 1 de 6")).toBeInTheDocument()
 
     const avancar = screen.getByRole("button", {
       name: /Avançar para o próximo estágio/,
     })
     await userEvent.click(avancar)
-    expect(await screen.findByTestId("campanha-view")).toBeInTheDocument()
+    expect(await screen.findByTestId("campaign-view")).toBeInTheDocument()
     expect(screen.getByText("Passo 2 de 6")).toBeInTheDocument()
 
     const voltar = screen.getByRole("button", { name: /Voltar/ })
     await userEvent.click(voltar)
     expect(await screen.findByTestId("base-stix-view")).toBeInTheDocument()
     expect(screen.getByText("Passo 1 de 6")).toBeInTheDocument()
-    expect(screen.queryByTestId("campanha-view")).not.toBeInTheDocument()
+    expect(screen.queryByTestId("campaign-view")).not.toBeInTheDocument()
   })
 
   it("Back + change selection + Next adopts the new selection propagated forward", async () => {
@@ -181,22 +181,22 @@ describe("ExecutionWizard — Next/Back + reselection (Req. 4.2, 4.3)", () => {
       screen.getByRole("button", { name: /Avançar para o próximo estágio/ })
 
     await screen.findByTestId("base-stix-view")
-    await userEvent.click(screen.getByRole("button", { name: "escolher-18" }))
+    await userEvent.click(screen.getByRole("button", { name: "choose-18" }))
     await waitFor(() =>
-      expect(screen.getByTestId("base-versao")).toHaveTextContent("18.0"),
+      expect(screen.getByTestId("base-version")).toHaveTextContent("18.0"),
     )
     await userEvent.click(avancar())
-    expect(await screen.findByTestId("campanha-versao")).toHaveTextContent("18.0")
+    expect(await screen.findByTestId("campaign-version")).toHaveTextContent("18.0")
 
     await userEvent.click(screen.getByRole("button", { name: /Voltar/ }))
     await screen.findByTestId("base-stix-view")
-    await userEvent.click(screen.getByRole("button", { name: "escolher-17" }))
+    await userEvent.click(screen.getByRole("button", { name: "choose-17" }))
     await waitFor(() =>
-      expect(screen.getByTestId("base-versao")).toHaveTextContent("17.0"),
+      expect(screen.getByTestId("base-version")).toHaveTextContent("17.0"),
     )
 
     await userEvent.click(avancar())
-    expect(await screen.findByTestId("campanha-versao")).toHaveTextContent("17.0")
+    expect(await screen.findByTestId("campaign-version")).toHaveTextContent("17.0")
   })
 })
 
@@ -213,8 +213,8 @@ describe("ExecutionWizard — Stage 5 isolation blocks advancing (Req. 9.7)", ()
 
     await screen.findByTestId("base-stix-view")
     await userEvent.click(avancar()) // 1 → 2
-    await screen.findByTestId("campanha-view")
-    await userEvent.click(screen.getByTestId("selecionar-campanha")) // set campaignId
+    await screen.findByTestId("campaign-view")
+    await userEvent.click(screen.getByTestId("select-campaign")) // set campaignId
     await userEvent.click(avancar()) // 2 → 3
     await screen.findByTestId("dag-stage-view")
     await userEvent.click(avancar()) // 3 → 4
@@ -241,7 +241,7 @@ describe("ExecutionWizard — Stage 5 isolation blocks advancing (Req. 9.7)", ()
     await userEvent.click(button5)
     expect(screen.getByText("Passo 5 de 6")).toBeInTheDocument()
     expect(screen.queryByTestId("stage3-view")).not.toBeInTheDocument()
-    expect(screen.queryByTestId("relatorio-view")).not.toBeInTheDocument()
+    expect(screen.queryByTestId("report-view")).not.toBeInTheDocument()
 
     const badge5 = container.querySelector('[data-stage="5"]') as HTMLElement
     expect(badge5.getAttribute("data-status")).not.toBe("completed")
@@ -261,7 +261,7 @@ describe("ExecutionWizard — Stage 5 isolation blocks advancing (Req. 9.7)", ()
     expect(button5).not.toBeDisabled()
     await userEvent.click(button5)
     expect(await screen.findByTestId("stage3-view")).toBeInTheDocument()
-    expect(screen.getByTestId("relatorio-view")).toBeInTheDocument()
+    expect(screen.getByTestId("report-view")).toBeInTheDocument()
     expect(screen.getByText("Passo 6 de 6")).toBeInTheDocument()
   })
 })

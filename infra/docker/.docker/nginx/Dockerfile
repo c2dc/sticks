@@ -1,19 +1,19 @@
 # ============================================================
-# SUT-A — alvo primário (192.168.20.30)
+# SUT-A — primary target (192.168.20.30)
 # ============================================================
-# Os pacotes abaixo eram instalados em RUNTIME pelos scripts *_suta.sh via
-# apt-get/pip. Como os alvos rodam em redes `internal: true` (sem internet —
-# contenção inegociável), o apt/pip de runtime falha ("Temporary failure
-# resolving deb.debian.org") e trava a subida dos serviços. Movemos toda a
-# instalação para o BUILD-TIME (onde há internet), conforme a decisão do design
-# registrada em LAB.md ("pré-satisfazer offline dependências de egress"). Em
-# runtime os scripts apenas configuram serviços/usuários e os iniciam.
+# The packages below used to be installed at RUNTIME by the *_suta.sh scripts via
+# apt-get/pip. Since the targets run on `internal: true` networks (no internet —
+# non-negotiable containment), runtime apt/pip fails ("Temporary failure
+# resolving deb.debian.org") and stalls the services' bring-up. We moved all the
+# installation to BUILD-TIME (where there is internet), per the design decision
+# recorded in LAB.md ("pre-satisfy egress dependencies offline"). At runtime the
+# scripts only configure services/users and start them.
 # ============================================================
 FROM nginx:trixie
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Pacotes base + superconjunto exigido por TODOS os scripts *_suta.sh dos 8 casos.
+# Base packages + the superset required by ALL *_suta.sh scripts of the 8 cases.
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         iputils-ping procps lsof net-tools vim iproute2 \

@@ -210,17 +210,17 @@ services:
   backend:
     profiles: ["containers"]
     build:
-      context: ../ui/backend
+      context: ../../apps/backend
       dockerfile: Dockerfile
     container_name: sticks-backend
     hostname: pipeline-ui-backend
-    working_dir: /repo/ui/backend
+    working_dir: /repo/apps/backend
     # Apply DB migrations before serving, so a fresh Postgres volume always has
-    # the schema (otherwise `GET /api/casos` 500s on a missing table).
+    # the schema (otherwise `GET /api/campaigns` 500s on a missing table).
     command:
       - sh
       - -c
-      - "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir /repo/ui/backend/app"
+      - "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir /repo/apps/backend/app"
     environment:
       # Point the backend at the `postgres` PostgreSQL service when run via compose.
       PIPELINE_UI_DATABASE_URL: postgresql+psycopg://pipeline_ui:pipeline_ui@postgres:5432/pipeline_ui
@@ -231,10 +231,10 @@ services:
       - "127.0.0.1:8010:8000"
     volumes:
       # Mount the repo root read-only so app/core/sticks_config.py can resolve
-      # <repo>/sticks/config/config.py via parents[4] at runtime.
-      - ..:/repo:ro
+      # <repo>/packages/cli/config/config.py via parents[4] at runtime.
+      - ../..:/repo:ro
       # Download is the ONLY write; keep the data dir writable while the rest of /repo stays :ro.
-      - ../sticks/data/stix:/repo/sticks/data/stix
+      - ../../packages/cli/data/stix:/repo/packages/cli/data/stix
       # Docker Engine API, READ-ONLY, for isolation inspection only.
       - /var/run/docker.sock:/var/run/docker.sock:ro
     extra_hosts:
@@ -278,7 +278,7 @@ services:
       - "127.0.0.1:8080:4173"
     volumes:
       # Bind-mount the frontend source so edits hot-reload without a rebuild.
-      - ../ui/frontend:/app
+      - ../../apps/frontend:/app
       # Named volume for node_modules so the container's installed deps are not
       # shadowed by the (dep-free) host source mount.
       - sticks-frontend-node-modules:/app/node_modules

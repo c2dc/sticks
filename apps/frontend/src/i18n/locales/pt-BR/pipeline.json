@@ -114,7 +114,6 @@
     "selecionar": "Selecionar campanha",
     "selecionando": "Selecionando…",
     "selecionada": "Campanha selecionada",
-    "naoSelecionavel": "Não selecionável (sem artefatos curados)",
     "semCampanhas": "Nenhuma campanha disponível neste bundle.",
     "atributos": "Atributos extraídos",
     "tecnicas": "Técnicas ATT&CK",
@@ -124,7 +123,12 @@
     "naoExtraido": "Selecione uma campanha para extrair e exibir os seus atributos.",
     "concluido": "Atributos extraídos — Estágio 2 concluído.",
     "falha": "Não foi possível extrair os atributos da campanha selecionada.",
-    "falhaEtapa": "Etapa da falha: {{step}}"
+    "falhaEtapa": "Etapa da falha: {{step}}",
+    "buscarPlaceholder": "Buscar campanha pelo nome...",
+    "buscarLabel": "Buscar campanha",
+    "semResultados": "Nenhuma campanha corresponde a sua busca.",
+    "contagem_one": "{{count}} campanha",
+    "contagem_other": "{{count}} campanhas"
   },
   "stage2": {
     "entrada": {
@@ -182,6 +186,39 @@
       "noResults": "Nenhum resultado de Operação ainda.",
       "success": "{{count}} com sucesso",
       "failure": "{{count}} com falha"
+    }
+  },
+  "stage6": {
+    "confirmation": {
+      "title": "Confirmação de segurança — execução de ataque real",
+      "description": "Revise os comandos concretos e os contêineres-alvo. A execução inicia automaticamente em instantes; confirme para iniciar agora. Nenhum comando é disparado sem o gate de isolamento aprovado.",
+      "previewLoading": "Carregando os comandos que serão executados…",
+      "targets": "Alvo",
+      "confirm": "Confirmar e executar agora",
+      "starting": "Iniciando execução…"
+    },
+    "blocked": {
+      "body": "Ambiente não pronto: o Estágio 5 não foi concluído. Redirecionando para o Estágio 5…"
+    },
+    "execution": {
+      "refused": "A execução não foi iniciada: o gate de isolamento/contenção não foi satisfeito ou a Caldera está indisponível.",
+      "startError": "Não foi possível iniciar a execução do Estágio 6."
+    },
+    "connection": {
+      "lost": "Conexão perdida — reconectando ao canal de execução. As atualizações são retomadas automaticamente; não é preciso recarregar a página."
+    },
+    "live": {
+      "command": "Comando",
+      "target": "Alvo (contêiner + IP)",
+      "attacker": "Host atacante",
+      "logs": "Logs / saída",
+      "notAvailable": "não disponível"
+    },
+    "stage5": {
+      "title": "Ambiente (Estágio 5)",
+      "readOnly": "Veredito somente leitura produzido no Estágio 5. O Estágio 6 não reexecuta nenhuma verificação de ambiente.",
+      "ready": "Pronto",
+      "notReady": "Não pronto"
     }
   },
   "stage4": {

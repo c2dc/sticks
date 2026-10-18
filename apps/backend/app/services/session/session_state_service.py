@@ -3,7 +3,7 @@
 The Session State gives the Researcher continuity across machines (Req. 9):
 it records the **current case** (``current_campaign``), the **completed stages per
 case** and the **per-Ability operation results per case**. Only the current
-case is stored directly on the ``estado_sessao`` row (``SessionState``); the
+case is stored directly on the ``session_state`` row (``SessionState``); the
 completed stages and the results are **derived** from the ``StageRun`` and
 ``Operation``/``AbilityResult`` rows already persisted by the Stage/Operation
 services, associated with the case (Req. 9.1, 9.7). This avoids duplicating —
@@ -94,12 +94,25 @@ class AbilityResultView(BaseModel):
     Mirrors :class:`~app.models.domain.AbilityResult`, carrying the status and
     the command output so the UI can render the Emulation (Stage 4) output per
     Ability, plus the owning ``operation_id`` for grouping.
+
+    For the live technique-by-technique tracking of Stage 6 (Req. 2.4), the view
+    also carries the additive, backward-compatible fields now persisted on
+    :class:`~app.models.domain.AbilityResult`: the concrete ``command`` of the
+    link, the ``target_container`` (e.g. ``"nginx (192.168.20.30)"``) and the
+    ``attacker_host`` (e.g. ``kali``). They are optional and default to ``None``
+    for not-yet-collected data, which the UI renders as "não disponível"
+    (Req. 2.5). The pre-existing ``command_output`` is unchanged.
     """
 
     operation_id: Optional[int] = None
     ability_id: Optional[str] = None
     status: AbilityResultStatus
     command_output: Optional[str] = None
+    # Additive per-Ability fields for Stage 6 live tracking (Req. 2.4). ``None``
+    # when not yet collected — the UI shows "não disponível" (Req. 2.5).
+    command: Optional[str] = None
+    target_container: Optional[str] = None
+    attacker_host: Optional[str] = None
 
 
 class OperationResultView(BaseModel):
@@ -147,7 +160,7 @@ class SessionStateView(BaseModel):
         When the session-state row was last updated, or ``None`` in the default
         state.
     exists:
-        ``True`` when a persisted ``estado_sessao`` row was found. ``False`` is
+        ``True`` when a persisted ``session_state`` row was found. ``False`` is
         the default all-not-started state (Req. 9.5).
     restore_failed:
         ``True`` when the persisted state could not be read (Req. 9.6). The
@@ -357,6 +370,9 @@ class SessionStateService:
                             ability_id=r.ability_id,
                             status=r.status,
                             command_output=r.command_output,
+                            command=r.command,
+                            target_container=r.target_container,
+                            attacker_host=r.attacker_host,
                         )
                         for r in results
                     ],
@@ -369,7 +385,7 @@ class SessionStateService:
     def set_current_case(self, slug: Optional[str]) -> SessionState:
         """Persist the current case (``current_campaign``) — Req. 9.4.
 
-        Upserts the single ``estado_sessao`` row (one session-state row is kept)
+        Upserts the single ``session_state`` row (one session-state row is kept)
         so re-opening on any machine restores the current case. Updates
         ``updated_at`` to the current naive UTC instant.
 
@@ -419,7 +435,7 @@ class SessionStateService:
           ``saved=True`` and the completed-stages map *including* the new
           completion.
         * **Persist failure** — the session is rolled back, which discards the
-          pending ``StageRun``/``estado_sessao`` mutations, leaving the
+          pending ``StageRun``/``session_state`` mutations, leaving the
           previously persisted state **exactly as it was** (no partial update).
           Returns :class:`StageCompletionResult` with ``saved=False``, the
           completed-stages map *as previously persisted* (re-read after
@@ -464,7 +480,7 @@ class SessionStateService:
         try:
             self._session.commit()
         except SQLAlchemyError:
-            # Persist failed: roll back so the pending StageRun/estado_sessao
+            # Persist failed: roll back so the pending StageRun/session_state
             # mutations are discarded, leaving the previously persisted state
             # exactly as it was (Req. 9.3 — no partial update).
             self._session.rollback()
@@ -497,7 +513,7 @@ class SessionStateService:
     # ---- helpers ----------------------------------------------------------
 
     def _load_state_row(self) -> Optional[SessionState]:
-        """Return the single persisted ``estado_sessao`` row, or ``None``.
+        """Return the single persisted ``session_state`` row, or ``None``.
 
         Reads the lowest-``id`` row so behavior is deterministic even if more
         than one row were ever written. Never creates a row.
@@ -506,7 +522,7 @@ class SessionStateService:
         return self._session.execute(stmt).scalars().first()
 
     def _get_or_create_state_row(self) -> SessionState:
-        """Return the single ``estado_sessao`` row, creating it if absent."""
+        """Return the single ``session_state`` row, creating it if absent."""
         state = self._load_state_row()
         if state is None:
             state = SessionState()

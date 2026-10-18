@@ -69,9 +69,9 @@ def _values(parsed: CommandDestinations) -> set[str]:
 def _load_shadowray_abilities() -> list[dict]:
     """Load the real curated ShadowRay abilities from sticks/data (read-only)."""
     here = Path(__file__).resolve()
-    # tests/ -> backend/ -> ui/ -> repo root -> sticks/data/api/...
+    # tests/ -> backend/ -> apps/ -> repo root -> packages/cli/data/api/...
     repo_root = here.parents[3]
-    path = repo_root / "sticks" / "data" / "api" / "shadowray_dag-ability.json"
+    path = repo_root / "packages" / "cli" / "data" / "api" / "shadowray_dag-ability.json"
     return json.loads(path.read_text(encoding="utf-8"))
 
 

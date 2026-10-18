@@ -16,7 +16,7 @@ Cobre o endpoint novo do esquema de seis Estágios adicionado em
       ``motivo``, e o resumo de isolation no corpo (Req. 9.7).
 
 Tudo external é *mockado* (sem Caldera nem Docker reais), reusando o mesmo molde
-de ``test_estagio6_execucao_endpoints.py``:
+de ``test_stage6_execution_endpoints.py``:
 - a Base_de_Dados é um SQLite temporário por módulo, ligado via ``get_db``;
 - o isolation é um inspector/verificador *fake* no provisioner (via
   ``get_provisioner``);
@@ -24,7 +24,7 @@ de ``test_estagio6_execucao_endpoints.py``:
 
 Usa o campaign curated real ``shadowray`` (11 Abilities), cujo Estágio 4
 (Operacionalização) deriva os :class:`EnvironmentParameters` de forma pura (sem
-rede/IA), de modo que o provisionamento seja exercitável de ponta a ponta.
+network/AI), so the provisioning is exercisable end to end.
 
 _Requirements: 9.5, 9.6, 9.7, 9.8, 9.9_
 """
@@ -146,8 +146,8 @@ class _HealthyStateInspector:
 @pytest.fixture(scope="module")
 def session_factory() -> Iterator[sessionmaker[Session]]:
     """A fresh temp-file SQLite engine + schema for the module."""
-    tmp_dir = tempfile.mkdtemp(prefix="pipeline_ui_estagio5_")
-    db_path = Path(tmp_dir) / "estagio5.db"
+    tmp_dir = tempfile.mkdtemp(prefix="pipeline_ui_stage5_")
+    db_path = Path(tmp_dir) / "stage5.db"
     settings_obj = Settings(database_url=f"sqlite:///{db_path.as_posix()}")
 
     engine = create_db_engine(settings_obj)
@@ -187,7 +187,7 @@ def _make_client(
         finally:
             db.close()
 
-    def _get_provisionador_override() -> CurationEnvironmentProvisioner:
+    def _get_provisioner_override() -> CurationEnvironmentProvisioner:
         return CurationEnvironmentProvisioner(
             inspector=inspector,  # type: ignore[arg-type]
             caldera=caldera,  # type: ignore[arg-type]
@@ -199,7 +199,7 @@ def _make_client(
         )
 
     app.dependency_overrides[get_db] = _get_db_override
-    app.dependency_overrides[get_provisioner] = _get_provisionador_override
+    app.dependency_overrides[get_provisioner] = _get_provisioner_override
     return TestClient(app)
 
 
@@ -208,7 +208,7 @@ def _make_client(
 # ---------------------------------------------------------------------------
 
 
-def test_provisionar_isolated_and_loaded_concludes_stage5(
+def test_provision_isolated_and_loaded_concludes_stage5(
     session_factory: sessionmaker[Session],
 ) -> None:
     """Isolated env + Abilities loaded => 200, concluded, ProvisionedEnvironment exposed.
@@ -236,8 +236,8 @@ def test_provisionar_isolated_and_loaded_concludes_stage5(
     assert body["reason"] is None
 
     # The per-stage state reflects the completion of Stage 5.
-    estagio5 = next(e for e in body["states"]["stages"] if e["stage"] == 5)
-    assert estagio5["state"] == "concluido"
+    stage5 = next(e for e in body["states"]["stages"] if e["stage"] == 5)
+    assert stage5["state"] == "concluido"
 
 
 # ---------------------------------------------------------------------------
@@ -245,7 +245,7 @@ def test_provisionar_isolated_and_loaded_concludes_stage5(
 # ---------------------------------------------------------------------------
 
 
-def test_provisionar_not_isolated_does_not_conclude_and_reports_container(
+def test_provision_not_isolated_does_not_conclude_and_reports_container(
     session_factory: sessionmaker[Session],
 ) -> None:
     """A non-isolated target container => not concluded; container + reason reported.
@@ -275,8 +275,8 @@ def test_provisionar_not_isolated_does_not_conclude_and_reports_container(
     assert offending in body["reason"]
 
     # The per-stage state keeps Stage 5 not concluded (Stage 6 stays blocked).
-    estagio5 = next(e for e in body["states"]["stages"] if e["stage"] == 5)
-    assert estagio5["state"] != "concluido"
+    stage5 = next(e for e in body["states"]["stages"] if e["stage"] == 5)
+    assert stage5["state"] != "concluido"
 
 
 # ---------------------------------------------------------------------------
@@ -284,7 +284,7 @@ def test_provisionar_not_isolated_does_not_conclude_and_reports_container(
 # ---------------------------------------------------------------------------
 
 
-def test_provisionar_abilities_not_loaded_does_not_conclude(
+def test_provision_abilities_not_loaded_does_not_conclude(
     session_factory: sessionmaker[Session],
 ) -> None:
     """Isolated but Abilities not loaded => not concluded with a reason (Req. 9.5, 9.9)."""
@@ -310,7 +310,7 @@ def test_provisionar_abilities_not_loaded_does_not_conclude(
 # ---------------------------------------------------------------------------
 
 
-def test_provisionar_unknown_case_returns_404(
+def test_provision_unknown_case_returns_404(
     session_factory: sessionmaker[Session],
 ) -> None:
     """An unknown slug on the provision endpoint is a 404."""

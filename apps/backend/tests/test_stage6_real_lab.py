@@ -3,7 +3,7 @@
 ⚠️  LAB-ONLY — **A execute exclusivamente na máquina de laboratório do
 usuário. NÃO rodar no environment de desenvolvimento nem em CI.**
 
-While ``test_execucao_estagio6.py`` (task 8.2) drives
+While ``test_execution_stage6.py`` (task 8.2) drives
 :class:`~app.services.environment.execution.ExecutionStageService` with a **real**
 ``OperationRunner`` but **fake** externals (Caldera via ``httpx.MockTransport``
 and a fake isolation verifier — no network, no daemon), this suite drives the
@@ -25,7 +25,7 @@ and a fake isolation verifier — no network, no daemon), this suite drives the
    invocado ao final, em success **ou** failure das técnicas (Req. 10.8, 12.1).
 
 É a contraparte, para o Estágio 6, do teste de laboratório do Estágio 5
-(``test_estagio5_real_lab.py``) e do fim-a-fim (``test_e2e_real_lab.py``).
+(``test_stage5_real_lab.py``) e do fim-a-fim (``test_e2e_real_lab.py``).
 
 Why it is skipped by default
 ----------------------------
@@ -132,8 +132,8 @@ def session_factory() -> Iterator[sessionmaker[Session]]:
     to whatever engine this fixture builds.
     """
     db_url = os.getenv("PIPELINE_UI_DATABASE_URL")
-    tmp_dir = tempfile.mkdtemp(prefix="pipeline_ui_estagio6_real_lab_")
-    db_path = Path(tmp_dir) / "estagio6_real_lab.db"
+    tmp_dir = tempfile.mkdtemp(prefix="pipeline_ui_stage6_real_lab_")
+    db_path = Path(tmp_dir) / "stage6_real_lab.db"
     settings_obj = Settings(
         database_url=db_url or f"sqlite:///{db_path.as_posix()}"
     )
@@ -202,9 +202,9 @@ def _runner_factory(caldera: CalderaClient):
     return _factory
 
 
-@pytest.mark.parametrize("caso_slug", _lab_cases())
+@pytest.mark.parametrize("campaign_slug", _lab_cases())
 def test_real_stage6_executes_measures_and_deprovisions(
-    caso_slug: str,
+    campaign_slug: str,
     session_factory: sessionmaker[Session],
     real_caldera: CalderaClient,
 ) -> None:
@@ -230,20 +230,20 @@ def test_real_stage6_executes_measures_and_deprovisions(
     o mantêm *skipped*.
     """
     case_service = CaseService()
-    case = case_service.load_case(caso_slug)
-    assert case.abilities, f"campaign {caso_slug} deve ter Abilities curadas"
-    assert case.adversary is not None, f"campaign {caso_slug} deve ter Adversary"
+    case = case_service.load_case(campaign_slug)
+    assert case.abilities, f"campaign {campaign_slug} deve ter Abilities curadas"
+    assert case.adversary is not None, f"campaign {campaign_slug} deve ter Adversary"
 
     # --- Estágio 4 → parâmetros reais do environment curated (sem rede/IA) -------
-    operacionalizador = CurationOperationalizer(case_service=case_service)
+    operationalizer = CurationOperationalizer(case_service=case_service)
     dag_view = DagView(
-        campaign_id=caso_slug,
-        name=case_service.list_cases().get(caso_slug, caso_slug),
+        campaign_id=campaign_slug,
+        name=case_service.list_cases().get(campaign_slug, campaign_slug),
         curated=True,
         can_advance=True,
     )
-    params = operacionalizador.operationalize(caso_slug, dag_view).parameters
-    assert params.campaign_id == caso_slug
+    params = operationalizer.operationalize(campaign_slug, dag_view).parameters
+    assert params.campaign_id == campaign_slug
     assert params.platform is EnvironmentPlatform.CONTAINER
 
     # --- Estágio 5 → provisiona de verdade (Abilities no Caldera + isolation)
@@ -276,10 +276,10 @@ def test_real_stage6_executes_measures_and_deprovisions(
 
         # Execução ÚNICA, confirmada, contra o Caldera real com contenção e
         # isolation reais satisfeitos (Req. 10.3).
-        result = service.execute(caso_slug, confirmed=True)
+        result = service.execute(campaign_slug, confirmed=True)
 
         # A Operação de fato iniciou e concluiu (COMPLETED + FINISHED): o Estágio
-        # 6 só conclui por esse caminho. Qualquer gate que recusasse (contenção/
+        # 6 só conclui por esse path_. Qualquer gate que recusasse (contenção/
         # isolation) deixaria ``started=False``, o que na lab endurecida é um
         # erro de configuração do environment, não um result válido do teste.
         assert result.started is True, (
@@ -308,18 +308,18 @@ def test_real_stage6_executes_measures_and_deprovisions(
         assert 0.0 <= metrics.procedural_coverage <= 1.0
         assert metrics.successful_techniques <= metrics.total_dag_techniques
 
-        # --- desprovisionamento SEMPRE ao final (success OU failure) — Req. 12.1 -
+        # --- deprovisioning ALWAYS at the end (success OR failure) — Req. 12.1 -
         provisioner.deprovision(environment)
         deprovisioned = True
 
         # Consolida o relatório carimbando o environment como deprovisioned (Req.
         # 10.8, 12), reusando os results por Ability.
         report = measurement.consolidate(
-            campaign_id=caso_slug,
+            campaign_id=campaign_slug,
             metrics=metrics,
             environment_deprovisioned=deprovisioned,
         )
-        assert report.campaign_id == caso_slug
+        assert report.campaign_id == campaign_slug
         assert report.environment_deprovisioned is True
         assert report.metrics is metrics
     finally:

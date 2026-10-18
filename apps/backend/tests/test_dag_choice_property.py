@@ -17,7 +17,7 @@ In the six-Stage pipeline, DAG Generation is **Stage 3** (its Input is the Stage
 2 campaign attributes — Campaign Selection): ``choose_dag`` writes the
 ``chosen_dag_id`` on the ``stage=3`` ``StageRun`` and completes it, unblocking
 Stage 4 (Operationalization). ``DagChoiceResult.stage`` is
-:data:`ESTAGIO_GERACAO_DAG` (``== 3``).
+:data:`STAGE_DAG_GENERATION` (``== 3``).
 
 Properties (design.md — Properties 9 and 10)
 --------------------------------------------
@@ -51,7 +51,7 @@ with the ``<data_dir>/{api,dag}/`` layout (same as the real one), into which we
 write a generated ``{slug}_dag.json``, and builds a ``DagService`` + a
 ``StageService`` over the **same** **ephemeral** SQLite ``Session`` (engine on a
 temporary file with the full schema via ``Base.metadata.create_all``, same as
-the ``test_backfill_idempotente_property.py`` and
+the ``test_backfill_idempotent_property.py`` and
 ``test_stage_blocking_property.py`` fixtures). The generated DAGs are acyclic by
 construction. Nothing here touches the network nor an AI client (there is none
 on this path).
@@ -77,11 +77,11 @@ from app.models.domain import StageRun
 from app.models.enums import DagOrigin, StageState
 from app.services.campaign_service import CURATED_CASES, CaseService
 from app.services.dag.dag_service import (
-    ESTAGIO_GERACAO_DAG,
+    STAGE_DAG_GENERATION,
     DagService,
     DagChoiceFailure,
 )
-from app.services.dag.gerador import CurationDagGenerator
+from app.services.dag.generator import CurationDagGenerator
 from app.services.stage.stage_service import StageService
 
 # A real curated campaign slug: curation generation only produces a DAG for
@@ -96,7 +96,7 @@ assert _OTHER_SLUG != _CURATED_SLUG
 
 
 # ---------------------------------------------------------------------------
-# Ephemeral DB fixture (same as test_backfill_idempotente_property.py).
+# Ephemeral DB fixture (same as test_backfill_idempotent_property.py).
 # ---------------------------------------------------------------------------
 
 
@@ -189,13 +189,13 @@ def _acyclic_dag(draw) -> list[dict]:
     ]
 
 
-def _estagio_dag_rows(session: Session, campaign: str) -> list[StageRun]:
+def _dag_stage_rows(session: Session, campaign: str) -> list[StageRun]:
     """All ``stage=3`` (DAG) ``StageRun`` rows of the campaign, by ``id``."""
     return (
         session.execute(
             select(StageRun)
             .where(StageRun.campaign_id == campaign)
-            .where(StageRun.stage == ESTAGIO_GERACAO_DAG)
+            .where(StageRun.stage == STAGE_DAG_GENERATION)
             .order_by(StageRun.id.asc())
         )
         .scalars()
@@ -203,14 +203,14 @@ def _estagio_dag_rows(session: Session, campaign: str) -> list[StageRun]:
     )
 
 
-def _count_estagio_dag(session: Session, campaign: str) -> int:
+def _count_dag_stage(session: Session, campaign: str) -> int:
     """Count of ``stage=3`` (DAG) ``StageRun`` rows of the campaign."""
     return (
         session.execute(
             select(func.count())
             .select_from(StageRun)
             .where(StageRun.campaign_id == campaign)
-            .where(StageRun.stage == ESTAGIO_GERACAO_DAG)
+            .where(StageRun.stage == STAGE_DAG_GENERATION)
         )
         .scalar_one()
     )
@@ -230,7 +230,7 @@ def _count_estagio_dag(session: Session, campaign: str) -> int:
     suppress_health_check=[HealthCheck.function_scoped_fixture, HealthCheck.too_slow],
 )
 @given(structural_nodes=_acyclic_dag(), repeticoes=st.integers(min_value=1, max_value=5))
-def test_property9_escolha_valida_conclui_estagio2_e_e_idempotente(
+def test_property9_valid_choice_completes_stage2_and_is_idempotent(
     structural_nodes: list[dict], repeticoes: int
 ) -> None:
     """Choosing a valid ``dag_id`` completes Stage 2; repeating is idempotent.
@@ -253,7 +253,7 @@ def test_property9_escolha_valida_conclui_estagio2_e_e_idempotente(
         dag_service = DagService(
             session=session,
             case_service=case_service,
-            gerador=CurationDagGenerator(case_service),
+            generator=CurationDagGenerator(case_service),
         )
         stage_service = StageService(session)
 
@@ -276,11 +276,11 @@ def test_property9_escolha_valida_conclui_estagio2_e_e_idempotente(
         result = dag_service.choose_dag(_CURATED_SLUG, dag_id)
         assert result.success is True
         assert result.failure is None
-        assert result.stage == ESTAGIO_GERACAO_DAG
+        assert result.stage == STAGE_DAG_GENERATION
         assert result.stage_run_id is not None
         primeiro_stage_run_id = result.stage_run_id
 
-        lines = _estagio_dag_rows(session, _CURATED_SLUG)
+        lines = _dag_stage_rows(session, _CURATED_SLUG)
         assert len(lines) == 1
         line = lines[0]
         assert line.id == primeiro_stage_run_id
@@ -301,12 +301,12 @@ def test_property9_escolha_valida_conclui_estagio2_e_e_idempotente(
             assert repetido.success is True
             assert repetido.stage_run_id == primeiro_stage_run_id
 
-        assert _count_estagio_dag(session, _CURATED_SLUG) == 1
-        linha_final = _estagio_dag_rows(session, _CURATED_SLUG)[0]
-        assert linha_final.id == primeiro_stage_run_id
-        assert linha_final.chosen_dag_id == dag_id
-        assert linha_final.state == StageState.COMPLETED
-        assert linha_final.progress == 100
+        assert _count_dag_stage(session, _CURATED_SLUG) == 1
+        final_row = _dag_stage_rows(session, _CURATED_SLUG)[0]
+        assert final_row.id == primeiro_stage_run_id
+        assert final_row.chosen_dag_id == dag_id
+        assert final_row.state == StageState.COMPLETED
+        assert final_row.progress == 100
     finally:
         session.close()
         factory.kw["bind"].dispose()
@@ -355,7 +355,7 @@ def test_propertyb_dag_inexistente_ou_alheio_e_recusado(
         dag_service = DagService(
             session=session,
             case_service=case_service,
-            gerador=CurationDagGenerator(case_service),
+            generator=CurationDagGenerator(case_service),
         )
 
         # Persist a DAG for each campaign. The target campaign HAS a DAG (passes
@@ -380,8 +380,8 @@ def test_propertyb_dag_inexistente_ou_alheio_e_recusado(
         # created/altered: no valid choice occurred, so there is no completed
         # stage=3 row. (The backfill materializes the campaign attributes, but
         # that does not create a stage=3 row nor complete it.)
-        linhas_alvo = _estagio_dag_rows(session, _CURATED_SLUG)
-        assert linhas_alvo == []
+        target_rows = _dag_stage_rows(session, _CURATED_SLUG)
+        assert target_rows == []
     finally:
         session.close()
         factory.kw["bind"].dispose()
@@ -403,7 +403,7 @@ def test_propertyb_dag_inexistente_ou_alheio_e_recusado(
     suppress_health_check=[HealthCheck.function_scoped_fixture, HealthCheck.too_slow],
 )
 @given(dag_id=st.integers(min_value=1, max_value=10_000))
-def test_property10_sem_dag_recusa_e_estagio4_bloqueado(dag_id: int) -> None:
+def test_property10_no_dag_refuses_and_stage4_blocked(dag_id: int) -> None:
     """No persisted DAG ⇒ ``NO_DAG`` and Stage 4 stays blocked.
 
     With a campaign that has no persisted ``Dag``, ``choose_dag`` refuses with
@@ -427,7 +427,7 @@ def test_property10_sem_dag_recusa_e_estagio4_bloqueado(dag_id: int) -> None:
 
         # Nothing was completed: there is no stage=3 row, and Stage 4 stays
         # blocked by the sequential gate (Stage 3 did not complete).
-        assert _estagio_dag_rows(session, _CURATED_SLUG) == []
+        assert _dag_stage_rows(session, _CURATED_SLUG) == []
         assert stage_service.is_stage_startable(_CURATED_SLUG, 4) is False
         view4 = stage_service.get_stage_state(_CURATED_SLUG, 4)
         assert view4.blocked is True

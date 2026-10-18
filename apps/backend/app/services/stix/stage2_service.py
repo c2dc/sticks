@@ -3,7 +3,7 @@
 This module implements the **thin** Stage 2 service of the six-stage pipeline
 ("Campaign selection"), fully reusing existing services: the
 :class:`~app.services.stix.stix_service.StixService` (listing the bundle's
-campaigns, marking ``curated``/``curated_slug`` via ``SLUG_PARA_STIX``) and the
+campaigns, marking ``curated``/``curated_slug`` via ``SLUG_TO_STIX``) and the
 :class:`~app.services.stage.stage_service.StageService` (the historical DTO
 :class:`~app.services.stage.stage_service.CampaignStixInput` assembled by
 ``StageService._build_campaign_stix`` for identity/aliases, and the curated
@@ -18,7 +18,7 @@ The Stage 2 orchestration (thin, new service) is:
 
 1. **List campaigns** — :meth:`Stage2Service.list_campaigns` delegates to
    ``StixService.list_campaigns``, which already marks each campaign with
-   ``curated``/``curated_slug`` via ``SLUG_PARA_STIX`` (Req. 6.2). For version 18
+   ``curated``/``curated_slug`` via ``SLUG_TO_STIX`` (Req. 6.2). For version 18
    (curated) the 8 curated campaigns are selectable (``selectable``); for
    non-curated campaigns, selection is unavailable at this first step, since the
    attribute extraction depends on curated artifacts on disk (Req. 6.5). The
@@ -167,7 +167,7 @@ class Stage2Service:
         """List the campaigns of the ``version`` bundle, marking the selectable one.
 
         Delegates to ``StixService.list_campaigns`` (which already resolves
-        ``curated``/``curated_slug`` via ``SLUG_PARA_STIX``, preserving the bundle
+        ``curated``/``curated_slug`` via ``SLUG_TO_STIX``, preserving the bundle
         order) and projects ``selectable`` into each entry: it is only ``True``
         for curated campaigns (with ``curated_slug``), since the attribute
         extraction depends on curated artifacts on disk. For version 18 (curated)

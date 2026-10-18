@@ -30,8 +30,8 @@ vi.mock("@/lib/campaigns", async (importOriginal) => {
 import { getStage5Logs } from "@/lib/stages"
 import { connectStages } from "@/lib/campaigns"
 
-const getLogsEstagio5Mock = vi.mocked(getStage5Logs)
-const connectEstagiosMock = vi.mocked(connectStages)
+const getLogsStage5Mock = vi.mocked(getStage5Logs)
+const connectStagesMock = vi.mocked(connectStages)
 
 /** The `onFrame` callback captured from the latest `connectStages` call. */
 let capturedOnFrame: ((frame: StageProgressFrame) => void) | null = null
@@ -66,17 +66,17 @@ function pushFrame(logs: LogLineFrame[]) {
 
 describe("ProvisioningConsole (Estágio 5 — terminal de logs ao vivo, Req. 2.3/2.5/2.7)", () => {
   beforeEach(() => {
-    getLogsEstagio5Mock.mockReset()
-    connectEstagiosMock.mockReset()
+    getLogsStage5Mock.mockReset()
+    connectStagesMock.mockReset()
     capturedOnFrame = null
     fakeConnection = { send: vi.fn(), close: vi.fn() }
 
     // Default: empty buffer recovery + capture the live callback.
-    getLogsEstagio5Mock.mockResolvedValue({
+    getLogsStage5Mock.mockResolvedValue({
       campaign_id: "c0026",
       logs: [],
     } satisfies Stage5LogsResponse)
-    connectEstagiosMock.mockImplementation((_caso, _estagio, onFrame) => {
+    connectStagesMock.mockImplementation((_campaign, _stage, onFrame) => {
       capturedOnFrame = onFrame
       return fakeConnection
     })
@@ -96,7 +96,7 @@ describe("ProvisioningConsole (Estágio 5 — terminal de logs ao vivo, Req. 2.3
   it("renders lines in ascending seq order even when frames arrive out of order (Req. 2.3)", async () => {
     renderWithI18n(<ProvisioningConsole campaignId="c0026" />)
 
-    await waitFor(() => expect(connectEstagiosMock).toHaveBeenCalledWith("c0026", 5, expect.any(Function)))
+    await waitFor(() => expect(connectStagesMock).toHaveBeenCalledWith("c0026", 5, expect.any(Function)))
 
     // Frame 1 delivers seq [2, 1] out of order; frame 2 adds seq [3].
     pushFrame([
@@ -110,7 +110,7 @@ describe("ProvisioningConsole (Estágio 5 — terminal de logs ao vivo, Req. 2.3
 
   it("dedupes by seq — a repeated seq replaces, never duplicates (Req. 2.3)", async () => {
     renderWithI18n(<ProvisioningConsole campaignId="c0026" />)
-    await waitFor(() => expect(connectEstagiosMock).toHaveBeenCalled())
+    await waitFor(() => expect(connectStagesMock).toHaveBeenCalled())
 
     pushFrame([makeLinha({ seq: 1, text: "original" })])
     await waitFor(() => expect(renderedTexts()).toEqual(["original"]))
@@ -125,7 +125,7 @@ describe("ProvisioningConsole (Estágio 5 — terminal de logs ao vivo, Req. 2.3
 
   it("colors each line by fluxo (Req. 2.4)", async () => {
     renderWithI18n(<ProvisioningConsole campaignId="c0026" />)
-    await waitFor(() => expect(connectEstagiosMock).toHaveBeenCalled())
+    await waitFor(() => expect(connectStagesMock).toHaveBeenCalled())
 
     pushFrame([
       makeLinha({ seq: 1, stream: "comando", text: "docker compose up" }),
@@ -145,7 +145,7 @@ describe("ProvisioningConsole (Estágio 5 — terminal de logs ao vivo, Req. 2.3
 
   it("auto-scrolls the console to the bottom when lines change", async () => {
     renderWithI18n(<ProvisioningConsole campaignId="c0026" />)
-    await waitFor(() => expect(connectEstagiosMock).toHaveBeenCalled())
+    await waitFor(() => expect(connectStagesMock).toHaveBeenCalled())
 
     const log = screen.getByRole("log")
     // jsdom does not layout, so stub a known scrollHeight and start scrollTop at 0.
@@ -159,7 +159,7 @@ describe("ProvisioningConsole (Estágio 5 — terminal de logs ao vivo, Req. 2.3
   })
 
   it("recovers the current buffer on mount before any WS frame (Req. 2.5/2.7)", async () => {
-    getLogsEstagio5Mock.mockResolvedValue({
+    getLogsStage5Mock.mockResolvedValue({
       campaign_id: "c0026",
       logs: [
         makeLinha({ seq: 1, text: "buffer-um" }),
@@ -171,12 +171,12 @@ describe("ProvisioningConsole (Estágio 5 — terminal de logs ao vivo, Req. 2.3
 
     // Recovered lines render without any frame being pushed.
     await waitFor(() => expect(renderedTexts()).toEqual(["buffer-um", "buffer-dois"]))
-    expect(getLogsEstagio5Mock).toHaveBeenCalledWith("c0026")
+    expect(getLogsStage5Mock).toHaveBeenCalledWith("c0026")
   })
 
   it("stays whole with no duplicates when reconnect delivers the full buffer (Req. 2.7)", async () => {
     // Recovery seeds seq [1, 2].
-    getLogsEstagio5Mock.mockResolvedValue({
+    getLogsStage5Mock.mockResolvedValue({
       campaign_id: "c0026",
       logs: [
         makeLinha({ seq: 1, text: "um" }),
@@ -202,7 +202,7 @@ describe("ProvisioningConsole (Estágio 5 — terminal de logs ao vivo, Req. 2.3
 
   it("closes the WsConnection on unmount (Req. 2.7)", async () => {
     const { unmount } = renderWithI18n(<ProvisioningConsole campaignId="c0026" />)
-    await waitFor(() => expect(connectEstagiosMock).toHaveBeenCalled())
+    await waitFor(() => expect(connectStagesMock).toHaveBeenCalled())
 
     unmount()
 

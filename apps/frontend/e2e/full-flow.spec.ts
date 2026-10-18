@@ -5,21 +5,21 @@ import { expect, test } from "@playwright/test"
  * already-running stack (frontend :8080, backend :8010). Unlike the smoke test
  * — which stops at the local landing → bases portion — this spec walks the
  * WHOLE flow using the DOWNLOADED base 18.0 and the curated "ShadowRay"
- * campaign under the renumbered **5-Estágio scheme** (pipeline-cinco-estagios):
+ * campaign under the renumbered **5-stage scheme** (pipeline-cinco-estagios):
  *
- *   landing → bases → dashboard → selecao → wizard
+ *   landing → bases → dashboard → selection → wizard
  *
  * The standalone "dag" view NO LONGER EXISTS: after the ShadowRay campaign is
- * picked, the app goes STRAIGHT to the ExecutionWizard. Under the five-Estágio
+ * picked, the app goes STRAIGHT to the ExecutionWizard. Under the five-stage
  * scheme the pipeline is 1..5:
- *   - Estágio 1 — Modelagem Estrutural (body `Stage1View`; "Executar modelagem"
- *     in the wizard footer drives POST /estagio/1/executar).
- *   - Estágio 2 — Geração do DAG (body `DagStageView`; the single "Gerar DAG"
+ *   - Stage 1 — Structural Modeling (body `Stage1View`; "Executar modelagem"
+ *     in the wizard footer drives POST /stage/1/execute).
+ *   - Stage 2 — DAG Generation (body `DagStageView`; the single "Gerar DAG"
  *     button is disabled "em breve"; "Selecionar DAG" chooses a curated DAG).
- *   - Estágio 3 — Operacionalização (body `Stage2View`).
- *   - Estágio 4 — Provisionamento do Ambiente (body `EnvironmentStageView`;
+ *   - Stage 3 — Operationalization (body `Stage2View`).
+ *   - Stage 4 — Environment Provisioning (body `EnvironmentStageView`;
  *     topology / "Diagrama de rede").
- *   - Estágio 5 — Execução da Campanha (body `Stage3View` + emulation modal).
+ *   - Stage 5 — Campaign Execution (body `Stage3View` + emulation modal).
  *
  * It captures a screenshot at every step under e2e/__screenshots__/full-*.png.
  * Assertions mirror the exact rendered pt-BR text/roles from the components:
@@ -29,9 +29,13 @@ import { expect, test } from "@playwright/test"
  * (Entrada / Processamento / Saída sections), DagStageView.tsx (DAG section
  * title, "Selecionar DAG", "Gerar com IA" disabled "em breve") and
  * MermaidDiagram.tsx (container aria-label "Diagrama de rede"). It walks up to
- * (at most) Estágio 4 and NEVER confirms the Estágio 5 emulation modal.
+ * (at most) Stage 4 and NEVER confirms the Stage 5 emulation modal.
+ *
+ * Note: the quoted pt-BR fragments above and in the assertions below name the
+ * exact rendered UI copy the test matches against; they are deliberately kept
+ * in pt-BR to mirror the bilingual UI.
  */
-test("fluxo completo: landing → wizard (base 18.0 / ShadowRay curada), 5 Estágios", async ({
+test("full flow: landing → wizard (base 18.0 / curated ShadowRay), 5 stages", async ({
   page,
 }) => {
   test.setTimeout(60_000)
@@ -56,11 +60,11 @@ test("fluxo completo: landing → wizard (base 18.0 / ShadowRay curada), 5 Está
     page.getByRole("heading", { name: /Bases STIX/i }),
   ).toBeVisible()
 
-  // The 18.0 base is already downloaded: its card carries data-baixada="true",
+  // The 18.0 base is already downloaded: its card carries data-downloaded="true",
   // shows the "Já baixada" badge, and exposes a "Selecionar" button.
-  const base18 = page.locator('[data-versao="18.0"]')
+  const base18 = page.locator('[data-version="18.0"]')
   await expect(base18).toBeVisible()
-  await expect(base18).toHaveAttribute("data-baixada", "true")
+  await expect(base18).toHaveAttribute("data-downloaded", "true")
   await expect(base18.getByText(/Já baixada/i)).toBeVisible()
 
   await page.screenshot({
@@ -74,15 +78,15 @@ test("fluxo completo: landing → wizard (base 18.0 / ShadowRay curada), 5 Está
   // Base identification shows the selected version "v18.0" (Req. 3.1).
   await expect(page.getByText(/v18\.0/)).toBeVisible()
 
-  // A per-type count card labeled "campanhas" with a numeric count visible
+  // A per-type count card labeled "campanhas" (rendered pt-BR label) with a numeric count visible
   // (Req. 3.2). The card title is the backend pt-BR label; scope to the card
   // and assert it carries a number.
-  const campanhasCard = page
+  const campaignsCard = page
     .locator("div")
     .filter({ has: page.getByText(/campanhas/i) })
     .filter({ hasText: /\d/ })
     .first()
-  await expect(campanhasCard).toBeVisible()
+  await expect(campaignsCard).toBeVisible()
 
   await page.screenshot({
     path: "e2e/__screenshots__/full-03-dashboard.png",
@@ -107,15 +111,15 @@ test("fluxo completo: landing → wizard (base 18.0 / ShadowRay curada), 5 Está
   await expect(shadowRayCard.getByText(/Já curada/i)).toBeVisible()
 
   await page.screenshot({
-    path: "e2e/__screenshots__/full-04-selecao.png",
+    path: "e2e/__screenshots__/full-04-selection.png",
     fullPage: true,
   })
 
   // Picking the campaign goes STRAIGHT to the wizard (no standalone DAG view).
   await shadowRayTitle.click()
 
-  // --- 5. Execution wizard mounts (5-Estágio scheme) ---------------------
-  // The ExecutionWizard mounts directly on selecao → wizard. Assert its root
+  // --- 5. Execution wizard mounts (5-stage scheme) ----------------------
+  // The ExecutionWizard mounts directly on selection → wizard. Assert its root
   // test id, the "Passo 1 de 5" step indicator and the 5-badge stage track
   // (Req. 8.9).
   const wizard = page.getByTestId("execution-wizard")
@@ -124,61 +128,61 @@ test("fluxo completo: landing → wizard (base 18.0 / ShadowRay curada), 5 Está
   // Step indicator — rendered pt-BR "Passo {{atual}} de {{total}}" with total 5.
   await expect(wizard.getByText(/Passo\s*1\s*de\s*5/i)).toBeVisible()
 
-  // The badge track has exactly 5 `[data-stage]` entries (Estágios 1..5).
+  // The badge track has exactly 5 `[data-stage]` entries (stages 1..5).
   const badges = wizard.locator("[data-stage]")
   await expect(badges).toHaveCount(5)
   await expect(wizard.locator('[data-stage="1"]')).toBeVisible()
   await expect(wizard.locator('[data-stage="5"]')).toBeVisible()
-  // Estágio 1 is the current step (aria-current="step").
+  // Stage 1 is the current step (aria-current="step").
   await expect(wizard.locator('[data-stage="1"]')).toHaveAttribute(
     "aria-current",
     "step",
   )
 
-  // --- 6. Estágio 1 is the Modelagem Estrutural --------------------------
+  // --- 6. Stage 1 is the Structural Modeling -----------------------------
   // The wizard title comes from i18n `stages.1.name` and is deterministic:
   // "Estágio 1 — Modelagem Estrutural" (Req. 2.x / 8.9). This is the stable
-  // anchor that the body is the Modelagem view, NOT the DAG list.
+  // anchor that the body is the Modeling view, NOT the DAG list.
   await expect(
     wizard.getByText(/Estágio 1\s*—\s*Modelagem Estrutural/i),
   ).toBeVisible({ timeout: 15_000 })
 
   // Stage1View renders its three labelled sections (i18n `sections.*`):
   // Entrada / Processamento / Saída. Assert the Entrada section is present as a
-  // further confirmation that the Modelagem body (not the DAG) is mounted.
+  // further confirmation that the Modeling body (not the DAG) is mounted.
   await expect(
     wizard.locator('[data-section="entrada"]'),
   ).toBeVisible({ timeout: 15_000 })
 
   await page.screenshot({
-    path: "e2e/__screenshots__/full-05-wizard-estagio1-modelagem.png",
+    path: "e2e/__screenshots__/full-05-wizard-stage1-modeling.png",
     fullPage: true,
   })
 
-  // --- 7. Conclude Estágio 1 (Modelagem) → advance to Estágio 2 ----------
-  // Estágio 1 is the pipeline start and is never "bloqueado". For a curated
-  // ShadowRay case it may already be concluido (backend state) or may need the
-  // "Executar modelagem" action. Keep the e2e resilient: if the Estágio 1 badge
+  // --- 7. Conclude Stage 1 (Modeling) → advance to Stage 2 ---------------
+  // Stage 1 is the pipeline start and is never "bloqueado". For a curated
+  // ShadowRay case it may already be "concluido" (backend state) or may need the
+  // "Executar modelagem" action. Keep the e2e resilient: if the Stage 1 badge
   // is not yet "concluido", trigger the modeling and wait for the backend to
   // report it concluded, then advance.
-  const estagio1Badge = wizard.locator('[data-stage="1"]')
-  const estagio1Status = await estagio1Badge.getAttribute("data-status")
-  if (estagio1Status !== "concluido") {
+  const stage1Badge = wizard.locator('[data-stage="1"]')
+  const stage1Status = await stage1Badge.getAttribute("data-status")
+  if (stage1Status !== "concluido") {
     await wizard.getByRole("button", { name: /Executar modelagem/i }).click()
-    // The wizard re-reads the backend after running; Estágio 1 flips to
+    // The wizard re-reads the backend after running; Stage 1 flips to
     // "concluido" once the modeling persists.
-    await expect(estagio1Badge).toHaveAttribute("data-status", "concluido", {
+    await expect(stage1Badge).toHaveAttribute("data-status", "concluido", {
       timeout: 20_000,
     })
   }
 
-  // "Avançar para o próximo estágio" is enabled once Estágio 1 is concluido
-  // (sequential gate). Advancing moves the wizard to Estágio 2.
+  // The "Avançar para o próximo estágio" button is enabled once Stage 1 is "concluido"
+  // (sequential gate). Advancing moves the wizard to Stage 2.
   await wizard
     .getByRole("button", { name: /Avançar para o próximo estágio/i })
     .click()
 
-  // --- 8. Estágio 2 is the Geração do DAG --------------------------------
+  // --- 8. Stage 2 is the DAG Generation ----------------------------------
   // Step indicator advances to "Passo 2 de 5"; the title comes from
   // `stages.2.name` ("Estágio 2 — Geração do DAG").
   await expect(wizard.getByText(/Passo\s*2\s*de\s*5/i)).toBeVisible({
@@ -198,31 +202,31 @@ test("fluxo completo: landing → wizard (base 18.0 / ShadowRay curada), 5 Está
 
   // The single "Gerar DAG" button is rendered as "Gerar com IA", visible but
   // disabled ("em breve") — a no-op in this iteration (Req. 3.4, 3.5).
-  const gerarDag = wizard.getByRole("button", { name: /Gerar com IA/i })
-  await expect(gerarDag).toBeVisible()
-  await expect(gerarDag).toBeDisabled()
+  const generateDag = wizard.getByRole("button", { name: /Gerar com IA/i })
+  await expect(generateDag).toBeVisible()
+  await expect(generateDag).toBeDisabled()
 
   // The Mermaid diagram of the (pre-)selected curated DAG renders an <svg>
   // inside the container whose aria-label is "Diagrama de rede". Mermaid is
   // loaded lazily (dynamic import), so allow a generous timeout.
-  const diagramaDag = wizard.locator('[aria-label="Diagrama de rede"]')
-  await expect(diagramaDag).toBeVisible({ timeout: 20_000 })
-  await expect(diagramaDag.locator("svg")).toBeVisible({ timeout: 20_000 })
+  const dagDiagram = wizard.locator('[aria-label="Diagrama de rede"]')
+  await expect(dagDiagram).toBeVisible({ timeout: 20_000 })
+  await expect(dagDiagram.locator("svg")).toBeVisible({ timeout: 20_000 })
 
   await page.screenshot({
-    path: "e2e/__screenshots__/full-06-wizard-estagio2-dag.png",
+    path: "e2e/__screenshots__/full-06-wizard-stage2-dag.png",
     fullPage: true,
   })
 
-  // --- 9. Choose the curated DAG → Estágio 2 concluido -------------------
-  // Choosing a DAG completes Estágio 2 and unlocks Estágio 3 (Req. 3.3). This
+  // --- 9. Choose the curated DAG → Stage 2 completed --------------------
+  // Choosing a DAG completes Stage 2 and unlocks Stage 3 (Req. 3.3). This
   // depends on the backend having a persisted curated DAG for ShadowRay — the
   // GET /dags backfill guarantees one. Click "Selecionar DAG"; the wizard
-  // re-reads the backend and flips Estágio 2 to concluido.
+  // re-reads the backend and flips Stage 2 to "concluido".
   await wizard.getByRole("button", { name: /Selecionar DAG/i }).click()
 
-  // Estágio 2 badge reports its backend-derived status as "concluido" once the
-  // choice is persisted; Estágio 3 is no longer "bloqueado".
+  // Stage 2 badge reports its backend-derived status as "concluido" once the
+  // choice is persisted; Stage 3 is no longer "bloqueado".
   await expect(wizard.locator('[data-stage="2"]')).toHaveAttribute(
     "data-status",
     "concluido",
@@ -234,22 +238,22 @@ test("fluxo completo: landing → wizard (base 18.0 / ShadowRay curada), 5 Está
   )
 
   await page.screenshot({
-    path: "e2e/__screenshots__/full-07-wizard-estagio2-concluido.png",
+    path: "e2e/__screenshots__/full-07-wizard-stage2-completed.png",
     fullPage: true,
   })
 
-  // --- 10. Walk to Estágio 4 (Provisionamento) if the gate allows --------
-  // For a curated case the backend auto-concludes Estágio 2 (DAG) and Estágio 4
-  // (Ambiente). Advance Estágio 2 → 3, conclude Operacionalização (Estágio 3),
-  // then land on Estágio 4 and assert its topology renders. These advances are
+  // --- 10. Walk to Stage 4 (Provisioning) if the gate allows ------------
+  // For a curated case the backend auto-concludes Stage 2 (DAG) and Stage 4
+  // (Environment). Advance Stage 2 → 3, conclude Operationalization (Stage 3),
+  // then land on Stage 4 and assert its topology renders. These advances are
   // gated by the backend; this section is best-effort and stops BEFORE the
-  // Estágio 5 emulation modal is ever opened or confirmed.
-  const avancar = wizard.getByRole("button", {
+  // Stage 5 emulation modal is ever opened or confirmed.
+  const advance = wizard.getByRole("button", {
     name: /Avançar para o próximo estágio/i,
   })
 
-  // Estágio 2 → Estágio 3 (Operacionalização).
-  await avancar.click()
+  // Stage 2 → Stage 3 (Operationalization).
+  await advance.click()
   await expect(wizard.getByText(/Passo\s*3\s*de\s*5/i)).toBeVisible({
     timeout: 15_000,
   })
@@ -258,9 +262,9 @@ test("fluxo completo: landing → wizard (base 18.0 / ShadowRay curada), 5 Está
     "step",
   )
 
-  // Estágio 3 → Estágio 4 (Provisionamento do Ambiente). Advancing from
-  // Estágio 3 concludes the Operacionalização (POST /estagio/3/concluir).
-  await avancar.click()
+  // Stage 3 → Stage 4 (Environment Provisioning). Advancing from
+  // Stage 3 concludes the Operationalization (POST /stage/3/complete).
+  await advance.click()
   await expect(wizard.getByText(/Passo\s*4\s*de\s*5/i)).toBeVisible({
     timeout: 15_000,
   })
@@ -269,16 +273,16 @@ test("fluxo completo: landing → wizard (base 18.0 / ShadowRay curada), 5 Está
     "step",
   )
 
-  // Estágio 4 body is the EnvironmentStageView: the contained-lab topology
+  // Stage 4 body is the EnvironmentStageView: the contained-lab topology
   // renders a Mermaid network diagram (container aria-label "Diagrama de rede").
-  const diagramaTopologia = wizard.locator('[aria-label="Diagrama de rede"]')
-  await expect(diagramaTopologia).toBeVisible({ timeout: 20_000 })
-  await expect(diagramaTopologia.locator("svg")).toBeVisible({ timeout: 20_000 })
+  const topologyDiagram = wizard.locator('[aria-label="Diagrama de rede"]')
+  await expect(topologyDiagram).toBeVisible({ timeout: 20_000 })
+  await expect(topologyDiagram.locator("svg")).toBeVisible({ timeout: 20_000 })
 
   await page.screenshot({
-    path: "e2e/__screenshots__/full-08-wizard-estagio4-topologia.png",
+    path: "e2e/__screenshots__/full-08-wizard-stage4-topology.png",
     fullPage: true,
   })
 
-  // Stop here: do NOT advance into or confirm the Estágio 5 emulation modal.
+  // Stop here: do NOT advance into or confirm the Stage 5 emulation modal.
 })

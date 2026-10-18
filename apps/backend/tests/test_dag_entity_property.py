@@ -181,7 +181,7 @@ def _build_ephemeral_session() -> tuple[Session, Path, object]:
     suppress_health_check=[HealthCheck.too_slow],
 )
 @given(spec=_dag_strategy)
-def test_property8_dag_entity_roundtrips_for_any_origem(spec: dict) -> None:
+def test_property8_dag_entity_roundtrips_for_any_origin(spec: dict) -> None:
     """Para QUALQUER origin de DagOrigin, o Dag persiste e lê de volta idêntico.
 
     # Feature: pipeline-cinco-stages, Property 8: Entidade DAG multi-origin

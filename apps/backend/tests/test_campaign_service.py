@@ -130,7 +130,7 @@ def _real_data_dir() -> Path:
     mirroring the strategy used by ``test_subnet_validator.py``.
     """
     here = Path(__file__).resolve()
-    return here.parents[3] / "sticks" / "data"
+    return here.parents[3] / "packages" / "cli" / "data"
 
 
 def test_load_real_shadowray_case_parses_all_parts() -> None:

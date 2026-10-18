@@ -6,7 +6,7 @@
 # ``ProducedOperationalization.origin`` (e em ``EnvironmentParameters.origin``); a
 # costura ``OperationalizerByOrigin`` é satisfeita estruturalmente
 # (``@runtime_checkable`` Protocol); e um stub ``gerado_ia`` também satisfaz a
-# costura — provando que a origin ``gerado_ia`` encaixa sem redesenho (sem alterar
+# seam — proving that the ``gerado_ia`` origin fits without redesign (without changing
 # a assinatura nem o artefato ``ProducedOperationalization``).
 
 Validates: Requirements 8.6, 16.2, 16.4
@@ -14,8 +14,8 @@ Validates: Requirements 8.6, 16.2, 16.4
 Esta é uma property test de *feature* (``pipeline-seis-stages`` é uma feature,
 não um bugfix): a propriedade é esperada **valer** sobre a implementação atual.
 Foca a parte **Estágio 4** da Property 13 — a costura de operacionalização
-(:class:`~app.services.environment.operacionalizador.OperationalizerByOrigin` /
-:class:`~app.services.environment.operacionalizador.CurationOperationalizer`).
+(:class:`~app.services.environment.operationalizer.OperationalizerByOrigin` /
+:class:`~app.services.environment.operationalizer.CurationOperationalizer`).
 As partes dos Estágios 3 e 5 são cobertas pelas tasks 4.4 e 7.5.
 
 A Property 13 (lado Estágio 4) afirma, para qualquer input:
@@ -29,7 +29,7 @@ A Property 13 (lado Estágio 4) afirma, para qualquer input:
 2. **Conformidade estrutural do Protocol** (Req. 8.6, 16.2) — a instância de
    curation satisfaz o ``@runtime_checkable`` ``OperationalizerByOrigin`` por
    *duck typing* estrutural (``isinstance`` é ``True``), sem herança explícita.
-3. **Extensibilidade sem redesenho** (Req. 16.2, 16.4) — um stub ``gerado_ia``
+3. **Extensibility without redesign** (Req. 16.2, 16.4) — a ``gerado_ia`` stub
    que apenas expõe ``origin()`` + ``operationalize(campaign, dag)`` (sem herdar de
    ``OperationalizerByOrigin``) também satisfaz o Protocol e produz uma
    ``ProducedOperationalization`` **sem** alterar a assinatura da costura nem o
@@ -40,7 +40,7 @@ A Property 13 (lado Estágio 4) afirma, para qualquer input:
 
 Estratégia / isolation
 -----------------------
-Reusa os semeadores de ``tests/test_operacionalizador_estagio4.py``
+Reusa os semeadores de ``tests/test_operationalizer_stage4.py``
 (``_seed_case``, ``_stub_dag``, o mapeamento IP→container): tudo é puro/in-memory
 — nenhum acesso à rede, nenhuma IA. Cada exemplo semeia um campaign curated em um
 diretório de dados **temporário** com o layout ``<data_dir>/{api,dag}/`` e injeta
@@ -70,7 +70,7 @@ from app.services.environment.operationalizer import (
 
 # Reuso dos semeadores da suíte de exemplo do Estágio 4 (sem rede, sem IA) — a
 # mesma fonte das fixtures pedidas pela task 5.5.
-from tests.test_operacionalizador_estagio4 import (
+from tests.test_operationalizer_stage4 import (
     _INTERNAL_IP,
     _SLUG,
     _seed_case,
@@ -109,7 +109,7 @@ class _StubGeradoIa:
         # Uma IA real criaria/parametrizaria os commands a partir do ``dag``; o
         # stub apenas honra a assinatura e devolve o MESMO artefato
         # ``ProducedOperationalization``, provando que a extensão por origin não
-        # redesenha a costura (Req. 16.2).
+        # redesigns the seam (Req. 16.2).
         _ = dag
         return ProducedOperationalization(
             campaign_id=campaign,
@@ -167,7 +167,7 @@ def _curated_nodes(draw) -> list[dict]:
 #       e no EnvironmentParameters embutido;
 #   (2) a curation satisfaz o Protocol OperationalizerByOrigin estruturalmente;
 #   (3) um stub gerado_ia também satisfaz o Protocol, com assinatura e artefato
-#       inalterados (extensível sem redesenho).
+#       unchanged (extensible without redesign).
 # ===========================================================================
 
 
@@ -175,7 +175,7 @@ def _curated_nodes(draw) -> list[dict]:
 # Estágios 3, 4 e 5 (parte Estágio 4 / Operacionalização).
 @settings(max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture])
 @given(nodes=_curated_nodes())
-def test_property13_estagio4_origem_explicita_e_extensivel(
+def test_property13_stage4_origin_explicit_and_extensible(
     nodes: list[dict],
     tmp_path_factory: pytest.TempPathFactory,
 ) -> None:
@@ -183,7 +183,7 @@ def test_property13_estagio4_origem_explicita_e_extensivel(
 
     Validates: Requirements 8.6, 16.2, 16.4
     """
-    data_dir = tmp_path_factory.mktemp("origem_extensivel_estagio4")
+    data_dir = tmp_path_factory.mktemp("origin_extensible_stage4")
     (data_dir / "api").mkdir(parents=True, exist_ok=True)
     (data_dir / "dag").mkdir(parents=True, exist_ok=True)
     _seed_case(data_dir, _SLUG, structural_nodes=nodes)
@@ -206,7 +206,7 @@ def test_property13_estagio4_origem_explicita_e_extensivel(
     assert isinstance(curation, OperationalizerByOrigin)
 
     # (3) Um stub gerado_ia também satisfaz o Protocol — extensibilidade sem
-    #     redesenho: mesma assinatura, mesmo artefato ProducedOperationalization,
+    #     redesign: same signature, same ProducedOperationalization artifact,
     #     origin distinta (Req. 16.2, 16.4).
     stub = _StubGeradoIa()
     assert isinstance(stub, OperationalizerByOrigin)
@@ -216,7 +216,7 @@ def test_property13_estagio4_origem_explicita_e_extensivel(
     assert isinstance(produzida_ia.parameters, EnvironmentParameters)
 
     # A assinatura da costura é a MESMA para ambas as origens — a extensão não
-    # redesenha ``operationalize`` (Req. 16.2): mesmos parâmetros ``(campaign, dag)``.
+    # redesigns ``operationalize`` (Req. 16.2): same parameters ``(campaign, dag)``.
     assert list(inspect.signature(curation.operationalize).parameters) == ["campaign", "dag"]
     assert list(inspect.signature(stub.operationalize).parameters) == ["campaign", "dag"]
 

@@ -165,7 +165,7 @@ export function CaseSelector({
   )
 }
 
-/** Aggregate replication progress: cases fully concluído / 8 (Req. 5.5). */
+/** Aggregate replication progress: cases fully completed / 8 (Req. 5.5). */
 function AggregateProgressBar({ progress }: { progress: AggregateProgress }) {
   const { t } = useTranslation("pipeline")
   const total = progress.total_campaigns || TOTAL_CURATED_CASES

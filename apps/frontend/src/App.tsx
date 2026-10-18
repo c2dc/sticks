@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react"
 
 import { AppLayout } from "@/components/AppLayout"
-import { EmulationConfirmModal } from "@/components/EmulationConfirmModal"
 import { ExecutionWizard } from "@/components/ExecutionWizard"
 import { Landing } from "@/components/Landing"
 import { ThemeProvider, type Theme } from "@/components/theme-provider"
@@ -20,14 +19,6 @@ function App() {
   // the wizard at Stage 1 — base and campaign selection are stages inside the
   // wizard, not standalone screens.
   const { state, dispatch } = useAppFlow()
-
-  // Emulation confirm modal state is owned here. The Stage 6 view asks to
-  // emulate via the `onRequestEmulation` seam forwarded by the wizard, passing
-  // the selected campaign id; App opens the modal for it. Closing returns to the
-  // prior state without executing anything. It stays mounted at the App root.
-  const [emulationCampaignId, setEmulationCampaignId] = useState<string | null>(
-    null,
-  )
 
   // Theme preference. Local storage is the source of truth so the choice
   // survives a reload instantly; on first visit it follows the OS preference.
@@ -75,14 +66,6 @@ function App() {
   return (
     <ThemeProvider theme={theme} onThemeChange={handleThemeChange}>
       <AppLayout>{renderView()}</AppLayout>
-
-      {/* Pre-confirmation command/target list + explicit confirmation gate.
-          Mounted at the root, keyed by the selected campaign id. */}
-      <EmulationConfirmModal
-        campaignId={emulationCampaignId}
-        open={emulationCampaignId !== null}
-        onClose={() => setEmulationCampaignId(null)}
-      />
     </ThemeProvider>
   )
 
@@ -96,12 +79,7 @@ function App() {
         // the base (Stage 1) and the campaign (Stage 2) internally; the chosen
         // campaign id then drives Stages 3..6. "Back" from Stage 1 returns to
         // the Landing.
-        return (
-          <ExecutionWizard
-            onRequestEmulation={setEmulationCampaignId}
-            onExitToStart={() => dispatch({ type: "BACK" })}
-          />
-        )
+        return <ExecutionWizard onExitToStart={() => dispatch({ type: "BACK" })} />
 
       default:
         return null

@@ -15,7 +15,7 @@ import type { StageState } from "@/lib/campaigns"
  * PrereqChecklist — Stage 5 prerequisites-confirmation tests (task 8.3).
  * Covers:
  *
- * 1. Three states per item (`ok`/`falha`/`pendente`) — Req. 5.6.
+ * 1. Three states per item (`ok`/`falha`/`pendente` values) — Req. 5.6.
  * 2. Failure message, naming the offending container + reason — Req. 7.2 (and
  *    the resource identification, Req. 7.4).
  * 3. Communicating Stage 6 blocking/unblocking ("Next") — Req. 7.3.
@@ -246,11 +246,11 @@ describe("PrereqChecklist — failure message (Req. 7.2, 7.4)", () => {
       />,
     )
 
-    // Nome do contêiner + razão aparecem (identificação do recurso, Req. 7.4).
+    // Container name + reason appear (resource identification, Req. 7.4).
     expect(document.body).toHaveTextContent(/mariadb-target/i)
     expect(document.body).toHaveTextContent(/contêiner parado/i)
 
-    // mensagemErro exibida no alert de falha.
+    // errorMessage shown in the failure alert.
     const alert = document.querySelector('[role="alert"]')
     expect(alert).not.toBeNull()
     expect(alert).toHaveTextContent(/Verificação de saúde reprovou/i)
