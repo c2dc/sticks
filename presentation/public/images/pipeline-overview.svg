@@ -1,0 +1,111 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1360 360" font-family="Inter, Segoe UI, sans-serif">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#1d6fe0"/>
+      <stop offset="0.52" stop-color="#8b2fd6"/>
+      <stop offset="1" stop-color="#e1322f"/>
+    </linearGradient>
+    <marker id="arr" markerWidth="10" markerHeight="10" refX="7" refY="3" orient="auto">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#94a3b8"/>
+    </marker>
+  </defs>
+  <rect width="1360" height="360" fill="#ffffff"/>
+
+  <!-- gradient track -->
+  <rect x="40" y="60" width="1280" height="6" rx="3" fill="url(#g)" opacity="0.25"/>
+
+  <!-- 6 stage nodes -->
+  <g font-size="12">
+    <!-- stage card template: w=196 h=150 -->
+    <!-- positions -->
+    <g transform="translate(40,90)">
+      <rect width="186" height="180" rx="12" fill="#f6f8fc" stroke="#e2e8f0"/>
+      <rect width="186" height="34" rx="12" fill="#1d6fe0"/>
+      <circle cx="26" cy="17" r="12" fill="#ffffff"/><text x="26" y="22" text-anchor="middle" font-size="14" font-weight="800" fill="#1d6fe0">1</text>
+      <text x="48" y="22" font-size="12.5" font-weight="800" fill="#ffffff">STIX Base</text>
+      <text x="14" y="62" font-size="11" font-weight="700" fill="#0f1726">Select bundle</text>
+      <text x="14" y="82" font-size="10" fill="#64748b">version;</text>
+      <text x="14" y="98" font-size="10" fill="#64748b">download from</text>
+      <text x="14" y="114" font-size="10" fill="#64748b">MITRE if absent;</text>
+      <text x="14" y="130" font-size="10" fill="#64748b">bundle dashboard</text>
+      <text x="14" y="162" font-size="9" font-weight="700" fill="#1d6fe0">⟶ bundle on disk</text>
+    </g>
+    <g transform="translate(254,90)">
+      <rect width="186" height="180" rx="12" fill="#f6f8fc" stroke="#e2e8f0"/>
+      <rect width="186" height="34" rx="12" fill="#4a57d6"/>
+      <circle cx="26" cy="17" r="12" fill="#ffffff"/><text x="26" y="22" text-anchor="middle" font-size="14" font-weight="800" fill="#4a57d6">2</text>
+      <text x="48" y="22" font-size="12.5" font-weight="800" fill="#ffffff">Campaign</text>
+      <text x="14" y="62" font-size="11" font-weight="700" fill="#0f1726">List campaigns;</text>
+      <text x="14" y="82" font-size="10" fill="#64748b">pick one;</text>
+      <text x="14" y="98" font-size="10" fill="#64748b">extract its</text>
+      <text x="14" y="114" font-size="10" fill="#64748b">attributes &amp;</text>
+      <text x="14" y="130" font-size="10" fill="#64748b">techniques</text>
+      <text x="14" y="162" font-size="9" font-weight="700" fill="#4a57d6">⟶ attributes</text>
+    </g>
+    <g transform="translate(468,90)">
+      <rect width="186" height="180" rx="12" fill="#f6f8fc" stroke="#e2e8f0"/>
+      <rect width="186" height="34" rx="12" fill="#6b43d6"/>
+      <circle cx="26" cy="17" r="12" fill="#ffffff"/><text x="26" y="22" text-anchor="middle" font-size="14" font-weight="800" fill="#6b43d6">3</text>
+      <text x="48" y="22" font-size="12.5" font-weight="800" fill="#ffffff">DAG</text>
+      <text x="14" y="62" font-size="11" font-weight="700" fill="#0f1726">Build ordered</text>
+      <text x="14" y="82" font-size="10" fill="#64748b">graph of</text>
+      <text x="14" y="98" font-size="10" fill="#64748b">techniques with</text>
+      <text x="14" y="114" font-size="10" fill="#64748b">dependencies &amp;</text>
+      <text x="14" y="130" font-size="10" fill="#64748b">ordering</text>
+      <text x="14" y="162" font-size="9" font-weight="700" fill="#6b43d6">⟶ the DAG</text>
+    </g>
+    <g transform="translate(682,90)">
+      <rect width="186" height="180" rx="12" fill="#f6f8fc" stroke="#e2e8f0"/>
+      <rect width="186" height="34" rx="12" fill="#8b2fd6"/>
+      <circle cx="26" cy="17" r="12" fill="#ffffff"/><text x="26" y="22" text-anchor="middle" font-size="14" font-weight="800" fill="#8b2fd6">4</text>
+      <text x="48" y="22" font-size="12.5" font-weight="800" fill="#ffffff">Operational.</text>
+      <text x="14" y="62" font-size="11" font-weight="700" fill="#0f1726">Abilities in</text>
+      <text x="14" y="82" font-size="10" fill="#64748b">DAG order +</text>
+      <text x="14" y="98" font-size="10" fill="#64748b">derive env.</text>
+      <text x="14" y="114" font-size="10" fill="#64748b">parameters</text>
+      <text x="14" y="130" font-size="10" fill="#64748b">(hosts, vulns)</text>
+      <text x="14" y="162" font-size="9" font-weight="700" fill="#8b2fd6">⟶ cmds + params</text>
+    </g>
+    <g transform="translate(896,90)">
+      <rect width="186" height="180" rx="12" fill="#f6f8fc" stroke="#e2e8f0"/>
+      <rect width="186" height="34" rx="12" fill="#b52e9e"/>
+      <circle cx="26" cy="17" r="12" fill="#ffffff"/><text x="26" y="22" text-anchor="middle" font-size="14" font-weight="800" fill="#b52e9e">5</text>
+      <text x="48" y="22" font-size="12.5" font-weight="800" fill="#ffffff">Environment</text>
+      <text x="14" y="62" font-size="11" font-weight="700" fill="#0f1726">Provision</text>
+      <text x="14" y="82" font-size="10" fill="#64748b">containers; load</text>
+      <text x="14" y="98" font-size="10" fill="#64748b">Abilities into</text>
+      <text x="14" y="114" font-size="10" fill="#64748b">Caldera; verify</text>
+      <text x="14" y="130" font-size="10" fill="#64748b">isolation</text>
+      <text x="14" y="162" font-size="9" font-weight="700" fill="#b52e9e">⟶ isolated lab</text>
+    </g>
+    <g transform="translate(1110,90)">
+      <rect width="186" height="180" rx="12" fill="#f6f8fc" stroke="#e2e8f0"/>
+      <rect width="186" height="34" rx="12" fill="#e1322f"/>
+      <circle cx="26" cy="17" r="12" fill="#ffffff"/><text x="26" y="22" text-anchor="middle" font-size="14" font-weight="800" fill="#e1322f">6</text>
+      <text x="48" y="22" font-size="12.5" font-weight="800" fill="#ffffff">Exec + Report</text>
+      <text x="14" y="62" font-size="11" font-weight="700" fill="#0f1726">Run (contained</text>
+      <text x="14" y="82" font-size="10" fill="#64748b">+ preview);</text>
+      <text x="14" y="98" font-size="10" fill="#64748b">measure</text>
+      <text x="14" y="114" font-size="10" fill="#64748b">sufficiency;</text>
+      <text x="14" y="130" font-size="10" fill="#64748b">report; teardown</text>
+      <text x="14" y="162" font-size="9" font-weight="700" fill="#e1322f">⟶ report + verdict</text>
+    </g>
+  </g>
+
+  <!-- arrows between -->
+  <g stroke="#94a3b8" stroke-width="2">
+    <line x1="226" y1="180" x2="252" y2="180" marker-end="url(#arr)"/>
+    <line x1="440" y1="180" x2="466" y2="180" marker-end="url(#arr)"/>
+    <line x1="654" y1="180" x2="680" y2="180" marker-end="url(#arr)"/>
+    <line x1="868" y1="180" x2="894" y2="180" marker-end="url(#arr)"/>
+    <line x1="1082" y1="180" x2="1108" y2="180" marker-end="url(#arr)"/>
+  </g>
+
+  <!-- footer band -->
+  <g transform="translate(40,300)">
+    <rect width="1280" height="44" rx="10" fill="#eef2f9"/>
+    <text x="20" y="20" font-size="11.5" font-weight="800" fill="#0f1726">Sequential gating:</text>
+    <text x="150" y="20" font-size="11.5" fill="#334155">a stage can only start when the previous one is complete — each stage follows the same Input → Processing → Output contract.</text>
+    <text x="20" y="36" font-size="10.5" fill="#64748b">Stages 3–5 (curation) read human-curated artifacts from disk today — the extension point where the AI agent will plug in.</text>
+  </g>
+</svg>

@@ -1,0 +1,219 @@
+/* ============================================================
+   STICKS — presentation theme
+   Light, modern, dense-but-clean. Brand palette: blue -> purple -> red
+   (blue team -> red team), matching the STICKS logomark gradient.
+   ============================================================ */
+
+:root {
+  /* Brand palette (aligned with the product's team blue/red/purple) */
+  --sticks-blue:   #1d6fe0;   /* team blue  */
+  --sticks-blue-2: #2f86f6;
+  --sticks-purple: #8b2fd6;   /* convergence */
+  --sticks-magenta:#d6267f;
+  --sticks-red:    #e1322f;   /* team red   */
+
+  --ink:        #0f1726;      /* near-black text */
+  --ink-soft:   #334155;
+  --muted:      #64748b;
+  --line:       #e2e8f0;
+  --surface:    #ffffff;
+  --surface-2:  #f6f8fc;
+  --surface-3:  #eef2f9;
+
+  --grad: linear-gradient(90deg, var(--sticks-blue) 0%, var(--sticks-purple) 52%, var(--sticks-red) 100%);
+  --grad-soft: linear-gradient(90deg, rgba(29,111,224,.10) 0%, rgba(139,47,214,.10) 52%, rgba(225,50,47,.10) 100%);
+}
+
+/* ---- Base ------------------------------------------------- */
+.slidev-layout {
+  background: var(--surface);
+  color: var(--ink);
+  font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  padding: 2.4rem 3rem 2.2rem;
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+.slidev-layout h1,
+.slidev-layout h2,
+.slidev-layout h3 { color: var(--ink); font-weight: 800; letter-spacing: -0.015em; }
+
+.slidev-layout h1 { font-size: 2.1rem; line-height: 1.1; margin-bottom: .3rem; }
+.slidev-layout h2 { font-size: 1.5rem; margin-bottom: .6rem; }
+.slidev-layout h3 { font-size: 1.05rem; }
+
+.slidev-layout a { color: var(--sticks-blue); text-decoration: none; border-bottom: 1px solid rgba(29,111,224,.3); }
+.slidev-layout strong { color: var(--ink); font-weight: 700; }
+.slidev-layout code {
+  background: var(--surface-3);
+  color: var(--sticks-purple);
+  padding: .08em .4em;
+  border-radius: .35rem;
+  font-size: .82em;
+  font-weight: 600;
+}
+
+/* ---- Brand helpers --------------------------------------- */
+.grad-text {
+  background: var(--grad);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  font-weight: 900;
+}
+.grad-bar { height: 6px; width: 100%; border-radius: 99px; background: var(--grad); }
+.grad-rule { height: 4px; width: 64px; border-radius: 99px; background: var(--grad); margin: .2rem 0 1rem; }
+
+/* kicker / eyebrow label above titles */
+.kicker {
+  text-transform: uppercase;
+  letter-spacing: .16em;
+  font-size: .72rem;
+  font-weight: 700;
+  color: var(--sticks-purple);
+  margin-bottom: .35rem;
+}
+
+/* ---- Card grid ------------------------------------------- */
+.cards { display: grid; gap: .8rem; }
+.cards.c2 { grid-template-columns: 1fr 1fr; }
+.cards.c3 { grid-template-columns: 1fr 1fr 1fr; }
+
+.card {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: .8rem;
+  padding: .85rem 1rem;
+}
+.card.flat { background: var(--surface); }
+.card h3 { margin: 0 0 .3rem; font-size: .98rem; }
+.card p  { margin: 0; color: var(--ink-soft); font-size: .86rem; }
+.card ul { margin: .2rem 0 0; padding-left: 1.05rem; }
+.card li { font-size: .84rem; color: var(--ink-soft); margin: .12rem 0; }
+
+/* left accent variants */
+.edge-blue   { border-left: 4px solid var(--sticks-blue); }
+.edge-purple { border-left: 4px solid var(--sticks-purple); }
+.edge-red    { border-left: 4px solid var(--sticks-red); }
+.edge-grad   { border-left: 4px solid transparent; border-image: var(--grad) 1; }
+
+/* ---- Input / Processing / Output blocks ------------------ */
+.ipo { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: .7rem; }
+.ipo .box {
+  border-radius: .7rem;
+  padding: .7rem .8rem;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+}
+.ipo .box .lbl {
+  text-transform: uppercase;
+  letter-spacing: .12em;
+  font-size: .66rem;
+  font-weight: 800;
+  margin-bottom: .35rem;
+}
+.ipo .in  { border-top: 3px solid var(--sticks-blue); }
+.ipo .in  .lbl { color: var(--sticks-blue); }
+.ipo .pr  { border-top: 3px solid var(--sticks-purple); }
+.ipo .pr  .lbl { color: var(--sticks-purple); }
+.ipo .out { border-top: 3px solid var(--sticks-red); }
+.ipo .out .lbl { color: var(--sticks-red); }
+.ipo ul { margin: 0; padding-left: 1rem; }
+.ipo li { font-size: .82rem; color: var(--ink-soft); margin: .15rem 0; }
+
+/* ---- Pills / tags ---------------------------------------- */
+.pill {
+  display: inline-block;
+  background: var(--surface-3);
+  color: var(--ink-soft);
+  border-radius: 99px;
+  padding: .12rem .6rem;
+  font-size: .72rem;
+  font-weight: 600;
+  margin: .1rem .15rem;
+}
+.pill.blue   { background: rgba(29,111,224,.12);  color: var(--sticks-blue); }
+.pill.purple { background: rgba(139,47,214,.12);  color: var(--sticks-purple); }
+.pill.red    { background: rgba(225,50,47,.12);   color: var(--sticks-red); }
+
+/* ---- Tables ---------------------------------------------- */
+.slidev-layout table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+.slidev-layout th {
+  text-align: left;
+  background: var(--surface-3);
+  color: var(--ink);
+  font-weight: 700;
+  padding: .45rem .6rem;
+  border-bottom: 2px solid var(--line);
+}
+.slidev-layout td { padding: .4rem .6rem; border-bottom: 1px solid var(--line); color: var(--ink-soft); }
+.slidev-layout tr:last-child td { border-bottom: none; }
+
+/* ---- Stat figures ---------------------------------------- */
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: .7rem; }
+.stat {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: .8rem;
+  padding: .8rem;
+  text-align: center;
+}
+.stat .n { font-size: 1.9rem; font-weight: 900; line-height: 1; }
+.stat .l { font-size: .72rem; color: var(--muted); margin-top: .3rem; }
+
+/* ---- Footer note ----------------------------------------- */
+.foot {
+  position: absolute;
+  bottom: 1rem;
+  left: 3rem;
+  right: 3rem;
+  font-size: .68rem;
+  color: var(--muted);
+  display: flex;
+  justify-content: space-between;
+  border-top: 1px solid var(--line);
+  padding-top: .4rem;
+}
+
+/* ---- Cover / section layouts ----------------------------- */
+.cover {
+  background:
+    radial-gradient(1200px 600px at 85% -10%, rgba(225,50,47,.10), transparent 60%),
+    radial-gradient(1000px 600px at 0% 110%, rgba(29,111,224,.12), transparent 55%),
+    var(--surface);
+}
+.section {
+  background:
+    radial-gradient(900px 500px at 90% 110%, rgba(139,47,214,.10), transparent 60%),
+    var(--surface);
+}
+
+.two-col { display: grid; grid-template-columns: 1.15fr .85fr; gap: 1.4rem; align-items: center; }
+.two-col.even { grid-template-columns: 1fr 1fr; }
+
+.imgframe {
+  border-radius: .9rem;
+  border: 1px solid var(--line);
+  overflow: hidden;
+  box-shadow: 0 10px 30px -18px rgba(15,23,38,.4);
+  background: var(--surface);
+}
+.imgframe img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.caption { font-size: .68rem; color: var(--muted); margin-top: .35rem; }
+
+/* dense small-print list */
+.fine li { font-size: .8rem; margin: .18rem 0; }
+
+/* compact vertical rhythm for dense slides */
+.tight > * + * { margin-top: .55rem; }
+
+/* ============================================================
+   Hide the Slidev "Go to slide" dialog (#slidev-goto-dialog) and its
+   autocomplete slide list. On this machine it was stuck open as a
+   360px column pinned to the right edge, overlapping the slides.
+   It is only a quick-jump helper; navigation still works via arrows,
+   space, click, and presenter mode.
+   ============================================================ */
+#slidev-goto-dialog {
+  display: none !important;
+}

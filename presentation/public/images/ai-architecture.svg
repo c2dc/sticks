@@ -1,0 +1,117 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1360 560" font-family="Inter, Segoe UI, sans-serif">
+  <defs>
+    <linearGradient id="gg" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#1d6fe0"/><stop offset="0.52" stop-color="#8b2fd6"/><stop offset="1" stop-color="#e1322f"/>
+    </linearGradient>
+    <marker id="aa" markerWidth="11" markerHeight="11" refX="7" refY="3.3" orient="auto">
+      <path d="M0,0 L8,3.3 L0,6.6 Z" fill="#64748b"/>
+    </marker>
+    <marker id="ab" markerWidth="11" markerHeight="11" refX="7" refY="3.3" orient="auto">
+      <path d="M0,0 L8,3.3 L0,6.6 Z" fill="#8b2fd6"/>
+    </marker>
+  </defs>
+  <rect width="1360" height="560" fill="#ffffff"/>
+
+  <!-- KNOWLEDGE SOURCES (left) -->
+  <g transform="translate(24,40)">
+    <text x="0" y="0" font-size="13" font-weight="800" fill="#1d6fe0">KNOWLEDGE &amp; TOOL SOURCES</text>
+    <rect x="0" y="16" width="250" height="52" rx="10" fill="#eaf2fe" stroke="#1d6fe0"/>
+    <text x="14" y="40" font-size="12" font-weight="700" fill="#0f1726">STIX / ATT&amp;CK CTI</text>
+    <text x="14" y="57" font-size="10" fill="#64748b">techniques, relationships, campaign</text>
+
+    <rect x="0" y="80" width="250" height="52" rx="10" fill="#eaf2fe" stroke="#1d6fe0"/>
+    <text x="14" y="104" font-size="12" font-weight="700" fill="#0f1726">Atomic Red Team</text>
+    <text x="14" y="121" font-size="10" fill="#64748b">command per technique + prereqs</text>
+
+    <rect x="0" y="144" width="250" height="52" rx="10" fill="#eaf2fe" stroke="#1d6fe0"/>
+    <text x="14" y="168" font-size="12" font-weight="700" fill="#0f1726">Lab catalog / compose</text>
+    <text x="14" y="185" font-size="10" fill="#64748b">hosts, services, internal networks</text>
+
+    <rect x="0" y="208" width="250" height="52" rx="10" fill="#eaf2fe" stroke="#1d6fe0"/>
+    <text x="14" y="232" font-size="12" font-weight="700" fill="#0f1726">8 human-curated cases</text>
+    <text x="14" y="249" font-size="10" fill="#64748b">ground truth for evaluation</text>
+  </g>
+
+  <!-- AGENT CORE (center) -->
+  <g transform="translate(340,24)">
+    <rect width="500" height="512" rx="16" fill="#faf6ff" stroke="#8b2fd6" stroke-width="2"/>
+    <rect width="500" height="40" rx="16" fill="url(#gg)"/>
+    <text x="250" y="26" text-anchor="middle" font-size="15" font-weight="800" fill="#ffffff">AI CURATION AGENT ENVIRONMENT</text>
+
+    <!-- orchestrator -->
+    <rect x="30" y="58" width="440" height="56" rx="10" fill="#ffffff" stroke="#8b2fd6"/>
+    <text x="48" y="82" font-size="13" font-weight="800" fill="#8b2fd6">Orchestrator / planner (LLM)</text>
+    <text x="48" y="101" font-size="10.5" fill="#64748b">drives the stages, calls tools, enforces the Input→Processing→Output contract</text>
+
+    <!-- per-stage agents -->
+    <rect x="30" y="128" width="210" height="86" rx="10" fill="#f3eafe" stroke="#6b43d6"/>
+    <text x="44" y="150" font-size="12" font-weight="800" fill="#6b43d6">DAG agent — Stage 3</text>
+    <text x="44" y="168" font-size="9.5" fill="#334155">orders techniques into a</text>
+    <text x="44" y="182" font-size="9.5" fill="#334155">dependency graph from the</text>
+    <text x="44" y="196" font-size="9.5" fill="#334155">campaign attributes</text>
+    <text x="44" y="210" font-size="8.5" font-weight="700" fill="#6b43d6">origin = ai_generated</text>
+
+    <rect x="260" y="128" width="210" height="86" rx="10" fill="#f3eafe" stroke="#8b2fd6"/>
+    <text x="274" y="150" font-size="12" font-weight="800" fill="#8b2fd6">Operationalize — Stage 4</text>
+    <text x="274" y="168" font-size="9.5" fill="#334155">picks/parametrizes commands</text>
+    <text x="274" y="182" font-size="9.5" fill="#334155">(from Atomic Red Team) +</text>
+    <text x="274" y="196" font-size="9.5" fill="#334155">derives env. parameters</text>
+    <text x="274" y="210" font-size="8.5" font-weight="700" fill="#8b2fd6">the command-semantics gap</text>
+
+    <rect x="30" y="228" width="210" height="86" rx="10" fill="#f6ebf3" stroke="#b52e9e"/>
+    <text x="44" y="250" font-size="12" font-weight="800" fill="#b52e9e">Env. agent — Stage 5</text>
+    <text x="44" y="268" font-size="9.5" fill="#334155">designs &amp; provisions the</text>
+    <text x="44" y="282" font-size="9.5" fill="#334155">target environment for the</text>
+    <text x="44" y="296" font-size="9.5" fill="#334155">campaign's attacks</text>
+    <text x="44" y="310" font-size="8.5" font-weight="700" fill="#b52e9e">the env.-emulation gap</text>
+
+    <rect x="260" y="228" width="210" height="86" rx="10" fill="#fdeeec" stroke="#e1322f"/>
+    <text x="274" y="250" font-size="12" font-weight="800" fill="#e1322f">Measure loop — Stage 6</text>
+    <text x="274" y="268" font-size="9.5" fill="#334155">reads the verdict &amp; telemetry;</text>
+    <text x="274" y="282" font-size="9.5" fill="#334155">feeds failures back to refine</text>
+    <text x="274" y="296" font-size="9.5" fill="#334155">DAG / commands / env.</text>
+    <text x="274" y="310" font-size="8.5" font-weight="700" fill="#e1322f">iterate toward sufficiency</text>
+
+    <!-- shared memory/tools -->
+    <rect x="30" y="330" width="440" height="52" rx="10" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="48" y="352" font-size="11.5" font-weight="800" fill="#0f1726">Shared tools: STIX parser · ART lookup · Docker/compose driver · Caldera API · command parser</text>
+    <text x="48" y="370" font-size="9.5" fill="#64748b">deterministic, injectable, read-only where it inspects</text>
+
+    <!-- guardrails -->
+    <rect x="30" y="396" width="440" height="92" rx="10" fill="#fff7f6" stroke="#e1322f"/>
+    <text x="48" y="418" font-size="12" font-weight="800" fill="#e1322f">Safety guardrails (non-negotiable)</text>
+    <text x="48" y="438" font-size="10" fill="#334155">· every generated command/target validated against the internal subnets</text>
+    <text x="48" y="454" font-size="10" fill="#334155">· isolation verified (read-only, fail-closed) before any execution</text>
+    <text x="48" y="470" font-size="10" fill="#334155">· explicit preview + confirmation · 1:1 audit · agent never runs on the host</text>
+  </g>
+
+  <!-- PIPELINE / LAB (right) -->
+  <g transform="translate(900,40)">
+    <text x="0" y="0" font-size="13" font-weight="800" fill="#e1322f">EXECUTION &amp; EVALUATION</text>
+    <rect x="0" y="16" width="250" height="70" rx="10" fill="#fdeeec" stroke="#e1322f"/>
+    <text x="14" y="40" font-size="12" font-weight="700" fill="#0f1726">Isolated Docker lab</text>
+    <text x="14" y="58" font-size="10" fill="#64748b">caldera → kali → nginx → db</text>
+    <text x="14" y="74" font-size="10" fill="#64748b">internal-only networks</text>
+
+    <rect x="0" y="100" width="250" height="70" rx="10" fill="#fdeeec" stroke="#e1322f"/>
+    <text x="14" y="124" font-size="12" font-weight="700" fill="#0f1726">Procedural sufficiency</text>
+    <text x="14" y="142" font-size="10" fill="#64748b">success rate, per-technique</text>
+    <text x="14" y="158" font-size="10" fill="#64748b">telemetry, failed nodes, verdict</text>
+
+    <rect x="0" y="184" width="250" height="88" rx="10" fill="#f6f8fc" stroke="#e2e8f0"/>
+    <text x="14" y="206" font-size="12" font-weight="800" fill="#0f1726">Evaluation goal</text>
+    <text x="14" y="226" font-size="10" fill="#334155">compare AI-generated curation</text>
+    <text x="14" y="242" font-size="10" fill="#334155">against the 8 human cases —</text>
+    <text x="14" y="258" font-size="10" fill="#334155">same measurable pipeline.</text>
+  </g>
+
+  <!-- connecting arrows -->
+  <g stroke="#64748b" stroke-width="2" fill="none">
+    <line x1="274" y1="140" x2="338" y2="150" marker-end="url(#aa)"/>
+    <line x1="840" y1="150" x2="898" y2="92" marker-end="url(#aa)"/>
+  </g>
+  <g stroke="#8b2fd6" stroke-width="2" fill="none" stroke-dasharray="5 4">
+    <path d="M900,160 C870,320 900,400 842,360" marker-end="url(#ab)"/>
+  </g>
+  <text x="864" y="300" font-size="9.5" fill="#8b2fd6" font-weight="700" transform="rotate(90 864 300)">feedback loop</text>
+</svg>
