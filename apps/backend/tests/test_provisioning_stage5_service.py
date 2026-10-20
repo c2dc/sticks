@@ -77,6 +77,7 @@ from app.services.environment.operationalization import (
 from app.services.environment.provisioner import (
     ProvisionedEnvironment,
     IsolationSummary,
+    SubStageSummary,
     EnvironmentProvisioner,
     ContainerVerdict,
 )
@@ -174,6 +175,12 @@ def _environment_ready(containers: list[str]) -> ProvisionedEnvironment:
             verdicts=[
                 ContainerVerdict(container=c, isolated=True) for c in containers
             ],
+        ),
+        substages=SubStageSummary(
+            build_online_ok=True,
+            egress_closed=True,
+            egress_lost_verified=True,
+            offline_applied=True,
         ),
         origin=TranslationSource.HUMAN_CURATION,
     )

@@ -3,7 +3,11 @@ import { screen, waitFor } from "@testing-library/react"
 
 import { renderWithI18n } from "@/test/render"
 import { ReportView } from "@/components/ReportView"
-import type { SufficiencyMetrics, ExecutionReport } from "@/lib/stages"
+import type {
+  DeprovisioningResult,
+  SufficiencyMetrics,
+  ExecutionReport,
+} from "@/lib/stages"
 
 // Mock the report wrapper so no network is used.
 vi.mock("@/lib/stages", async (importOriginal) => {
@@ -70,6 +74,18 @@ function makeMetrics(
   }
 }
 
+function makeDeprovisioning(
+  overrides: Partial<DeprovisioningResult> = {},
+): DeprovisioningResult {
+  return {
+    deprovisioned: true,
+    remaining_resources: [],
+    origin: "curadoria_humana",
+    message: "ok",
+    ...overrides,
+  }
+}
+
 function makeReport(
   overrides: Partial<ExecutionReport> = {},
 ): ExecutionReport {
@@ -78,22 +94,49 @@ function makeReport(
     metrics: makeMetrics(),
     results: [],
     environment_deprovisioned: true,
+    deprovisioning: makeDeprovisioning(),
     generated_at: "2024-01-02T03:04:05Z",
     ...overrides,
   }
 }
 
-describe("ReportView (Estágio 6 — relatório de execução, Req. 10.6, 10.7, 15.7)", () => {
+describe("ReportView (Estágio 6 — métricas + desprovisionamento com gating)", () => {
   beforeEach(() => {
     getMock.mockReset()
   })
 
-  it("renders success rate, procedural coverage, total time and failed-node count (Req. 15.1, 15.3, 15.5)", async () => {
+  // Gating (Req. 3.1, 3.2, 7.1, 8.2): while the execution has not finished the
+  // view neither fetches `GET /report` nor renders the metrics section.
+  it("não busca o relatório nem renderiza métricas enquanto executionFinished=false (Req. 3.1, 3.2, 7.1, 8.2)", async () => {
     getMock.mockResolvedValue(makeReport())
 
-    renderWithI18n(<ReportView campaignId="shadowray" />)
+    const { container } = renderWithI18n(
+      <ReportView campaignId="shadowray" executionFinished={false} />,
+    )
+
+    // A neutral empty state: no metrics, no deprovisioning.
+    expect(
+      container.querySelector('[data-section="metricas"]'),
+    ).toBeNull()
+    expect(
+      container.querySelector('[data-section="desprovisionamento"]'),
+    ).toBeNull()
+    // The gated fetch must never fire while the run is in progress.
+    expect(getMock).not.toHaveBeenCalled()
+  })
+
+  it("renderiza os quatro cards de métricas incluindo a contagem de nós falhos quando executionFinished=true (Req. 3.3, 3.4, 4.2, 5.2, 5.3)", async () => {
+    getMock.mockResolvedValue(makeReport())
+
+    const { container } = renderWithI18n(
+      <ReportView campaignId="shadowray" executionFinished={true} />,
+    )
 
     await waitFor(() => expect(getMock).toHaveBeenCalledWith("shadowray"))
+
+    // The metrics section is present with exactly four cards.
+    const metricas = container.querySelector('[data-section="metricas"]')
+    expect(metricas).not.toBeNull()
 
     // Success rate 0.75 -> 75%, coverage 0.5 -> 50%, time 42.4s.
     expect(await screen.findByText("75%")).toBeInTheDocument()
@@ -101,195 +144,91 @@ describe("ReportView (Estágio 6 — relatório de execução, Req. 10.6, 10.7, 
     expect(screen.getByText("42.4s")).toBeInTheDocument()
     // 3 / 4 technique ratio detail is shown alongside the success rate.
     expect(screen.getByText("3 / 4")).toBeInTheDocument()
+
+    // Failed-node COUNT card (not the nodes themselves): the label is present
+    // and the value equals `failed_nodes.length` (1), without listing node ids.
+    expect(screen.getByText("Nós que falharam")).toBeInTheDocument()
+    expect(screen.getByText("1")).toBeInTheDocument()
+    expect(metricas).not.toHaveTextContent("n2")
   })
 
-  it("renders the failure verdict and the deprovisioning flag (Req. 15.6, 12)", async () => {
+  it("não renderiza os blocos verdict, failed-nodes e telemetry (Req. 5.1, 6.1, 7.4)", async () => {
     getMock.mockResolvedValue(makeReport())
 
-    const { container } = renderWithI18n(<ReportView campaignId="shadowray" />)
+    const { container } = renderWithI18n(
+      <ReportView campaignId="shadowray" executionFinished={true} />,
+    )
 
     await waitFor(() => expect(getMock).toHaveBeenCalled())
+
+    expect(container.querySelector('[data-section="verdict"]')).toBeNull()
     expect(
-      container.querySelector('[data-verdict="falha"]'),
-    ).not.toBeNull()
-    expect(
-      container.querySelector('[data-deprovisioned="true"]'),
-    ).toHaveTextContent(/desprovisionado/i)
+      container.querySelector('[data-section="failed-nodes"]'),
+    ).toBeNull()
+    expect(container.querySelector('[data-section="telemetry"]')).toBeNull()
+    // The removed verdict markers are gone as well.
+    expect(container.querySelector("[data-verdict]")).toBeNull()
   })
 
-  it("renders the failed DAG nodes (Req. 10.6, 15.4)", async () => {
+  it("renderiza o bloco de desprovisionamento por último, indicando sucesso (Req. 7.2, 7.3)", async () => {
     getMock.mockResolvedValue(makeReport())
 
-    const { container } = renderWithI18n(<ReportView campaignId="shadowray" />)
-
-    await waitFor(() => expect(getMock).toHaveBeenCalled())
-    const section = container.querySelector('[data-section="failed-nodes"]')
-    expect(section).toHaveTextContent("n2")
-  })
-
-  it("renders per-technique telemetry with status, failing step and signals (Req. 15.2, 15.4, 15.7)", async () => {
-    getMock.mockResolvedValue(makeReport())
-
-    const { container } = renderWithI18n(<ReportView campaignId="shadowray" />)
+    const { container } = renderWithI18n(
+      <ReportView campaignId="shadowray" executionFinished={true} />,
+    )
 
     await waitFor(() => expect(getMock).toHaveBeenCalled())
 
-    // Both techniques appear with their status pills.
-    const t1190 = container.querySelector('[data-technique="T1190"]')
-    const t1059 = container.querySelector('[data-technique="T1059"]')
-    expect(t1190).not.toBeNull()
-    expect(t1059).not.toBeNull()
-    expect(t1190?.querySelector('[data-status="sucesso"]')).not.toBeNull()
-    expect(t1059?.querySelector('[data-status="falha"]')).not.toBeNull()
+    const sections = Array.from(container.querySelectorAll("[data-section]"))
+    const metricasIdx = sections.findIndex(
+      (el) => el.getAttribute("data-section") === "metricas",
+    )
+    const teardownIdx = sections.findIndex(
+      (el) => el.getAttribute("data-section") === "desprovisionamento",
+    )
+    // Both present and the deprovisioning block comes after the metrics.
+    expect(metricasIdx).toBeGreaterThanOrEqual(0)
+    expect(teardownIdx).toBeGreaterThan(metricasIdx)
 
-    // Telemetry signals and the failing step surface in the card.
-    expect(screen.getByText("processo iniciado")).toBeInTheDocument()
-    expect(screen.getByText("porta 8265 acessada")).toBeInTheDocument()
-    expect(t1059).toHaveTextContent(/coleta/)
+    const teardown = sections[teardownIdx]
+    expect(teardown).toHaveTextContent("Ambiente desprovisionado")
+    // On success there are no remaining resources listed.
+    expect(teardown).not.toHaveTextContent("Recursos remanescentes")
   })
 
-  it("renders zeroed metrics for a case with no execution without error", async () => {
+  it("lista os recursos remanescentes quando o desprovisionamento falha (Req. 7.2, 7.3)", async () => {
     getMock.mockResolvedValue(
       makeReport({
-        metrics: makeMetrics({
-          total_dag_techniques: 0,
-          successful_techniques: 0,
-          success_rate: 0,
-          procedural_coverage: 0,
-          total_time_s: null,
-          per_technique: [],
-          failed_nodes: [],
-          success_verdict: false,
-        }),
         environment_deprovisioned: false,
-      }),
-    )
-
-    const { container } = renderWithI18n(<ReportView campaignId="shadowray" />)
-
-    await waitFor(() => expect(getMock).toHaveBeenCalled())
-    // Two 0% metrics (success rate + coverage) and an em dash for null time.
-    expect(screen.getAllByText("0%").length).toBeGreaterThanOrEqual(2)
-    expect(screen.getByText("—")).toBeInTheDocument()
-    expect(
-      container.querySelector('[data-section="telemetry"]'),
-    ).toHaveTextContent(/Nenhuma telemetria/)
-  })
-
-  it("normalizes a non-terminal technique to falha and keeps the invariants (Req. 3.4)", async () => {
-    // A divergent/stale payload that reaches the view with non-terminal entries:
-    // one `pendente` and one `em_execucao`, plus a genuine `falha` and a
-    // `sucesso`. A FINAL report must never render a non-terminal status; the view
-    // normalizes every non-success to `falha` and recomputes the counts so the
-    // Req. 3.4 invariants hold.
-    getMock.mockResolvedValue(
-      makeReport({
-        metrics: makeMetrics({
-          // Deliberately inconsistent inputs: the normalizer must override these.
-          total_dag_techniques: 99,
-          successful_techniques: 99,
-          success_rate: 1,
-          success_verdict: true,
-          per_technique: [
-            {
-              technique_id: "T1190",
-              node_id: "n1",
-              status: "sucesso",
-              failed_step: null,
-              execution_time_s: 12.3,
-              telemetry: [],
-            },
-            {
-              technique_id: "T1203",
-              node_id: "n2",
-              status: "pendente",
-              failed_step: null,
-              execution_time_s: null,
-              telemetry: [],
-            },
-            {
-              technique_id: "T1083",
-              node_id: "n3",
-              status: "em_execucao",
-              failed_step: null,
-              execution_time_s: null,
-              telemetry: [],
-            },
-            {
-              technique_id: "T1059",
-              node_id: "n4",
-              status: "falha",
-              failed_step: "coleta",
-              execution_time_s: 3,
-              telemetry: [],
-            },
-          ],
-          // Deliberately wrong failed_nodes: the normalizer must rebuild it.
-          failed_nodes: [],
+        deprovisioning: makeDeprovisioning({
+          deprovisioned: false,
+          remaining_resources: ["vm-attacker", "net-lab"],
         }),
       }),
     )
 
-    const { container } = renderWithI18n(<ReportView campaignId="shadowray" />)
+    const { container } = renderWithI18n(
+      <ReportView campaignId="shadowray" executionFinished={true} />,
+    )
 
     await waitFor(() => expect(getMock).toHaveBeenCalled())
 
-    // (d) No technique is ever rendered in a non-terminal state: the status pills
-    // only carry terminal values, and no `pendente`/`em_execucao` pill exists.
-    const statusPills = Array.from(
-      container.querySelectorAll("[data-status]"),
-    ).map((el) => el.getAttribute("data-status"))
-    expect(statusPills.length).toBe(4)
-    expect(statusPills).not.toContain("pendente")
-    expect(statusPills).not.toContain("em_execucao")
-    for (const status of statusPills) {
-      expect(["sucesso", "falha"]).toContain(status)
-    }
-
-    // The non-terminal techniques are normalized to `falha`.
-    expect(
-      container
-        .querySelector('[data-technique="T1203"]')
-        ?.querySelector('[data-status="falha"]'),
-    ).not.toBeNull()
-    expect(
-      container
-        .querySelector('[data-technique="T1083"]')
-        ?.querySelector('[data-status="falha"]'),
-    ).not.toBeNull()
-
-    // (b) total == per_technique length (4) and the per-state counts sum to it:
-    // 1 success + 3 failures (one genuine + two normalized). The ratio detail
-    // reflects the recomputed success/total, not the bogus 99/99 input.
-    const successPills = statusPills.filter((s) => s === "sucesso")
-    const failurePills = statusPills.filter((s) => s === "falha")
-    expect(successPills.length).toBe(1)
-    expect(failurePills.length).toBe(3)
-    expect(successPills.length + failurePills.length).toBe(statusPills.length)
-    expect(screen.getByText("1 / 4")).toBeInTheDocument()
-
-    // (c) failed-node count equals the number of `falha` techniques (3), rebuilt
-    // from the normalized entries (n2, n3, n4) — the bogus empty input is ignored.
-    const failedNodesSection = container.querySelector(
-      '[data-section="failed-nodes"]',
+    const teardown = container.querySelector(
+      '[data-section="desprovisionamento"]',
     )
-    expect(failedNodesSection?.querySelectorAll("li").length).toBe(3)
-    expect(failedNodesSection).toHaveTextContent("n2")
-    expect(failedNodesSection).toHaveTextContent("n3")
-    expect(failedNodesSection).toHaveTextContent("n4")
-
-    // (a) success_rate / verdict are derived deterministically from the counts:
-    // 1/4 == 25% and the verdict is `falha` (not every technique succeeded),
-    // overriding the inconsistent success_rate=1 / verdict=true inputs.
-    expect(screen.getByText("25%")).toBeInTheDocument()
-    expect(container.querySelector('[data-verdict="falha"]')).not.toBeNull()
-    expect(container.querySelector('[data-verdict="sucesso"]')).toBeNull()
+    expect(teardown).not.toBeNull()
+    expect(teardown).toHaveTextContent("Ambiente não desprovisionado")
+    expect(teardown).toHaveTextContent(
+      "Recursos remanescentes: vm-attacker, net-lab",
+    )
   })
 
   it("surfaces the pt-BR load error when the report fails to load", async () => {
     getMock.mockRejectedValue(new Error("boom"))
 
-    renderWithI18n(<ReportView campaignId="shadowray" />)
+    renderWithI18n(
+      <ReportView campaignId="shadowray" executionFinished={true} />,
+    )
 
     await screen.findByText("Não foi possível carregar os dados deste estágio.")
   })

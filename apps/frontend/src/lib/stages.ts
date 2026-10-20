@@ -503,8 +503,15 @@ export interface OperationChannelHandlers {
   onFrame: (frame: OperationFrame) => void
   /** Fired on connect and on every successful reconnect (Req. 2.8). */
   onOpen?: () => void
-  /** Fired when the socket drops (connection lost, Req. 2.8). */
-  onClose?: () => void
+  /**
+   * Fired when the socket closes. ``clean`` is ``true`` when the backend closed
+   * the stream **normally** (code 1000) — i.e. the Operation reached a terminal
+   * state and there is nothing more to stream — and ``false`` on an abnormal /
+   * network drop. The Stage-6 "connection lost" banner must only show on an
+   * abnormal close (``clean === false``); a terminal close is the expected end
+   * of a finished Operation, not a lost connection (Req. 2.8).
+   */
+  onClose?: (clean: boolean) => void
 }
 
 /**
@@ -527,7 +534,9 @@ export function connectOperation(
     {
       onMessage: resolved.onFrame,
       onOpen: resolved.onOpen,
-      onClose: resolved.onClose ? () => resolved.onClose?.() : undefined,
+      onClose: resolved.onClose
+        ? (event) => resolved.onClose?.(event.code === 1000)
+        : undefined,
     },
   )
 }
@@ -977,6 +986,12 @@ export interface HealthSummary {
  *
  * `stream` stays open (`string & {}`) for new values without breaking the
  * contract; the known ones are `comando` | `stdout` | `stderr` | `info`.
+ *
+ * `substage` marks which Stage-5 sub-stage emitted the line — `"5.1"` (Build
+ * online) or `"5.2"` (Runtime isolated) — mirroring the backend `LogLineView`
+ * projection (stage5-target-provisioning, Req. 6.3). It is `null`/absent for the
+ * **inherited** steps (`subir_conteineres`/`aguardar_saude`/…), so older frames
+ * and buffers remain valid.
  */
 export interface LogLineView {
   /** Monotonic sequence per campaign (for dedupe/reorder on reconnect). */
@@ -989,6 +1004,8 @@ export interface LogLineView {
   text: string
   /** ISO timestamp (naive-UTC on the backend) of the line. */
   at: string
+  /** Stage-5 sub-stage that emitted the line (`"5.1"`/`"5.2"`); `null`/absent for inherited steps. */
+  substage?: string | null
 }
 
 /**
@@ -1015,14 +1032,58 @@ export interface IsolationSummary {
 }
 
 /**
+ * Egress verdict of **one** target container
+ * (backend `EgressVerdictView`, stage5-target-provisioning, Req. 5.4, 8.1).
+ *
+ * Records whether egress was **positively verified as lost** (`egress_lost`) and
+ * whether the read-only probe that produced it was `conclusive`. The
+ * `verificar_egresso` step consumes these before applying any offline setup —
+ * fail-closed: a non-conclusive probe is treated as egress-present (Req. 5.5).
+ */
+export interface EgressVerdictView {
+  container: string
+  /** `true` iff the external probe failed → egress is lost (approves). */
+  egress_lost: boolean
+  /** `true` iff the probe produced a definite result (else fail-closed). */
+  conclusive: boolean
+  /** Readable reason/outcome of the probe; empty when not applicable. */
+  reason: string
+}
+
+/**
+ * Outcome of the Stage-5 sub-stages 5.1 (Build online) / 5.2 (Runtime isolated)
+ * (backend `SubStageSummary`, stage5-target-provisioning, Req. 6.3).
+ *
+ * Backs the prerequisites checklist's new items ("online prerequisites
+ * obtained", "egress lost (verified)") and keeps "isolation approved". All
+ * flags default to `false` (not yet reached); `egress_verdicts` carries the
+ * per-host detail behind `egress_lost_verified`.
+ */
+export interface SubStageSummary {
+  /** `true` iff sub-stage 5.1 (Build online) completed for all hosts. */
+  build_online_ok: boolean
+  /** `true` iff the egress window was closed for all hosts (no egress left open). */
+  egress_closed: boolean
+  /** `true` iff the loss of egress was positively verified for all hosts (fail-closed). */
+  egress_lost_verified: boolean
+  /** `true` iff the offline setup (5.2) was applied for all hosts. */
+  offline_applied: boolean
+  /** Per-host egress verdicts, in probe order — the detail behind `egress_lost_verified`. */
+  egress_verdicts: EgressVerdictView[]
+}
+
+/**
  * Stage 5 Output — environment ready and isolated
  * (backend `ProvisionedEnvironment`, Req. 6.1, 9.8). Stage 5 only completes when
- * `health.approved`, `isolation.approved` **and** `loaded_abilities` are `true`
- * (Req. 9.6, 9.9); otherwise Stage 6 stays blocked. The `origin` is extensible
- * (Req. 16.3, 16.4).
+ * `health.approved`, `isolation.approved`, `loaded_abilities` **and** the new
+ * sub-stage gates (`substages.build_online_ok`, `substages.egress_lost_verified`,
+ * `substages.offline_applied`) are satisfied (Req. 9.6, 9.9, 6.3); otherwise
+ * Stage 6 stays blocked. The `origin` is extensible (Req. 16.3, 16.4).
  *
  * When the pipeline fails, `failed_step` names the step that failed
- * (`"subir_conteineres"` | `"aguardar_saude"` | …) and `error_message` carries
+ * (`"subir_conteineres"` | `"aguardar_saude"` | `"build_online"` |
+ * `"encerrar_egresso"` | `"reisolar"` | `"verificar_egresso"` |
+ * `"setup_offline"` | `"verificar_isolamento"` | …) and `error_message` carries
  * the readable cause (consistent with the screen's console/checklist — Req. 7.5).
  */
 export interface ProvisionedEnvironment {
@@ -1034,6 +1095,11 @@ export interface ProvisionedEnvironment {
   health: HealthSummary
   isolation: IsolationSummary
   loaded_abilities: boolean
+  /**
+   * Outcome of the Stage-5 sub-stages 5.1/5.2 (Req. 6.3). Optional and additive:
+   * older snapshots omit it, and its absence must never crash the checklist.
+   */
+  substages?: SubStageSummary | null
   origin: TranslationSource
   /** Pipeline step that failed (`null` when completed without failure). */
   failed_step?: string | null
@@ -1149,14 +1215,25 @@ export type ReportAbilityResult = AbilityResult
 
 /**
  * Stage 6 Output — consolidated report (backend `ExecutionReport`, Req. 10.6,
- * 10.7, 15.7): the {@link SufficiencyMetrics}, the per-Ability results, the
- * deprovisioning flag (Req. 12) and the generation instant.
+ * 10.7, 15.7, 7.3): the {@link SufficiencyMetrics}, the per-Ability results, the
+ * deprovisioning verdict and the generation instant.
+ *
+ * `environment_deprovisioned` is the **legacy** boolean (preserved for
+ * contract compatibility); `deprovisioning` is the richer, structured teardown
+ * verdict ({@link DeprovisioningResult}: `deprovisioned` + `remaining_resources`)
+ * surfaced so a failed teardown can list what remained (Req. 7.3). It is
+ * optional/additive: the backend omits it (`None`) when no teardown has been
+ * registered yet (execution not finished), and an older API without the field
+ * must never break the Report screen.
  */
 export interface ExecutionReport {
   campaign_id: string
   metrics: SufficiencyMetrics
   results: ReportAbilityResult[]
+  /** @deprecated Legacy teardown flag; prefer the structured {@link deprovisioning} (Req. 7.3). */
   environment_deprovisioned: boolean
+  /** Structured teardown verdict (success + remaining resources); absent until the run finishes (Req. 7.3). */
+  deprovisioning?: DeprovisioningResult
   generated_at: string
 }
 

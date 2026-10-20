@@ -877,6 +877,13 @@ class LogLineView(BaseModel):
     to (``comando`` | ``stdout`` | ``stderr`` | ``info``), the ``text`` itself,
     and ``at`` — a naive-UTC timestamp consistent with the module's
     :func:`_utcnow` helper (Req. 2.6).
+
+    For Stage 5 the view also carries ``substage`` — ``"5.1"`` (Build online),
+    ``"5.2"`` (Runtime isolated) or ``None`` for the inherited steps —, propagated
+    from the executor's :class:`LogLine` so the console can label the sub-stage
+    next to the ``step`` (Req. 6.3/6.4). It defaults to ``None``, so the inherited
+    lines and the other stages keep the exact same shape (a pure additive change)
+    and the monotonic ``seq`` is preserved.
     """
 
     seq: int
@@ -884,6 +891,7 @@ class LogLineView(BaseModel):
     stream: str
     text: str
     at: dt.datetime
+    substage: Optional[str] = None
 
 
 class StageProgressEvent(BaseModel):

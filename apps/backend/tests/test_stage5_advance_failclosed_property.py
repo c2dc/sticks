@@ -74,6 +74,7 @@ from app.services.environment.provisioner import (
     ContainerVerdict,
     IsolationSummary,
     ProvisionedEnvironment,
+    SubStageSummary,
 )
 from app.services.environment.stage_service import EnvironmentStageService
 from app.services.stage.stage_service import (
@@ -171,6 +172,15 @@ def _environment(
                 ContainerVerdict(container=c, isolated=isolation_ok)
                 for c in _CONTAINERS
             ],
+        ),
+        # Mirror the real pipeline: when the inherited prerequisites all pass the
+        # sub-stages (5.1/5.2) are satisfied too, so ``ready`` is ``True``; when a
+        # prerequisite fails the early return leaves the sub-stages not approved.
+        substages=SubStageSummary(
+            build_online_ok=failed_step is None,
+            egress_closed=failed_step is None,
+            egress_lost_verified=failed_step is None,
+            offline_applied=failed_step is None,
         ),
         origin=TranslationSource.HUMAN_CURATION,
         failed_step=failed_step,

@@ -106,6 +106,8 @@ export interface LogLineFrame {
   text: string
   /** ISO timestamp (naive-UTC on the backend) of the line. */
   at: string
+  /** Stage-5 sub-stage that emitted the line (`"5.1"`/`"5.2"`); `null`/absent for inherited steps. */
+  substage?: string | null
 }
 
 /**
