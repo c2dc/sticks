@@ -254,10 +254,19 @@
         "etapas": {
           "subir_conteineres": "Bring up containers",
           "aguardar_saude": "Wait for health",
+          "build_online": "Build (online)",
+          "encerrar_egresso": "Close egress",
+          "reisolar": "Re-isolate",
+          "verificar_egresso": "Verify egress",
+          "setup_offline": "Setup (offline)",
           "carregar_abilities": "Load Abilities",
           "verificar_isolamento": "Verify isolation",
           "desprovisionar": "Tear down",
           "concluir": "Finish"
+        },
+        "subetapas": {
+          "s51": "5.1 Build/online",
+          "s52": "5.2 Runtime/isolated"
         },
         "fluxo": {
           "comando": "Command",
@@ -269,6 +278,8 @@
       "prerequisitos": {
         "titulo": "Execution prerequisites",
         "conteineresSaudaveis": "Healthy containers",
+        "prerequisitosOnline": "Online prerequisites obtained",
+        "egressoPerdido": "Egress lost (verified)",
         "abilitiesCarregadas": "Abilities loaded in Caldera",
         "isolamentoAprovado": "Isolation approved",
         "pendente": "Pending",

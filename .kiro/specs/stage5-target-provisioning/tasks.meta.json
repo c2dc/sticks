@@ -1,0 +1,386 @@
+{
+  "pbtResults": {
+    "1.1 Teste de propriedade — classificação estável e segura por padrão": {
+      "status": "passed",
+      "lastRunTimestamp": 1792377661033
+    }
+  },
+  "executionHistory": {
+    "1.1 Teste de propriedade — classificação estável e segura por padrão": [
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792377528146
+      },
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792377543176
+      },
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792378040747
+      }
+    ],
+    "1.2 Teste de exemplo — split do `shadowray_suta.sh` real": [
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792377528577
+      },
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792377544149
+      },
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792378042031
+      }
+    ],
+    "2.1 Teste de exemplo — contrato das novas operações (fake)": [
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792377528923
+      },
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792378056190
+      },
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792378263386
+      }
+    ],
+    "3.1 Teste de propriedade — invariante de contenção (nunca egresso + ataque juntos)": [
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792377529270
+      },
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792378058443
+      },
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792378265208
+      }
+    ],
+    "4.1 Teste de propriedade — verificação positiva antes de qualquer setup offline": [
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792377529701
+      },
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792378273448
+      },
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792378524026
+      }
+    ],
+    "4.2 Teste de exemplo — fail-closed da sonda": [
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792377530103
+      },
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792378447440
+      },
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792378524733
+      }
+    ],
+    "5.1 Teste de exemplo — aplica apenas os comandos da fase": [
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792377530458
+      },
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792378057568
+      },
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792378266144
+      }
+    ],
+    "6.1 Teste de exemplo — compatibilidade e `ready` estendido": [
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792377530792
+      },
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792377545308
+      },
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792378042875
+      }
+    ],
+    "7.1 Teste de propriedade — ordem estrita 5.1 antes de 5.2": [
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792377531166
+      },
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792378537739
+      },
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792379792158
+      }
+    ],
+    "7.2 Teste de propriedade — portão de isolamento fail-closed como pré-condição": [
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792377531515
+      },
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792379800283
+      },
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792380063675
+      }
+    ],
+    "7.3 Teste de exemplo — cada `failed_step` novo e estado seguro": [
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792377531855
+      },
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792379801344
+      },
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792380064504
+      }
+    ],
+    "8.1 Teste de propriedade — falha nunca deixa um alvo com egresso": [
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792377532187
+      },
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792380397805
+      },
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792380608256
+      }
+    ],
+    "8.2 Teste de propriedade — idempotência da re-execução": [
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792377532550
+      },
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792380073531
+      },
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792380609316
+      }
+    ],
+    "9. Checkpoint — resolvedor de sub-etapas e invariantes do backend passam": [
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792377532888
+      },
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792380614351
+      },
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792381470351
+      }
+    ],
+    "10.1 Teste de exemplo — teardown remove a rede de egresso e mapeia resíduos": [
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792377533236
+      },
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792381478133
+      },
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792382444047
+      }
+    ],
+    "11.1 Teste — console e checklist refletem as sub-etapas": [
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792377533605
+      },
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792381478944
+      },
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792382444885
+      }
+    ],
+    "11.2 Teste de propriedade — paridade de chaves i18n pt-BR/en": [
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792377533959
+      },
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792382450088
+      },
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792382567638
+      }
+    ],
+    "12. Checkpoint final — suíte completa (backend + frontend) passa": [
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792377534301
+      },
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792382572663
+      },
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792383987289
+      }
+    ],
+    "1. Classificação determinística online/offline dos comandos de `vulnerabilities`": [
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792378042316
+      }
+    ],
+    "6. Estender os modelos de saída: `LogLine.substage`, `SubStageSummary`, `ProvisionedEnvironment`": [
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792378043149
+      }
+    ],
+    "2. Estender o `ComposeExecutor` com operações de rede e `exec`": [
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792378263688
+      }
+    ],
+    "3. `EgressWindow` — abertura/encerramento da janela de egresso (uma via por vez)": [
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792378265466
+      }
+    ],
+    "5. `TargetSetup` — aplicação do setup por fase (online/offline)": [
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792378266426
+      }
+    ],
+    "4. `EgressProber` — sonda positiva read-only de perda de egresso": [
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792378525028
+      }
+    ],
+    "7. Orquestrar as sub-etapas 5.1/5.2 no corpo de `CurationEnvironmentProvisioner.provision`": [
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792380064770
+      }
+    ],
+    "8. Tratamento de falhas sem estado inseguro (`_fail_safe`) e re-execução idempotente": [
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792380609567
+      }
+    ],
+    "10. Desprovisionamento cobrindo o que 5.1/5.2 criaram": [
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792382444328
+      }
+    ],
+    "11. Frontend — rótulo de sub-etapa no console e checklist de pré-requisitos": [
+      {
+        "executionId": "2d79fbbb-cabb-40eb-9304-5699067ffa51",
+        "chatSessionId": "sess_30ff1d49-2e55-4f58-a708-1fe2379039fc",
+        "timestamp": 1792382567901
+      }
+    ]
+  }
+}

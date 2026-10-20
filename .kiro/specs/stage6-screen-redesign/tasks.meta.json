@@ -1,0 +1,443 @@
+{
+  "pbtResults": {
+    "2.4 Escrever teste de propriedade para o tempo total (Hypothesis)": {
+      "status": "passed",
+      "lastRunTimestamp": 1792458071214
+    }
+  },
+  "executionHistory": {
+    "1.1 Estender o schema de `execution_reports` com o teardown": [
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792457109469
+      },
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792457123116
+      },
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792457426631
+      }
+    ],
+    "1.2 Criar a migração Alembic para as novas colunas": [
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792457109726
+      },
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792457437830
+      },
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792457607726
+      }
+    ],
+    "1.3 Escrever testes unitários da persistência do teardown": [
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792457109931
+      },
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792457439074
+      },
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792457608852
+      }
+    ],
+    "2.1 Estender a view de leitura das Operations com timestamps": [
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792457110134
+      },
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792457124418
+      },
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792457427829
+      }
+    ],
+    "2.2 Calcular e injetar `total_time_s` em `get_report`": [
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792457110352
+      },
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792457440509
+      },
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792457605384
+      }
+    ],
+    "2.3 Adicionar o objeto `deprovisioning` ao payload do relatório": [
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792457110581
+      },
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792457616209
+      },
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792457819597
+      }
+    ],
+    "2.4 Escrever teste de propriedade para o tempo total (Hypothesis)": [
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792457110805
+      },
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792457915092
+      },
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792458244066
+      }
+    ],
+    "2.5 Escrever teste de API do `GET /report`": [
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792457111016
+      },
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792457916468
+      },
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792458245172
+      }
+    ],
+    "3. Checkpoint - Garantir que o backend passa nos testes": [
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792457111221
+      },
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792458495449
+      },
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792459239315
+      }
+    ],
+    "4.1 Adicionar `deprovisioning` ao `ExecutionReport` do cliente": [
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792457111439
+      },
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792457617575
+      },
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792457818357
+      }
+    ],
+    "5.1 Converter o layout de grid para linhas horizontais": [
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792457111667
+      },
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792457125399
+      },
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792457428973
+      }
+    ],
+    "5.2 Remover o bloco Output": [
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792457111937
+      },
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792457126681
+      },
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792457430199
+      }
+    ],
+    "5.3 Emitir o sinal de término da execução": [
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792457112141
+      },
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792457441575
+      },
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792457606471
+      }
+    ],
+    "5.4 Escrever testes RTL do `Stage3View`": [
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792457112368
+      },
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792457917452
+      },
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792458241518
+      }
+    ],
+    "6.1 Adicionar a prop de gating e condicionar a busca/renderização": [
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792457112573
+      },
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792457618554
+      },
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792457820657
+      }
+    ],
+    "6.2 Remover os blocos verdict, Failed Nodes e Telemetry by Technique": [
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792457112804
+      },
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792457127519
+      },
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792457431284
+      }
+    ],
+    "6.3 Manter os quatro cards de métricas com tempo real e contagem de falhas": [
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792457113018
+      },
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792457442568
+      },
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792457610009
+      }
+    ],
+    "6.4 Adicionar o bloco \"Relatório de desprovisionamento\" por último": [
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792457113249
+      },
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792457619649
+      },
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792457909155
+      }
+    ],
+    "6.5 Escrever teste de propriedade para o gating (fast-check)": [
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792457113472
+      },
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792457918869
+      },
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792458242820
+      }
+    ],
+    "6.6 Escrever testes RTL do `ReportView`": [
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792457113689
+      },
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792457919724
+      },
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792458246132
+      }
+    ],
+    "7.1 Conectar o gating entre `Stage3View` e `ReportView`": [
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792457113912
+      },
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792458256959
+      },
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792458320653
+      }
+    ],
+    "7.2 Escrever teste RTL de integração do Estágio 6": [
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792457114132
+      },
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792458327192
+      },
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792458477786
+      }
+    ],
+    "8. Checkpoint final - Garantir que todos os testes passam": [
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792457114379
+      },
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792459247815
+      },
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792459976226
+      }
+    ],
+    "1. Persistir o resultado de desprovisionamento (backend)": [
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792457609067
+      }
+    ],
+    "4. Atualizar os tipos do cliente (`stages.ts`)": [
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792457818610
+      }
+    ],
+    "5. Reorganizar `Stage3View` (Input + Processing em linhas)": [
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792458241741
+      }
+    ],
+    "2. Expor tempo total real e desprovisionamento no `GET /report` (backend)": [
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792458245427
+      }
+    ],
+    "6. Reorganizar `ReportView` (métricas + desprovisionamento com gating)": [
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792458246382
+      }
+    ],
+    "7. Fiação da composição do Estágio 6 (`ExecutionWizard`)": [
+      {
+        "executionId": "65da792e-ac96-449f-8118-542c6c6d9dff",
+        "chatSessionId": "sess_92927a0d-de07-4d6a-92dd-83c32c0a41f7",
+        "timestamp": 1792458478039
+      }
+    ]
+  }
+}

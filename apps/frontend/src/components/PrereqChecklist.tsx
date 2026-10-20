@@ -10,39 +10,51 @@ import type {
   HealthSummary,
   ContainerVerdict,
   HealthVerdict,
+  SubStageSummary,
+  EgressVerdictView,
 } from "@/lib/stages"
 
 /**
- * PrereqChecklist — Stage 5 prerequisites confirmation (Req. 5.6, 7.2–7.4).
+ * PrereqChecklist — Stage 5 prerequisites confirmation (Req. 5.6, 6.3, 6.4,
+ * 7.2–7.4, 8.2).
  *
- * Lists the **three** execution prerequisites that must be satisfied and
- * verified before unlocking Stage 6 (Req. 5.6):
+ * Lists the execution prerequisites that must be satisfied and verified before
+ * unlocking Stage 6 (Req. 5.6, 6.3). Besides the three inherited items, the
+ * stage5-target-provisioning sub-stages add two more (Req. 6.3):
  *
  * 1. **Healthy containers** — derived from `health: HealthSummary`; on failure
  *    the per-container `HealthVerdict`s carry the `reason` of the failing
- *    container.
- * 2. **Abilities loaded into Caldera** — derived from `abilitiesLoaded`.
- * 3. **Isolation approved** — derived from `isolation: IsolationSummary`; on
+ *    container. Steps `subir_conteineres`/`aguardar_saude`.
+ * 2. **Online prerequisites obtained** (NEW, sub-stage 5.1) — derived from
+ *    `substages.build_online_ok`; steps `build_online`/`encerrar_egresso`.
+ * 3. **Egress lost (verified)** (NEW, sub-stage 5.2) — derived from
+ *    `substages.egress_lost_verified`; steps `reisolar`/`verificar_egresso`/
+ *    `setup_offline`.
+ * 4. **Abilities loaded into Caldera** — derived from `abilitiesLoaded`; step
+ *    `carregar_abilities`.
+ * 5. **Isolation approved** — derived from `isolation: IsolationSummary`; on
  *    failure the `ContainerVerdict`s name the non-isolated container and the
- *    `reasons` for the failure (Req. 7.4).
+ *    `reasons` for the failure (Req. 7.4). Step `verificar_isolamento`.
  *
  * Each item has exactly one of three states — `pendente` / `ok` / `falha`
  * (Req. 5.6). The per-item derivation (see {@link derivePrereqStates}) combines
- * the failing step (`failedStep`) with the health/abilities/isolation data and
- * the aggregate stage state:
+ * the failing step (`failedStep`) with the health/substages/abilities/isolation
+ * data and the aggregate stage state:
  *
- * - When `state === "concluido"`, all three items are `ok`.
+ * - When `state === "concluido"`, all items are `ok`.
  * - When `failedStep` identifies an item's step, that item is `falha` (with the
  *   cause), the **preceding** items that passed are `ok` and the **following**
  *   ones are `pendente`.
- * - Otherwise, it uses the data: `health.approved`, `abilitiesLoaded`,
- *   `isolation.approved` → `ok`/`falha`/`pendente`.
- * - When nothing ran yet (`state === "nao_iniciado"` with no data), all three
+ * - Otherwise, it uses the data: `health.approved`, `substages.build_online_ok`,
+ *   `substages.egress_lost_verified`, `abilitiesLoaded`, `isolation.approved` →
+ *   `ok`/`falha`/`pendente`.
+ * - When nothing ran yet (`state === "nao_iniciado"` with no data), all items
  *   are `pendente`.
  *
  * On any `falha` (or `state === "erro"`), it shows a clear **Stage 6 blocked**
- * indicator (Req. 7.2, 7.3). When all three are `ok` (`state === "concluido"`),
- * it shows the confirmation that the environment is ready (Req. 5.6).
+ * indicator (Req. 7.2, 7.3, 8.2). When all items are `ok` (`state ===
+ * "concluido"`), it shows the confirmation that the environment is ready
+ * (Req. 5.6).
  */
 
 /** The state of an individual prerequisite (Req. 5.6). */
@@ -56,18 +68,26 @@ export type PrereqState = "pendente" | "ok" | "falha"
 export type ProvisioningStep =
   | "subir_conteineres"
   | "aguardar_saude"
+  | "build_online"
+  | "encerrar_egresso"
+  | "reisolar"
+  | "verificar_egresso"
+  | "setup_offline"
   | "carregar_abilities"
   | "verificar_isolamento"
   | "concluir"
   | (string & {})
 
 /**
- * The three steps that map 1:1 to the displayed prerequisites (health,
- * abilities, isolation). It is the key domain {@link derivePrereqStates} always
- * returns — a closed subset of {@link ProvisioningStep}.
+ * The five steps that map 1:1 to the displayed prerequisites (health, online
+ * prerequisites, egress lost, abilities, isolation). It is the key domain
+ * {@link derivePrereqStates} always returns — a closed subset of
+ * {@link ProvisioningStep}.
  */
 export type PrereqStep =
   | "aguardar_saude"
+  | "build_online"
+  | "verificar_egresso"
   | "carregar_abilities"
   | "verificar_isolamento"
 
@@ -81,6 +101,12 @@ export interface PrereqChecklistProps {
   isolation: IsolationSummary
   /** `true` iff the ordered Abilities were loaded into Caldera (Req. 5.2). */
   abilitiesLoaded: boolean
+  /**
+   * Outcome of the Stage-5 sub-stages 5.1/5.2 (Req. 6.3). When omitted, the two
+   * new items ("online prerequisites obtained", "egress lost verified") stay
+   * `pendente` unless a `failedStep`/`state` says otherwise.
+   */
+  substages?: SubStageSummary | null
   /** Step that failed (`null`/omitted when there is no failure) (Req. 7.1, 7.2). */
   failedStep?: string | null
   /** Readable failure cause (`null`/omitted when there is no failure) (Req. 7.2). */
@@ -96,7 +122,12 @@ export interface PrereqChecklistProps {
 /** The visual/semantic identity of each of the three prerequisites. */
 interface ChecklistItem {
   /** Stable key (also used as the list `key`). */
-  id: "conteineresSaudaveis" | "abilitiesCarregadas" | "isolamentoAprovado"
+  id:
+    | "conteineresSaudaveis"
+    | "prerequisitosOnline"
+    | "egressoPerdido"
+    | "abilitiesCarregadas"
+    | "isolamentoAprovado"
   /** Pipeline step that decides this item (to match `failedStep`). */
   step: ProvisioningStep
   state: PrereqState
@@ -119,46 +150,87 @@ const STATE_VISUAL: Record<
   pendente: { Icon: Circle, color: "text-muted-foreground", statusKey: "pendente" },
 }
 
-/** Canonical order of the three prerequisites (reflects the pipeline order). */
+/**
+ * Canonical order of the five prerequisites (reflects the pipeline order:
+ * health → 5.1 build online → 5.2 runtime egress loss → abilities → isolation).
+ */
 const STEP_ORDER: readonly PrereqStep[] = [
   "aguardar_saude",
+  "build_online",
+  "verificar_egresso",
   "carregar_abilities",
   "verificar_isolamento",
 ]
 
 /**
- * Derive the state (`pendente`/`ok`/`falha`) of the three prerequisites from the
- * aggregate state, the failing step and the health/abilities/isolation data
- * (see the {@link PrereqChecklist} doc). Exported for testing (task 8.3).
+ * Collapse a raw `failed_step` onto the {@link PrereqStep} of the item it should
+ * highlight. The pipeline has more steps than displayed items, so several steps
+ * fold into the same item:
+ *
+ * - `subir_conteineres` → `aguardar_saude` (fails before health).
+ * - `build_online` / `encerrar_egresso` → `build_online` (sub-stage 5.1).
+ * - `reisolar` / `verificar_egresso` / `setup_offline` → `verificar_egresso`
+ *   (sub-stage 5.2, egress loss verified then offline setup).
+ * - `carregar_abilities` → itself.
+ * - `verificar_isolamento` → itself.
+ */
+function failedStepToItem(failedStep: string | null | undefined): PrereqStep | null {
+  switch (failedStep) {
+    case "subir_conteineres":
+    case "aguardar_saude":
+      return "aguardar_saude"
+    case "build_online":
+    case "encerrar_egresso":
+      return "build_online"
+    case "reisolar":
+    case "verificar_egresso":
+    case "setup_offline":
+      return "verificar_egresso"
+    case "carregar_abilities":
+      return "carregar_abilities"
+    case "verificar_isolamento":
+      return "verificar_isolamento"
+    default:
+      return null
+  }
+}
+
+/**
+ * Derive the state (`pendente`/`ok`/`falha`) of the five prerequisites from the
+ * aggregate state, the failing step and the health/substages/abilities/isolation
+ * data (see the {@link PrereqChecklist} doc). Exported for testing.
  */
 export function derivePrereqStates({
   state,
   health,
   isolation,
   abilitiesLoaded,
+  substages,
   failedStep,
 }: {
   state: StageState
   health: HealthSummary
   isolation: IsolationSummary
   abilitiesLoaded: boolean
+  substages?: SubStageSummary | null
   failedStep?: string | null
 }): Record<PrereqStep, PrereqState> {
-  // Concluded: the three prerequisites passed (Req. 5.5, 5.6).
+  // Concluded: every prerequisite passed (Req. 5.5, 5.6, 6.3).
   if (state === "concluido") {
     return {
       aguardar_saude: "ok",
+      build_online: "ok",
+      verificar_egresso: "ok",
       carregar_abilities: "ok",
       verificar_isolamento: "ok",
     }
   }
 
-  // The failing step maps to the prerequisite; `subir_conteineres` fails before
-  // health, so it fails the healthy-containers item.
-  const itemStep = failedStep === "subir_conteineres" ? "aguardar_saude" : failedStep
+  // The failing step maps to the prerequisite it should highlight.
+  const itemStep = failedStepToItem(failedStep)
 
-  if (itemStep && STEP_ORDER.includes(itemStep as PrereqStep)) {
-    const failIndex = STEP_ORDER.indexOf(itemStep as PrereqStep)
+  if (itemStep) {
+    const failIndex = STEP_ORDER.indexOf(itemStep)
     const result = {} as Record<PrereqStep, PrereqState>
     STEP_ORDER.forEach((step, index) => {
       // Items before the failure passed; the failing item is `falha`;
@@ -176,6 +248,10 @@ export function derivePrereqStates({
     : health.verdicts.length > 0
       ? "falha"
       : "pendente"
+  const onlineState: PrereqState = substages?.build_online_ok ? "ok" : "pendente"
+  const egressState: PrereqState = substages?.egress_lost_verified
+    ? "ok"
+    : "pendente"
   const abilitiesState: PrereqState = abilitiesLoaded ? "ok" : "pendente"
   const isolationState: PrereqState = isolation.approved
     ? "ok"
@@ -185,6 +261,8 @@ export function derivePrereqStates({
 
   return {
     aguardar_saude: healthState,
+    build_online: onlineState,
+    verificar_egresso: egressState,
     carregar_abilities: abilitiesState,
     verificar_isolamento: isolationState,
   }
@@ -211,11 +289,25 @@ function isolationReason(verdicts: readonly ContainerVerdict[]): string | null {
     .join(" · ")
 }
 
+/**
+ * Build the readable reason per host whose egress loss was NOT positively
+ * verified (egress still present or the probe was non-conclusive — fail-closed),
+ * naming the container and the probe outcome (Req. 8.2, 5.5).
+ */
+function egressReason(verdicts: readonly EgressVerdictView[]): string | null {
+  const failing = verdicts.filter((v) => !(v.egress_lost && v.conclusive))
+  if (failing.length === 0) return null
+  return failing
+    .map((v) => `${v.container}: ${v.reason}`.trim().replace(/:\s*$/, ""))
+    .join(" · ")
+}
+
 export function PrereqChecklist({
   state,
   health,
   isolation,
   abilitiesLoaded,
+  substages,
   failedStep,
   errorMessage,
   stage6Blocked,
@@ -228,14 +320,21 @@ export function PrereqChecklist({
     health,
     isolation,
     abilitiesLoaded,
+    substages,
     failedStep,
   })
 
   // Per-item cause: prefers the `errorMessage` of the failing step; completes
-  // with the per-container reasons (health/isolation) to name the offender.
+  // with the per-container reasons (health/isolation/egress) to name the offender.
   const healthCause =
     states.aguardar_saude === "falha"
       ? healthReason(health.verdicts) ?? errorMessage ?? null
+      : null
+  const onlineCause =
+    states.build_online === "falha" ? errorMessage ?? null : null
+  const egressCause =
+    states.verificar_egresso === "falha"
+      ? egressReason(substages?.egress_verdicts ?? []) ?? errorMessage ?? null
       : null
   const abilitiesCause =
     states.carregar_abilities === "falha" ? errorMessage ?? null : null
@@ -254,6 +353,24 @@ export function PrereqChecklist({
       }),
       cause: healthCause,
       health: health.verdicts,
+    },
+    {
+      id: "prerequisitosOnline",
+      step: "build_online",
+      state: states.build_online,
+      label: t("stage5.provisionamento.prerequisitos.prerequisitosOnline", {
+        defaultValue: "Pré-requisitos online obtidos",
+      }),
+      cause: onlineCause,
+    },
+    {
+      id: "egressoPerdido",
+      step: "verificar_egresso",
+      state: states.verificar_egresso,
+      label: t("stage5.provisionamento.prerequisitos.egressoPerdido", {
+        defaultValue: "Egresso perdido (verificado)",
+      }),
+      cause: egressCause,
     },
     {
       id: "abilitiesCarregadas",

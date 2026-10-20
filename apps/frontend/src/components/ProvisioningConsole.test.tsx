@@ -93,6 +93,13 @@ describe("ProvisioningConsole (Estágio 5 — terminal de logs ao vivo, Req. 2.3
     })
   }
 
+  /** The sub-stage badge labels (`data-substage`) rendered, top → bottom. */
+  function renderedSubstages(): string[] {
+    const log = screen.getByRole("log")
+    const badges = log.querySelectorAll("[data-substage]")
+    return Array.from(badges).map((el) => el.textContent ?? "")
+  }
+
   it("renders lines in ascending seq order even when frames arrive out of order (Req. 2.3)", async () => {
     renderWithI18n(<ProvisioningConsole campaignId="c0026" />)
 
@@ -198,6 +205,52 @@ describe("ProvisioningConsole (Estágio 5 — terminal de logs ao vivo, Req. 2.3
     await waitFor(() => expect(renderedTexts()).toEqual(["um", "dois", "tres"]))
     // Dedupe by seq: history whole, no duplicates.
     expect(screen.getByRole("log").querySelectorAll("li")).toHaveLength(3)
+  })
+
+  it("renders the sub-stage label (5.1/5.2) in emission order, next to the step (Req. 6.3, 6.4)", async () => {
+    renderWithI18n(<ProvisioningConsole campaignId="c0026" />)
+    await waitFor(() => expect(connectStagesMock).toHaveBeenCalled())
+
+    // An inherited line (no substage), then a 5.1 line, then a 5.2 line.
+    pushFrame([
+      makeLinha({ seq: 1, step: "aguardar_saude", text: "saude ok" }),
+      makeLinha({
+        seq: 2,
+        step: "build_online",
+        substage: "5.1",
+        text: "abrindo janela de egresso",
+      }),
+      makeLinha({
+        seq: 3,
+        step: "verificar_egresso",
+        substage: "5.2",
+        text: "egresso perdido",
+      }),
+    ])
+
+    // Both sub-stage labels appear, in increasing-seq (emission) order; the
+    // inherited line contributes no sub-stage badge.
+    await waitFor(() =>
+      expect(renderedSubstages()).toEqual(["5.1 Build/online", "5.2 Runtime/isolado"]),
+    )
+
+    // The sub-stage marker renders alongside the step label and the text.
+    const substage52 = screen.getByText("5.2 Runtime/isolado")
+    expect(substage52).toHaveAttribute("data-substage", "5.2")
+    expect(screen.getByText("egresso perdido")).toBeInTheDocument()
+  })
+
+  it("omits the sub-stage badge for inherited lines (substage null/absent)", async () => {
+    renderWithI18n(<ProvisioningConsole campaignId="c0026" />)
+    await waitFor(() => expect(connectStagesMock).toHaveBeenCalled())
+
+    pushFrame([
+      makeLinha({ seq: 1, step: "subir_conteineres", text: "docker compose up" }),
+      makeLinha({ seq: 2, step: "aguardar_saude", substage: null, text: "saude" }),
+    ])
+
+    await waitFor(() => expect(renderedTexts()).toEqual(["docker compose up", "saude"]))
+    expect(renderedSubstages()).toEqual([])
   })
 
   it("closes the WsConnection on unmount (Req. 2.7)", async () => {

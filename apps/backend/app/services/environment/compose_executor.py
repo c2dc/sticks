@@ -74,11 +74,22 @@ class LogLine:
             step marker). The screen distinguishes visually by this field
             (Req. 2.4).
         text: The textual content of the line (the command or the output line).
+        substage: The Stage-5 sub-stage that emitted the line — ``"5.1"`` (Build
+            online) or ``"5.2"`` (Runtime isolated) —, or ``None`` for the
+            **inherited** steps (``subir_conteineres``/``aguardar_saude``/
+            ``carregar_abilities``/``verificar_isolamento``) that predate the
+            sub-stage split (Req. 6.3). It is **optional** with a ``None`` default,
+            so every existing ``LogLine(step=..., stream=..., text=...)`` call site
+            stays valid unchanged (backward compatibility) and the inherited lines
+            carry no sub-stage marker. The ``LogLineView`` of the WS channel
+            propagates it to the frontend, preserving the existing order and
+            monotonic ``seq``.
     """
 
     step: str
     stream: str
     text: str
+    substage: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -159,6 +170,126 @@ class ComposeExecutor(Protocol):
             compose_file: Path of the curated ``docker/docker-compose.yml`` to down.
             on_log: Callback invoked for each :class:`LogLine` emitted, in the
                 order it comes out of the command.
+
+        Returns:
+            The :class:`CommandResult` with the exit code and the emitted lines.
+        """
+        ...
+
+    def attach_network(
+        self,
+        container: str,
+        network: str,
+        *,
+        on_log: Callable[[LogLine], None],
+        ip: Optional[str] = None,
+    ) -> CommandResult:
+        """``docker network connect [--ip <ip>] <network> <container>`` (mutates the network).
+
+        A **provisioning action** used by Stage-5 sub-stages 5.1/5.2 to attach a
+        target container to a network — the egress bridge during the build window
+        (5.1) or the ``internal: true`` attack networks when re-isolating (5.2).
+        It is **not** a verification step: the isolation gate and the egress probe
+        remain read-only (Req. 9.2). Each output line becomes a :class:`LogLine`
+        pushed through ``on_log``; ``code != 0`` indicates a failure.
+
+        Args:
+            container: The lab container to attach. A backend-controlled value,
+                never interpolated from end-user input.
+            network: The network to connect the container to. A backend constant
+                (egress bridge or attack network), never from end-user input.
+            on_log: Callback invoked for each :class:`LogLine` emitted, in order.
+
+        Returns:
+            The :class:`CommandResult` with the exit code and the emitted lines.
+        """
+        ...
+
+    def detach_network(
+        self, container: str, network: str, *, on_log: Callable[[LogLine], None]
+    ) -> CommandResult:
+        """``docker network disconnect <network> <container>`` (mutates the network).
+
+        A **provisioning action** used by Stage-5 sub-stages 5.1/5.2 to detach a
+        target container from a network — the attack networks before opening the
+        egress window (5.1) or the egress bridge before re-isolating (5.2). The
+        strict ``detach`` (attack) *before* ``attach`` (egress) order is what
+        guarantees the containment invariant: a target is never simultaneously on
+        the internet and on the attack networks (Req. 5.2, 5.3). Each output line
+        becomes a :class:`LogLine` pushed through ``on_log``; ``code != 0``
+        indicates a failure.
+
+        Args:
+            container: The lab container to detach. A backend-controlled value,
+                never interpolated from end-user input.
+            network: The network to disconnect the container from. A backend
+                constant, never from end-user input.
+            on_log: Callback invoked for each :class:`LogLine` emitted, in order.
+
+        Returns:
+            The :class:`CommandResult` with the exit code and the emitted lines.
+        """
+        ...
+
+    def exec_in(
+        self, container: str, argv: list[str], *, on_log: Callable[[LogLine], None]
+    ) -> CommandResult:
+        """``docker exec <container> <argv...>`` (``argv`` is a list; no shell).
+
+        A **provisioning action** used by Stage-5 sub-stages 5.1/5.2 to run the
+        host setup inside a target container — online prerequisites during the
+        build window (5.1) and the offline setup once egress loss is verified
+        (5.2). The ``argv`` is passed as an **argument list** (never ``shell=True``
+        at the subprocess layer); the curated setup commands derived from
+        ``vulnerabilities`` are handed in as ``["bash", "-lc", <command>]``, so the
+        injection surface stays contained to curated (human) content, never
+        arbitrary end-user input (security steering). Each output line becomes a
+        :class:`LogLine` pushed through ``on_log``; ``code != 0`` indicates a
+        failure.
+
+        Args:
+            container: The lab container to exec into. A backend-controlled value,
+                never interpolated from end-user input.
+            argv: The command as an argument list (e.g. ``["bash", "-lc", cmd]``),
+                run without a host shell.
+            on_log: Callback invoked for each :class:`LogLine` emitted, in order.
+
+        Returns:
+            The :class:`CommandResult` with the exit code and the emitted lines.
+        """
+        ...
+
+    def create_network(
+        self, network: str, *, on_log: Callable[[LogLine], None]
+    ) -> CommandResult:
+        """``docker network create <network>`` — create the ephemeral egress network.
+
+        A **provisioning action** used by sub-stage 5.1 to create the egress
+        bridge before attaching a target to it. Idempotent (an already-existing
+        network is treated as success). ``network`` is a backend constant.
+        """
+        ...
+
+    def remove_network(
+        self, network: str, *, on_log: Callable[[LogLine], None]
+    ) -> CommandResult:
+        """``docker network rm <network>`` — remove an ephemeral network (teardown).
+
+        A **teardown action** used by the Stage-6 deprovision to sweep the
+        ephemeral egress network (``EGRESS_NETWORK``) that sub-stage 5.1 may have
+        created and that could have **survived an error** (Req. 10.2). It is a
+        best-effort cleanup: a *not-found* network (already gone) is **not** a
+        residue — the deprovision treats it as success. ``network`` is a backend
+        constant (never interpolated from end-user input); together with the
+        absence of a shell this closes command injection (security steering). Each
+        output line becomes a :class:`LogLine` pushed through ``on_log``;
+        ``code != 0`` indicates the removal did not succeed (and the network may
+        still linger).
+
+        Args:
+            network: The network to remove. A backend constant, never from
+                end-user input.
+            on_log: Callback invoked for each :class:`LogLine` emitted, in order.
 
         Returns:
             The :class:`CommandResult` with the exit code and the emitted lines.
@@ -340,6 +471,214 @@ class DockerComposeExecutor:
             "down",
         ]
         return self._run(argv, step="desprovisionar", on_log=on_log)
+
+    def attach_network(
+        self,
+        container: str,
+        network: str,
+        *,
+        on_log: Callable[[LogLine], None],
+        ip: Optional[str] = None,
+    ) -> CommandResult:
+        """``docker network connect [--ip <ip>] <network> <container>`` (argument-list form, no shell).
+
+        Attaches ``container`` to ``network`` — the egress bridge during the build
+        window (5.1) or an ``internal: true`` attack network when re-isolating
+        (5.2). ``container``/``network`` are backend-controlled values (never
+        interpolated from end-user input); together with the absence of a shell
+        this closes command injection (security steering). Each output line becomes
+        a ``LogLine(step="attach_network", ...)`` pushed through ``on_log``;
+        ``code != 0`` indicates a failure.
+
+        Args:
+            container: The lab container to attach.
+            network: The network to connect the container to.
+            on_log: Callback invoked for each :class:`LogLine` emitted, in order.
+
+        Returns:
+            The :class:`CommandResult` with the exit code and the emitted lines.
+        """
+        argv = [
+            self._docker_bin,
+            "network",
+            "connect",
+        ]
+        # Restore the host's FIXED compose IP on re-isolation (5.2) so the attack
+        # plane topology is byte-for-byte the curated one (abilities target fixed
+        # IPs like 192.168.20.30). Without ``--ip`` Docker assigns a dynamic
+        # address and the attacker can no longer route to the target.
+        if ip:
+            argv += ["--ip", ip]
+        argv += [network, container]
+        return self._run(argv, step="attach_network", on_log=on_log)
+
+    def detach_network(
+        self, container: str, network: str, *, on_log: Callable[[LogLine], None]
+    ) -> CommandResult:
+        """``docker network disconnect <network> <container>`` (argument-list form, no shell).
+
+        Detaches ``container`` from ``network`` — the attack networks before
+        opening the egress window (5.1) or the egress bridge before re-isolating
+        (5.2). The strict ``detach`` (attack) before ``attach`` (egress) order
+        preserves the containment invariant (Req. 5.2, 5.3). ``container``/
+        ``network`` are backend-controlled values (never from end-user input).
+        Each output line becomes a ``LogLine(step="detach_network", ...)`` pushed
+        through ``on_log``; ``code != 0`` indicates a failure.
+
+        Args:
+            container: The lab container to detach.
+            network: The network to disconnect the container from.
+            on_log: Callback invoked for each :class:`LogLine` emitted, in order.
+
+        Returns:
+            The :class:`CommandResult` with the exit code and the emitted lines.
+        """
+        argv = [
+            self._docker_bin,
+            "network",
+            "disconnect",
+            network,
+            container,
+        ]
+        result = self._run(argv, step="detach_network", on_log=on_log)
+        # Idempotent detach: disconnecting from a network the container is NOT
+        # attached to is the desired end-state (not attached), not a failure.
+        # ``docker network disconnect`` exits non-zero with an "is not connected
+        # to network" / "not connected" message in that case; normalize it to
+        # success so the egress window's strict ``detach`` (attack) BEFORE
+        # ``attach`` (egress) ordering holds even when a given host is not on
+        # every lab attack network (each target is attached only to a subset of
+        # the three internal networks). This mirrors the deprovision's
+        # already-gone handling and never weakens containment: the goal is that
+        # the host is NOT on the network, which is exactly what a "not connected"
+        # result guarantees.
+        if result.code != 0 and self._network_not_connected(result):
+            return CommandResult(code=0, lines=list(result.lines))
+        return result
+
+    @staticmethod
+    def _network_not_connected(result: CommandResult) -> bool:
+        """Whether a failed ``detach_network`` only means the container was not attached.
+
+        Inspects the emitted lines for the daemon's "is not connected to network"
+        / "not connected" marker. When present, the detach is a no-op success (the
+        container already is off the network), so the caller treats it as code 0.
+        """
+        for line in result.lines:
+            lowered = line.text.lower()
+            if "is not connected to network" in lowered or "not connected" in lowered:
+                return True
+        return False
+
+    def exec_in(
+        self, container: str, argv: list[str], *, on_log: Callable[[LogLine], None]
+    ) -> CommandResult:
+        """``docker exec <container> <argv...>`` (``argv`` is a list; no shell).
+
+        Runs ``argv`` inside ``container`` to apply the host setup — online
+        prerequisites during the build window (5.1) and the offline setup once
+        egress loss is verified (5.2). The curated setup commands derived from
+        ``vulnerabilities`` are handed in as ``["bash", "-lc", <command>]``: the
+        list is passed verbatim to ``docker exec`` in the **argument-list form**
+        (``shell=False`` at the subprocess layer — see :meth:`_run`), so the
+        injection surface stays contained to curated (human) content, never
+        arbitrary end-user input (security steering). Each output line becomes a
+        ``LogLine(step="exec_in", ...)`` pushed through ``on_log``; ``code != 0``
+        indicates a failure.
+
+        Args:
+            container: The lab container to exec into.
+            argv: The command as an argument list (e.g. ``["bash", "-lc", cmd]``).
+            on_log: Callback invoked for each :class:`LogLine` emitted, in order.
+
+        Returns:
+            The :class:`CommandResult` with the exit code and the emitted lines.
+        """
+        full_argv = [
+            self._docker_bin,
+            "exec",
+            container,
+            *argv,
+        ]
+        return self._run(full_argv, step="exec_in", on_log=on_log)
+
+    def create_network(
+        self, network: str, *, on_log: Callable[[LogLine], None]
+    ) -> CommandResult:
+        """``docker network create --driver bridge <network>`` (argument-list form, no shell).
+
+        Creates the ephemeral egress network of sub-stage 5.1 — a **bridge**
+        network (NOT ``internal: true``) that grants a single target controlled
+        internet access while its build window is open. Idempotent: a network
+        that already exists makes ``docker network create`` exit non-zero with an
+        "already exists" message, which the caller treats as success (the desired
+        end-state — the network exists — is already met). ``network`` is a backend
+        constant (never from end-user input); the argument-list form (no shell)
+        closes command injection (security steering). Each output line becomes a
+        ``LogLine(step="create_network", ...)`` pushed through ``on_log``.
+
+        Args:
+            network: The network to create.
+            on_log: Callback invoked for each :class:`LogLine` emitted, in order.
+
+        Returns:
+            The :class:`CommandResult` with the exit code and the emitted lines.
+        """
+        argv = [
+            self._docker_bin,
+            "network",
+            "create",
+            "--driver",
+            "bridge",
+            network,
+        ]
+        result = self._run(argv, step="create_network", on_log=on_log)
+        # Idempotent create: an already-existing network is the desired end-state
+        # (it exists), not a failure. ``docker network create`` exits non-zero with
+        # an "already exists" message in that case; normalize it to success.
+        if result.code != 0 and self._network_already_exists(result):
+            return CommandResult(code=0, lines=list(result.lines))
+        return result
+
+    @staticmethod
+    def _network_already_exists(result: CommandResult) -> bool:
+        """Whether a failed ``create_network`` only means the network already exists."""
+        for line in result.lines:
+            lowered = line.text.lower()
+            if "already exists" in lowered:
+                return True
+        return False
+
+    def remove_network(
+        self, network: str, *, on_log: Callable[[LogLine], None]
+    ) -> CommandResult:
+        """``docker network rm <network>`` (argument-list form, no shell).
+
+        Removes the ephemeral egress network during the Stage-6 deprovision
+        teardown — it sweeps :data:`~app.services.environment.egress.EGRESS_NETWORK`
+        if it survived an error (Req. 10.2). ``network`` is a backend constant
+        (never interpolated from end-user input); together with the absence of a
+        shell this closes command injection (security steering). Each output line
+        becomes a ``LogLine(step="remove_network", ...)`` pushed through
+        ``on_log``; ``code != 0`` indicates the removal did not succeed (e.g. the
+        network is still in use), which the caller maps to a residue. A *not-found*
+        network surfaces as ``code != 0`` too, so the caller treats "already gone"
+        as success by inspecting the emitted lines.
+
+        Args:
+            network: The network to remove.
+            on_log: Callback invoked for each :class:`LogLine` emitted, in order.
+
+        Returns:
+            The :class:`CommandResult` with the exit code and the emitted lines.
+        """
+        argv = [
+            self._docker_bin,
+            "network",
+            "rm",
+            network,
+        ]
+        return self._run(argv, step="remove_network", on_log=on_log)
 
     def _image_exists_docker(self, image_name: str) -> bool:
         """Tell whether ``image_name`` already exists in the local Docker Engine (read-only — Req. 11.1).

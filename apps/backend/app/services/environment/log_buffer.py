@@ -150,6 +150,7 @@ class ProvisioningLogBuffer:
                 stream=line.stream,
                 text=line.text,
                 at=self._clock(),
+                substage=line.substage,
             )
             buffer = self._buffers.setdefault(campaign_id, [])
             buffer.append(view)

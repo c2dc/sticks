@@ -70,6 +70,7 @@ from app.services.environment.health import (
 from app.services.environment.completion import (
     CompletionStage6Result,
     CompletionStage6Service,
+    DbReportSink,
     ReportSink,
 )
 from app.services.environment.log_buffer import (
@@ -147,6 +148,7 @@ __all__ = [
     "inspect_health",
     # completion (deprovisioning + Stage 6 completion — task 8.4)
     "ReportSink",
+    "DbReportSink",
     "CompletionStage6Result",
     "CompletionStage6Service",
     # log_buffer (per-campaign provisioning log buffer — Stage 5, task 4.2)

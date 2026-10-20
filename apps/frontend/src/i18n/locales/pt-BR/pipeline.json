@@ -254,10 +254,19 @@
         "etapas": {
           "subir_conteineres": "Subir contêineres",
           "aguardar_saude": "Aguardar saúde",
+          "build_online": "Build (online)",
+          "encerrar_egresso": "Encerrar egresso",
+          "reisolar": "Reisolar",
+          "verificar_egresso": "Verificar egresso",
+          "setup_offline": "Setup (offline)",
           "carregar_abilities": "Carregar Abilities",
           "verificar_isolamento": "Verificar isolamento",
           "desprovisionar": "Desprovisionar",
           "concluir": "Concluir"
+        },
+        "subetapas": {
+          "s51": "5.1 Build/online",
+          "s52": "5.2 Runtime/isolado"
         },
         "fluxo": {
           "comando": "Comando",
@@ -269,6 +278,8 @@
       "prerequisitos": {
         "titulo": "Pré-requisitos de execução",
         "conteineresSaudaveis": "Contêineres saudáveis",
+        "prerequisitosOnline": "Pré-requisitos online obtidos",
+        "egressoPerdido": "Egresso perdido (verificado)",
         "abilitiesCarregadas": "Abilities carregadas no Caldera",
         "isolamentoAprovado": "Isolamento aprovado",
         "pendente": "Pendente",

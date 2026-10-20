@@ -95,6 +95,11 @@ export function ExecutionWizard({
   const [stage2Ok, setStage2Ok] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Stage 6 gating: Stage3View reports when the execution reaches a terminal
+  // state via `onExecutionFinished`; this verdict gates ReportView (metrics +
+  // deprovisioning) so it only fetches/renders once the run has finished
+  // (Req. 7.5, 8.1, 8.2). No modal/confirm button — the flow stops here.
+  const [executionFinished, setExecutionFinished] = useState(false)
   // Key to force the Stage*View remount and data reload after a transition.
   const [refreshKey, setRefreshKey] = useState(0)
 
@@ -410,8 +415,17 @@ export function ExecutionWizard({
                 onRedirectToStage={(stage) =>
                   setCurrentStage(Math.min(Math.max(stage, 1), LAST_STAGE) as StageNumber)
                 }
+                // Execution-terminal signal that gates the report below
+                // (Req. 7.5, 8.2).
+                onExecutionFinished={setExecutionFinished}
               />
-              <ReportView campaignId={campaignId} />
+              {/* Rendered after Stage3View so the Stage 6 order is
+                  Input → Processing → Métricas → Desprovisionamento. Gated on
+                  the execution having finished (Req. 8.1, 8.2, 8.3). */}
+              <ReportView
+                campaignId={campaignId}
+                executionFinished={executionFinished}
+              />
             </div>
           ) : null}
           {currentStage >= 3 && !campaignId ? (

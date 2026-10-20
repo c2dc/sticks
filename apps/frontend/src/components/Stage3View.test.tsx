@@ -1,5 +1,4 @@
 import { act, screen, waitFor, within } from "@testing-library/react"
-import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { renderWithI18n } from "@/test/render"
@@ -10,9 +9,8 @@ import type {
   OperationResultView,
   Stage3Result,
   Stage5Verdict,
-  Stage6StartResult,
-  WsConnection,
 } from "@/lib/stages"
+import type { WsConnection } from "@/lib/ws"
 import type { EmulationPreview } from "@/lib/emulation"
 
 // Mock the stage + emulation wrappers so no network/WebSocket is used. The
@@ -154,20 +152,55 @@ afterEach(() => {
 })
 
 // ---------------------------------------------------------------------------
-// Req. 1.3 — no modal/Dialog; the confirmation is the embedded inline section.
+// Task 5.1 / Req. 1.1, 1.3 — Input + Processing stacked as horizontal rows, NOT
+// a grid; no modal/Dialog is ever introduced.
 // ---------------------------------------------------------------------------
 
-describe("Stage3View — embedded confirmation, no modal (Req. 1.3)", () => {
-  it("renders the inline confirmation section and NO role=dialog is in the document", async () => {
+describe("Stage3View — Input/Processing as stacked rows, no grid (Req. 1.1, 1.3)", () => {
+  it("renders NO md:grid-cols-3 container and stacks Input above Processing as rows", async () => {
     getStage3Mock.mockResolvedValue(makeStage3Result())
+    // Hold the auto-start off so the snapshot view stays put for the assertion.
+    startExecutionMock.mockReturnValue(new Promise(() => {}))
+
+    const { container } = renderWithI18n(<Stage3View campaignId={CAMPAIGN} />)
+
+    const view = await screen.findByTestId("stage6-view")
+
+    // The former 3-column grid wrapper is gone (Task 5.1): no element in the
+    // Stage-6 view carries the `md:grid-cols-3` (or any grid-cols) class.
+    expect(container.querySelector(".\\md\\:grid-cols-3")).toBeNull()
+    expect(container.querySelector('[class*="md:grid-cols-3"]')).toBeNull()
+    expect(container.querySelector('[class*="grid-cols"]')).toBeNull()
+
+    // Input and Processing are both present as full-width rows, and their shared
+    // parent lays them out as a vertical flex column (stacked rows), not a grid.
+    const input = view.querySelector('[data-section="entrada"]') as HTMLElement
+    const processing = view.querySelector('[data-section="processamento"]') as HTMLElement
+    expect(input).not.toBeNull()
+    expect(processing).not.toBeNull()
+
+    const rowsParent = input.parentElement as HTMLElement
+    // Input and Processing share the same stacking parent...
+    expect(processing.parentElement).toBe(rowsParent)
+    // ...and that parent is a flex column (rows), never a grid.
+    expect(rowsParent.className).toContain("flex")
+    expect(rowsParent.className).toContain("flex-col")
+    expect(rowsParent.className).not.toContain("grid")
+
+    // Input is rendered before Processing in document order (Input → Processing).
+    expect(
+      input.compareDocumentPosition(processing) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+  })
+
+  it("introduces no modal/dialog in any state (Req. 1.3)", async () => {
+    getStage3Mock.mockResolvedValue(makeStage3Result())
+    startExecutionMock.mockReturnValue(new Promise(() => {}))
 
     renderWithI18n(<Stage3View campaignId={CAMPAIGN} />)
 
-    // The embedded inline confirmation section is present...
-    const inline = await screen.findByTestId("stage6-inline-confirmation")
-    expect(inline.tagName).toBe("SECTION")
-
-    // ...and nothing in the document is a modal/dialog (Req. 1.3).
+    await screen.findByTestId("stage6-view")
+    // Execution is automatic; nothing in the document is a modal/dialog (1.3).
     expect(screen.queryByRole("dialog")).toBeNull()
     expect(screen.queryByRole("alertdialog")).toBeNull()
     expect(document.querySelector('[role="dialog"]')).toBeNull()
@@ -175,94 +208,202 @@ describe("Stage3View — embedded confirmation, no modal (Req. 1.3)", () => {
 })
 
 // ---------------------------------------------------------------------------
-// Req. 1.6 — inline confirmation renders preview + explicit consent control;
-// clicking it (or the ≤3s auto-start) calls startExecution(campaign, true).
+// Task 5.1 / Req. 1.2 — per-Ability Processing content preserved without
+// duplication (command / target / attacker host / state / logs each once).
 // ---------------------------------------------------------------------------
 
-describe("Stage3View — inline consent control (Req. 1.6)", () => {
-  it("renders the command/target preview and the explicit consent control", async () => {
+describe("Stage3View — per-Ability content preserved without duplication (Req. 1.2)", () => {
+  it("renders each Ability once with its command/target/host/logs shown a single time", async () => {
+    getStage3Mock.mockResolvedValue(
+      makeStage3Result({
+        output: [
+          makeOperation(
+            [
+              {
+                ability_id: "a1",
+                status: "em_execucao",
+                command_output: "stdout-a1",
+                command: "whoami",
+                target_container: "nginx (192.168.20.30)",
+                attacker_host: "kali",
+              },
+              {
+                ability_id: "a2",
+                status: "sucesso",
+                command_output: "stdout-a2",
+                command: "id",
+                target_container: "app (192.168.20.31)",
+                attacker_host: "kali",
+              },
+            ],
+            { state: "em_execucao" },
+          ),
+        ],
+      }),
+    )
+
+    renderWithI18n(<Stage3View campaignId={CAMPAIGN} />)
+
+    const list = await screen.findByTestId("stage6-live-abilities")
+    const cards = within(list).getAllByTestId("stage6-ability-card")
+    // Two Abilities in the ordering → exactly two cards, one per ability_id.
+    expect(cards).toHaveLength(2)
+    expect(within(list).getAllByTitle("a1")).toHaveLength(1)
+    expect(within(list).getAllByTitle("a2")).toHaveLength(1)
+
+    // a1's concrete content appears exactly once (no duplication, Req. 1.2).
+    const a1 = cards.find((c) => c.getAttribute("data-status") === "em_execucao")!
+    expect(within(a1).getAllByText("whoami")).toHaveLength(1)
+    expect(within(a1).getAllByText("nginx (192.168.20.30)")).toHaveLength(1)
+    expect(within(a1).getAllByText("stdout-a1")).toHaveLength(1)
+    // a2's logs render only inside the a2 card, once.
+    expect(within(list).getAllByText("stdout-a2")).toHaveLength(1)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Task 5.2 / Req. 2.1, 2.2 — the Output block (data-section="saida") is gone in
+// EVERY execution state (confirming/running/persisted/terminal).
+// ---------------------------------------------------------------------------
+
+describe("Stage3View — no Output section in any state (Req. 2.1, 2.2)", () => {
+  it("has no data-section=\"saida\" before the run starts (snapshot / auto-start pending)", async () => {
     getStage3Mock.mockResolvedValue(makeStage3Result())
-    getPreviewMock.mockResolvedValue({
-      campaign_id: CAMPAIGN,
-      has_external: false,
-      abilities: [
-        {
-          ability_id: "a1",
-          ability_name: "Exploit T1190",
-          has_external: false,
-          commands: [
-            {
-              command: "curl http://nginx:8265/exploit",
-              local: false,
-              has_external: false,
-              destinations: [],
-              targets: ["nginx (192.168.20.30)"],
-            },
-          ],
-        },
-      ],
-    })
-    // Hold auto-start off by never resolving the start call for this assertion.
     startExecutionMock.mockReturnValue(new Promise(() => {}))
 
-    renderWithI18n(<Stage3View campaignId={CAMPAIGN} />)
+    const { container } = renderWithI18n(<Stage3View campaignId={CAMPAIGN} />)
 
-    const inline = await screen.findByTestId("stage6-inline-confirmation")
-    // The concrete command and its target container are previewed (Req. 1.6, 6.5).
-    await within(inline).findByText("curl http://nginx:8265/exploit")
-    expect(within(inline).getByText("nginx (192.168.20.30)")).toBeInTheDocument()
-    // The explicit consent control is present and enabled before consent.
-    const confirm = within(inline).getByTestId("stage6-confirm-execution")
-    expect(confirm).toBeEnabled()
+    await screen.findByTestId("stage6-view")
+    expect(container.querySelector('[data-section="saida"]')).toBeNull()
   })
 
-  it("calls startExecution(campaign, true) when the researcher clicks consent", async () => {
-    getStage3Mock.mockResolvedValue(makeStage3Result())
-    startExecutionMock.mockResolvedValue({
-      campaign_id: CAMPAIGN,
-      executed: true,
-      blocked: false,
-      reused: false,
-      output: makeOperation([{ ability_id: "a1", status: "em_execucao", command_output: "" }]),
-      operation_id: 1,
-    } satisfies Stage6StartResult)
-
-    const user = userEvent.setup()
-    renderWithI18n(<Stage3View campaignId={CAMPAIGN} />)
-
-    const confirm = await screen.findByTestId("stage6-confirm-execution")
-    await user.click(confirm)
-
-    await waitFor(() =>
-      expect(startExecutionMock).toHaveBeenCalledWith(CAMPAIGN, true),
+  it("has no data-section=\"saida\" while an Operation is running", async () => {
+    getStage3Mock.mockResolvedValue(
+      makeStage3Result({
+        output: [
+          makeOperation([{ ability_id: "a1", status: "em_execucao", command_output: "" }], {
+            state: "em_execucao",
+          }),
+        ],
+      }),
     )
+
+    const { container } = renderWithI18n(<Stage3View campaignId={CAMPAIGN} />)
+
+    await screen.findByTestId("stage6-live-abilities")
+    expect(container.querySelector('[data-section="saida"]')).toBeNull()
   })
 
-  it("auto-starts within 3s (≤3s) with confirmed=true even without a click", async () => {
-    vi.useFakeTimers()
+  it("has no data-section=\"saida\" for a persisted terminal result", async () => {
+    getStage3Mock.mockResolvedValue(
+      makeStage3Result({
+        output: [
+          makeOperation(
+            [
+              { ability_id: "a1", status: "sucesso", command_output: "ok" },
+              { ability_id: "a2", status: "falha", command_output: "x" },
+            ],
+            { state: "concluida" },
+          ),
+        ],
+      }),
+    )
+
+    const { container } = renderWithI18n(<Stage3View campaignId={CAMPAIGN} />)
+
+    await screen.findByTestId("stage6-live-abilities")
+    // Terminal, persisted re-display: still no Output/aggregate block (2.1, 2.2).
+    expect(container.querySelector('[data-section="saida"]')).toBeNull()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Task 5.3 / Req. 3.1, 7.1, 8.2 — onExecutionFinished fires true once when the
+// current Operation is terminal (or a persisted result is re-displayed), and
+// resets to false when another campaign loads.
+// ---------------------------------------------------------------------------
+
+describe("Stage3View — onExecutionFinished signal (Req. 3.1, 7.1, 8.2)", () => {
+  it("fires true exactly once for a persisted terminal Operation", async () => {
+    const onExecutionFinished = vi.fn()
+    getStage3Mock.mockResolvedValue(
+      makeStage3Result({
+        output: [
+          makeOperation([{ ability_id: "a1", status: "sucesso", command_output: "ok" }], {
+            state: "concluida",
+          }),
+        ],
+      }),
+    )
+
+    renderWithI18n(
+      <Stage3View campaignId={CAMPAIGN} onExecutionFinished={onExecutionFinished} />,
+    )
+
+    await screen.findByTestId("stage6-live-abilities")
+    await waitFor(() => expect(onExecutionFinished).toHaveBeenCalledWith(true))
+    // Idempotent: the true signal is emitted a single time for this run.
+    expect(onExecutionFinished.mock.calls.filter(([v]) => v === true)).toHaveLength(1)
+  })
+
+  it("fires true when the current Operation reaches a terminal state via a live frame", async () => {
+    const onExecutionFinished = vi.fn()
+    const connection = captureConnection()
+    getStage3Mock.mockResolvedValue(
+      makeStage3Result({
+        output: [
+          makeOperation([{ ability_id: "a1", status: "em_execucao", command_output: "" }], {
+            state: "concluida",
+          }),
+        ],
+      }),
+    )
+
+    renderWithI18n(
+      <Stage3View campaignId={CAMPAIGN} onExecutionFinished={onExecutionFinished} />,
+    )
+
+    await screen.findByTestId("stage6-live-abilities")
+    // The persisted Operation state ("concluida") is terminal → finished fires.
+    await waitFor(() => expect(onExecutionFinished).toHaveBeenCalledWith(true))
+    // A later frame does not re-emit the true signal (idempotent).
+    act(() => {
+      connection.handlers.onFrame({
+        type: "ability",
+        ability_id: "a1",
+        status: "sucesso",
+        command_output: "done",
+      })
+    })
+    expect(onExecutionFinished.mock.calls.filter(([v]) => v === true)).toHaveLength(1)
+  })
+
+  it("does not fire true while the Operation is still running (non-terminal)", async () => {
+    const onExecutionFinished = vi.fn()
+    // Empty snapshot → nothing persisted → the view auto-starts. The runner
+    // returns a NON-terminal, non-reused Operation, so the view enters the
+    // "running" phase following a live Operation whose state is not terminal.
     getStage3Mock.mockResolvedValue(makeStage3Result())
     startExecutionMock.mockResolvedValue({
       campaign_id: CAMPAIGN,
       executed: true,
       blocked: false,
       reused: false,
-      output: makeOperation([{ ability_id: "a1", status: "em_execucao", command_output: "" }]),
+      output: makeOperation(
+        [{ ability_id: "a1", status: "em_execucao", command_output: "" }],
+        { state: "em_execucao" },
+      ),
       operation_id: 1,
-    } satisfies Stage6StartResult)
-
-    renderWithI18n(<Stage3View campaignId={CAMPAIGN} />)
-
-    // Let the snapshot promise resolve so phase becomes "confirming".
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(0)
     })
-    expect(startExecutionMock).not.toHaveBeenCalled()
 
-    // Advance the 3s auto-start delay — the embedded consent fires on its own.
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(3000)
-    })
-    expect(startExecutionMock).toHaveBeenCalledWith(CAMPAIGN, true)
+    renderWithI18n(
+      <Stage3View campaignId={CAMPAIGN} onExecutionFinished={onExecutionFinished} />,
+    )
+
+    await screen.findByTestId("stage6-live-abilities")
+    await waitFor(() => expect(connectOperationMock).toHaveBeenCalled())
+    // A non-terminal, running Operation never signals finished=true.
+    expect(onExecutionFinished).not.toHaveBeenCalledWith(true)
   })
 })
 
@@ -516,8 +657,17 @@ describe("Stage3View — connection-lost indicator (Req. 2.8)", () => {
     await waitFor(() => expect(connectOperationMock).toHaveBeenCalled())
     expect(screen.queryByTestId("stage6-connection-lost")).toBeNull()
 
-    // The WS drops → the connection-lost indicator appears (Req. 2.8).
-    act(() => connection.handlers.onClose?.())
+    // A CLEAN close (code 1000: the Operation reached a terminal state and the
+    // backend ended the stream normally) is NOT a lost connection — the banner
+    // must stay hidden (Req. 2.8; fixes the false "connection lost" shown when a
+    // finished Operation's channel closed normally).
+    act(() => connection.handlers.onClose?.(true))
+    await waitFor(() =>
+      expect(screen.queryByTestId("stage6-connection-lost")).toBeNull(),
+    )
+
+    // An ABNORMAL close (network drop, clean === false) → the banner appears.
+    act(() => connection.handlers.onClose?.(false))
     await screen.findByTestId("stage6-connection-lost")
 
     // The channel reconnects → the banner clears, without reloading the page.
@@ -529,13 +679,13 @@ describe("Stage3View — connection-lost indicator (Req. 2.8)", () => {
 
   it("does not show the connection-lost banner when no Operation is being followed", async () => {
     // No persisted Operation → no live channel → the banner never applies even
-    // though the inline confirmation is showing.
+    // while the automatic start is still in flight.
     getStage3Mock.mockResolvedValue(makeStage3Result())
     startExecutionMock.mockReturnValue(new Promise(() => {}))
 
     renderWithI18n(<Stage3View campaignId={CAMPAIGN} />)
 
-    await screen.findByTestId("stage6-inline-confirmation")
+    await screen.findByTestId("stage6-view")
     expect(screen.queryByTestId("stage6-connection-lost")).toBeNull()
     expect(connectOperationMock).not.toHaveBeenCalled()
   })

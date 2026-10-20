@@ -80,10 +80,27 @@ export function EnvironmentStageView({
     setProvisioned(null)
     setLoadError(null)
 
-    // Trigger the idempotent provisioning (ensure/start) on opening the screen —
-    // no manual button (Req. 1.1). Reusing a ready environment is safe on
-    // remount (Req. 1.6). The Output feeds the checklist (health/isolation/
-    // abilities) and, on completion, unlocks "Next" via the callback.
+    // 1) Read the READ-ONLY payload FIRST and FAST (topology + states + current
+    //    buffer). ``GET /stage/5`` no longer provisions, so it returns right
+    //    away — mounting the screen (and the ``ProvisioningConsole``) BEFORE the
+    //    provisioning starts. That is what makes the live terminal stream: the
+    //    console subscribes to the WS channel while the work below is still
+    //    running, instead of only after it finishes.
+    getStageEnvironment(campaignId)
+      .then((data) => {
+        if (active) setResult(data)
+      })
+      .catch(() => {
+        if (active) setLoadError(t("stageView.loadError"))
+      })
+
+    // 2) Trigger the idempotent provisioning IN THE BACKGROUND — no manual
+    //    button (Req. 1.1), safe to reuse a ready environment on remount
+    //    (Req. 1.6). We do NOT gate the screen render on it: the console is
+    //    already mounted and streaming the lines this POST emits. When it
+    //    resolves we record the Output (health/isolation/abilities), unlock
+    //    "Next" on completion and re-read the read-only payload to refresh the
+    //    checklist/states.
     provisionEnvironment(campaignId)
       .then((environment) => {
         if (!active) return
@@ -94,23 +111,13 @@ export function EnvironmentStageView({
           environment.isolation.approved &&
           environment.loaded_abilities
         if (completed) onProvisioningComplete?.()
-        // Re-read the read-only payload after provisioning to reflect the
-        // latest topology + states in the checklist.
         return getStageEnvironment(campaignId).then((data) => {
           if (active) setResult(data)
         })
       })
       .catch(() => {
-        // Provisioning failed/unavailable: still show the current topology and
-        // read-only state (fail-closed on screen).
-        if (!active) return
-        getStageEnvironment(campaignId)
-          .then((data) => {
-            if (active) setResult(data)
-          })
-          .catch(() => {
-            if (active) setLoadError(t("stageView.loadError"))
-          })
+        // Provisioning failed/unavailable: the read-only topology/state above
+        // still renders (fail-closed on screen).
       })
 
     return () => {
@@ -147,6 +154,8 @@ export function EnvironmentStageView({
   const checklistHealth = provisioned?.health ?? result.health ?? EMPTY_HEALTH
   const checklistIsolation = provisioned?.isolation ?? EMPTY_ISOLATION
   const abilitiesLoaded = provisioned?.loaded_abilities ?? false
+  // Outcome of the Stage-5 sub-stages 5.1/5.2 for the two new checklist items.
+  const checklistSubstages = provisioned?.substages ?? null
   const failedStep = provisioned?.failed_step ?? stage5?.failed_step ?? null
   const errorMessage = provisioned?.error_message ?? stage5?.error_message ?? null
 
@@ -231,6 +240,7 @@ export function EnvironmentStageView({
         health={checklistHealth}
         isolation={checklistIsolation}
         abilitiesLoaded={abilitiesLoaded}
+        substages={checklistSubstages}
         failedStep={failedStep}
         errorMessage={errorMessage}
       />

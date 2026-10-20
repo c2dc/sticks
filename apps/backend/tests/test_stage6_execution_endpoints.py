@@ -426,3 +426,144 @@ def test_report_unknown_case_returns_404(
     client = _make_client(session_factory)
     resp = client.get("/api/campaigns/does-not-exist/report")
     assert resp.status_code == 404, resp.text
+
+
+# ---------------------------------------------------------------------------
+# relatório — tempo total real derivado dos instantes + desprovisionamento
+# estruturado recuperado da linha ``execution_reports`` persistida (task 2.5).
+# _Requirements: 4.1, 4.3, 7.2, 7.3_
+# ---------------------------------------------------------------------------
+
+import datetime as _dt
+
+from app.models.domain import (
+    AbilityResult as _AbilityResultRow,
+    ExecutionReport as _ExecutionReportRow,
+    Operation as _OperationRow,
+)
+from app.models.enums import AbilityResultStatus, OperationState
+
+
+def _seed_finished_operation(
+    session_factory: sessionmaker[Session],
+    *,
+    campaign_id: str,
+    started_at: _dt.datetime | None,
+    finished_at: _dt.datetime | None,
+) -> int:
+    """Persist a FINISHED Operation (with one Ability result) for ``campaign_id``.
+
+    Writes the Operation lifecycle instants (``started_at``/``finished_at``) that
+    ``get_report`` reads through :class:`OperationResultView` to derive the real
+    ``total_time_s`` (``finished_at - started_at`` in seconds). Returns the
+    persisted ``operation_id`` so a teardown row can link to it.
+    """
+    db = session_factory()
+    try:
+        op = _OperationRow(
+            campaign_id=campaign_id,
+            state=OperationState.FINISHED,
+            total_success=1,
+            total_failure=0,
+            started_at=started_at,
+            finished_at=finished_at,
+        )
+        db.add(op)
+        db.flush()
+        db.add(
+            _AbilityResultRow(
+                operation_id=op.id,
+                ability_id="ability-ok",
+                status=AbilityResultStatus.SUCCESS,
+                command_output="ok",
+            )
+        )
+        db.commit()
+        return op.id
+    finally:
+        db.close()
+
+
+def test_report_total_time_s_derived_from_operation_instants(
+    session_factory: sessionmaker[Session],
+) -> None:
+    """``total_time_s`` is ``finished_at - started_at`` in seconds (Req. 4.1, 4.3)."""
+    slug = "c0026"
+    started = _dt.datetime(2024, 5, 6, 7, 0, 0)
+    finished = started + _dt.timedelta(seconds=42)
+    _seed_finished_operation(
+        session_factory, campaign_id=slug, started_at=started, finished_at=finished
+    )
+
+    client = _make_client(session_factory)
+    resp = client.get(f"/api/campaigns/{slug}/report")
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["campaign_id"] == slug
+    # The known duration surfaces verbatim as the report's total time.
+    assert body["metrics"]["total_time_s"] == 42.0
+
+
+def test_report_total_time_s_is_null_when_a_timestamp_is_missing(
+    session_factory: sessionmaker[Session],
+) -> None:
+    """A missing ``finished_at`` yields ``total_time_s = null`` (Req. 4.3)."""
+    slug = "costaricto"
+    started = _dt.datetime(2024, 5, 6, 7, 0, 0)
+    _seed_finished_operation(
+        session_factory, campaign_id=slug, started_at=started, finished_at=None
+    )
+
+    client = _make_client(session_factory)
+    resp = client.get(f"/api/campaigns/{slug}/report")
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["campaign_id"] == slug
+    # Absent instant -> the derived total time is not measurable -> null.
+    assert body["metrics"]["total_time_s"] is None
+
+
+def test_report_deprovisioning_surfaces_failed_teardown_remaining_resources(
+    session_factory: sessionmaker[Session],
+) -> None:
+    """A failed-teardown persisted row surfaces the structured ``deprovisioning``.
+
+    The ``execution_reports`` row recorded ``deprovisioned=False`` plus the
+    resources that stayed provisioned; ``get_report`` recovers them into the
+    report's structured ``deprovisioning`` field (Req. 7.2, 7.3).
+    """
+    slug = "outer_space"
+    started = _dt.datetime(2024, 5, 6, 7, 0, 0)
+    finished = started + _dt.timedelta(seconds=10)
+    op_id = _seed_finished_operation(
+        session_factory, campaign_id=slug, started_at=started, finished_at=finished
+    )
+
+    remaining = ["nginx-target", "caldera-internal-network"]
+    db = session_factory()
+    try:
+        db.add(
+            _ExecutionReportRow(
+                campaign_id=slug,
+                operation_id=op_id,
+                metrics={},
+                success_verdict=False,
+                environment_deprovisioned=False,
+                deprovisioned=False,
+                remaining_resources=remaining,
+                generated_at=_dt.datetime(2024, 5, 6, 7, 0, 20),
+            )
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    client = _make_client(session_factory)
+    resp = client.get(f"/api/campaigns/{slug}/report")
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["campaign_id"] == slug
+    deprovisioning = body["deprovisioning"]
+    assert deprovisioning is not None
+    assert deprovisioning["deprovisioned"] is False
+    assert deprovisioning["remaining_resources"] == remaining

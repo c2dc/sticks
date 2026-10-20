@@ -13,10 +13,14 @@ those results plus the DAG, consolidated into an :class:`ExecutionReport`.
   PROPOSAL, Req. 15.8): total DAG techniques, successful techniques, success
   rate, procedural coverage, total time, the per-technique list, the failed
   nodes and the overall verdict (Req. 15.1, 15.2, 15.3, 15.4, 15.6).
+- :class:`DeprovisioningView` — the structured teardown outcome exposed on the
+  report (``deprovisioned`` + ``remaining_resources``), recovered from the
+  persisted ``execution_reports`` row at read time (Req. 7.2, 7.3).
 - :class:`ExecutionReport` — the Stage 6 Output: the consolidated metrics, the
   :class:`~app.services.stage.stage_service.Stage3AbilityResult` reused from the
-  historical execution stage, the environment deprovisioning flag (Req. 12) and
-  the generation timestamp (Req. 10.6, 10.7, 15.7).
+  historical execution stage, the environment deprovisioning flag (Req. 12), the
+  structured teardown ``deprovisioning`` (Req. 7.2, 7.3) and the generation
+  timestamp (Req. 10.6, 10.7, 15.7).
 
 The technique status reuses :class:`~app.models.enums.AbilityResultStatus`
 (``pendente``/``em_execucao``/``sucesso``/``falha``), the same source of truth as
@@ -87,6 +91,31 @@ class SufficiencyMetrics(BaseModel):
     success_verdict: bool = False
 
 
+class DeprovisioningView(BaseModel):
+    """Structured teardown outcome exposed on the report (Req. 7.2, 7.3).
+
+    Mirrors the persisted fields of the
+    :class:`~app.services.environment.provisioner.DeprovisioningResult` produced
+    at the end of Stage 6 and written to the ``execution_reports`` row: the
+    boolean ``deprovisioned`` and the ``remaining_resources`` that remained when
+    the teardown failed. The read path (``GET .../report``) recovers them from the
+    persisted row so the report screen can indicate teardown success/failure and,
+    on failure, list the resources that remained provisioned (Req. 7.2, 7.3).
+
+    Only the two persisted fields are modelled here; the ``origin``/``message`` of
+    the full :class:`DeprovisioningResult` are not persisted, so they are not
+    reconstructed on the read path.
+
+    Attributes:
+        deprovisioned: ``True`` iff the environment was removed successfully.
+        remaining_resources: Resources (containers/networks) that remained
+            provisioned when the teardown failed; empty on success.
+    """
+
+    deprovisioned: bool = False
+    remaining_resources: list[str] = Field(default_factory=list)
+
+
 class ExecutionReport(BaseModel):
     """Stage 6 Output — consolidated report (Req. 10.6, 10.7, 15.7).
 
@@ -97,7 +126,12 @@ class ExecutionReport(BaseModel):
             :class:`~app.services.stage.stage_service.Stage3AbilityResult`
             per Ability, reused from the historical execution stage (``Stage3*``).
         environment_deprovisioned: ``True`` iff the campaign environment was
-            deprovisioned at the end (Req. 12).
+            deprovisioned at the end (Req. 12). Legacy boolean preserved for
+            backward compatibility.
+        deprovisioning: The structured teardown outcome (``deprovisioned`` +
+            ``remaining_resources``) recovered from the persisted
+            ``execution_reports`` row (Req. 7.2, 7.3). ``None`` when no teardown
+            has been registered yet (e.g. the execution has not finished).
         generated_at: Instant at which the report was generated.
     """
 
@@ -105,11 +139,13 @@ class ExecutionReport(BaseModel):
     metrics: SufficiencyMetrics
     results: list[Stage3AbilityResult] = Field(default_factory=list)
     environment_deprovisioned: bool = False
+    deprovisioning: Optional[DeprovisioningView] = None
     generated_at: dt.datetime
 
 
 __all__ = [
     "TechniqueMetric",
     "SufficiencyMetrics",
+    "DeprovisioningView",
     "ExecutionReport",
 ]

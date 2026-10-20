@@ -47,11 +47,13 @@ _Requirements: 10.8, 10.9, 12.1, 12.2, 12.3_
 from __future__ import annotations
 
 import datetime as dt
+import inspect
 from typing import Callable, Optional
 
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from app.models.domain import ExecutionReport as ExecutionReportRow
 from app.services.campaign_service import CaseData, CaseService
 from app.services.environment.execution import (
     ExecutionResult,
@@ -69,11 +71,122 @@ from app.services.environment.report import ExecutionReport
 from app.services.stage.stage_service import Stage3AbilityResult
 
 
-#: A persister for the execution's :class:`ExecutionReport`. The
-#: ``execution_reports`` table is task 10.x; this seam only requires that *some*
-#: sink confirms the persistence (``True``) before completing Stage 6 (Req. 10.9).
-#: Injectable so the tests use an in-memory sink without the table.
-ReportSink = Callable[[ExecutionReport], bool]
+#: A persister for the execution's :class:`ExecutionReport`. It confirms the
+#: persistence (``True``) before completing Stage 6 (Req. 10.9). Injectable so
+#: the tests use an in-memory sink without the table.
+#:
+#: The sink may optionally accept the :class:`DeprovisioningResult` of the
+#: teardown as a second argument so the persistence records the structured
+#: teardown outcome — ``deprovisioned`` and the ``remaining_resources`` that the
+#: read path recovers (Req. 7.3). The completion seam calls the sink defensively:
+#: a legacy single-argument sink (``(report) -> bool``) keeps working unchanged,
+#: while a two-argument sink (``(report, deprovisioning) -> bool``), such as
+#: :class:`DbReportSink`, also receives the teardown.
+ReportSink = Callable[..., bool]
+
+
+def _sink_accepts_deprovisioning(sink: ReportSink) -> bool:
+    """Whether ``sink`` accepts the :class:`DeprovisioningResult` second argument.
+
+    Inspects the callable's signature: a sink declared with two positional
+    parameters (``(report, deprovisioning)``) — or a ``*args``/``**kwargs``
+    catch-all — is handed the teardown; a legacy single-parameter sink
+    (``(report)``) is not. When the signature cannot be introspected (a C builtin,
+    for instance), it falls back to the conservative single-argument call.
+    """
+    try:
+        signature = inspect.signature(sink)
+    except (TypeError, ValueError):
+        return False
+    positional = 0
+    for parameter in signature.parameters.values():
+        if parameter.kind in (
+            inspect.Parameter.VAR_POSITIONAL,
+            inspect.Parameter.VAR_KEYWORD,
+        ):
+            return True
+        if parameter.kind in (
+            inspect.Parameter.POSITIONAL_ONLY,
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+        ):
+            positional += 1
+    return positional >= 2
+
+
+class DbReportSink:
+    """Teardown-aware :class:`ReportSink` writing the ``execution_reports`` row.
+
+    Persists the consolidated :class:`ExecutionReport` into the
+    :class:`~app.models.domain.ExecutionReport` table (``execution_reports``) and
+    records the **structured teardown** of the end of Stage 6 (Req. 7.3): the
+    boolean ``deprovisioned`` and the ``remaining_resources`` that remained when
+    the teardown failed, recovered later by the report read path.
+
+    It is a ``__call__``-able so it satisfies :data:`ReportSink`; the completion
+    seam detects its two-argument signature and hands it the
+    :class:`DeprovisioningResult` alongside the report. The write is delegated to
+    :meth:`_persist`, which maps the DTO + teardown onto the ORM row.
+    """
+
+    def __init__(self, session: Session) -> None:
+        """Bind the sink to an open :class:`~sqlalchemy.orm.Session`.
+
+        The session is injected by the caller (the API layer) and is **not**
+        opened or closed here; :meth:`_persist` flushes the row within it.
+        """
+        self._session = session
+
+    def __call__(
+        self,
+        report: ExecutionReport,
+        deprovisioning: Optional[DeprovisioningResult] = None,
+    ) -> bool:
+        """Persist ``report`` + the ``deprovisioning`` teardown; confirm on success.
+
+        Returns ``True`` when the row was written (the completion precondition of
+        Req. 10.9). A persistence failure is turned into ``False`` (the stage does
+        not complete) without propagating, consistent with the seam treating the
+        persistence as a confirmable precondition.
+        """
+        try:
+            self._persist(report, deprovisioning)
+            return True
+        except Exception:  # defensive: a failed write blocks completion, not the flow
+            self._session.rollback()
+            return False
+
+    def _persist(
+        self,
+        report: ExecutionReport,
+        deprovisioning: Optional[DeprovisioningResult],
+    ) -> None:
+        """Write the ``execution_reports`` row from the report + the teardown.
+
+        Serializes the :class:`SufficiencyMetrics` into the portable ``metrics``
+        JSON column (as the ORM model documents) and stamps the teardown fields
+        from the :class:`DeprovisioningResult` produced at completion: the boolean
+        ``deprovisioned`` and the JSON ``remaining_resources`` (the containers/
+        networks that remained on a failed teardown — Req. 7.3). When no teardown
+        is supplied, both stay ``None`` (nullable columns), preserving the legacy
+        booleano ``environment_deprovisioned`` already carried by the report.
+        """
+        row = ExecutionReportRow(
+            campaign_id=report.campaign_id,
+            metrics=report.metrics.model_dump(mode="json"),
+            success_verdict=report.metrics.success_verdict,
+            environment_deprovisioned=report.environment_deprovisioned,
+            deprovisioned=(
+                deprovisioning.deprovisioned if deprovisioning is not None else None
+            ),
+            remaining_resources=(
+                list(deprovisioning.remaining_resources)
+                if deprovisioning is not None
+                else None
+            ),
+            generated_at=report.generated_at,
+        )
+        self._session.add(row)
+        self._session.flush()
 
 
 class CompletionStage6Result(BaseModel):
@@ -244,8 +357,12 @@ class CompletionStage6Service:
             generated_at=generated_at,
         )
 
-        # 4) Persist the report (precondition of completion, Req. 10.9).
-        report_persisted = bool(self._report_sink(report))
+        # 4) Persist the report (precondition of completion, Req. 10.9). The
+        #    structured teardown (deprovisioned + remaining_resources) is handed to
+        #    the sink so the persistence records it for the read path (Req. 7.3) —
+        #    passed only when the sink accepts it, keeping legacy single-argument
+        #    sinks working unchanged.
+        report_persisted = bool(self._persist_report(report, deprovisioning))
 
         # Completion ONLY when: execution actually completed AND environment
         # deprovisioned AND results + report persisted (Req. 10.9).
@@ -267,6 +384,22 @@ class CompletionStage6Service:
         )
 
     # -- helpers -------------------------------------------------------------
+
+    def _persist_report(
+        self, report: ExecutionReport, deprovisioning: DeprovisioningResult
+    ) -> bool:
+        """Invoke the report sink, handing it the teardown when it accepts it.
+
+        The structured :class:`DeprovisioningResult` (``deprovisioned`` +
+        ``remaining_resources``) is passed to the sink only when its signature
+        accepts a second positional argument, so a legacy single-argument sink
+        (``(report) -> bool``) keeps working unchanged, while a teardown-aware sink
+        (``(report, deprovisioning) -> bool``, e.g. :class:`DbReportSink`) records
+        the teardown for the read path (Req. 7.3).
+        """
+        if _sink_accepts_deprovisioning(self._report_sink):
+            return bool(self._report_sink(report, deprovisioning))
+        return bool(self._report_sink(report))
 
     def _deprovision(
         self, environment: ProvisionedEnvironment
@@ -314,6 +447,7 @@ class CompletionStage6Service:
 
 __all__ = [
     "ReportSink",
+    "DbReportSink",
     "CompletionStage6Result",
     "CompletionStage6Service",
 ]

@@ -52,6 +52,7 @@ from pydantic import BaseModel, Field
 
 from app.models.enums import StageState
 from app.services.stage.stage_service import (
+    STAGE_CAMPAIGN_SELECTION,
     CampaignStixInput,
     StageService,
     TechniqueElement,
@@ -275,12 +276,26 @@ class Stage2Service:
         :meth:`select`.
         """
         identity = self._stage._build_campaign_stix(slug, version)  # noqa: SLF001
-        result = self._stage.read_stage1(slug, version=version)
 
-        completed = result.state == StageState.COMPLETED
+        # Completion of Stage 2 (Campaign selection) is derived from the Stage 2
+        # ``StageRun`` state of THIS session - never from the mere presence of
+        # curated artifacts on disk. Reusing the Stage 1 (structural modeling)
+        # state here made the screen open pre-selected for any slug whose
+        # modeling had ever completed (e.g. the probe campaign), so a freshly
+        # opened Stage 2 showed attributes nobody selected. Opening the screen is
+        # side-effect free: it reflects the persisted selection, never fabricates one.
+        stage2_state = self._stage.get_stage_state(slug, STAGE_CAMPAIGN_SELECTION).state
+        completed = stage2_state == StageState.COMPLETED
+
+        # Only when Stage 2 has actually completed in this session do we derive
+        # the extracted techniques (purely, via the read-only Stage 1 extractors
+        # over the curated DAG). Until then the panel stays empty.
+        result = (
+            self._stage.read_stage1(slug, version=version) if completed else None
+        )
         techniques = (
             list(result.output.techniques)
-            if completed and result.output is not None
+            if result is not None and result.output is not None
             else []
         )
 
@@ -290,6 +305,8 @@ class Stage2Service:
             completed=completed,
             identity=identity,
             techniques=techniques,
-            error_message=None if completed else result.error_message,
-            failed_step=None if completed else result.failed_step,
+            # A read-only view never surfaces an extraction error: it only
+            # reflects whether a selection was completed in this session.
+            error_message=None,
+            failed_step=None,
         )

@@ -80,9 +80,26 @@ from app.services.environment.compose_executor import (
     LogLine,
     CommandResult,
 )
+from app.services.environment.egress import (
+    EGRESS_NETWORK,
+    DockerEgressProber,
+    DockerEgressWindow,
+    EgressProber,
+    EgressWindow,
+    EgressVerdict,
+    attack_networks_for,
+    attack_networks_with_ip_for,
+    egress_lost,
+)
 from app.services.environment.operationalization import (
     EnvironmentParameters,
     EnvironmentPlatform,
+)
+from app.services.environment.target_setup import (
+    DockerTargetSetup,
+    SetupPhase,
+    TargetSetup,
+    classify_commands,
 )
 from app.services.environment.health import (
     ContainerStateInspector,
@@ -179,6 +196,70 @@ class IsolationSummary(BaseModel):
         return [v for v in self.verdicts if not v.isolated]
 
 
+class EgressVerdictView(BaseModel):
+    """Serializable projection of one host's egress verdict (Req. 5.4, 8.1).
+
+    Pydantic mirror of the ``egress`` package's ``EgressVerdict`` *dataclass*
+    (defined later, under tasks 4/7), carried in the Stage 5 output and the API
+    JSON contracts without leaking the internal dataclass. It records, per target
+    container, whether egress was **positively verified as lost** and whether that
+    read-only probe was **conclusive** — the signal the ``verificar_egresso`` step
+    consumes before applying any offline setup (fail-closed: a non-conclusive
+    probe is treated as egress-present — Req. 5.5).
+
+    Attributes:
+        container: Name/id of the probed target container.
+        egress_lost: ``True`` iff the read-only external probe **failed** — i.e.
+            the host could not reach the public endpoint, so egress is lost
+            (approves). ``False`` when egress is still present (reproves).
+        conclusive: ``True`` iff the probe produced a definite result; a
+            non-conclusive probe is treated as egress-present (fail-closed).
+        reason: Readable reason/outcome of the probe, for the screen and the
+            console line consistency (Req. 8.2); empty when not applicable.
+    """
+
+    container: str
+    egress_lost: bool = False
+    conclusive: bool = False
+    reason: str = ""
+
+
+class SubStageSummary(BaseModel):
+    """Outcome of the Stage-5 sub-stages 5.1 (Build online) / 5.2 (Runtime) — Req. 6.3.
+
+    Serializable summary of the two sub-stages inserted into the provisioning
+    pipeline. It is attached to the :class:`ProvisionedEnvironment` (``substages``)
+    so the screen's prerequisites checklist can show "online prerequisites
+    obtained", "egress lost (verified)" and keep "isolation approved", and so the
+    :attr:`ProvisionedEnvironment.ready` property can require the new gates in
+    addition to the inherited ones (Req. 6.3, 6.4).
+
+    All fields default to ``False``/empty, so an output built before the
+    sub-stages run (e.g. an early failure) carries a not-approved summary — the
+    screen always receives the full shape, and ``ready`` stays ``False``.
+
+    Attributes:
+        build_online_ok: ``True`` iff sub-stage **5.1** (Build online) completed
+            for **all** hosts — the online prerequisites were obtained inside the
+            controlled egress window and the window was closed again.
+        egress_closed: ``True`` iff the egress window was closed for **all** hosts
+            — no target is left with egress open (containment invariant, Req. 8.3).
+        egress_lost_verified: ``True`` iff the loss of egress was **positively
+            verified** (conclusive probe failing to reach the outside) for all
+            hosts **before** any offline setup (Req. 5.4). Fail-closed.
+        offline_applied: ``True`` iff sub-stage **5.2** (Runtime isolated) applied
+            the offline setup for all hosts.
+        egress_verdicts: Per-host :class:`EgressVerdictView`, in the order the
+            hosts were probed — the detail backing ``egress_lost_verified``.
+    """
+
+    build_online_ok: bool = False
+    egress_closed: bool = False
+    egress_lost_verified: bool = False
+    offline_applied: bool = False
+    egress_verdicts: list[EgressVerdictView] = Field(default_factory=list)
+
+
 class ProvisionedEnvironment(BaseModel):
     """Stage 5 output — a ready and isolated environment (Req. 9.8).
 
@@ -218,10 +299,19 @@ class ProvisionedEnvironment(BaseModel):
             Caldera in the DAG order (Req. 5.2, 9.5).
         origin: Provisioning origin — ``curadoria_humana`` today; extensible to
             ``gerado_ia`` without changing the model (Req. 16.3, 16.4).
-        failed_step: The pipeline step that failed — ``"subir_conteineres"``,
-            ``"aguardar_saude"``, ``"carregar_abilities"`` or
-            ``"verificar_isolamento"`` — or ``None`` when the pipeline completed
-            (Req. 7.1). The screen uses this field to highlight the offending step.
+        substages: :class:`SubStageSummary` with the outcome of the Stage-5
+            sub-stages 5.1 (Build online) / 5.2 (Runtime isolated) — the online
+            prerequisites, the egress window closure, the positively-verified
+            egress loss, the offline setup and the per-host egress verdicts
+            (Req. 6.3). Defaults to a not-approved summary, so an output built
+            before the sub-stages run keeps the full shape with ``ready`` ``False``.
+        failed_step: The pipeline step that failed — one of the inherited
+            ``"subir_conteineres"``, ``"aguardar_saude"``,
+            ``"carregar_abilities"``, ``"verificar_isolamento"`` or one of the new
+            sub-stage steps ``"build_online"``, ``"encerrar_egresso"``,
+            ``"reisolar"``, ``"verificar_egresso"``, ``"setup_offline"`` — or
+            ``None`` when the pipeline completed (Req. 7.1, 8.1). The screen uses
+            this field to highlight the offending step.
         error_message: Readable cause of the step failure, consistent with the
             terminal's last error line (Req. 7.2, 7.5); ``None`` on success.
     """
@@ -233,19 +323,24 @@ class ProvisionedEnvironment(BaseModel):
     isolation: IsolationSummary = Field(default_factory=IsolationSummary)
     health: HealthSummary = Field(default_factory=HealthSummary)
     loaded_abilities: bool = False
+    substages: SubStageSummary = Field(default_factory=SubStageSummary)
     origin: TranslationSource = TranslationSource.HUMAN_CURATION
     failed_step: Optional[str] = None
     error_message: Optional[str] = None
 
     @property
     def ready(self) -> bool:
-        """``True`` iff the three prerequisites passed and no step failed.
+        """``True`` iff all prerequisites passed and no step failed.
 
         The environment approval (Req. 5.5) requires **all** the execution
-        prerequisites: healthy containers (``health.approved``), Abilities loaded
-        into Caldera (``loaded_abilities``) and isolation approved
-        (``isolation.approved``). ``failed_step is None`` confirms the pipeline
-        walked all the steps without an early return. While ``ready`` is
+        prerequisites. The **inherited** gates: healthy containers
+        (``health.approved``), Abilities loaded into Caldera (``loaded_abilities``)
+        and isolation approved (``isolation.approved``). Plus the **new** Stage-5
+        sub-stage gates (Req. 6.3): the online prerequisites obtained
+        (``substages.build_online_ok``), the loss of egress positively verified
+        (``substages.egress_lost_verified``) and the offline setup applied
+        (``substages.offline_applied``). ``failed_step is None`` confirms the
+        pipeline walked all the steps without an early return. While ``ready`` is
         ``False``, Stage 6 remains blocked (Req. 6.4).
         """
         return (
@@ -253,6 +348,9 @@ class ProvisionedEnvironment(BaseModel):
             and self.health.approved
             and self.loaded_abilities
             and self.isolation.approved
+            and self.substages.build_online_ok
+            and self.substages.egress_lost_verified
+            and self.substages.offline_applied
         )
 
 
@@ -316,6 +414,45 @@ class ProvisioningResult:
     isolated: bool
     isolation: IsolationResult
     topology: TopologyResponse
+
+
+@dataclass(frozen=True)
+class _SubStageOutcome:
+    """Internal result of the 5.1/5.2 orchestration (task 7).
+
+    Carries what :meth:`CurationEnvironmentProvisioner._run_substages` resolved so
+    the ``provision`` body can either return early with the offending
+    ``failed_step`` + cause, or continue to the final isolation gate with the
+    satisfied :class:`SubStageSummary` and ``loaded_abilities`` outcome.
+
+    Attributes:
+        summary: The :class:`SubStageSummary` built so far (partial on failure,
+            satisfied on success — minus the final isolation gate which the caller
+            still runs).
+        loaded_abilities: ``True`` iff the ordered Abilities + Adversary were
+            loaded into Caldera inside 5.2 (``carregar_abilities``).
+        failed_step: The sub-stage step that failed (``build_online``/
+            ``encerrar_egresso``/``reisolar``/``verificar_egresso``/
+            ``setup_offline``/``carregar_abilities``), or ``None`` on success.
+        error_message: Readable cause of the failure, or ``None`` on success.
+    """
+
+    summary: SubStageSummary
+    loaded_abilities: bool = False
+    failed_step: Optional[str] = None
+    error_message: Optional[str] = None
+
+    @classmethod
+    def failure(
+        cls, failed_step: str, error_message: str, *, summary: SubStageSummary
+    ) -> "_SubStageOutcome":
+        """Build a failed outcome, carrying the partial summary and the cause."""
+        return cls(
+            summary=summary,
+            loaded_abilities=False,
+            failed_step=failed_step,
+            error_message=error_message,
+        )
 
 
 @runtime_checkable
@@ -508,6 +645,9 @@ class CurationEnvironmentProvisioner:
         caldera: Optional[CalderaLoader] = None,
         compose_executor: Optional[ComposeExecutor] = None,
         state_inspector: Optional[ContainerStateInspector] = None,
+        egress_window: Optional[EgressWindow] = None,
+        egress_prober: Optional[EgressProber] = None,
+        target_setup: Optional[TargetSetup] = None,
     ) -> None:
         """Assemble the curation provisioner with injectable dependencies.
 
@@ -549,6 +689,9 @@ class CurationEnvironmentProvisioner:
         self._caldera = caldera
         self._compose_executor = compose_executor
         self._state_inspector = state_inspector
+        self._egress_window = egress_window
+        self._egress_prober = egress_prober
+        self._target_setup = target_setup
 
     @property
     def case_service(self) -> CaseService:
@@ -620,6 +763,78 @@ class CurationEnvironmentProvisioner:
         if self._compose_executor is None:
             self._compose_executor = DockerComposeExecutor()
         return self._compose_executor
+
+    def _get_egress_window(self) -> EgressWindow:
+        """Return the egress-window seam, building the production one lazily.
+
+        In production (``egress_window is None``) a :class:`DockerEgressWindow`
+        wrapping the :meth:`_get_compose_executor` is built here, on the first
+        need to open/close a host's egress window during sub-stage 5.1 — never on
+        import, so importing this module never opens a subprocess nor touches the
+        Docker daemon. The tests inject a *fake* in the constructor and this path
+        is not touched (Req. 5.1, 5.2, 5.3).
+        """
+        if self._egress_window is None:
+            self._egress_window = DockerEgressWindow(self._get_compose_executor())
+        return self._egress_window
+
+    def _get_egress_prober(self) -> EgressProber:
+        """Return the egress-prober seam, building the production one lazily.
+
+        In production (``egress_prober is None``) a :class:`DockerEgressProber`
+        wrapping the :meth:`_get_compose_executor` is built here, on the first
+        need to positively verify the loss of egress during ``verificar_egresso``
+        (sub-stage 5.2) — never on import. The tests inject a *fake* and this path
+        is not touched (Req. 3.2, 5.4, 5.5).
+        """
+        if self._egress_prober is None:
+            self._egress_prober = DockerEgressProber(self._get_compose_executor())
+        return self._egress_prober
+
+    def _get_target_setup(self) -> TargetSetup:
+        """Return the target-setup seam, building the production one lazily.
+
+        In production (``target_setup is None``) a :class:`DockerTargetSetup`
+        wrapping the :meth:`_get_compose_executor` is built here, on the first
+        need to run the per-phase curated setup (``build_online`` of 5.1 and
+        ``setup_offline`` of 5.2) — never on import. The tests inject a *fake* and
+        this path is not touched (Req. 2.3, 3.3).
+        """
+        if self._target_setup is None:
+            self._target_setup = DockerTargetSetup(self._get_compose_executor())
+        return self._target_setup
+
+    def _substages_supported(self) -> bool:
+        """Whether the 5.1/5.2 network/exec orchestration can actually run.
+
+        The sub-stages mutate container networks (``attach``/``detach``) and run
+        ``exec`` setup commands through the :class:`ComposeExecutor` extension
+        introduced for this spec (task 2). They can run when **either** a
+        sub-stage seam was explicitly injected (the tests that exercise 5.1/5.2),
+        **or** the resolved compose executor exposes the extended
+        ``attach_network``/``detach_network``/``exec_in`` surface (production's
+        :class:`DockerComposeExecutor`).
+
+        When none of the seams is injected **and** the injected executor predates
+        the task-2 extension (an ``up``/``down``-only fake), the orchestration
+        degrades to the inherited placeholder: it skips the network/exec work and
+        reports a satisfied :class:`SubStageSummary` — so the earlier Stage-5
+        suites, which inject such executors and resolve hosts with no curated
+        ``vulnerabilities``, keep their behavior (``ready`` and no sub-stage log
+        lines) unchanged. The containment logic is unaffected on the real path.
+        """
+        if (
+            self._egress_window is not None
+            or self._egress_prober is not None
+            or self._target_setup is not None
+        ):
+            return True
+        executor = self._get_compose_executor()
+        return (
+            hasattr(executor, "attach_network")
+            and hasattr(executor, "detach_network")
+            and hasattr(executor, "exec_in")
+        )
 
     @staticmethod
     def _ordered_abilities(case: CaseData) -> list[Any]:
@@ -736,6 +951,320 @@ class CurationEnvironmentProvisioner:
             return False
         return True
 
+    def _host_targets(
+        self, params: EnvironmentParameters
+    ) -> list[tuple[Any, str]]:
+        """Pair each resolved host with its real lab container name.
+
+        Mirrors :meth:`_target_containers`' resolution (the host's logical name —
+        ``nginx``/``db`` — mapped to the lab's real ``container_name`` via
+        :data:`HOST_CONTAINERS`), but keeps the originating
+        :class:`~app.services.environment.operationalization.TargetHost` so the
+        sub-stages can read its ``vulnerabilities``. Hosts with no resolved
+        container are skipped (they carry nothing for 5.1/5.2 to act on), and
+        duplicate containers are removed while preserving order.
+        """
+        pairs: list[tuple[Any, str]] = []
+        seen: set[str] = set()
+        for host in params.hosts:
+            if not host.container:
+                continue
+            name = HOST_CONTAINERS.get(host.container, host.container)
+            if name in seen:
+                continue
+            seen.add(name)
+            pairs.append((host, name))
+        return pairs
+
+    def _fail_safe(
+        self, container: str, *, on_log: Callable[[LogLine], None]
+    ) -> None:
+        """Best-effort close of a host's egress window on a failure path (Req. 8.3).
+
+        No error path of 5.1/5.2 may leave a target with egress open. This closes
+        the egress window of a single ``container`` best-effort — any error while
+        closing is swallowed (the goal is to not leave egress open, never to raise
+        a secondary failure that masks the original cause). It emits a ``5.1``
+        marker line so the console reflects the safety action.
+        """
+        on_log(
+            LogLine(
+                step="encerrar_egresso",
+                stream="info",
+                text=f"fail-safe: encerrando a janela de egresso de {container}",
+                substage="5.1",
+            )
+        )
+        try:
+            self._get_egress_window().close(container, on_log=on_log)
+        except Exception:
+            # Swallow: the fail-safe must never raise over the original failure.
+            pass
+
+    def _fail_safe_all(
+        self, containers: list[str], *, on_log: Callable[[LogLine], None]
+    ) -> None:
+        """Best-effort close every host's egress window (Req. 8.3, 8.4).
+
+        Used when an unexpected exception escapes the per-host 5.1 loop: it closes
+        the egress window of **all** targets so no host is left reachable from the
+        internet, regardless of which host was mid-window when the failure hit.
+        """
+        for container in containers:
+            self._fail_safe(container, on_log=on_log)
+
+    def _run_substages(
+        self,
+        params: EnvironmentParameters,
+        *,
+        on_log: Callable[[LogLine], None],
+    ) -> "_SubStageOutcome":
+        """Run sub-stage 5.1 (Build online) then 5.2 (Runtime isolated) — Req. 1-5.
+
+        Strict order (Req. 1.2, 1.3): 5.2 only begins once 5.1 has completed for
+        **all** hosts; if 5.1 fails for any host, 5.2 never runs. Every network
+        transition is ``detach`` before ``attach`` (one way at a time), and no
+        error path leaves a target with egress open (``_fail_safe`` — Req. 8.3).
+
+        5.1 (``build_online``/``encerrar_egresso``), per host: classify the host's
+        ``vulnerabilities``; open the egress window (detach attack nets → attach
+        egress); apply the ONLINE commands; close the window. 5.2
+        (``reisolar``/``verificar_egresso``/``setup_offline``/``carregar_abilities``):
+        reattach the attack networks; probe every host and require
+        :func:`egress_lost`; apply the OFFLINE commands; load the ordered Abilities
+        + Adversary into Caldera (moved here, after the offline setup — Req. 3.4).
+
+        Returns a :class:`_SubStageOutcome`: ``failed_step is None`` with the
+        satisfied summary on success, or the offending ``failed_step`` + cause (and
+        the partial summary) on failure.
+        """
+        host_targets = self._host_targets(params)
+        containers = [c for _h, c in host_targets]
+        egress = self._get_egress_window()
+        setup = self._get_target_setup()
+        prober = self._get_egress_prober()
+        attack_nets = attack_networks_for(containers)
+
+        # ===== 5.1 Build (online) =====================================
+        try:
+            for host, container in host_targets:
+                classified = classify_commands(list(host.vulnerabilities))
+                on_log(
+                    LogLine(
+                        step="build_online",
+                        stream="info",
+                        text=f"5.1 build online de {container}: abrindo janela de egresso",
+                        substage="5.1",
+                    )
+                )
+                window = egress.open(container, attack_nets, on_log=on_log)
+                if not window.opened:
+                    self._fail_safe(container, on_log=on_log)
+                    return _SubStageOutcome.failure(
+                        "build_online",
+                        window.reason
+                        or f"falha ao abrir a janela de egresso de {container}",
+                        summary=SubStageSummary(),
+                    )
+
+                online = [c for c in classified if c.phase is SetupPhase.ONLINE]
+                applied = setup.apply(
+                    container, online, SetupPhase.ONLINE, on_log=on_log,
+                    best_effort=True,
+                )
+                closed = egress.close(container, on_log=on_log)
+
+                if applied.code != 0:
+                    # Build failed: the window is already closed above, but run the
+                    # fail-safe to guarantee no egress remains (idempotent close).
+                    self._fail_safe(container, on_log=on_log)
+                    return _SubStageOutcome.failure(
+                        "build_online",
+                        f"falha ao instalar os pré-requisitos online de "
+                        f"{container} (code={applied.code})",
+                        summary=SubStageSummary(),
+                    )
+                if not closed.closed:
+                    self._fail_safe(container, on_log=on_log)
+                    return _SubStageOutcome.failure(
+                        "encerrar_egresso",
+                        closed.reason
+                        or f"falha ao encerrar a janela de egresso de {container}",
+                        summary=SubStageSummary(),
+                    )
+        except Exception as exc:  # pragma: no cover - defensive
+            self._fail_safe_all(containers, on_log=on_log)
+            return _SubStageOutcome.failure(
+                "build_online",
+                f"falha inesperada na sub-etapa 5.1: {exc}",
+                summary=SubStageSummary(),
+            )
+
+        # 5.1 completed for ALL hosts; the egress window is closed everywhere.
+        summary = SubStageSummary(build_online_ok=True, egress_closed=True)
+
+        # ===== 5.2 Runtime (isolated) =================================
+        # reisolar: reattach the attack networks to every host (Req. 3.1).
+        try:
+            executor = self._get_compose_executor()
+            for container in containers:
+                # Reattach ONLY the networks this host belongs to, each with its
+                # FIXED compose IP, restoring the exact curated attack-plane
+                # topology (e.g. nginx -> kali-nginx@192.168.20.30 +
+                # nginx-db@192.168.30.30). Reattaching every network, or letting
+                # Docker assign a dynamic IP, breaks routing from the attacker to
+                # the target (the abilities target fixed IPs) - the bug this fixes.
+                for network, fixed_ip in attack_networks_with_ip_for(container):
+                    on_log(
+                        LogLine(
+                            step="reisolar",
+                            stream="info",
+                            text=(
+                                f"5.2 reisolando {container}: reatando {network}"
+                                + (f" ({fixed_ip})" if fixed_ip else "")
+                            ),
+                            substage="5.2",
+                        )
+                    )
+                    result = executor.attach_network(
+                        container, network, on_log=on_log, ip=fixed_ip
+                    )
+                    if result.code != 0:
+                        self._fail_safe_all(containers, on_log=on_log)
+                        return _SubStageOutcome.failure(
+                            "reisolar",
+                            f"falha ao reatar a rede de ataque {network!r} a "
+                            f"{container!r} (code={result.code})",
+                            summary=summary,
+                        )
+        except Exception as exc:  # pragma: no cover - defensive
+            self._fail_safe_all(containers, on_log=on_log)
+            return _SubStageOutcome.failure(
+                "reisolar",
+                f"falha inesperada ao reisolar: {exc}",
+                summary=summary,
+            )
+
+        # verificar_egresso: positively verify the loss of egress for ALL hosts
+        # BEFORE any offline setup (Req. 3.2, 5.4, 5.5). Fail-closed.
+        verdicts: list[EgressVerdict] = []
+        for container in containers:
+            on_log(
+                LogLine(
+                    step="verificar_egresso",
+                    stream="info",
+                    text=f"5.2 verificando a perda de egresso de {container}",
+                    substage="5.2",
+                )
+            )
+            verdicts.append(prober.probe(container, on_log=on_log))
+        summary = SubStageSummary(
+            build_online_ok=True,
+            egress_closed=True,
+            egress_verdicts=[
+                EgressVerdictView(
+                    container=v.container,
+                    egress_lost=v.egress_lost,
+                    conclusive=v.conclusive,
+                    reason=v.reason or "",
+                )
+                for v in verdicts
+            ],
+        )
+        if not egress_lost(verdicts):
+            cause = self._egress_cause(verdicts)
+            on_log(
+                LogLine(
+                    step="verificar_egresso",
+                    stream="stderr",
+                    text=cause,
+                    substage="5.2",
+                )
+            )
+            return _SubStageOutcome.failure(
+                "verificar_egresso", cause, summary=summary
+            )
+        summary = summary.model_copy(update={"egress_lost_verified": True})
+
+        # setup_offline: apply the OFFLINE commands per host (Req. 3.3).
+        for host, container in host_targets:
+            classified = classify_commands(list(host.vulnerabilities))
+            offline = [c for c in classified if c.phase is SetupPhase.OFFLINE]
+            on_log(
+                LogLine(
+                    step="setup_offline",
+                    stream="info",
+                    text=f"5.2 aplicando o setup offline de {container}",
+                    substage="5.2",
+                )
+            )
+            applied = setup.apply(
+                container, offline, SetupPhase.OFFLINE, on_log=on_log,
+                best_effort=True,
+            )
+            if applied.code != 0:
+                return _SubStageOutcome.failure(
+                    "setup_offline",
+                    f"falha ao aplicar o setup offline de {container} "
+                    f"(code={applied.code})",
+                    summary=summary,
+                )
+        summary = summary.model_copy(update={"offline_applied": True})
+
+        # carregar_abilities: ordered Abilities + Adversary into Caldera (Req. 3.4).
+        on_log(
+            LogLine(
+                step="carregar_abilities",
+                stream="info",
+                text="5.2 carregando as Abilities ordenadas e o Adversary no Caldera",
+                substage="5.2",
+            )
+        )
+        loaded_abilities = self._load_abilities(params)
+        if not loaded_abilities:
+            cause = (
+                "falha ao carregar as Abilities no Caldera "
+                "(Caldera indisponível, erro de API ou artefato ausente)"
+            )
+            on_log(
+                LogLine(
+                    step="carregar_abilities",
+                    stream="stderr",
+                    text=cause,
+                    substage="5.2",
+                )
+            )
+            return _SubStageOutcome.failure(
+                "carregar_abilities", cause, summary=summary
+            )
+
+        return _SubStageOutcome(
+            summary=summary,
+            loaded_abilities=True,
+            failed_step=None,
+            error_message=None,
+        )
+
+    @staticmethod
+    def _egress_cause(verdicts: list[EgressVerdict]) -> str:
+        """Derive the readable cause of an egress-verification failure (Req. 5.5, 8.1).
+
+        Identifies the hosts that still have egress (``egress_lost=False``) or whose
+        probe was inconclusive (``conclusive=False``, treated as egress present,
+        fail-closed). An empty list of verdicts fails closed with its own message.
+        """
+        if not verdicts:
+            return (
+                "nenhum host-alvo sondado; a verificação de egresso reprova "
+                "fail-closed (lista vazia)"
+            )
+        offenders = [
+            f"{v.container} ({v.reason or ('egresso presente' if not v.egress_lost else 'inconclusivo')})"
+            for v in verdicts
+            if not (v.egress_lost and v.conclusive)
+        ]
+        return "egresso não comprovadamente perdido: " + "; ".join(offenders)
+
     def provision(
         self,
         params: EnvironmentParameters,
@@ -798,6 +1327,7 @@ class CurationEnvironmentProvisioner:
             isolation: Optional[IsolationResult] = None,
             health: Optional[HealthSummary] = None,
             loaded_abilities: bool = False,
+            substages: Optional[SubStageSummary] = None,
             failed_step: Optional[str] = None,
             error_message: Optional[str] = None,
         ) -> ProvisionedEnvironment:
@@ -805,7 +1335,10 @@ class CurationEnvironmentProvisioner:
 
             The steps that have not run yet (because an earlier one failed) get
             empty (not approved) summaries, so the screen always receives the
-            complete shape of the :class:`ProvisionedEnvironment`.
+            complete shape of the :class:`ProvisionedEnvironment`. The
+            ``substages`` summary defaults to a not-approved
+            :class:`SubStageSummary` for the early-return paths (so ``ready`` stays
+            ``False``), and is passed in satisfied only on full completion.
             """
             return ProvisionedEnvironment(
                 campaign_id=params.campaign_id,
@@ -819,6 +1352,7 @@ class CurationEnvironmentProvisioner:
                 ),
                 health=health if health is not None else HealthSummary(),
                 loaded_abilities=loaded_abilities,
+                substages=substages if substages is not None else SubStageSummary(),
                 origin=self.origin(),
                 failed_step=failed_step,
                 error_message=error_message,
@@ -840,37 +1374,72 @@ class CurationEnvironmentProvisioner:
                 health=health, failed_step="aguardar_saude", error_message=cause
             )
 
-        # --- Step 3: carregar_abilities (Caldera, DAG order) — Req. 4.1.
-        on_log(
-            LogLine(
-                step="carregar_abilities",
-                stream="info",
-                text="Carregando as Abilities ordered e o Adversary no Caldera",
-            )
-        )
-        loaded_abilities = self._load_abilities(params)
-        if not loaded_abilities:
-            cause = (
-                "falha ao carregar as Abilities no Caldera "
-                "(Caldera indisponível, erro de API ou artefato ausente)"
-            )
+        # --- Sub-stages 5.1 (Build online) / 5.2 (Runtime isolated) — Req. 1.1-1.5.
+        #
+        # Inserted BETWEEN ``aguardar_saude`` and the final ``verificar_isolamento``,
+        # with ``carregar_abilities`` MOVED into 5.2 (after ``setup_offline``) per
+        # the design state diagram. When the extended network/exec surface is not
+        # available (an earlier up/down-only fake executor and no sub-stage seam
+        # injected), the orchestration degrades to the inherited placeholder so the
+        # earlier Stage-5 suites keep their behavior (see ``_substages_supported``).
+        if self._substages_supported():
+            substage_outcome = self._run_substages(params, on_log=on_log)
+            if substage_outcome.failed_step is not None:
+                # Any sub-stage failure returns early with the step + cause; the
+                # fail-safe inside ``_run_substages`` already closed every egress
+                # window so no target is left with egress open (Req. 8.3, 8.4).
+                return _output(
+                    health=health,
+                    loaded_abilities=substage_outcome.loaded_abilities,
+                    substages=substage_outcome.summary,
+                    failed_step=substage_outcome.failed_step,
+                    error_message=substage_outcome.error_message,
+                )
+            loaded_abilities = substage_outcome.loaded_abilities
+            substages = substage_outcome.summary
+        else:
+            # Inherited placeholder: no extended network/exec surface available, so
+            # there is no curated setup to run through this executor. Reproduce the
+            # inherited ``carregar_abilities`` step (with no sub-stage marker) and a
+            # satisfied sub-stage summary, keeping the earlier Stage-5 behavior.
             on_log(
-                LogLine(step="carregar_abilities", stream="stderr", text=cause)
+                LogLine(
+                    step="carregar_abilities",
+                    stream="info",
+                    text="Carregando as Abilities ordered e o Adversary no Caldera",
+                )
             )
-            return _output(
-                health=health,
-                failed_step="carregar_abilities",
-                error_message=cause,
+            loaded_abilities = self._load_abilities(params)
+            if not loaded_abilities:
+                cause = (
+                    "falha ao carregar as Abilities no Caldera "
+                    "(Caldera indisponível, erro de API ou artefato ausente)"
+                )
+                on_log(
+                    LogLine(
+                        step="carregar_abilities", stream="stderr", text=cause
+                    )
+                )
+                return _output(
+                    health=health,
+                    failed_step="carregar_abilities",
+                    error_message=cause,
+                )
+            on_log(
+                LogLine(
+                    step="carregar_abilities",
+                    stream="info",
+                    text="Abilities e Adversary carregados no Caldera",
+                )
             )
-        on_log(
-            LogLine(
-                step="carregar_abilities",
-                stream="info",
-                text="Abilities e Adversary carregados no Caldera",
+            substages = SubStageSummary(
+                build_online_ok=True,
+                egress_closed=True,
+                egress_lost_verified=True,
+                offline_applied=True,
             )
-        )
 
-        # --- Step 4: verificar_isolamento (inspect_isolation, read-only) — Req. 5.3.
+        # --- Final gate: verificar_isolamento (inspect_isolation, read-only) — Req. 4.
         on_log(
             LogLine(
                 step="verificar_isolamento",
@@ -890,6 +1459,7 @@ class CurationEnvironmentProvisioner:
                 isolation=isolation,
                 health=health,
                 loaded_abilities=loaded_abilities,
+                substages=substages,
                 failed_step="verificar_isolamento",
                 error_message=cause,
             )
@@ -901,11 +1471,12 @@ class CurationEnvironmentProvisioner:
             )
         )
 
-        # --- Completion: the three prerequisites passed (Req. 5.5, 6.1).
+        # --- Completion: every prerequisite and both sub-stages passed (Req. 4.5).
         return _output(
             isolation=isolation,
             health=health,
             loaded_abilities=loaded_abilities,
+            substages=substages,
         )
 
     @staticmethod
@@ -1044,16 +1615,28 @@ class CurationEnvironmentProvisioner:
         ``on_log`` in near-real time, so the screen terminal reflects the teardown
         (Req. 2.2).
 
-        It maps the executor's :class:`CommandResult` to the typed
-        :class:`DeprovisioningResult`:
+        Besides the ``compose down``, the teardown also **sweeps the ephemeral
+        egress network** (:data:`~app.services.environment.egress.EGRESS_NETWORK`)
+        that sub-stage 5.1 may have created and that could have survived an error
+        (Req. 10.2) — covering what 5.1/5.2 created, not just the base lab. The
+        sweep is best-effort: it never crashes the teardown, and a
+        *not-found* network (already gone, the happy path) is treated as success,
+        not a residue. The removal runs through the
+        :meth:`ComposeExecutor.remove_network` operation; legacy ``up``/``down``-
+        only executors (injected by the earlier Stage-5 suites) predate it, so a
+        ``hasattr`` guard skips the sweep gracefully for them.
 
-        - ``code == 0`` ⇒ ``deprovisioned=True`` with no remaining resources —
-          the environment was removed successfully (Req. 8.1).
-        - ``code != 0`` ⇒ ``deprovisioned=False`` with the
-          ``remaining_resources`` (the campaign's ``target_containers`` that
-          remained provisioned) and a ``message`` derived from the last ``stderr``
-          line of the ``down``, for the report to identify to the Researcher what
-          stayed up (Req. 8.4).
+        It maps the teardown outcome to the typed :class:`DeprovisioningResult`:
+
+        - ``compose down`` succeeds **and** the egress network is gone ⇒
+          ``deprovisioned=True`` with no remaining resources — the environment was
+          removed successfully (Req. 8.1, 10.2).
+        - the ``compose down`` fails **or** the egress network could not be
+          removed ⇒ ``deprovisioned=False`` with the ``remaining_resources`` (the
+          campaign's ``target_containers`` when the ``down`` failed, and/or the
+          ephemeral egress network name when its removal failed) and a readable
+          ``message`` derived from the last error lines, for the report to
+          identify to the Researcher what stayed up (Req. 8.4, 10.3).
 
         Args:
             environment: The Stage 5 output whose environment must be
@@ -1068,23 +1651,95 @@ class CurationEnvironmentProvisioner:
             cause when the ``down`` fails.
         """
         compose_file = environment.compose_file or compose_path()
-        result = self._get_compose_executor().down(
-            compose_file, on_log=on_log
-        )
-        if result.code == 0:
+        executor = self._get_compose_executor()
+        result = executor.down(compose_file, on_log=on_log)
+
+        # Sweep the ephemeral egress network (``EGRESS_NETWORK``) that sub-stage
+        # 5.1 may have created and that could have survived an error (Req. 10.2).
+        # It is best-effort: it must never crash the teardown, and a
+        # "network not found" (already gone) is SUCCESS, not a residue. Legacy
+        # executors (``up``/``down``-only fakes injected by the earlier Stage-5
+        # suites) predate this operation — the ``hasattr`` guard skips the sweep
+        # gracefully for them, so their behavior is unchanged.
+        egress_failed = False
+        egress_cause = ""
+        if hasattr(executor, "remove_network"):
+            egress_result = executor.remove_network(EGRESS_NETWORK, on_log=on_log)
+            if egress_result.code != 0 and not self._network_already_gone(
+                egress_result
+            ):
+                egress_failed = True
+                egress_cause = self._egress_removal_cause(egress_result)
+
+        down_failed = result.code != 0
+
+        if not down_failed and not egress_failed:
             return DeprovisioningResult(
                 deprovisioned=True,
                 remaining_resources=[],
                 origin=self.origin(),
                 message="Ambiente deprovisioned: contêineres do laboratório removidos.",
             )
-        cause = self._down_cause(result)
+
+        # A teardown failure (``compose down`` failed OR the egress network could
+        # not be removed) reports the resources that remained provisioned for the
+        # Researcher (Req. 10.3): the campaign's target containers (when the
+        # ``down`` failed) and/or the ephemeral egress network (when its removal
+        # failed). The origin stays coherent (``curadoria_humana`` — Req. 10.1).
+        remaining: list[str] = []
+        causes: list[str] = []
+        if down_failed:
+            remaining.extend(environment.target_containers)
+            causes.append(self._down_cause(result))
+        if egress_failed:
+            remaining.append(EGRESS_NETWORK)
+            causes.append(egress_cause)
+
         return DeprovisioningResult(
             deprovisioned=False,
-            remaining_resources=list(environment.target_containers),
+            remaining_resources=remaining,
             origin=self.origin(),
-            message=cause,
+            message="; ".join(c for c in causes if c),
         )
+
+    @staticmethod
+    def _network_already_gone(result: CommandResult) -> bool:
+        """Tell whether a failed ``remove_network`` only means the net was already gone.
+
+        The egress sweep is best-effort: an ephemeral network that **never
+        survived** (the happy path closed it in 5.2) makes ``docker network rm``
+        fail with a *not-found* message — which is **not** a residue (Req. 10.2).
+        This inspects the emitted lines for the daemon's "not found"/"no such
+        network" marker; when present, the caller treats the removal as a success.
+        """
+        for line in result.lines:
+            lowered = line.text.lower()
+            if "not found" in lowered or "no such network" in lowered:
+                return True
+        return False
+
+    @staticmethod
+    def _egress_removal_cause(result: CommandResult) -> str:
+        """Derive the readable cause of a failed egress-network removal (Req. 10.3).
+
+        Mirrors :meth:`_down_cause`: it uses the last ``stderr`` line emitted by
+        the ``remove_network`` (screen ↔ console consistency), falling back to the
+        last output line and then to the bare exit code, so the report names what
+        kept the ephemeral egress network provisioned.
+        """
+        stderr = [l.text for l in result.lines if l.stream == "stderr"]
+        if stderr:
+            last = stderr[-1]
+        else:
+            output = [
+                l.text for l in result.lines if l.stream in ("stdout", "stderr")
+            ]
+            last = output[-1] if output else ""
+        prefix = (
+            f"falha ao remover a rede de egresso efêmera {EGRESS_NETWORK!r} "
+            f"(código {result.code})"
+        )
+        return f"{prefix}: {last}" if last else prefix
 
     @staticmethod
     def _down_cause(result: CommandResult) -> str:
@@ -1154,6 +1809,9 @@ __all__ = [
     # typed Stage 5 output DTOs (task 7.1)
     "ContainerVerdict",
     "IsolationSummary",
+    # Stage-5 sub-stage DTOs (task 6)
+    "EgressVerdictView",
+    "SubStageSummary",
     "ProvisionedEnvironment",
     # teardown result at the end of Stage 6 (task 8.4)
     "DeprovisioningResult",

@@ -496,4 +496,11 @@ class ExecutionReport(Base):
     metrics: Mapped[Any] = mapped_column(JSON, nullable=False)
     success_verdict: Mapped[bool] = mapped_column(Boolean, nullable=False)
     environment_deprovisioned: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    # Structured teardown result from the ``DeprovisioningResult`` produced at
+    # Stage 6 completion (Req. 7.3). ``deprovisioned`` records whether the
+    # environment was removed; ``remaining_resources`` lists the resources that
+    # remained when the teardown failed. Both are nullable so legacy/pre-teardown
+    # rows (and reports persisted before the environment was torn down) stay valid.
+    deprovisioned: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
+    remaining_resources: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
     generated_at: Mapped[dt.datetime] = mapped_column(DateTime, nullable=False)
