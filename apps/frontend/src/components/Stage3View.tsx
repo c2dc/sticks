@@ -10,14 +10,11 @@ import {
   XCircle,
 } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
 import { EmptyNote, StageSection } from "@/components/StageSection"
-import { MermaidDiagram } from "@/components/MermaidDiagram"
 import { cn } from "@/lib/utils"
 import {
   connectOperation,
   getStage3,
-  getTopology,
   startExecution,
   type AbilityResult,
   type AbilityResultStatus,
@@ -27,9 +24,7 @@ import {
   type Stage3Result,
   type Stage5Verdict,
   type Stage6StartResult,
-  type TopologyResponse,
 } from "@/lib/stages"
-import { getEmulationPreview, type EmulationPreview } from "@/lib/emulation"
 
 /** Delay (ms) before the embedded auto-start / Stage-5 redirect fires (≤ 3s, Req. 1.1/1.4). */
 const AUTO_START_DELAY_MS = 3000
@@ -104,9 +99,10 @@ function orderedAbilityResults(
  * - Processing: per-Ability status in real time. When an Operation exists,
  *   it subscribes to `WS /ws/operation/{operation}` and reflects per-Ability
  *   status frames as they arrive (Req. 4.3).
- * - Output: per-Ability result (status + command output) and the aggregate
- *   success/failure totals when the Operation reaches its final state
- *   (Req. 4.4, 4.5).
+ *
+ * The former Output block (aggregate success/failure totals) was removed
+ * (Req. 2.1, 2.2): those totals are redundant with the report metrics and the
+ * live per-Ability list, so nothing unique is lost.
  *
  * Auto-start (Task 13.1, Req. 1): on mount, after the `GET /stage/6` snapshot,
  * if there is NO persisted result and the prerequisites are OK, the execution
@@ -123,6 +119,7 @@ function orderedAbilityResults(
 export function Stage3View({
   campaignId,
   onRedirectToStage,
+  onExecutionFinished,
 }: {
   campaignId: string
   /**
@@ -131,6 +128,16 @@ export function Stage3View({
    * redirect fires within ≤ 3s of detecting the block.
    */
   onRedirectToStage?: (stage: number) => void
+  /**
+   * Seam that signals whether the Stage-6 execution has FINISHED (Req. 3.1,
+   * 7.1, 8.2). It fires `true` exactly once when the current Operation reaches a
+   * terminal state ({@link TERMINAL_OPERATION_STATES}) or a persisted result is
+   * re-displayed (`phase === "persisted"`), gating the downstream metrics /
+   * deprovisioning sections. It resets to `false` when another campaign loads so
+   * the signal is re-emitted for the new run. Not wired here into any sibling —
+   * the composition owns that (Task 7.1).
+   */
+  onExecutionFinished?: (finished: boolean) => void
 }) {
   const { t } = useTranslation("pipeline")
   const [result, setResult] = useState<Stage3Result | null>(null)
@@ -156,22 +163,14 @@ export function Stage3View({
   const [phase, setPhase] = useState<ExecutionPhase>("idle")
   const [startError, setStartError] = useState<string | null>(null)
   const [startResult, setStartResult] = useState<Stage6StartResult | null>(null)
-  // Command/target preview shown inside the inline confirmation (Req. 1.6, 6.5).
-  const [preview, setPreview] = useState<EmulationPreview | null>(null)
   // Guards so the auto-start / redirect timers fire at most once per campaign.
   const startedRef = useRef(false)
 
-  // Live per-Ability status + aggregate, seeded from the REST snapshot and then
-  // updated in real time from the operation channel (Req. 4.3, 4.4, 4.5).
+  // Live per-Ability status, seeded from the REST snapshot and then updated in
+  // real time from the operation channel (Req. 4.3). The aggregate success/failure
+  // totals are no longer surfaced here — they live in the report metrics (Req. 2.1,
+  // 2.2) — so Stage3View keeps only the per-Ability live state.
   const [liveResults, setLiveResults] = useState<Record<string, AbilityResult>>({})
-  const [liveAggregate, setLiveAggregate] = useState<{
-    total_success: number
-    total_failure: number
-  } | null>(null)
-
-  // Contained target-network topology (read-only). Shown in Processing as
-  // the environment the campaign is emulated against (Mermaid diagram + nets).
-  const [topology, setTopology] = useState<TopologyResponse | null>(null)
 
   // Read-only Stage-5 environment verdict surfaced in the Stage-6 snapshot
   // (Req. 5.4). Stage 6 only reads it — never re-runs any verification.
@@ -184,25 +183,9 @@ export function Stage3View({
 
   useEffect(() => {
     let active = true
-    setTopology(null)
-    getTopology(campaignId)
-      .then((data) => {
-        if (active) setTopology(data)
-      })
-      .catch(() => {
-        /* topology is best-effort context; its absence must not block Stage 3 */
-      })
-    return () => {
-      active = false
-    }
-  }, [campaignId])
-
-  useEffect(() => {
-    let active = true
     setResult(null)
     setLoadError(null)
     setLiveResults({})
-    setLiveAggregate(null)
     setStage5(null)
     setWsConnected(true)
     // Reset the auto-start lifecycle for the (re)loaded campaign.
@@ -210,7 +193,6 @@ export function Stage3View({
     setPhase("idle")
     setStartError(null)
     setStartResult(null)
-    setPreview(null)
     getStage3(campaignId)
       .then((data) => {
         if (!active) return
@@ -250,24 +232,6 @@ export function Stage3View({
     }
   }, [campaignId, t])
 
-  // Prime the command/target preview for the inline confirmation (Req. 1.6,
-  // 6.5). Best-effort: its absence must not prevent explicit consent.
-  useEffect(() => {
-    if (phase !== "confirming") return
-    let active = true
-    setPreview(null)
-    getEmulationPreview(campaignId)
-      .then((data) => {
-        if (active) setPreview(data)
-      })
-      .catch(() => {
-        /* preview is best-effort context; consent stays available without it */
-      })
-    return () => {
-      active = false
-    }
-  }, [phase, campaignId])
-
   // Redirect back to Stage 5 within ≤ 3s when the environment is not ready
   // (Req. 1.4). Fires once per blocked load.
   useEffect(() => {
@@ -294,19 +258,28 @@ export function Stage3View({
         return
       }
       if (res.output) {
-        // The runner started (or re-displayed): seed the per-Ability view and
-        // follow the Operation live (Req. 2). Idempotent re-display also lands
-        // here with the persisted snapshot.
-        const seed: Record<string, AbilityResult> = {}
-        for (const r of res.output.results) seed[r.ability_id] = r
-        setLiveResults(seed)
-        setLiveAggregate({
-          total_success: res.output.total_success,
-          total_failure: res.output.total_failure,
+        // The runner finished (or re-displayed a persisted run): reconcile the
+        // final per-Ability view with whatever already streamed live. We MERGE
+        // (the final frame wins) instead of replacing, so we never wipe data the
+        // mid-run WS/poller already showed (Req. 2.4, 2.5).
+        const finalOutput = res.output as OperationResultView
+        setLiveResults((prev) => {
+          const next = { ...prev }
+          for (const r of finalOutput.results) next[r.ability_id] = r
+          return next
         })
-        setResult((prev) =>
-          prev ? { ...prev, output: [...prev.output, res.output as OperationResultView] } : prev,
-        )
+        // Splice the final Operation in, REPLACING the in-progress row the
+        // mid-run poller may already have added (same operation_id) — never a
+        // duplicate.
+        setResult((prev) => {
+          if (!prev) return prev
+          const last = prev.output[prev.output.length - 1]
+          const output =
+            last?.operation_id === finalOutput.operation_id
+              ? [...prev.output.slice(0, -1), finalOutput]
+              : [...prev.output, finalOutput]
+          return { ...prev, output }
+        })
         setPhase(res.reused ? "persisted" : "running")
         return
       }
@@ -327,11 +300,60 @@ export function Stage3View({
   // the explicit control, and never opens a modal (Req. 1.3, 1.6).
   useEffect(() => {
     if (phase !== "confirming") return
+    // No consent UI: execution is automatic on entering Stage 6 with a ready
+    // environment. Fire immediately (next tick) so the researcher sees the
+    // per-Ability live view start without being asked for permission.
     const timer = window.setTimeout(() => {
       void runAutoStart()
-    }, AUTO_START_DELAY_MS)
+    }, 0)
     return () => window.clearTimeout(timer)
   }, [phase, runAutoStart])
+
+  // Discover the IN-PROGRESS Operation while the auto-start POST is still in
+  // flight (Req. 4.3 — real-time). The backend creates+commits the Operation row
+  // at the START of the run and then commits each per-Ability transition
+  // incrementally, but the POST only RETURNS at the end. So, while `starting`,
+  // we poll `GET /stage/6` (cheap read of the accumulated output) until an
+  // Operation appears and splice it into `result.output`. That gives the
+  // subscription effect below an `operationId` MID-RUN, so the live per-Ability
+  // view (and the WS poller) streams the tactics one-by-one as they execute —
+  // instead of everything appearing at once when the POST finally resolves.
+  useEffect(() => {
+    if (phase !== "starting") return
+    let active = true
+    const poll = window.setInterval(() => {
+      getStage3(campaignId)
+        .then((data) => {
+          if (!active) return
+          const latest = data.output[data.output.length - 1]
+          if (!latest?.operation_id) return
+          // Merge the discovered Operation (with its id + any results committed
+          // so far) so `currentOperation`/`operationId` resolve and the channel
+          // subscription starts. We only ADD when it is not already tracked.
+          setResult((prev) => {
+            if (!prev) return prev
+            const known = prev.output[prev.output.length - 1]
+            if (known?.operation_id === latest.operation_id) return prev
+            return { ...prev, output: [...prev.output, latest] }
+          })
+          // Seed the per-Ability view from whatever is persisted so far.
+          setLiveResults((prev) => {
+            const next = { ...prev }
+            for (const r of latest.results) {
+              if (!next[r.ability_id]) next[r.ability_id] = r
+            }
+            return next
+          })
+        })
+        .catch(() => {
+          /* polling is best-effort; the POST result below is the backstop */
+        })
+    }, 1000)
+    return () => {
+      active = false
+      window.clearInterval(poll)
+    }
+  }, [phase, campaignId])
 
   // The current (latest) Operation, if any. We subscribe to its channel while
   // it exists so status updates stream in (Req. 4.3).
@@ -348,37 +370,67 @@ export function Stage3View({
     setWsConnected(true)
     const connection = connectOperation(operationId, {
       onFrame: (frame) => {
-        if (frame.type === "ability") {
-          // Merge the enriched per-Ability fields (command/target/host/output)
-          // so a frame that omits one does not wipe a value already received
-          // (Req. 2.4, 2.5). Non-null incoming values win; absent keys keep the
-          // prior datum. The status always reflects the latest frame (Req. 2.1).
-          setLiveResults((prev) => {
-            const previous = prev[frame.ability_id]
-            const merged: AbilityResult = {
-              ability_id: frame.ability_id,
-              status: frame.status,
-              command_output: frame.command_output ?? previous?.command_output ?? "",
-              command: frame.command ?? previous?.command ?? null,
-              target_container:
-                frame.target_container ?? previous?.target_container ?? null,
-              attacker_host: frame.attacker_host ?? previous?.attacker_host ?? null,
-            }
-            return { ...prev, [frame.ability_id]: merged }
-          })
-        } else {
-          setLiveAggregate({
-            total_success: frame.total_success,
-            total_failure: frame.total_failure,
-          })
-        }
+        // Only per-Ability frames drive the live view now. Aggregate
+        // success/failure frames are ignored here: the Output block was removed
+        // and the totals live in the report metrics (Req. 2.1, 2.2).
+        if (frame.type !== "ability") return
+        // Merge the enriched per-Ability fields (command/target/host/output)
+        // so a frame that omits one does not wipe a value already received
+        // (Req. 2.4, 2.5). Non-null incoming values win; absent keys keep the
+        // prior datum. The status always reflects the latest frame (Req. 2.1).
+        setLiveResults((prev) => {
+          const previous = prev[frame.ability_id]
+          const merged: AbilityResult = {
+            ability_id: frame.ability_id,
+            status: frame.status,
+            command_output: frame.command_output ?? previous?.command_output ?? "",
+            command: frame.command ?? previous?.command ?? null,
+            target_container:
+              frame.target_container ?? previous?.target_container ?? null,
+            attacker_host: frame.attacker_host ?? previous?.attacker_host ?? null,
+          }
+          return { ...prev, [frame.ability_id]: merged }
+        })
       },
       // Connection-lost indicator + resume on reconnect without reload (Req. 2.8).
       onOpen: () => setWsConnected(true),
-      onClose: () => setWsConnected(false),
+      // Only an ABNORMAL close (network drop) is a "connection lost" (Req. 2.8).
+      // A clean close (code 1000) means the Operation reached a terminal state
+      // and the backend ended the stream normally — not a lost connection — so
+      // the banner must stay hidden in that case.
+      onClose: (clean: boolean) => {
+        if (!clean) setWsConnected(false)
+      },
     })
     return () => connection.close()
   }, [operationId])
+
+  // Emit the execution-finished signal (Req. 3.1, 7.1, 8.2). The run is FINISHED
+  // when the current Operation reaches a terminal state or a persisted result is
+  // re-displayed (`phase === "persisted"`). We fire `true` exactly once per
+  // campaign (idempotent) via a ref guard, so re-renders after the terminal
+  // transition do not re-emit. The per-campaign reset effect above clears
+  // `startedRef` / `phase`; this ref is reset here when the signal is not yet
+  // due, so loading another campaign re-emits `false` first and then `true`
+  // again when the new run finishes.
+  const finishedEmittedRef = useRef(false)
+  const finished =
+    phase === "persisted" ||
+    (currentOperation ? TERMINAL_OPERATION_STATES.has(currentOperation.state) : false)
+  useEffect(() => {
+    if (!onExecutionFinished) return
+    if (finished) {
+      if (finishedEmittedRef.current) return
+      finishedEmittedRef.current = true
+      onExecutionFinished(true)
+    } else if (finishedEmittedRef.current) {
+      // A new campaign (or a reset) rolled the view back before a terminal
+      // result: clear the guard and re-emit `false` so the signal tracks the
+      // fresh run (Req. 8.2).
+      finishedEmittedRef.current = false
+      onExecutionFinished(false)
+    }
+  }, [finished, onExecutionFinished])
 
   if (loadError) return <EmptyNote>{loadError}</EmptyNote>
   if (!result) {
@@ -393,24 +445,13 @@ export function Stage3View({
   // Canonical, execution-ordered per-Ability list — one entry per Ability, in
   // atomic ordering, never re-sorted while running (Req. 2.6, 2.7).
   const abilityResults = orderedAbilityResults(input, liveResults)
-  const aggregate = liveAggregate ?? {
-    total_success: currentOperation?.total_success ?? 0,
-    total_failure: currentOperation?.total_failure ?? 0,
-  }
   const hasOperation = Boolean(operationId)
 
   return (
     <div className="flex flex-col gap-4" data-testid="stage6-view">
-      {/* Embedded execution lifecycle — auto-start, inline confirmation,
-          blocked/redirect and refusal — all inside the page, never a modal
-          (Req. 1.1, 1.3, 1.4, 1.6). */}
-      {phase === "confirming" || phase === "starting" ? (
-        <InlineExecutionConfirmation
-          preview={preview}
-          starting={phase === "starting"}
-          onConfirm={() => void runAutoStart()}
-        />
-      ) : null}
+      {/* Execution is automatic: on entering Stage 6 with a ready environment
+          the campaign starts on its own (no consent UI, no modal). The blocked
+          / refused states below still surface embedded, never as a pop-up. */}
 
       {phase === "blocked" ? (
         <section
@@ -450,7 +491,12 @@ export function Stage3View({
         </section>
       ) : null}
 
-      <div className="grid gap-4 md:grid-cols-3">
+      {/* Input and Processing stacked as full-width horizontal rows (not grid
+          columns) so the live execution view reads more easily (Req. 1.1, 1.3).
+          The per-Ability content in Processing (command / target / attacker
+          host / state / logs via AbilityLiveCard) is preserved without
+          duplication (Req. 1.2). */}
+      <div className="flex flex-col gap-4">
       {/* Input — Adversary + Abilities to emulate (Req. 4.1). */}
       <StageSection data-section="entrada" label={t("sections.entrada")} kind="red">
         {input.adversary ? (
@@ -494,39 +540,6 @@ export function Stage3View({
         label={t("sections.processamento")}
         kind="purple"
       >
-        {topology ? (
-          <div className="mb-3 flex flex-col gap-2 rounded-md border p-2">
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                {t("stage3.ambiente.titulo")}
-              </span>
-              {topology.isolated ? (
-                <span className="inline-flex items-center gap-1 rounded-full bg-team-blue/10 px-2 py-0.5 text-[11px] text-team-blue">
-                  <CheckCircle2 className="size-3" aria-hidden />
-                  {t("stage3.ambiente.isolado")}
-                </span>
-              ) : null}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {t("stage3.ambiente.descricao")}
-            </p>
-            <MermaidDiagram definition={topology.mermaid} className="w-full overflow-auto" />
-            <ul className="flex flex-col gap-0.5">
-              {(topology.networks ?? []).map((network) => (
-                <li key={network.name} className="flex justify-between gap-2 text-[11px]">
-                  <span className="text-muted-foreground">{network.name}</span>
-                  <span className="font-mono">{network.subnet}</span>
-                </li>
-              ))}
-            </ul>
-            {topology.compose_file ? (
-              <p className="truncate text-[11px] text-muted-foreground" title={topology.compose_file}>
-                {t("stage3.ambiente.composeFile")}: <code>{topology.compose_file}</code>
-              </p>
-            ) : null}
-          </div>
-        ) : null}
-
         {/* Read-only Stage-5 environment verdict (Req. 5.4). The Stage-6 page
             only READS the already-produced verdict — no provision/verify
             controls — so the environment panel never re-runs any check. */}
@@ -549,135 +562,11 @@ export function Stage3View({
         )}
       </StageSection>
 
-      {/* Output — aggregate success/failure totals (Req. 4.5). The per-Ability
-          command/target/host/state/logs live canonically in Processing (above);
-          this block carries ONLY the aggregate so no Ability datum is duplicated
-          across blocks (Req. 2.7). */}
-      <StageSection data-section="saida" label={t("sections.saida")} kind="red">
-        {!hasOperation ? (
-          <EmptyNote>{t("stage3.saida.noResults")}</EmptyNote>
-        ) : (
-          <div className="flex items-center gap-3 text-sm">
-            <span className="inline-flex items-center gap-1 text-team-blue">
-              <CheckCircle2 className="size-4" aria-hidden />
-              {t("stage3.saida.success", { count: aggregate.total_success })}
-            </span>
-            <span className="inline-flex items-center gap-1 text-team-red">
-              <XCircle className="size-4" aria-hidden />
-              {t("stage3.saida.failure", { count: aggregate.total_failure })}
-            </span>
-          </div>
-        )}
-      </StageSection>
+      {/* The Output block (aggregate success/failure totals) was removed
+          (Req. 2.1, 2.2): the totals are redundant with the report metrics and
+          the live per-Ability list, so no unique information is lost. */}
       </div>
     </div>
-  )
-}
-
-/**
- * InlineExecutionConfirmation — the embedded safety confirmation for Stage 6
- * (Req. 1.3, 1.6). It renders the preview of concrete commands + target
- * containers and an explicit consent control, EMBEDDED in the page (a section,
- * not a `Dialog`/modal). While `starting` is true the execution is already in
- * flight (the 3s auto-start fired or the researcher clicked), so the control
- * reflects the in-flight state. The isolation/containment gate is enforced by
- * the backend — this section never bypasses it (Req. 6.5).
- */
-function InlineExecutionConfirmation({
-  preview,
-  starting,
-  onConfirm,
-}: {
-  preview: EmulationPreview | null
-  starting: boolean
-  onConfirm: () => void
-}) {
-  const { t } = useTranslation("pipeline")
-  const abilities = preview?.abilities ?? []
-
-  return (
-    <section
-      data-testid="stage6-inline-confirmation"
-      aria-label={t("stage6.confirmation.title")}
-      className="flex flex-col gap-3 rounded-lg border border-team-red/40 bg-team-red/5 p-4"
-    >
-      <header className="flex items-start gap-2">
-        <ShieldAlert className="mt-0.5 size-5 shrink-0 text-team-red" aria-hidden="true" />
-        <div className="flex flex-col gap-0.5">
-          <h3 className="text-sm font-semibold text-team-red">
-            {t("stage6.confirmation.title")}
-          </h3>
-          <p className="text-xs text-muted-foreground">
-            {t("stage6.confirmation.description")}
-          </p>
-        </div>
-      </header>
-
-      {/* Preview of the concrete commands + target containers (Req. 1.6, 6.5). */}
-      <div className="max-h-64 overflow-y-auto pr-1">
-        {abilities.length === 0 ? (
-          <p className="text-xs text-muted-foreground" role="status">
-            {t("stage6.confirmation.previewLoading")}
-          </p>
-        ) : (
-          <ul className="flex flex-col gap-2">
-            {abilities.map((ability) => (
-              <li key={ability.ability_id} className="rounded-md border bg-background p-2">
-                <p className="truncate text-xs font-semibold" title={ability.ability_id}>
-                  {ability.ability_name}
-                </p>
-                <ul className="mt-1 flex flex-col gap-1.5">
-                  {ability.commands.map((command, index) => (
-                    <li key={`${ability.ability_id}-${index}`}>
-                      <code className="block max-h-20 overflow-auto whitespace-pre-wrap break-all rounded bg-muted px-1.5 py-1 text-[11px]">
-                        {command.command}
-                      </code>
-                      {command.targets.length > 0 ? (
-                        <div className="mt-1 flex flex-wrap items-center gap-1 text-[11px]">
-                          <span className="text-muted-foreground">
-                            {t("stage6.confirmation.targets")}:
-                          </span>
-                          {command.targets.map((target) => (
-                            <span
-                              key={target}
-                              className="rounded-md border border-team-blue/30 bg-team-blue/5 px-1.5 py-0.5 text-team-blue"
-                            >
-                              {target}
-                            </span>
-                          ))}
-                        </div>
-                      ) : null}
-                    </li>
-                  ))}
-                </ul>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-
-      {/* Explicit consent control. The 3s auto-start also triggers execution;
-          the researcher may confirm earlier via this control (Req. 1.1, 1.6). */}
-      <div className="flex items-center justify-end">
-        <Button
-          variant="destructive"
-          size="sm"
-          onClick={onConfirm}
-          disabled={starting}
-          aria-disabled={starting}
-          data-testid="stage6-confirm-execution"
-        >
-          {starting ? (
-            <>
-              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-              {t("stage6.confirmation.starting")}
-            </>
-          ) : (
-            t("stage6.confirmation.confirm")
-          )}
-        </Button>
-      </div>
-    </section>
   )
 }
 

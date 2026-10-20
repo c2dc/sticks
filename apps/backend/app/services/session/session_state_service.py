@@ -128,6 +128,12 @@ class OperationResultView(BaseModel):
     state: OperationState
     total_success: int = 0
     total_failure: int = 0
+    # Operation lifecycle instants (Req. 4.1). ``None`` by default — the read
+    # path populates them from the persisted ``Operation`` so ``get_report`` can
+    # derive the real total execution time (``finished_at - started_at``)
+    # through a single read port. Absent instants stay ``None`` (Req. 4.3).
+    started_at: Optional[dt.datetime] = None
+    finished_at: Optional[dt.datetime] = None
     results: list[AbilityResultView] = Field(default_factory=list)
 
 
@@ -364,6 +370,8 @@ class SessionStateService:
                     state=op.state,
                     total_success=op.total_success,
                     total_failure=op.total_failure,
+                    started_at=op.started_at,
+                    finished_at=op.finished_at,
                     results=[
                         AbilityResultView(
                             operation_id=r.operation_id,

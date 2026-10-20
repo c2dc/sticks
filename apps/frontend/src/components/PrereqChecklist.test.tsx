@@ -8,6 +8,8 @@ import type {
   HealthSummary,
   ContainerVerdict,
   HealthVerdict,
+  SubStageSummary,
+  EgressVerdictView,
 } from "@/lib/stages"
 import type { StageState } from "@/lib/campaigns"
 
@@ -68,6 +70,35 @@ function failedIsolation(verdicts: ContainerVerdict[]): IsolationSummary {
   return { approved: false, verdicts }
 }
 
+/** Fully-satisfied sub-stage summary (5.1 + 5.2 verified). */
+function satisfiedSubstages(): SubStageSummary {
+  return {
+    build_online_ok: true,
+    egress_closed: true,
+    egress_lost_verified: true,
+    offline_applied: true,
+    egress_verdicts: [
+      {
+        container: "nginx-target",
+        egress_lost: true,
+        conclusive: true,
+        reason: "egresso perdido",
+      },
+    ],
+  }
+}
+
+/** Sub-stage summary with the egress verification reproving a given host. */
+function egressFailedSubstages(verdicts: EgressVerdictView[]): SubStageSummary {
+  return {
+    build_online_ok: true,
+    egress_closed: true,
+    egress_lost_verified: false,
+    offline_applied: false,
+    egress_verdicts: verdicts,
+  }
+}
+
 /** Minimal props, overridden per scenario. */
 function props(overrides: Partial<Parameters<typeof PrereqChecklist>[0]> = {}) {
   return {
@@ -93,32 +124,38 @@ function itemStatus(pattern: RegExp): string {
 // ── 1. derivePrereqStates — pure function (three-state mapping, Req. 5.6) ──
 
 describe("derivePrereqStates (pure three-state mapping — Req. 5.6)", () => {
-  it("concluido → the three items ok", () => {
+  it("concluido → the five items ok", () => {
     expect(
       derivePrereqStates({
         state: "concluido",
         health: approvedHealth(),
         isolation: approvedIsolation(),
         abilitiesLoaded: true,
+        substages: satisfiedSubstages(),
       }),
     ).toEqual({
       aguardar_saude: "ok",
+      build_online: "ok",
+      verificar_egresso: "ok",
       carregar_abilities: "ok",
       verificar_isolamento: "ok",
     })
   })
 
-  it("mid-pipeline failure (carregar_abilities) → health ok, abilities fail, isolation pending", () => {
+  it("mid-pipeline failure (carregar_abilities) → earlier ok, abilities fail, isolation pending", () => {
     expect(
       derivePrereqStates({
         state: "erro",
         health: approvedHealth(),
         isolation: emptyIsolation(),
         abilitiesLoaded: false,
+        substages: satisfiedSubstages(),
         failedStep: "carregar_abilities",
       }),
     ).toEqual({
       aguardar_saude: "ok",
+      build_online: "ok",
+      verificar_egresso: "ok",
       carregar_abilities: "falha",
       verificar_isolamento: "pendente",
     })
@@ -137,6 +174,8 @@ describe("derivePrereqStates (pure three-state mapping — Req. 5.6)", () => {
       }),
     ).toEqual({
       aguardar_saude: "falha",
+      build_online: "pendente",
+      verificar_egresso: "pendente",
       carregar_abilities: "pendente",
       verificar_isolamento: "pendente",
     })
@@ -154,7 +193,98 @@ describe("derivePrereqStates (pure three-state mapping — Req. 5.6)", () => {
     ).toBe("falha")
   })
 
-  it("nothing ran (nao_iniciado, empty summaries, abilities false) → the three pending", () => {
+  it("build_online failure (5.1) → health ok, online fail, later ones pending (Req. 6.3)", () => {
+    expect(
+      derivePrereqStates({
+        state: "erro",
+        health: approvedHealth(),
+        isolation: emptyIsolation(),
+        abilitiesLoaded: false,
+        failedStep: "build_online",
+      }),
+    ).toEqual({
+      aguardar_saude: "ok",
+      build_online: "falha",
+      verificar_egresso: "pendente",
+      carregar_abilities: "pendente",
+      verificar_isolamento: "pendente",
+    })
+  })
+
+  it("encerrar_egresso failure folds into the online item (sub-stage 5.1)", () => {
+    expect(
+      derivePrereqStates({
+        state: "erro",
+        health: approvedHealth(),
+        isolation: emptyIsolation(),
+        abilitiesLoaded: false,
+        failedStep: "encerrar_egresso",
+      }).build_online,
+    ).toBe("falha")
+  })
+
+  it("verificar_egresso failure (5.2) → online ok, egress fail, later ones pending (Req. 6.3)", () => {
+    expect(
+      derivePrereqStates({
+        state: "erro",
+        health: approvedHealth(),
+        isolation: emptyIsolation(),
+        abilitiesLoaded: false,
+        failedStep: "verificar_egresso",
+      }),
+    ).toEqual({
+      aguardar_saude: "ok",
+      build_online: "ok",
+      verificar_egresso: "falha",
+      carregar_abilities: "pendente",
+      verificar_isolamento: "pendente",
+    })
+  })
+
+  it("reisolar and setup_offline failures fold into the egress item (sub-stage 5.2)", () => {
+    expect(
+      derivePrereqStates({
+        state: "erro",
+        health: approvedHealth(),
+        isolation: emptyIsolation(),
+        abilitiesLoaded: false,
+        failedStep: "reisolar",
+      }).verificar_egresso,
+    ).toBe("falha")
+    expect(
+      derivePrereqStates({
+        state: "erro",
+        health: approvedHealth(),
+        isolation: emptyIsolation(),
+        abilitiesLoaded: false,
+        failedStep: "setup_offline",
+      }).verificar_egresso,
+    ).toBe("falha")
+  })
+
+  it("no failedStep → derives the new items from the substages data", () => {
+    expect(
+      derivePrereqStates({
+        state: "em_andamento",
+        health: approvedHealth(),
+        isolation: emptyIsolation(),
+        abilitiesLoaded: false,
+        substages: {
+          build_online_ok: true,
+          egress_closed: true,
+          egress_lost_verified: false,
+          offline_applied: false,
+          egress_verdicts: [],
+        },
+      }),
+    ).toMatchObject({
+      aguardar_saude: "ok",
+      build_online: "ok",
+      verificar_egresso: "pendente",
+    })
+  })
+
+  it("nothing ran (nao_iniciado, empty summaries, abilities false) → the five pending", () => {
     expect(
       derivePrereqStates({
         state: "nao_iniciado",
@@ -164,6 +294,8 @@ describe("derivePrereqStates (pure three-state mapping — Req. 5.6)", () => {
       }),
     ).toEqual({
       aguardar_saude: "pendente",
+      build_online: "pendente",
+      verificar_egresso: "pendente",
       carregar_abilities: "pendente",
       verificar_isolamento: "pendente",
     })
@@ -350,5 +482,102 @@ describe("PrereqChecklist — Stage 6 blocking/unblocking (Req. 7.3)", () => {
 
     expect(document.body).not.toHaveTextContent(/permanece bloqueado/i)
     expect(document.querySelector('[role="alert"]')).toBeNull()
+  })
+})
+
+// ── 5. New sub-stage prerequisites (Req. 6.3, 6.4, 8.2) ──────────────────────
+
+describe("PrereqChecklist — sub-stage prerequisites (Req. 6.3, 6.4, 8.2)", () => {
+  it("renders the two new items alongside the inherited three", () => {
+    renderWithI18n(<PrereqChecklist {...props({ state: "nao_iniciado" })} />)
+
+    expect(document.body).toHaveTextContent(/Contêineres saudáveis/i)
+    expect(document.body).toHaveTextContent(/Pré-requisitos online obtidos/i)
+    expect(document.body).toHaveTextContent(/Egresso perdido \(verificado\)/i)
+    expect(document.body).toHaveTextContent(/Abilities carregadas/i)
+    expect(document.body).toHaveTextContent(/Isolamento aprovado/i)
+    // Five items in the checklist list.
+    expect(itemStatus(/Pré-requisitos online obtidos/i)).toBe("Pendente")
+    expect(itemStatus(/Egresso perdido \(verificado\)/i)).toBe("Pendente")
+  })
+
+  it("concluido with satisfied substages: the five items OK and the ready confirmation", () => {
+    renderWithI18n(
+      <PrereqChecklist
+        {...props({
+          state: "concluido",
+          health: approvedHealth(),
+          isolation: approvedIsolation(),
+          abilitiesLoaded: true,
+          substages: satisfiedSubstages(),
+        })}
+      />,
+    )
+
+    expect(itemStatus(/Pré-requisitos online obtidos/i)).toBe("OK")
+    expect(itemStatus(/Egresso perdido \(verificado\)/i)).toBe("OK")
+    expect(document.querySelector('[role="status"]')).toHaveTextContent(/Ambiente pronto/i)
+  })
+
+  it("verificar_egresso failure: online OK, egress Falha, cause named + Stage 6 blocked (Req. 8.2)", () => {
+    renderWithI18n(
+      <PrereqChecklist
+        {...props({
+          state: "erro",
+          health: approvedHealth(),
+          isolation: emptyIsolation(),
+          abilitiesLoaded: false,
+          substages: egressFailedSubstages([
+            {
+              container: "nginx-target",
+              egress_lost: false,
+              conclusive: true,
+              reason: "egresso ainda presente: alcançou 1.1.1.1",
+            },
+          ]),
+          failedStep: "verificar_egresso",
+          errorMessage: "Perda de egresso não verificada",
+        })}
+      />,
+    )
+
+    // Preceding item passed; the egress item failed; later ones pending.
+    expect(itemStatus(/Pré-requisitos online obtidos/i)).toBe("OK")
+    expect(itemStatus(/Egresso perdido \(verificado\)/i)).toBe("Falha")
+    expect(itemStatus(/Abilities carregadas/i)).toBe("Pendente")
+
+    // The offending host + probe outcome are named (Req. 8.2).
+    expect(document.body).toHaveTextContent(/nginx-target/i)
+    expect(document.body).toHaveTextContent(/egresso ainda presente/i)
+
+    // Failure alert + Stage 6 blocked.
+    const alert = document.querySelector('[role="alert"]')
+    expect(alert).not.toBeNull()
+    expect(alert).toHaveTextContent(/Perda de egresso não verificada/i)
+    expect(within(alert as HTMLElement).getByText(/permanece bloqueado/i)).toBeInTheDocument()
+    expect(document.querySelector('[role="status"]')).toBeNull()
+  })
+
+  it("build_online failure (5.1): online Falha, later items pending, Stage 6 blocked", () => {
+    renderWithI18n(
+      <PrereqChecklist
+        {...props({
+          state: "erro",
+          health: approvedHealth(),
+          isolation: emptyIsolation(),
+          abilitiesLoaded: false,
+          failedStep: "build_online",
+          errorMessage: "Falha ao instalar os pré-requisitos online",
+        })}
+      />,
+    )
+
+    expect(itemStatus(/Contêineres saudáveis/i)).toBe("OK")
+    expect(itemStatus(/Pré-requisitos online obtidos/i)).toBe("Falha")
+    expect(itemStatus(/Egresso perdido \(verificado\)/i)).toBe("Pendente")
+    expect(document.querySelector('[role="alert"]')).toHaveTextContent(
+      /Falha ao instalar os pré-requisitos online/i,
+    )
+    expect(document.body).toHaveTextContent(/permanece bloqueado/i)
   })
 })

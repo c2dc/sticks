@@ -132,9 +132,13 @@ const STREAM_COLOR: Record<string, string> = {
 }
 
 /**
- * One console line: step badge (Req. 2.4, distinguishes the steps) + text
- * colored by `stream` (Req. 2.4). Labels via i18n with a fallback to the raw
- * step/stream string when the key does not exist yet (task 9.1).
+ * One console line: optional **sub-stage** badge ("5.1 Build/online" or "5.2
+ * Runtime/isolado", from `line.substage` — stage5-target-provisioning Req. 6.3,
+ * 6.4), the step badge (Req. 2.4, distinguishes the steps) and the text colored
+ * by `stream` (Req. 2.4). Labels via i18n with a fallback to the raw
+ * substage/step/stream string when the key does not exist yet. Rendering order
+ * follows the increasing-`seq` order of the parent list, so sub-stage markers
+ * appear in emission order.
  */
 function ConsoleLine({ line }: { line: LogLineView }) {
   const { t } = useTranslation("pipeline")
@@ -142,9 +146,27 @@ function ConsoleLine({ line }: { line: LogLineView }) {
   const stepLabel = t(`stage5.provisionamento.console.etapas.${line.step}`, {
     defaultValue: line.step,
   })
+  // Sub-stage marker — rendered only when the backend tagged the line (5.1/5.2).
+  // The backend sends `"5.1"`/`"5.2"`; the i18n key avoids dots (`s51`/`s52`).
+  const substageKey = line.substage ? `s${line.substage.replace(/\./g, "")}` : null
+  const substageLabel =
+    line.substage && substageKey
+      ? t(`stage5.provisionamento.console.subetapas.${substageKey}`, {
+          defaultValue: line.substage,
+        })
+      : null
 
   return (
     <li className="flex items-start gap-2">
+      {substageLabel ? (
+        <span
+          data-substage={line.substage}
+          className="mt-px shrink-0 rounded bg-team-blue/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-team-blue"
+          title={substageLabel}
+        >
+          {substageLabel}
+        </span>
+      ) : null}
       <span
         className="mt-px shrink-0 rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-zinc-300"
         title={stepLabel}

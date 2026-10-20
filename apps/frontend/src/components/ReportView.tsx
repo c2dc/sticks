@@ -1,12 +1,10 @@
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { CheckCircle2, Clock, Target, XCircle } from "lucide-react"
 
 import { EmptyNote, StageSection } from "@/components/StageSection"
-import { cn } from "@/lib/utils"
 import {
   getReport,
-  type AbilityResultStatus,
+  type DeprovisioningResult,
   type SufficiencyMetrics,
   type TechniqueMetric,
   type ExecutionReport,
@@ -19,25 +17,41 @@ import {
  * Reads the `ExecutionReport` (`GET /api/campaigns/{campaign}/report`) and shows
  * the procedural-sufficiency measurement:
  *
- * - Overall success **verdict** (Req. 15.6) and the environment deprovisioning
- *   flag (Req. 12).
  * - **Success rate** (successful techniques / DAG total — Req. 15.1) and
  *   **procedural coverage** ∈ [0, 1] (Req. 15.3), formatted as percentages.
- * - **Total time** of execution (Req. 15.5) and per-technique time.
- * - **Failed nodes** of the DAG (Req. 10.6, 15.4).
- * - **Per-technique telemetry** (status, failed step, time, observed signals —
- *   Req. 15.2, 15.4, 15.7).
+ * - **Total time** of execution (Req. 4.1) and the **failed-node count**
+ *   (Req. 5.2) — the nodes themselves are surfaced live in Processing, not here.
  *
- * It is read-only: loads the report on mount and handles loading/error like its
- * sibling screens. A case without execution returns zeroed metrics, shown
- * without error.
+ * After the metrics it renders the **deprovisioning report** last (Req. 7.2,
+ * 7.3): whether the environment teardown succeeded and, on failure, the
+ * `remaining_resources` left behind — defensive to an absent structured verdict.
+ *
+ * It is read-only and **gated** by `executionFinished` (Req. 3.1, 7.1, 8.2):
+ * while the Stage 6 execution has not terminated the view neither fetches
+ * `GET /report` nor renders any metrics/deprovisioning — it stays a neutral,
+ * empty placeholder. The report is fetched only once `executionFinished`
+ * becomes `true`, and then it handles loading/error like its sibling screens.
+ * A case without execution returns zeroed metrics, shown without error.
  */
-export function ReportView({ campaignId }: { campaignId: string }) {
+export function ReportView({
+  campaignId,
+  executionFinished,
+}: {
+  campaignId: string
+  executionFinished: boolean
+}) {
   const { t } = useTranslation("pipeline")
   const [report, setReport] = useState<ExecutionReport | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
 
   useEffect(() => {
+    // Gate the fetch on the execution being finished (Req. 3.1, 3.2, 7.1, 8.2):
+    // do not touch `GET /report` while the run is still in progress.
+    if (!executionFinished) {
+      setReport(null)
+      setLoadError(null)
+      return
+    }
     let active = true
     setReport(null)
     setLoadError(null)
@@ -51,7 +65,11 @@ export function ReportView({ campaignId }: { campaignId: string }) {
     return () => {
       active = false
     }
-  }, [campaignId, t])
+  }, [campaignId, executionFinished, t])
+
+  // While the execution has not finished, render a neutral empty state — no
+  // metrics, no deprovisioning, no error (Req. 3.1, 7.1, 8.2).
+  if (!executionFinished) return null
 
   if (loadError) return <EmptyNote>{loadError}</EmptyNote>
   if (!report) {
@@ -62,10 +80,6 @@ export function ReportView({ campaignId }: { campaignId: string }) {
     )
   }
 
-  const {
-    environment_deprovisioned: environmentDeprovisioned,
-    generated_at: generatedAt,
-  } = report
   // Consume the report as **final**: normalize the metrics so no technique is
   // ever rendered in a non-terminal state and the displayed counts respect the
   // invariants of Req. 3.4 — the sum of techniques per state equals the total,
@@ -76,17 +90,6 @@ export function ReportView({ campaignId }: { campaignId: string }) {
 
   return (
     <div className="flex flex-col gap-4" data-section="report">
-      {/* Overall verdict + environment deprovisioning. */}
-      <StageSection
-        data-section="verdict"
-        label={t("relatorio.titulo")}
-        kind={metrics.success_verdict ? "blue" : "red"}
-        description={`${t("relatorio.geradoEm")}: ${formatDate(generatedAt)}`}
-      >
-        <VerdictBadge success={metrics.success_verdict} />
-        <DeprovisioningBadge deprovisioned={environmentDeprovisioned} />
-      </StageSection>
-
       {/* Procedural-sufficiency metrics (Req. 15.1, 15.3, 15.5). */}
       <StageSection
         data-section="metricas"
@@ -114,89 +117,50 @@ export function ReportView({ campaignId }: { campaignId: string }) {
         </div>
       </StageSection>
 
-      {/* Failed DAG nodes (Req. 10.6, 15.4). */}
-      <StageSection
-        data-section="failed-nodes"
-        label={t("metricas.nosFalhos.titulo")}
-        kind="red"
-      >
-        {metrics.failed_nodes.length === 0 ? (
-          <EmptyNote>{t("metricas.nosFalhos.vazio")}</EmptyNote>
-        ) : (
-          <ul className="flex flex-wrap gap-1.5">
-            {metrics.failed_nodes.map((node, index) => (
-              <li
-                key={index}
-                className="inline-flex items-center gap-1 rounded-md border border-team-red/30 bg-team-red/5 px-2 py-0.5 text-xs text-team-red"
-              >
-                <XCircle className="size-3" aria-hidden />
-                <code className="font-mono">{node}</code>
-              </li>
-            ))}
-          </ul>
-        )}
-      </StageSection>
-
-      {/* Per-technique telemetry (Req. 15.2, 15.4, 15.7). */}
-      <StageSection
-        data-section="telemetry"
-        label={t("relatorio.telemetria.titulo")}
-        kind="neutral"
-      >
-        {metrics.per_technique.length === 0 ? (
-          <EmptyNote>{t("relatorio.telemetria.vazio")}</EmptyNote>
-        ) : (
-          <ul className="flex flex-col gap-2">
-            {metrics.per_technique.map((metric, index) => (
-              <TechniqueCard key={index} metric={metric} />
-            ))}
-          </ul>
-        )}
-      </StageSection>
+      {/* Deprovisioning report, rendered last (Req. 7.2, 7.3). */}
+      <DeprovisioningSection deprovisioning={report.deprovisioning} />
     </div>
   )
 }
 
-/** Overall success verdict (Req. 15.6). */
-function VerdictBadge({ success }: { success: boolean }) {
-  const { t } = useTranslation("pipeline")
-  return (
-    <div className="flex flex-col gap-1" role="status">
-      <span
-        className={cn(
-          "inline-flex w-fit items-center gap-1.5 rounded-full px-2.5 py-1 text-sm font-medium",
-          success
-            ? "bg-team-blue/10 text-team-blue"
-            : "bg-team-red/10 text-team-red",
-        )}
-        data-verdict={success ? "sucesso" : "falha"}
-      >
-        {success ? (
-          <CheckCircle2 className="size-4" aria-hidden />
-        ) : (
-          <XCircle className="size-4" aria-hidden />
-        )}
-        {success
-          ? t("relatorio.veredito.sucesso")
-          : t("relatorio.veredito.falha")}
-      </span>
-    </div>
-  )
-}
-
-/** Environment teardown flag (Req. 12). */
-function DeprovisioningBadge({
-  deprovisioned,
+/**
+ * Environment-teardown report (Req. 7.2, 7.3), rendered after the metrics.
+ *
+ * The teardown is always attempted at the end of Stage 6. This block states
+ * whether it succeeded (`deprovisioned === true`) or not, and on failure lists
+ * the `remaining_resources` that were left behind. It is **defensive** when the
+ * structured `deprovisioning` verdict is absent (the backend omits it until the
+ * run finishes): in that case it shows the neutral "not deprovisioned" state
+ * with no remaining resources and without surfacing an error.
+ */
+function DeprovisioningSection({
+  deprovisioning,
 }: {
-  deprovisioned: boolean
+  deprovisioning?: DeprovisioningResult
 }) {
   const { t } = useTranslation("pipeline")
+  const deprovisioned = deprovisioning?.deprovisioned === true
+  const remaining = deprovisioning?.remaining_resources ?? []
+
   return (
-    <p className="text-xs text-muted-foreground" data-deprovisioned={deprovisioned}>
-      {deprovisioned
-        ? t("relatorio.ambiente.desprovisionado")
-        : t("relatorio.ambiente.naoDesprovisionado")}
-    </p>
+    <StageSection
+      data-section="desprovisionamento"
+      label={t("relatorio.titulo")}
+      kind={deprovisioned ? "blue" : "red"}
+    >
+      <span className="text-sm font-medium">
+        {deprovisioned
+          ? t("relatorio.ambiente.desprovisionado")
+          : t("relatorio.ambiente.naoDesprovisionado")}
+      </span>
+      {!deprovisioned && remaining.length > 0 ? (
+        <span className="text-xs text-muted-foreground">
+          {t("relatorio.ambiente.recursosRemanescentes", {
+            recursos: remaining.join(", "),
+          })}
+        </span>
+      ) : null}
+    </StageSection>
   )
 }
 
@@ -220,77 +184,6 @@ function MetricCard({
         <span className="text-xs text-muted-foreground">{detail}</span>
       ) : null}
     </div>
-  )
-}
-
-/** Per-technique telemetry card: status, failing step, time, signals. */
-function TechniqueCard({ metric }: { metric: TechniqueMetric }) {
-  const { t } = useTranslation("pipeline")
-  const title = metric.technique_id ?? metric.node_id ?? "—"
-  return (
-    <li className="flex flex-col gap-1 rounded-md border p-2" data-technique={title}>
-      <div className="flex items-center justify-between gap-2">
-        <span className="inline-flex min-w-0 items-center gap-1.5 truncate text-sm font-medium">
-          <Target className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
-          <code className="truncate font-mono">{title}</code>
-        </span>
-        <StatusBadge status={metric.status} />
-      </div>
-      <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
-        {metric.node_id && metric.technique_id ? (
-          <span>
-            {t("metricas.no")}: <code className="font-mono">{metric.node_id}</code>
-          </span>
-        ) : null}
-        {metric.execution_time_s != null ? (
-          <span className="inline-flex items-center gap-1">
-            <Clock className="size-3" aria-hidden />
-            {formatTime(metric.execution_time_s)}
-          </span>
-        ) : null}
-        {metric.failed_step ? (
-          <span className="text-team-red">
-            {t("metricas.etapaFalha")}: {metric.failed_step}
-          </span>
-        ) : null}
-      </div>
-      {metric.telemetry.length > 0 ? (
-        <div className="flex flex-col gap-0.5">
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-            {t("metricas.telemetria")}
-          </span>
-          <ul className="flex flex-wrap gap-1">
-            {metric.telemetry.map((signal, index) => (
-              <li
-                key={index}
-                className="rounded border bg-muted px-1.5 py-0.5 font-mono text-[11px]"
-              >
-                {signal}
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-    </li>
-  )
-}
-
-/** Per-technique status pill, reusing the Stage-3 status palette. */
-function StatusBadge({ status }: { status: AbilityResultStatus }) {
-  const { t } = useTranslation("pipeline")
-  return (
-    <span
-      className={cn(
-        "shrink-0 rounded-full px-2 py-0.5 text-xs",
-        status === "sucesso" && "bg-team-blue/10 text-team-blue",
-        status === "falha" && "bg-team-red/10 text-team-red",
-        (status === "pendente" || status === "em_execucao") &&
-          "bg-muted text-muted-foreground",
-      )}
-      data-status={status}
-    >
-      {t(`stage3.status.${status}`)}
-    </span>
   )
 }
 
@@ -365,11 +258,4 @@ function formatPercent(value: number): string {
 function formatTime(seconds: number | null | undefined): string {
   if (seconds == null || !Number.isFinite(seconds)) return "—"
   return `${Math.round(seconds * 10) / 10}s`
-}
-
-/** Format an ISO timestamp for display; falls back to the raw string. */
-function formatDate(iso: string): string {
-  const date = new Date(iso)
-  if (Number.isNaN(date.getTime())) return iso
-  return date.toLocaleString()
 }

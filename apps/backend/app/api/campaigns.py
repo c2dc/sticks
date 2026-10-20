@@ -74,6 +74,7 @@ _Requirements: 8.7, 1.4, 5.4, 9.1, 9.2, 9.3, 9.4_
 
 from __future__ import annotations
 
+import datetime as dt
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
@@ -120,7 +121,12 @@ from app.services.environment.provisioner import (
     CurationEnvironmentProvisioner,
 )
 from app.services.environment.health import HealthSummary
-from app.services.environment.report import ExecutionReport
+from app.services.environment.report import DeprovisioningView, ExecutionReport
+# ORM row of the Stage 6 report (``execution_reports``); aliased to avoid clashing
+# with the ``ExecutionReport`` DTO imported just above. The read path recovers the
+# persisted teardown (``deprovisioned`` + ``remaining_resources``) from it to
+# populate the report's structured ``deprovisioning`` field (Req. 7.2, 7.3).
+from app.models.domain import ExecutionReport as ExecutionReportRow
 from app.services.operation.runner import (
     AbilityRunResult,
     OperationRunner,
@@ -583,6 +589,30 @@ def _both_artifacts_produced(produced: ProducedOperationalization) -> bool:
     return has_abilities and has_parameters
 
 
+def _derive_total_time_s(
+    operations: list[OperationResultView],
+) -> Optional[float]:
+    """Derive the real total execution time from the Operation instants (Req. 4.1, 4.3).
+
+    Pure, DB-free derivation shared by ``get_report`` and its property test: for
+    each **finished** Operation that carries **both** ``started_at`` and
+    ``finished_at``, the duration is ``(finished_at - started_at)`` in seconds,
+    accumulated across the finished Operations that provide a measurable duration
+    (a curated Campaign runs a single Operation; defensively we consolidate all).
+
+    It stays ``None`` while no finished Operation provides a measurable duration,
+    so an absent ``started_at`` or ``finished_at`` (on the only/every finished
+    Operation) yields ``None`` (Req. 4.3) — never ``0.0``.
+    """
+    total_time_s: Optional[float] = None
+    for operation in operations:
+        if operation.state is OperationState.FINISHED:
+            if operation.started_at is not None and operation.finished_at is not None:
+                duration = (operation.finished_at - operation.started_at).total_seconds()
+                total_time_s = (total_time_s or 0.0) + duration
+    return total_time_s
+
+
 def _ability_view(a: AbilityData) -> CaseAbilityView:
     return CaseAbilityView(
         ability_id=a.ability_id,
@@ -906,7 +936,22 @@ def select_campaign(
 
     effective_version = body.version if body.version is not None else CURATED_VERSION
     stage2 = Stage2Service(StageService(db, case_service=case_service))
-    return stage2.select(body.slug, effective_version)
+    result = stage2.select(body.slug, effective_version)
+
+    # Persist the Stage 2 (Campaign selection) completion when the extraction
+    # succeeded. The read-only ``GET .../stage/2`` derives completion from this
+    # ``StageRun(stage=2)`` (not from Stage 1), so the explicit user selection is
+    # what marks the stage done — and unblocks the curated Stage 3 auto-complete,
+    # whose sequential gate requires Stage 2 ``completed``. The chosen curated
+    # slug (``body.slug``) is the campaign the rest of the pipeline is keyed by.
+    if result.completed:
+        from app.services.stage.stage_service import STAGE_CAMPAIGN_SELECTION
+
+        SessionStateService(db).persist_stage_completion(
+            body.slug, STAGE_CAMPAIGN_SELECTION
+        )
+
+    return result
 
 
 @router.get(
@@ -1090,6 +1135,23 @@ def complete_stage4(
     return stage_service.get_stage_states(campaign)
 
 
+def get_provisioner() -> CurationEnvironmentProvisioner:
+    """FastAPI dependency providing the :class:`EnvironmentProvisioner`.
+
+    Shared by the Environment creation (Stage 5, ``POST .../stage/5/provision``)
+    and the Execution (Stage 6, ``POST .../stage/6/execution``). In production it
+    returns the curation implementation with the production defaults (real Docker
+    inspector + real Caldera client, built lazily only when the verification/load
+    runs — importing never opens a socket). The tests **override** this dependency
+    to inject a provisioner with *fake* isolation inspector and Caldera client, so
+    the provisioning/execution endpoints are exercisable end-to-end without real
+    Caldera or Docker — exactly as
+    :func:`~app.api.emulation.get_runner_factory` allows for the runner. The same
+    provisioner is reused for the deprovisioning at the end of Stage 6 (Req. 12).
+    """
+    return CurationEnvironmentProvisioner()
+
+
 @router.get(
     "/campaigns/{campaign}/stage/5",
     response_model=Stage4ProvisioningResponse,
@@ -1099,6 +1161,7 @@ def get_stage5_environment(
     campaign: str = Path(..., description="Curated campaign slug"),
     db: Session = Depends(get_db),
     log_buffer: ProvisioningLogBuffer = Depends(get_log_buffer),
+    provisioner: CurationEnvironmentProvisioner = Depends(get_provisioner),
 ) -> Stage4ProvisioningResponse:
     """Return the Stage-5 (Environment creation) view (Req. 9.6, 9.7).
 
@@ -1144,16 +1207,27 @@ def get_stage5_environment(
     case_service = CaseService()
     _known_slug_or_404(campaign, case_service)
 
-    env_service = EnvironmentStageService(db)
-    auto = env_service.auto_complete_stage4(campaign)
-    # The topology (always displayable) and the isolation verdicts come from the
-    # curation provisioner; `prepare` is read-only (creates/starts nothing).
+    # READ-ONLY view (Req. 5.6, 9.6): opening the Stage 5 screen NEVER provisions
+    # synchronously — that would block this request until the whole lab was
+    # brought up + set up, so the live terminal (and the Stage-6 live view) would
+    # only receive their lines *after* the work finished (no real-time). The
+    # ACTIVE provisioning is driven by ``POST .../stage/5/provision``, which the
+    # frontend fires in the background while the ``ProvisioningConsole`` is
+    # already mounted and subscribed to the shared buffer's WS channel — so each
+    # line streams live. Here we only READ: the topology + isolation verdict
+    # (``prepare`` creates/starts nothing), the persisted health and the current
+    # log buffer.
+    env_service = EnvironmentStageService(
+        db,
+        provisioner=provisioner,
+        log_buffer=log_buffer,
+        params_provider=lambda _c: _operationalize(db, case_service, _c).parameters,
+    )
     result = env_service.provisioner.prepare(campaign)
     topo = result.topology
 
-    # Health: comes from the persisted output of a previous/current provisioning,
-    # if any (read-only); in its absence, an empty (not approved) summary. The read
-    # does NOT provision (does not call `provision`) — Req. 6.1.
+    # Health: read-only from the persisted environment output of a previous/current
+    # provisioning; empty (not approved) when there is none yet.
     environment = env_service.persisted_environment(campaign)
     health = environment.health if environment is not None else HealthSummary()
 
@@ -1165,8 +1239,12 @@ def get_stage5_environment(
         campaign_id=campaign,
         name=topo.name,
         isolated=result.isolated,
-        isolation_unavailable=auto.isolation_unavailable,
-        reason=(None if result.isolated else (auto.message or result.isolation.summary())),
+        # ``isolation_unavailable`` is a Stage-4-era read-only signal; in the
+        # active provisioning an unverifiable/absent isolation surfaces as a
+        # pipeline ``failed_step`` + ``error_message`` instead. Keep the field
+        # for contract compatibility, derived from the screen's isolation read.
+        isolation_unavailable=False,
+        reason=(None if result.isolated else result.isolation.summary()),
         hosts=topo.hosts,
         networks=topo.networks,
         mermaid=topo.mermaid,
@@ -1175,23 +1253,6 @@ def get_stage5_environment(
         health=health,
         logs=logs,
     )
-
-
-def get_provisioner() -> CurationEnvironmentProvisioner:
-    """FastAPI dependency providing the :class:`EnvironmentProvisioner`.
-
-    Shared by the Environment creation (Stage 5, ``POST .../stage/5/provision``)
-    and the Execution (Stage 6, ``POST .../stage/6/execution``). In production it
-    returns the curation implementation with the production defaults (real Docker
-    inspector + real Caldera client, built lazily only when the verification/load
-    runs — importing never opens a socket). The tests **override** this dependency
-    to inject a provisioner with *fake* isolation inspector and Caldera client, so
-    the provisioning/execution endpoints are exercisable end-to-end without real
-    Caldera or Docker — exactly as
-    :func:`~app.api.emulation.get_runner_factory` allows for the runner. The same
-    provisioner is reused for the deprovisioning at the end of Stage 6 (Req. 12).
-    """
-    return CurationEnvironmentProvisioner()
 
 
 class ProvisionStage5Response(BaseModel):
@@ -2080,6 +2141,15 @@ def get_report(
     execution (Req. 10.8, 12.1), it is ``True`` when there is at least one finished
     Operation; otherwise ``False`` (no execution completed yet).
 
+    The structured ``deprovisioning`` field (Req. 7.2, 7.3) is populated from the
+    persisted ``execution_reports`` row written at the end of Stage 6 (task 1): the
+    most recent row for the Campaign that recorded a teardown (non-null
+    ``deprovisioned``) supplies the boolean outcome and the ``remaining_resources``
+    that stayed provisioned on a failed teardown. When no teardown has been
+    registered yet (no persisted row, or only legacy/pre-teardown rows), the field
+    stays ``None`` — the legacy ``environment_deprovisioned`` boolean is preserved
+    either way.
+
     An unknown Campaign *slug* is a 404. A Campaign with no execution still returns
     200 with zeroed metrics (DAG as the denominator, zero techniques in success) —
     the report screen always receives a reportable result.
@@ -2104,6 +2174,12 @@ def get_report(
     ability_results: list[AbilityMeasurementResult] = []
     stage3_results: list[Stage3AbilityResult] = []
     any_finished = False
+    # Real total execution time derived from the Operation instants (Req. 4.1,
+    # 4.3): ``finished_at - started_at`` in seconds, accumulated over the
+    # finished Operations that carry both instants, via the pure, DB-free
+    # ``_derive_total_time_s`` helper (shared with its property test). It stays
+    # ``None`` when no finished Operation provides a measurable duration.
+    total_time_s: Optional[float] = _derive_total_time_s(operations)
     for operation in operations:
         if operation.state is OperationState.FINISHED:
             any_finished = True
@@ -2119,12 +2195,38 @@ def get_report(
                 )
             )
 
-    return MeasurementService().report_from_campaign(
+    report = MeasurementService().report_from_campaign(
         campaign=case,
         ability_results=ability_results,
         stage3_results=stage3_results,
         environment_deprovisioned=any_finished,
     )
+    # Replace the per-technique ``execution_time_s`` sum (always ``None`` on the
+    # real execution path) with the real total derived from the Operation
+    # instants (Req. 4.1, 4.3).
+    report.metrics.total_time_s = total_time_s
+
+    # Populate the structured ``deprovisioning`` from the persisted teardown
+    # (Req. 7.2, 7.3): read the most recent ``execution_reports`` row that
+    # recorded a teardown (non-null ``deprovisioned``) for this Campaign. When no
+    # such row exists (no execution finished, or only legacy rows), leave
+    # ``deprovisioning`` as ``None``; the legacy ``environment_deprovisioned``
+    # boolean above is preserved regardless.
+    teardown_row = (
+        db.query(ExecutionReportRow)
+        .filter(
+            ExecutionReportRow.campaign_id == campaign,
+            ExecutionReportRow.deprovisioned.isnot(None),
+        )
+        .order_by(ExecutionReportRow.generated_at.desc(), ExecutionReportRow.id.desc())
+        .first()
+    )
+    if teardown_row is not None:
+        report.deprovisioning = DeprovisioningView(
+            deprovisioned=bool(teardown_row.deprovisioned),
+            remaining_resources=list(teardown_row.remaining_resources or []),
+        )
+    return report
 
 
 @router.get(

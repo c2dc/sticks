@@ -44,6 +44,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.core.config import Settings
 from app.db.base import Base, import_models
 from app.db.session import create_db_engine
+from app.models.domain import ExecutionReport as ExecutionReportRow
 from app.models.domain import StageRun
 from app.models.enums import (
     AbilityResultStatus,
@@ -52,12 +53,15 @@ from app.models.enums import (
     TranslationSource,
 )
 from app.services.campaign_service import CaseService
-from app.services.environment.completion import CompletionStage6Service
+from app.services.environment.completion import CompletionStage6Service, DbReportSink
 from app.services.environment.provisioner import (
     ProvisionedEnvironment,
     DeprovisioningResult,
 )
-from app.services.environment.report import ExecutionReport
+from app.services.environment.report import (
+    ExecutionReport,
+    SufficiencyMetrics,
+)
 from app.services.operation.runner import (
     AbilityRunResult,
     OperationRunResult,
@@ -508,3 +512,86 @@ def test_unknown_case_raises_keyerror(session: Session, data_dir: Path) -> None:
         service.execute_and_complete(
             "does-not-exist", confirmed=True, environment=_environment()
         )
+
+
+# ---------------------------------------------------------------------------
+# DbReportSink — teardown persistence into execution_reports (task 1.3)
+# ---------------------------------------------------------------------------
+#
+# These tests exercise the DB-backed report sink in isolation: it writes the
+# ``execution_reports`` row and stamps the structured teardown from the
+# ``DeprovisioningResult`` produced at Stage 6 completion. A failed teardown must
+# persist ``deprovisioned=False`` and the exact ``remaining_resources``; a
+# successful one must persist ``deprovisioned=True`` (Req. 7.3). The row is read
+# back from the same in-memory SQLite session used by the suite.
+
+
+def _report(generated_at: object | None = None) -> ExecutionReport:
+    """A minimal consolidated :class:`ExecutionReport` for the sink tests."""
+    import datetime as _dt
+
+    return ExecutionReport(
+        campaign_id=_SLUG,
+        metrics=SufficiencyMetrics(
+            total_dag_techniques=1,
+            successful_techniques=1,
+            success_rate=1.0,
+            procedural_coverage=1.0,
+            success_verdict=True,
+        ),
+        environment_deprovisioned=False,
+        generated_at=generated_at or _dt.datetime(2024, 1, 1, 12, 0, 0),
+    )
+
+
+def _persisted_row(session: Session, campaign: str) -> ExecutionReportRow:
+    """Read back the single persisted ``execution_reports`` row for ``campaign``."""
+    row = (
+        session.execute(
+            select(ExecutionReportRow).where(
+                ExecutionReportRow.campaign_id == campaign
+            )
+        )
+        .scalars()
+        .first()
+    )
+    assert row is not None, "expected a persisted execution_reports row"
+    return row
+
+
+def test_dbreportsink_persists_failed_teardown_with_remaining_resources(
+    session: Session,
+) -> None:
+    """A failed teardown persists ``deprovisioned=False`` + the remaining resources.
+    _Requirements: 7.3_"""
+    failed_teardown = DeprovisioningResult(
+        deprovisioned=False,
+        remaining_resources=["victim-web", "victim-db"],
+        message="failure ao remover contêineres",
+    )
+    sink = DbReportSink(session)
+
+    persisted = sink(_report(), failed_teardown)
+    session.commit()
+
+    assert persisted is True
+    row = _persisted_row(session, _SLUG)
+    assert row.deprovisioned is False
+    assert row.remaining_resources == ["victim-web", "victim-db"]
+    # The legacy boolean carried by the report is preserved alongside the teardown.
+    assert row.environment_deprovisioned is False
+
+
+def test_dbreportsink_persists_successful_teardown(session: Session) -> None:
+    """A successful teardown persists ``deprovisioned=True`` with no remaining resources.
+    _Requirements: 7.3_"""
+    ok_teardown = DeprovisioningResult(deprovisioned=True, message="ok")
+    sink = DbReportSink(session)
+
+    persisted = sink(_report(), ok_teardown)
+    session.commit()
+
+    assert persisted is True
+    row = _persisted_row(session, _SLUG)
+    assert row.deprovisioned is True
+    assert row.remaining_resources == []
