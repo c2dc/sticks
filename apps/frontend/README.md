@@ -8,7 +8,7 @@ shadcn/ui (New York), and i18next (pt-BR default, pt-BR fallback).
 
 ```powershell
 npm install      # install dependencies
-npm run dev      # dev server at http://localhost:15173 (proxy /api -> :8010)
+npm run dev      # dev server at http://localhost:8080 (proxy /api -> :8010)
 npm run build    # type-check + production build in dist/
 npm run preview  # serve the production build
 npm run lint     # type-check without emitting

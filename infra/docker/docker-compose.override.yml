@@ -1,8 +1,8 @@
-# Override LOCAL (não versionado) — remapeia a porta do Postgres para 5433 no
+# Override LOCAL (não versionado) — remapeia a porta do Postgres para 9090 (porta redonda) no
 # host, evitando conflito com o container `fe-postgres` de outro projeto que já
 # ocupa a 5432. `!override` SUBSTITUI a lista de ports (sem o tag o Compose
 # concatena, tentando publicar 5432 e 5433 ao mesmo tempo).
 services:
   postgres:
     ports: !override
-      - "127.0.0.1:5433:5432"
+      - "127.0.0.1:9090:5432"
