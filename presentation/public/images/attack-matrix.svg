@@ -1,0 +1,185 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 620" font-family="Inter, Segoe UI, sans-serif">
+  <defs>
+    <linearGradient id="hdr" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#1d6fe0"/>
+      <stop offset="0.52" stop-color="#8b2fd6"/>
+      <stop offset="1" stop-color="#e1322f"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="1400" height="620" fill="#ffffff"/>
+
+  <!-- column model: 14 tactics -->
+  <!-- We lay out 14 columns across 1360px starting at x=20 -->
+  <g>
+    <!-- Tactic headers -->
+    <!-- each col width ~96.4 -->
+    <!-- header band -->
+    <rect x="20" y="16" width="1360" height="40" rx="8" fill="url(#hdr)"/>
+    <text x="700" y="42" text-anchor="middle" fill="#ffffff" font-size="18" font-weight="800" letter-spacing="2">ATT&amp;CK ENTERPRISE MATRIX — 14 TACTICS (THE ADVERSARY'S GOALS, LEFT TO RIGHT)</text>
+  </g>
+
+  <!-- column generator -->
+  <g font-size="10.5" fill="#0f1726">
+    <!-- We'll place 14 columns -->
+    <!-- Positions computed: x0=20, w=96, gap=1.14 -> step ~97.14 -->
+
+    <!-- Tactic 1 -->
+    <g transform="translate(20,70)">
+      <rect width="92" height="30" rx="6" fill="#eef2f9" stroke="#e2e8f0"/>
+      <text x="46" y="13" text-anchor="middle" font-weight="800" font-size="9.5">Reconnais-</text>
+      <text x="46" y="24" text-anchor="middle" font-weight="800" font-size="9.5">sance</text>
+      <text x="0" y="44" font-size="8" fill="#64748b">10 techniques</text>
+      <rect y="52" width="92" height="22" rx="4" fill="#f6f8fc" stroke="#e2e8f0"/><text x="6" y="66" font-size="8.5">Active Scanning</text>
+      <rect y="78" width="92" height="22" rx="4" fill="#f6f8fc" stroke="#e2e8f0"/><text x="6" y="92" font-size="8.5">Phishing for Info</text>
+      <rect y="104" width="92" height="22" rx="4" fill="#f6f8fc" stroke="#e2e8f0"/><text x="6" y="118" font-size="8.5">Gather Host Info</text>
+    </g>
+    <!-- Tactic 2 -->
+    <g transform="translate(117,70)">
+      <rect width="92" height="30" rx="6" fill="#eef2f9" stroke="#e2e8f0"/>
+      <text x="46" y="13" text-anchor="middle" font-weight="800" font-size="9.5">Resource</text>
+      <text x="46" y="24" text-anchor="middle" font-weight="800" font-size="9.5">Development</text>
+      <text x="0" y="44" font-size="8" fill="#64748b">8 techniques</text>
+      <rect y="52" width="92" height="22" rx="4" fill="#f6f8fc" stroke="#e2e8f0"/><text x="6" y="66" font-size="8.5">Acquire Infra</text>
+      <rect y="78" width="92" height="22" rx="4" fill="#f6f8fc" stroke="#e2e8f0"/><text x="6" y="92" font-size="8.5">Develop Caps.</text>
+      <rect y="104" width="92" height="22" rx="4" fill="#f6f8fc" stroke="#e2e8f0"/><text x="6" y="118" font-size="8.5">Obtain Tools</text>
+    </g>
+    <!-- Tactic 3 -->
+    <g transform="translate(214,70)">
+      <rect width="92" height="30" rx="6" fill="#eef2f9" stroke="#e2e8f0"/>
+      <text x="46" y="13" text-anchor="middle" font-weight="800" font-size="9.5">Initial</text>
+      <text x="46" y="24" text-anchor="middle" font-weight="800" font-size="9.5">Access</text>
+      <text x="0" y="44" font-size="8" fill="#64748b">10 techniques</text>
+      <rect y="52" width="92" height="22" rx="4" fill="#eaf2fe" stroke="#cfe0fb"/><text x="6" y="66" font-size="8.5" font-weight="700">Phishing</text>
+      <rect y="78" width="92" height="22" rx="4" fill="#eaf2fe" stroke="#cfe0fb"/><text x="6" y="92" font-size="8.5" font-weight="700">Exploit Public App</text>
+      <rect y="104" width="92" height="22" rx="4" fill="#f6f8fc" stroke="#e2e8f0"/><text x="6" y="118" font-size="8.5">Valid Accounts</text>
+    </g>
+    <!-- Tactic 4 -->
+    <g transform="translate(311,70)">
+      <rect width="92" height="30" rx="6" fill="#eef2f9" stroke="#e2e8f0"/>
+      <text x="46" y="13" text-anchor="middle" font-weight="800" font-size="9.5">Execution</text>
+      <text x="0" y="44" font-size="8" fill="#64748b">14 techniques</text>
+      <rect y="52" width="92" height="22" rx="4" fill="#eaf2fe" stroke="#cfe0fb"/><text x="6" y="66" font-size="8.5" font-weight="700">Command/Script</text>
+      <rect y="78" width="92" height="22" rx="4" fill="#f6f8fc" stroke="#e2e8f0"/><text x="6" y="92" font-size="8.5">Native API</text>
+      <rect y="104" width="92" height="22" rx="4" fill="#f6f8fc" stroke="#e2e8f0"/><text x="6" y="118" font-size="8.5">Scheduled Task</text>
+    </g>
+    <!-- Tactic 5 -->
+    <g transform="translate(408,70)">
+      <rect width="92" height="30" rx="6" fill="#eef2f9" stroke="#e2e8f0"/>
+      <text x="46" y="13" text-anchor="middle" font-weight="800" font-size="9.5">Persistence</text>
+      <text x="0" y="44" font-size="8" fill="#64748b">20 techniques</text>
+      <rect y="52" width="92" height="22" rx="4" fill="#f6f8fc" stroke="#e2e8f0"/><text x="6" y="66" font-size="8.5">Create Account</text>
+      <rect y="78" width="92" height="22" rx="4" fill="#f6f8fc" stroke="#e2e8f0"/><text x="6" y="92" font-size="8.5">Boot/Logon</text>
+      <rect y="104" width="92" height="22" rx="4" fill="#f6f8fc" stroke="#e2e8f0"/><text x="6" y="118" font-size="8.5">Scheduled Task</text>
+    </g>
+    <!-- Tactic 6 -->
+    <g transform="translate(505,70)">
+      <rect width="92" height="30" rx="6" fill="#eef2f9" stroke="#e2e8f0"/>
+      <text x="46" y="13" text-anchor="middle" font-weight="800" font-size="9.5">Privilege</text>
+      <text x="46" y="24" text-anchor="middle" font-weight="800" font-size="9.5">Escalation</text>
+      <text x="0" y="44" font-size="8" fill="#64748b">13 techniques</text>
+      <rect y="52" width="92" height="22" rx="4" fill="#f6f8fc" stroke="#e2e8f0"/><text x="6" y="66" font-size="8.5">Abuse Elevation</text>
+      <rect y="78" width="92" height="22" rx="4" fill="#f6f8fc" stroke="#e2e8f0"/><text x="6" y="92" font-size="8.5">Valid Accounts</text>
+      <rect y="104" width="92" height="22" rx="4" fill="#f6f8fc" stroke="#e2e8f0"/><text x="6" y="118" font-size="8.5">Process Inject</text>
+    </g>
+    <!-- Tactic 7 -->
+    <g transform="translate(602,70)">
+      <rect width="92" height="30" rx="6" fill="#eef2f9" stroke="#e2e8f0"/>
+      <text x="46" y="13" text-anchor="middle" font-weight="800" font-size="9.5">Defense</text>
+      <text x="46" y="24" text-anchor="middle" font-weight="800" font-size="9.5">Evasion</text>
+      <text x="0" y="44" font-size="8" fill="#64748b">43 techniques</text>
+      <rect y="52" width="92" height="22" rx="4" fill="#faeaf4" stroke="#f0cfe2"/><text x="6" y="66" font-size="8.5" font-weight="700">Obfuscation</text>
+      <rect y="78" width="92" height="22" rx="4" fill="#f6f8fc" stroke="#e2e8f0"/><text x="6" y="92" font-size="8.5">Masquerading</text>
+      <rect y="104" width="92" height="22" rx="4" fill="#f6f8fc" stroke="#e2e8f0"/><text x="6" y="118" font-size="8.5">Impair Defenses</text>
+    </g>
+    <!-- Tactic 8 -->
+    <g transform="translate(699,70)">
+      <rect width="92" height="30" rx="6" fill="#eef2f9" stroke="#e2e8f0"/>
+      <text x="46" y="13" text-anchor="middle" font-weight="800" font-size="9.5">Credential</text>
+      <text x="46" y="24" text-anchor="middle" font-weight="800" font-size="9.5">Access</text>
+      <text x="0" y="44" font-size="8" fill="#64748b">17 techniques</text>
+      <rect y="52" width="92" height="22" rx="4" fill="#f6f8fc" stroke="#e2e8f0"/><text x="6" y="66" font-size="8.5">OS Cred Dumping</text>
+      <rect y="78" width="92" height="22" rx="4" fill="#f6f8fc" stroke="#e2e8f0"/><text x="6" y="92" font-size="8.5">Brute Force</text>
+      <rect y="104" width="92" height="22" rx="4" fill="#f6f8fc" stroke="#e2e8f0"/><text x="6" y="118" font-size="8.5">Steal Tokens</text>
+    </g>
+    <!-- Tactic 9 -->
+    <g transform="translate(796,70)">
+      <rect width="92" height="30" rx="6" fill="#eef2f9" stroke="#e2e8f0"/>
+      <text x="46" y="13" text-anchor="middle" font-weight="800" font-size="9.5">Discovery</text>
+      <text x="0" y="44" font-size="8" fill="#64748b">32 techniques</text>
+      <rect y="52" width="92" height="22" rx="4" fill="#faeaf4" stroke="#f0cfe2"/><text x="6" y="66" font-size="8.5" font-weight="700">System Info</text>
+      <rect y="78" width="92" height="22" rx="4" fill="#f6f8fc" stroke="#e2e8f0"/><text x="6" y="92" font-size="8.5">Network Scan</text>
+      <rect y="104" width="92" height="22" rx="4" fill="#f6f8fc" stroke="#e2e8f0"/><text x="6" y="118" font-size="8.5">Account Discovery</text>
+    </g>
+    <!-- Tactic 10 -->
+    <g transform="translate(893,70)">
+      <rect width="92" height="30" rx="6" fill="#eef2f9" stroke="#e2e8f0"/>
+      <text x="46" y="13" text-anchor="middle" font-weight="800" font-size="9.5">Lateral</text>
+      <text x="46" y="24" text-anchor="middle" font-weight="800" font-size="9.5">Movement</text>
+      <text x="0" y="44" font-size="8" fill="#64748b">9 techniques</text>
+      <rect y="52" width="92" height="22" rx="4" fill="#fbe9e8" stroke="#f3cfcd"/><text x="6" y="66" font-size="8.5" font-weight="700">Remote Services</text>
+      <rect y="78" width="92" height="22" rx="4" fill="#f6f8fc" stroke="#e2e8f0"/><text x="6" y="92" font-size="8.5">SSH / RDP</text>
+      <rect y="104" width="92" height="22" rx="4" fill="#f6f8fc" stroke="#e2e8f0"/><text x="6" y="118" font-size="8.5">Lateral Transfer</text>
+    </g>
+    <!-- Tactic 11 -->
+    <g transform="translate(990,70)">
+      <rect width="92" height="30" rx="6" fill="#eef2f9" stroke="#e2e8f0"/>
+      <text x="46" y="13" text-anchor="middle" font-weight="800" font-size="9.5">Collection</text>
+      <text x="0" y="44" font-size="8" fill="#64748b">17 techniques</text>
+      <rect y="52" width="92" height="22" rx="4" fill="#f6f8fc" stroke="#e2e8f0"/><text x="6" y="66" font-size="8.5">Data from Host</text>
+      <rect y="78" width="92" height="22" rx="4" fill="#f6f8fc" stroke="#e2e8f0"/><text x="6" y="92" font-size="8.5">Screen Capture</text>
+      <rect y="104" width="92" height="22" rx="4" fill="#f6f8fc" stroke="#e2e8f0"/><text x="6" y="118" font-size="8.5">Archive Data</text>
+    </g>
+    <!-- Tactic 12 -->
+    <g transform="translate(1087,70)">
+      <rect width="92" height="30" rx="6" fill="#eef2f9" stroke="#e2e8f0"/>
+      <text x="46" y="13" text-anchor="middle" font-weight="800" font-size="9.5">Command &amp;</text>
+      <text x="46" y="24" text-anchor="middle" font-weight="800" font-size="9.5">Control</text>
+      <text x="0" y="44" font-size="8" fill="#64748b">16 techniques</text>
+      <rect y="52" width="92" height="22" rx="4" fill="#fbe9e8" stroke="#f3cfcd"/><text x="6" y="66" font-size="8.5" font-weight="700">App Layer Proto</text>
+      <rect y="78" width="92" height="22" rx="4" fill="#f6f8fc" stroke="#e2e8f0"/><text x="6" y="92" font-size="8.5">Ingress Tool Xfer</text>
+      <rect y="104" width="92" height="22" rx="4" fill="#f6f8fc" stroke="#e2e8f0"/><text x="6" y="118" font-size="8.5">Encrypted Chan</text>
+    </g>
+    <!-- Tactic 13 -->
+    <g transform="translate(1184,70)">
+      <rect width="92" height="30" rx="6" fill="#eef2f9" stroke="#e2e8f0"/>
+      <text x="46" y="13" text-anchor="middle" font-weight="800" font-size="9.5">Exfiltration</text>
+      <text x="0" y="44" font-size="8" fill="#64748b">9 techniques</text>
+      <rect y="52" width="92" height="22" rx="4" fill="#fbe9e8" stroke="#f3cfcd"/><text x="6" y="66" font-size="8.5" font-weight="700">Exfil over C2</text>
+      <rect y="78" width="92" height="22" rx="4" fill="#f6f8fc" stroke="#e2e8f0"/><text x="6" y="92" font-size="8.5">Exfil Web Service</text>
+      <rect y="104" width="92" height="22" rx="4" fill="#f6f8fc" stroke="#e2e8f0"/><text x="6" y="118" font-size="8.5">Scheduled Xfer</text>
+    </g>
+    <!-- Tactic 14 -->
+    <g transform="translate(1281,70)">
+      <rect width="92" height="30" rx="6" fill="#eef2f9" stroke="#e2e8f0"/>
+      <text x="46" y="13" text-anchor="middle" font-weight="800" font-size="9.5">Impact</text>
+      <text x="0" y="44" font-size="8" fill="#64748b">14 techniques</text>
+      <rect y="52" width="92" height="22" rx="4" fill="#fbe9e8" stroke="#f3cfcd"/><text x="6" y="66" font-size="8.5" font-weight="700">Data Encrypted</text>
+      <rect y="78" width="92" height="22" rx="4" fill="#f6f8fc" stroke="#e2e8f0"/><text x="6" y="92" font-size="8.5">Resource Hijack</text>
+      <rect y="104" width="92" height="22" rx="4" fill="#f6f8fc" stroke="#e2e8f0"/><text x="6" y="118" font-size="8.5">Service Stop</text>
+    </g>
+  </g>
+
+  <!-- ellipsis row -->
+  <text x="700" y="218" text-anchor="middle" font-size="13" fill="#94a3b8" font-weight="700">· · ·   each column lists many more techniques &amp; sub-techniques   · · ·</text>
+
+  <!-- reading guide -->
+  <g transform="translate(20,250)">
+    <rect width="1360" height="150" rx="12" fill="#f6f8fc" stroke="#e2e8f0"/>
+    <text x="24" y="34" font-size="15" font-weight="800" fill="#0f1726">How to read the matrix</text>
+    <rect x="24" y="44" width="56" height="4" rx="2" fill="#8b2fd6"/>
+    <text x="24" y="74" font-size="12.5" fill="#334155"><tspan font-weight="700" fill="#1d6fe0">Columns = Tactics</tspan>  —  the adversary's goal / the "why" (e.g. gain Initial Access, achieve Impact).</text>
+    <text x="24" y="100" font-size="12.5" fill="#334155"><tspan font-weight="700" fill="#8b2fd6">Cells = Techniques</tspan>  —  the "how": a method to achieve the tactic. Many expand into sub-techniques.</text>
+    <text x="24" y="126" font-size="12.5" fill="#334155"><tspan font-weight="700" fill="#e1322f">A campaign = a path across the matrix</tspan>  —  an ordered chain of techniques an APT actually executed.</text>
+  </g>
+
+  <!-- key takeaway -->
+  <g transform="translate(20,418)">
+    <rect width="1360" height="184" rx="12" fill="#ffffff" stroke="#e2e8f0"/>
+    <rect width="6" height="184" rx="3" fill="url(#hdr)"/>
+    <text x="28" y="40" font-size="15" font-weight="800" fill="#0f1726">What ATT&amp;CK gives us — and what it does NOT</text>
+    <text x="28" y="74" font-size="12.5" fill="#334155">✓  A shared vocabulary of adversary behavior, curated from real-world intrusions and threat reports.</text>
+    <text x="28" y="100" font-size="12.5" fill="#334155">✓  The "what": which techniques a known actor/campaign is associated with (the knowledge base behind STIX CTI).</text>
+    <text x="28" y="132" font-size="12.5" fill="#b91c1c">✗  NOT the procedure: ATT&amp;CK names the technique but does not give the concrete commands, their order, or dependencies.</text>
+    <text x="28" y="158" font-size="12.5" fill="#b91c1c">✗  That missing "how" is exactly the <tspan font-weight="800">procedural semantics gap</tspan> STICKS sets out to measure.</text>
+  </g>
+</svg>
