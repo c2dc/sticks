@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 300" font-family="Inter, Segoe UI, sans-serif">
+  <rect width="520" height="300" fill="#ffffff"/>
+  <text x="16" y="26" font-size="15" font-weight="800" fill="#0f1726">Atomic tests by platform</text>
+  <rect x="16" y="34" width="52" height="4" rx="2" fill="#8b2fd6"/>
+
+  <!-- bars: approximate counts, dated. max ~1200 -> scale: 1 unit = 0.3 px over 360px plot -->
+  <!-- baseline x=150, plot width 330 (value*0.26) -->
+  <g font-size="12">
+    <!-- Windows 1167 -->
+    <text x="140" y="74" text-anchor="end" font-weight="700" fill="#0f1726">Windows</text>
+    <rect x="150" y="62" width="303" height="18" rx="4" fill="#1d6fe0"/>
+    <text x="461" y="76" font-size="11.5" font-weight="700" fill="#1d6fe0">~1,170</text>
+
+    <!-- Linux 443 -->
+    <text x="140" y="108" text-anchor="end" font-weight="700" fill="#0f1726">Linux</text>
+    <rect x="150" y="96" width="115" height="18" rx="4" fill="#8b2fd6"/>
+    <text x="273" y="110" font-size="11.5" font-weight="700" fill="#8b2fd6">~440</text>
+
+    <!-- macOS 202 -->
+    <text x="140" y="142" text-anchor="end" font-weight="700" fill="#0f1726">macOS</text>
+    <rect x="150" y="130" width="52" height="18" rx="4" fill="#b52e9e"/>
+    <text x="210" y="144" font-size="11.5" font-weight="700" fill="#b52e9e">~200</text>
+
+    <!-- Cloud & SaaS -->
+    <text x="140" y="176" text-anchor="end" font-weight="700" fill="#0f1726">Cloud / SaaS</text>
+    <rect x="150" y="164" width="60" height="18" rx="4" fill="#e1322f"/>
+    <text x="218" y="178" font-size="11.5" font-weight="700" fill="#e1322f">Azure AD · AWS · GCP · M365</text>
+
+    <!-- Containers -->
+    <text x="140" y="210" text-anchor="end" font-weight="700" fill="#0f1726">Containers</text>
+    <rect x="150" y="198" width="34" height="18" rx="4" fill="#64748b"/>
+    <text x="192" y="212" font-size="11.5" font-weight="700" fill="#64748b">Docker / Kubernetes</text>
+  </g>
+
+  <line x1="150" y1="56" x2="150" y2="224" stroke="#e2e8f0" stroke-width="1"/>
+
+  <text x="16" y="256" font-size="10.5" fill="#64748b">Many tests are multi-platform (tagged e.g. [windows, macos, linux]); Windows</text>
+  <text x="16" y="272" font-size="10.5" fill="#64748b">has the deepest coverage. A single technique often has several atomic tests.</text>
+  <text x="16" y="292" font-size="9.5" font-style="italic" fill="#94a3b8">Approximate figures, redcanaryco/atomic-red-team (open source), 2024-25.</text>
+</svg>

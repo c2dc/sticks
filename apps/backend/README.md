@@ -42,7 +42,7 @@ npm run dev
 ```
 
 - UI: http://localhost:8080
-- API: http://localhost:8010 — health check: `GET /health` → `{"status": "ok"}`
+- API: http://localhost:9080 — health check: `GET /health` → `{"status": "ok"}`
 
 The default database (`PIPELINE_UI_DATABASE_URL`) already points at the
 containerized Postgres on `localhost:5432`. The compose `backend` service

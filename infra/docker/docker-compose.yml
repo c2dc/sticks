@@ -185,8 +185,8 @@ services:
       POSTGRES_PASSWORD: pipeline_ui
     ports:
       # Bound to 127.0.0.1 so ONLY this machine can reach Postgres. This lets
-      # the native (host) backend dev server connect at localhost:5432.
-      - "127.0.0.1:5432:5432"
+      # the native (host) backend dev server connect at localhost:9090 (see docker-compose.override.yml).
+      - "127.0.0.1:9090:5432"
     volumes:
       - sticks-postgres-data:/var/lib/postgresql/data
     networks:
@@ -231,8 +231,8 @@ services:
       PIPELINE_UI_STIX_DIR: /var/cache/sticks/stix
     ports:
       # Bound to 127.0.0.1 so ONLY this machine can reach the backend API.
-      # host 8010 -> container 8000 (8000 is taken by nginx inside the lab).
-      - "127.0.0.1:8010:8000"
+      # host 9080 -> container 8000 (8000 is taken by nginx inside the lab).
+      - "127.0.0.1:9080:8000"
     volumes:
       # Mount the repo root read-only so app/core/sticks_config.py can resolve
       # <repo>/packages/cli/config/config.py via parents[4] at runtime. The STIX
@@ -260,7 +260,7 @@ services:
   # `vite preview` (which required an image rebuild on every edit), this runs
   # the Vite dev server directly against the bind-mounted source so edits
   # hot-reload in the browser. VITE_* are read at dev-server start, so the
-  # browser still calls the backend at the host port :8010.
+  # browser still calls the backend at the host port :9080.
   #
   # OPT-IN (containerized fallback): assigned to the `containers` profile, so a
   # plain `docker compose up -d` does NOT start it. The default dev workflow
@@ -277,8 +277,8 @@ services:
     # --port 4173 keeps the existing 8080:4173 host mapping valid.
     command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 4173"
     environment:
-      VITE_API_BASE_URL: http://localhost:8010/api
-      VITE_WS_BASE_URL: ws://localhost:8010
+      VITE_API_BASE_URL: http://localhost:9080/api
+      VITE_WS_BASE_URL: ws://localhost:9080
     ports:
       # Bound to 127.0.0.1 so ONLY this machine can open the UI.
       # host 8080 -> container 4173 (vite dev server).

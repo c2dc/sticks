@@ -17,11 +17,11 @@ export default defineConfig({
     proxy: {
       // Proxy REST + WebSocket to the FastAPI backend during dev.
       "/api": {
-        target: "http://localhost:8010",
+        target: "http://localhost:9080",
         changeOrigin: true,
       },
       "/ws": {
-        target: "ws://localhost:8010",
+        target: "ws://localhost:9080",
         ws: true,
         changeOrigin: true,
       },

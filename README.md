@@ -137,7 +137,7 @@ npm run dev
 ```
 
 - **UI:** http://localhost:8080
-- **API:** http://localhost:8010 - health check: `GET /health` -> `{"status": "ok"}`
+- **API:** http://localhost:9080 - health check: `GET /health` -> `{"status": "ok"}`
 - **Caldera:** http://localhost:8888 (login `red` / `admin`)
 
 Database migrations can be applied on their own with `npm run db:migrate`.
