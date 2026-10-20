@@ -230,3 +230,40 @@
   user-select: text !important;
   cursor: auto;
 }
+
+/* ============================================================
+   DAG candidate cards (DAG agent / Stage 3 slide)
+   The three candidate graphs use the SAME technique set arranged
+   differently, so node counts per "row" differ and the raw Mermaid
+   SVGs render at very different heights (the 7-deep linear chain is
+   the tallest). Constrain every candidate's diagram to one uniform,
+   slide-safe box so the three columns stay balanced and nothing
+   reaches the slide edge.
+   ============================================================ */
+/* Make the three candidate cards equal height and lay each out as a column so
+   the diagram can center vertically. The tallest (A, the 7-deep chain) sets the
+   row height; B and C stretch to match with their graphs centered. */
+.dag-candidate {
+  display: flex;
+  flex-direction: column;
+}
+.dag-candidate .mermaid {
+  flex: 1 1 auto;
+  display: flex;
+  justify-content: center;
+  align-items: center;    /* center the graph vertically in the equalized card */
+  margin: .15rem 0 .1rem;
+  overflow: visible;      /* never clip — let the SVG scale down instead */
+}
+/* Scale each Mermaid SVG to fit ENTIRELY inside a uniform box, preserving
+   aspect ratio. Mermaid stamps an inline `max-width:NNNpx; height:auto` on the
+   SVG; we override both so the diagram is bounded by a shared max-height and
+   the full column width, scaling a tall graph (the 7-deep linear chain) down
+   until every node is visible. object-fit guards against any residual overflow. */
+.dag-candidate .mermaid > svg {
+  width: 100% !important;
+  height: auto !important;
+  max-width: 100% !important;
+  max-height: 258px !important;
+  object-fit: contain;
+}

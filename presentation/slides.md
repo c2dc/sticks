@@ -4,6 +4,8 @@ title: "STICKS: Measuring Procedural Sufficiency for APT Emulation"
 titleTemplate: "%s"
 favicon: /favicon.ico
 highlighter: shiki
+shiki:
+  theme: 'github-light'
 lineNumbers: false
 drawings:
   persist: false
@@ -35,6 +37,7 @@ canvasWidth: 1180
 
 <div class="absolute bottom-16 left-14 right-14 flex justify-between items-end">
   <div>
+    <img src="/images/qr-linkedin-nilsonsangy.png" alt="LinkedIn QR — Nilson Sangy" style="width:96px;height:96px;display:block;border-radius:.4rem;margin-bottom:.5rem;" />
     <div style="font-size:1.35rem;font-weight:800;color:var(--ink);">Nilson Sangy</div>
     <div style="font-size:.95rem;color:var(--muted);">Instituto Tecnológico de Aeronáutica · STICKS research platform</div>
   </div>
@@ -1003,122 +1006,97 @@ layout: default
 
 <div class="grad-rule"></div>
 
-<div class="two-col">
+<div class="two-col" style="grid-template-columns:.92fr 1.08fr;gap:1.1rem;align-items:start;">
+
 <div class="tight">
-
-<div class="card edge-purple">
-<h3>Job</h3>
-<p>Turn a <strong>flat set of techniques</strong> into a <strong>directed acyclic graph</strong>, the campaign's ordering and dependencies, the structure Atomic Red Team does not carry.</p>
-</div>
-
-<div class="card edge-blue">
-<h3>How it works</h3>
-<ul>
-<li><strong>Input:</strong> campaign attributes + techniques (from Stage 2).</li>
-<li><strong>Retrieve:</strong> for each technique, its tactic/kill-chain phase and typical prerequisites (STIX/ATT&amp;CK + RAG over past DAGs).</li>
-<li><strong>Reason:</strong> infer a plausible <strong>order</strong> (recon → exploit → lateral → exfil) and the <strong>edges</strong> (which step depends on which).</li>
-<li><strong>Validate:</strong> enforce acyclicity and that every technique appears exactly once.</li>
+<div class="card edge-purple" style="padding:.6rem .8rem;">
+<h3>What the agent does</h3>
+<p>It takes the campaign's <strong>flat set of techniques</strong> (from Stage 2) and reasons out a <strong>directed acyclic graph</strong>, the <strong>ordering</strong> and <strong>dependencies</strong> that Atomic Red Team does not carry.</p>
+<ul style="margin:.1rem 0 0;">
+<li><strong>Retrieve</strong> each technique's tactic / kill-chain phase &amp; prerequisites (STIX + ATT&amp;CK, RAG over past DAGs).</li>
+<li><strong>Reason</strong> a plausible order (recon → exploit → lateral → exfil) and the edges, which step depends on which.</li>
+<li><strong>Validate</strong> acyclicity; every technique appears exactly once.</li>
 </ul>
 </div>
 
-</div>
-
-<div class="tight">
-<div class="card edge-red">
+<div class="card edge-blue" style="padding:.6rem .8rem;">
 <h3>Output</h3>
-<p>A campaign DAG (nodes + edges) tagged <code>origin = ai_generated</code>, dropped in behind the existing <code>DagGenerator</code> seam, <strong>structurally indistinguishable</strong> from a human-made DAG downstream.</p>
+<p>A DAG tagged <code>origin = ai_generated</code>, dropped behind the existing <code>DagGenerator</code> seam, <strong>indistinguishable</strong> downstream from a human DAG, so <strong>Stage 6 scores it</strong> against the 8 human DAGs.</p>
+</div>
 </div>
 
-<div class="card flat edge-purple" style="padding:.6rem .8rem;"><p><strong>Why it is real reasoning:</strong> the CTI rarely states the order explicitly. A human infers it from how the APT operated; now the agent must infer the same, and we can grade it against the 8 human DAGs.</p></div>
-</div>
+<div>
+<div style="font-size:.74rem;color:var(--ink-soft);margin-bottom:.35rem;line-height:1.3;"><strong>Same 7 techniques in all three</strong> — only the <strong>organization</strong> (ordering &amp; dependencies) changes. Stage 6 scores which arrangement reproduces ShadowRay best.</div>
 
-</div>
+<div class="cards c3" style="gap:.6rem;align-items:stretch;">
 
-<!--
-Component two is the DAG agent, which owns stage three, the structural reasoning.
-
-Its job, top-left, is to take a flat, unordered set of techniques, the techniques stage two extracted, and turn them into a directed acyclic graph that encodes the campaign's ordering and its dependencies. This is precisely the structure that Atomic Red Team does not give you; ART hands you a command per technique in isolation, with no notion of campaign-level sequence.
-
-How does it work? Walk down the left card. The input is the campaign attributes and techniques from stage two. Then it retrieves: for each technique it looks up its tactic, its kill-chain phase, and its typical prerequisites, using the STIX and ATT&CK reader plus RAG over the DAGs it has seen before. Then the core move, reasoning: it infers a plausible order, roughly reconnaissance, then exploitation, then lateral movement, then exfiltration, and, just as important, it infers the edges, which concrete step depends on which other step. Finally it validates its own output: the graph must be acyclic, and every technique must appear exactly once, no orphans, no duplicates.
-
-The output, top-right, is a campaign DAG, nodes and edges, tagged origin equals AI-generated, and it drops in behind the existing DAG-generator seam. Downstream, nothing can tell structurally whether a human or the agent produced it, which is exactly what makes the swap clean.
-
-And the bottom card is the point I most want you to take away about this component: this is genuine reasoning, not lookup. The raw threat intelligence almost never states the execution order explicitly. A human analyst infers it from understanding how the APT actually operated. The agent has to infer the same thing, and because we have eight human-curated DAGs, we can grade the agent's structure against the human's, technique by technique.
--->
-
----
-layout: default
----
-
-# DAG agent — candidate graphs for ShadowRay
-
-<div class="grad-rule"></div>
-
-<div style="font-size:.8rem;color:var(--ink-soft);margin-bottom:.5rem;">Same 10 ShadowRay techniques, three structures the agent might propose, each scored against the human DAG by Stage 6.</div>
-
-<div class="cards c3" style="gap:.8rem;align-items:start;">
-
-<div class="card edge-purple" style="padding:.5rem .6rem;">
-<h3 style="margin:0 0 .2rem;">A · Linear kill-chain</h3>
+<div class="card edge-purple dag-candidate" style="padding:.45rem .55rem;">
+<h3 style="margin:0 0 .2rem;font-size:.82rem;">A · Linear kill-chain</h3>
 
 ```mermaid
-flowchart LR
-  A["T1190 Exploit"] --> B["T1027 Encode"] --> C["T1003 Creds"] --> D["T1068 PrivEsc"] --> E["T1496 Mine"]
+%%{init: {"flowchart": {"nodeSpacing": 14, "rankSpacing": 16, "padding": 4}, "themeVariables": {"fontSize": "11px"}}}%%
+flowchart TB
+  A["T1190 Exploit"] --> F["T1588 Tool"] --> G["T1105 Transfer"] --> B["T1027 Encode"] --> C["T1003 Creds"] --> D["T1068 PrivEsc"] --> E["T1496 Mine"]
 ```
 
-<p style="font-size:.72rem;margin:.3rem 0 0;">Straight chain: access → evade → steal → escalate → impact.</p>
+<p style="font-size:.68rem;margin:.25rem 0 0;">One strict chain through all 7 techniques.</p>
 </div>
 
-<div class="card edge-blue" style="padding:.5rem .6rem;">
-<h3 style="margin:0 0 .2rem;">B · Branch after access</h3>
+<div class="card edge-blue dag-candidate" style="padding:.45rem .55rem;">
+<h3 style="margin:0 0 .2rem;font-size:.82rem;">B · Branch after access</h3>
 
 ```mermaid
-flowchart LR
-  A["T1190 Exploit"] --> B["T1027 Encode"]
-  A --> F["T1588 Tool"]
-  B --> C["T1003 Creds"]
+%%{init: {"flowchart": {"nodeSpacing": 14, "rankSpacing": 16, "padding": 4}, "themeVariables": {"fontSize": "11px"}}}%%
+flowchart TB
+  A["T1190 Exploit"] --> F["T1588 Tool"]
+  A --> C["T1003 Creds"]
   F --> G["T1105 Transfer"]
+  G --> B["T1027 Encode"]
   C --> D["T1068 PrivEsc"]
-  G --> D
+  B --> D
   D --> E["T1496 Mine"]
 ```
 
-<p style="font-size:.72rem;margin:.3rem 0 0;">Credential path and tooling path run in parallel, rejoin at priv-esc.</p>
+<p style="font-size:.68rem;margin:.25rem 0 0;">Tooling and credential paths run in parallel, rejoin at priv-esc.</p>
 </div>
 
-<div class="card edge-red" style="padding:.5rem .6rem;">
-<h3 style="margin:0 0 .2rem;">C · Discovery-first</h3>
+<div class="card edge-red dag-candidate" style="padding:.45rem .55rem;">
+<h3 style="margin:0 0 .2rem;font-size:.82rem;">C · Tooling-first regroup</h3>
 
 ```mermaid
-flowchart LR
-  A["T1190 Exploit"] --> H["T1016 Discover"]
-  H --> I["T1059 Python"]
-  H --> C["T1003 Creds"]
-  I --> G["T1105 Transfer"]
+%%{init: {"flowchart": {"nodeSpacing": 14, "rankSpacing": 16, "padding": 4}, "themeVariables": {"fontSize": "11px"}}}%%
+flowchart TB
+  A["T1190 Exploit"] --> F["T1588 Tool"]
+  F --> G["T1105 Transfer"]
+  F --> B["T1027 Encode"]
+  G --> C["T1003 Creds"]
+  B --> C
   C --> D["T1068 PrivEsc"]
-  G --> E["T1496 Mine"]
-  D --> E
+  D --> E["T1496 Mine"]
 ```
 
-<p style="font-size:.72rem;margin:.3rem 0 0;">Recon fans out into execution and credential access before impact.</p>
+<p style="font-size:.68rem;margin:.25rem 0 0;">Tooling fans out, then regroups for credentials before impact.</p>
 </div>
 
 </div>
 
-<div class="card flat edge-grad" style="margin-top:.7rem;padding:.5rem .8rem;"><p style="font-size:.8rem;"><strong>The agent proposes structures; Stage 6 picks the winner.</strong> Each candidate is a hypothesis about ordering &amp; dependencies, rendered as the same Mermaid DAG the pipeline already shows, and measured against procedural sufficiency.</p></div>
+<div class="card flat edge-grad" style="margin-top:.45rem;padding:.35rem .7rem;"><p style="font-size:.74rem;margin:0;line-height:1.3;"><strong>Same techniques, different structure — the agent proposes; Stage 6 decides.</strong> Each candidate is a hypothesis about how to <em>arrange</em> the fixed technique set, scored on procedural sufficiency.</p></div>
+</div>
+
+</div>
 
 <!--
-This slide makes the DAG agent concrete. Instead of talking about structure in the abstract, here are three different DAGs the agent might actually generate for ShadowRay, using the real techniques from that campaign, the ones you saw executed in the lab.
+This is the DAG agent, the component that owns stage three, the structural reasoning, and I have put everything about it on one slide: what it does on the left, and what it can actually produce on the right.
 
-They all contain the same campaign techniques; what differs is the structure, the agent's hypothesis about order and dependencies. Read them left to right.
+Start with what it does. Its job is to take a flat, unordered set of techniques, the ones stage two extracted, and turn them into a directed acyclic graph that encodes the campaign's ordering and its dependencies. This is exactly the structure Atomic Red Team does not give you; ART hands you a command per technique in isolation, with no notion of campaign-level sequence. The agent works in three moves. First it retrieves, for each technique, its tactic, its kill-chain phase, and its typical prerequisites, using the STIX and ATT&CK reader plus RAG over the DAGs it has seen before. Then the core move, it reasons out a plausible order, roughly reconnaissance, then exploitation, then lateral movement, then exfiltration, and, just as important, it infers the edges, which concrete step depends on which. Finally it validates its own output: the graph must be acyclic and every technique must appear exactly once, no orphans, no duplicates.
 
-Candidate A is the simplest: a straight linear kill-chain. Exploit the public-facing Ray service, encode the payload to evade detection, dump credentials, escalate privileges, and finally hijack compute to mine, that last step is the actual ShadowRay objective, cryptomining. It is clean and plausible, but it assumes everything happens in one strict line.
+The output, bottom-left, is a campaign DAG tagged origin equals AI-generated, dropped in behind the existing DAG-generator seam. Downstream nothing can tell structurally whether a human or the agent produced it, which is exactly what lets stage six score the agent's DAG against the eight human-curated ones. This is genuine reasoning, not lookup: the raw threat intelligence almost never states the execution order explicitly, so the agent has to infer it the way a human analyst would.
 
-Candidate B is more sophisticated: it branches right after initial access. One branch handles the credential path, encode then dump credentials; a parallel branch handles tooling, acquire the tool then transfer it in. Both branches have to complete before privilege escalation, and then mining. This reflects a realistic insight: fetching your tooling and stealing credentials are independent activities that can overlap.
+Now the right side, which makes this concrete, and I want to be precise about what varies. All three candidates use the exact same seven ShadowRay techniques, the full technique set the campaign requires. The agent must place every one of them; it cannot drop a technique or invent a new one. What changes from A to B to C is only the organization, the ordering and the dependency edges. In other words, these are three different ways to wire up the identical set of nodes.
 
-Candidate C leads with discovery: after the exploit, the agent does network configuration discovery first, and from that recon it fans out into two things, running Python for execution and dumping credentials, before converging on privilege escalation and impact. This is the hypothesis that an attacker orients before committing.
+Candidate A is the simplest, a single strict chain through all seven: exploit the public-facing Ray service, acquire the tool, transfer it in, encode it to evade detection, dump credentials, escalate privileges, and finally hijack compute to mine, which is ShadowRay's real objective, cryptomining. Candidate B keeps the same seven techniques but branches right after initial access: one path handles tooling, acquire then transfer then encode, while a parallel path dumps credentials, and the two rejoin at privilege escalation before mining. Candidate C, again the same seven, fans out from tooling first, transfer and encode run in parallel off the acquired tool, then regroup for credential access before privilege escalation and impact.
 
-The point of showing three is the bottom card: the agent does not have to be right on the first try. Each of these is a hypothesis about the campaign's structure, and because every one renders as the same kind of Mermaid DAG the pipeline already displays, and because stage six can measure the procedural sufficiency of each, the system can actually tell which structure reproduces ShadowRay best. The agent proposes; the measurement decides. That is the DAG agent and the feedback loop working together.
+The point of showing three, bottom-right, is that each is a hypothesis about how to arrange a fixed technique set, not about which techniques to use. Because every one renders as the same kind of Mermaid DAG the pipeline already displays, and because stage six can measure the procedural sufficiency of each, the system can tell which arrangement reproduces ShadowRay best. The agent proposes the structure; the measurement decides. That is the DAG agent and the feedback loop working together.
 -->
 
 ---
@@ -1446,6 +1424,7 @@ class: section-divider
 
 <div class="absolute bottom-16 left-14 right-14 flex justify-between items-end">
   <div>
+    <img src="/images/qr-linkedin-nilsonsangy.png" alt="LinkedIn QR — Nilson Sangy" style="width:96px;height:96px;display:block;border-radius:.4rem;margin-bottom:.5rem;" />
     <div style="font-size:1.25rem;font-weight:800;">Nilson Sangy</div>
     <div style="font-size:.9rem;color:var(--muted);">CE-299 · Artificial Intelligence for Cybersecurity · Nov 20, 2026</div>
   </div>
