@@ -429,5 +429,52 @@
     "nextAria": "Advance to the next stage",
     "preConcluidoNota": "This stage was already prepared by curation: the result existed before you acted.",
     "selectCampaignFirst": "Select a campaign in Stage 2 to enable this stage."
+  },
+  "aiRun": {
+    "titulo": "AI curation run",
+    "descricao": "Start an AI run and watch each iteration and the evaluator verdict.",
+    "iniciar": "Start AI run",
+    "iniciando": "Starting…",
+    "startError": "Could not start the AI run.",
+    "loadError": "Could not load the AI run.",
+    "semExecucao": "No AI run started yet.",
+    "run": {
+      "titulo": "Run",
+      "status": "Status",
+      "iteracoesUsadas": "Iterations used",
+      "maxIteracoes": "Max iterations",
+      "veredito": "Final verdict"
+    },
+    "status": {
+      "pendente": "Pending",
+      "em_execucao": "Running",
+      "concluido": "Completed",
+      "falhou": "Failed",
+      "abortado": "Aborted"
+    },
+    "veredito": {
+      "sucesso": "Passed",
+      "falha": "Failed",
+      "pendente": "Awaiting verdict"
+    },
+    "iteracoes": {
+      "titulo": "Iterations",
+      "vazio": "No iterations available yet.",
+      "indice": "Iteration {{indice}}",
+      "estagioRefinado": "Refined stage",
+      "semEstagioRefinado": "First pass"
+    },
+    "avaliacao": {
+      "titulo": "Evaluator verdict",
+      "decisao": "Decision",
+      "taxaSucesso": "Success rate",
+      "coberturaProcedural": "Procedural coverage",
+      "justificativa": "Rationale",
+      "ausente": "Evaluator verdict not available yet."
+    },
+    "decisao": {
+      "refinar": "Refine",
+      "finalizar": "Finish"
+    }
   }
 }

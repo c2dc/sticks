@@ -143,3 +143,57 @@ class Language(str, enum.Enum):
 
     PT_BR = "pt-BR"
     EN = "en"
+
+
+class AgentRunStatus(str, enum.Enum):
+    """Lifecycle of an AI curation run (Req. 2.4, 2.5, 11.2).
+
+    Subclasses ``str`` so members serialize to their pt-BR values — the strings
+    persisted in the database and exchanged over the REST/JSON API — following
+    the precedent of :class:`OperationState`/:class:`StageState`. The column
+    that stores this enum persists with ``native_enum=False`` (VARCHAR + CHECK)
+    via ``_portable_enum`` in ``app/models/domain.py``, so the generated CHECK
+    bounds the value set to exactly these members.
+
+    ``ABORTED`` marks a run that hit the max-iteration guard without a passing
+    verdict (Req. 2.5).
+
+    _Requirements: 2.4, 2.5, 11.2_
+    """
+
+    PENDING = "pendente"
+    RUNNING = "em_execucao"
+    COMPLETED = "concluido"
+    FAILED = "falhou"
+    ABORTED = "abortado"  # hit the max-iteration guard without a passing verdict
+
+
+class AgentStage(str, enum.Enum):
+    """Which curated stage an agent output belongs to (Req. 2.4, 11.2).
+
+    Subclasses ``str`` so members serialize to their values, matching the
+    precedent of the other domain enums. The values mirror the six-stage
+    numbering used elsewhere in the schema: stage 3 (DAG), stage 4
+    (operationalization) and stage 5 (environment) are the stages an agent can
+    (re-)enter.
+
+    _Requirements: 2.4, 11.2_
+    """
+
+    DAG = "estagio_3_dag"
+    OPERATIONALIZATION = "estagio_4_operacionalizacao"
+    ENVIRONMENT = "estagio_5_ambiente"
+
+
+class EvaluatorDecision(str, enum.Enum):
+    """The evaluator's routing decision for the conditional edge (Req. 2.4, 2.5).
+
+    Subclasses ``str`` so members serialize to their values. ``REFINE`` routes
+    the graph back to a curation stage for another pass; ``FINISH`` ends the run
+    on a passing verdict.
+
+    _Requirements: 2.4, 2.5_
+    """
+
+    REFINE = "refinar"
+    FINISH = "finalizar"

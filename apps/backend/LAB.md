@@ -82,3 +82,62 @@ bring up the hardened stack — instead of failing.
   target containers are isolated before any execution.
 - **Req. 6.8** — the audit trail is persisted **1:1**: exactly one record per
   executed command, with command + target container + result, with no duplicates.
+
+---
+
+# Ground-truth comparison harness (Task 19.1)
+
+> ⚠️ **Also lab-only.** Like the Task 15.3 flow above, this harness runs
+> **exclusively** on the lab machine and never in dev/CI.
+
+The test `tests/test_ground_truth_comparison_real_lab.py` is the final
+evaluation deliverable of the AI-curation spec. It measures **AI-generated**
+curation with the **existing Stage 6 procedural-sufficiency metric** and compares
+it against the **human-curated baseline** — the `Ground_Truth_Benchmark` of
+**exactly 8** human-curated campaigns (`CaseService.CURATED_CASES`)
+(Requirements **10.1, 10.7**).
+
+For each curated campaign it:
+
+- runs AI-generated curation through the pipeline via
+  `AgentRunService.start` (the compiled LangGraph graph over the PostgreSQL
+  checkpointer, closing the plan→execute→measure→improve loop over the unchanged
+  Stage 6 `OperationRunner`);
+- reads the AI run's procedural-sufficiency metric **unchanged** from the final
+  iteration's persisted `AgentEvaluation` (Req. 10.1 — read, never recomputed);
+- computes the human-curated baseline for the same campaign with the same Stage 6
+  measurement (`MeasurementService`); and
+- **persists, for each completed run, a comparison result** of the AI score
+  against that baseline (Req. 10.7) as a per-run JSON artifact linking the
+  `agent_runs` row.
+
+It is guarded the same two ways (`lab` marker + `skipif(PIPELINE_UI_LAB != "1")`),
+so it collects cleanly and stays skipped off the lab machine.
+
+## Extra prerequisites (beyond the hardened Caldera/Docker stack above)
+
+- **SEPINF LLM endpoint reachable** — the AI run plans over the network, so
+  `SEPINF_BASE_URL` / `SEPINF_API_KEY` / `SEPINF_MODEL_ID` must be set in the
+  root `.env` and the endpoint reachable.
+- **Real PostgreSQL + pgvector** — the AI run needs the LangGraph checkpointer
+  and the pgvector experience memory, which SQLite cannot host. Point
+  `PIPELINE_UI_DATABASE_URL` at the lab's real PostgreSQL (with the `vector`
+  extension enabled by the AI migration) **before** running; the harness skips
+  with a clear message if it is unset.
+
+## How to run on the lab machine
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+$env:PIPELINE_UI_LAB = "1"
+$env:PIPELINE_UI_DATABASE_URL = "postgresql+psycopg://...@localhost:9090/..."
+pytest -m lab tests/test_ground_truth_comparison_real_lab.py
+```
+
+### Options
+
+- **Cases evaluated** — by default all **8** curated campaigns. Narrow the
+  selection with `PIPELINE_UI_LAB_CASES` (comma-separated slugs), the same knob
+  the other lab suites use.
+- **Comparison output** — the per-run comparison JSON is written under
+  `PIPELINE_UI_LAB_OUTPUT_DIR` (default: a temp directory printed to the log).

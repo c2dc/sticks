@@ -15,24 +15,31 @@ against an ephemeral SQLite file, so the mappings stay portable across both):
 * JSON columns use the generic :class:`sqlalchemy.JSON` type, which maps to a
   portable representation on both backends.
 * Column types are the portable generics (``String``, ``Text``, ``Integer``,
-  ``DateTime``), avoiding backend-specific types.
+  ``DateTime``), avoiding backend-specific types. The sole backend-specific
+  type is the pgvector ``VECTOR`` on ``experience_memory.embedding`` (the AI
+  experience memory, task 3.1), which is PostgreSQL + pgvector only by design.
 
 The models use the SQLAlchemy 2.x typed ``Mapped`` / ``mapped_column`` style to
 match the ``DeclarativeBase`` used by ``Base``.
 
-_Requirements: 9.1, 9.7, 11.1, 11.2, 6.8_
+_Requirements: 9.1, 9.7, 11.1, 11.2, 11.4, 11.8, 11.9, 6.8_
 """
 
 from __future__ import annotations
 
 import datetime as dt
+import os
+from pathlib import Path
 from typing import Any, Optional
 
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     JSON,
     Boolean,
+    CheckConstraint,
     DateTime,
     Enum as SAEnum,
+    Float,
     ForeignKey,
     Integer,
     String,
@@ -43,8 +50,11 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.db.base import Base
 from app.models.enums import (
     AbilityResultStatus,
+    AgentRunStatus,
+    AgentStage,
     DagOrigin,
     EnvironmentPlatform,
+    EvaluatorDecision,
     Language,
     OperationState,
     PersistedEnvironmentPlatform,
@@ -52,6 +62,78 @@ from app.models.enums import (
     Theme,
     TranslationSource,
 )
+
+
+def _utcnow() -> dt.datetime:
+    """Naive UTC timestamp (portable across PostgreSQL and the test SQLite).
+
+    Matches the convention used across the service layer (``StageService``,
+    ``DagService``, ``OperationRunner``, ...): the AI bookkeeping rows stamp
+    their creation/update timestamps with a timezone-naive UTC value so the
+    column stays portable between PostgreSQL (the product database) and the
+    ephemeral SQLite used by the unit tests.
+    """
+    return dt.datetime.now(dt.UTC).replace(tzinfo=None)
+
+
+# Design default for the pgvector embedding width (``AI_EMBEDDING_DIM``); mirrors
+# the default declared by ``app.services.ai.config.SepinfSettings``.
+_DEFAULT_EMBEDDING_DIM = 1024
+
+
+def _embedding_dim() -> int:
+    """Resolve the pgvector embedding dimension (``AI_EMBEDDING_DIM``, default 1024).
+
+    The ``experience_memory.embedding`` column is a fixed-width
+    ``VECTOR(EMBEDDING_DIM)``; the width comes from the ``AI_EMBEDDING_DIM``
+    setting, exactly as :class:`app.services.ai.config.SepinfSettings` reads it
+    (process environment first, then the repository-root ``.env``, else the
+    design default of 1024).
+
+    The models layer is intentionally dependency-free of the services layer
+    (importing ``app.services.ai.config`` here would create an import cycle via
+    ``app.services.__init__``), so the lookup is reproduced locally against the
+    environment and the root ``.env``. This performs no network or socket I/O,
+    keeping the model import cheap and side-effect free.
+    """
+    raw = os.environ.get("AI_EMBEDDING_DIM")
+    if raw is None:
+        raw = _read_root_env_value("AI_EMBEDDING_DIM")
+    if raw is None or raw.strip() == "":
+        return _DEFAULT_EMBEDDING_DIM
+    try:
+        return int(raw.strip())
+    except ValueError:
+        return _DEFAULT_EMBEDDING_DIM
+
+
+def _read_root_env_value(key: str) -> Optional[str]:
+    """Read ``key`` from the repository-root ``.env`` without extra dependencies.
+
+    Mirrors how :class:`app.services.ai.config.SepinfSettings` locates the root
+    ``.env`` (relative to the source tree, not the CWD). Returns ``None`` when
+    the file or the key is absent. Only simple ``KEY=value`` lines are parsed;
+    comments and blank lines are ignored.
+    """
+    # parents: [models] [app] [backend] [apps] [repo-root]
+    env_path = Path(__file__).resolve().parents[4] / ".env"
+    try:
+        text = env_path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or "=" not in stripped:
+            continue
+        name, _, value = stripped.partition("=")
+        if name.strip() == key:
+            return value.strip()
+    return None
+
+
+# Maximum length of the evaluator rationale persisted for auditability
+# (design/Req. 11.9): the LLM reasoning text is bounded to 10,000 characters.
+_RATIONALE_MAX_LENGTH = 10_000
 
 
 def _portable_enum(enum_cls: type, name: str) -> SAEnum:
@@ -504,3 +586,252 @@ class ExecutionReport(Base):
     deprovisioned: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
     remaining_resources: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
     generated_at: Mapped[dt.datetime] = mapped_column(DateTime, nullable=False)
+
+
+# ---------------------------------------------------------------------------
+# AI curation agent bookkeeping (task 3.1)
+#
+# The five tables below are the ONLY new persistence introduced by the AI
+# curation agents: the agent-run bookkeeping (runs → iterations → per-stage
+# outputs, plus the evaluator readings) and the pgvector experience memory.
+# They follow the design's ER diagram and table notes exactly.
+#
+# Conventions carried over from the existing models:
+#   * Every row has a non-null primary key and a non-null naive-UTC creation
+#     timestamp (``created_at``) defaulted via :func:`_utcnow`.
+#   * Portable enums persist as VARCHAR + CHECK via ``_portable_enum`` (no
+#     native PostgreSQL ENUM), storing the enum *values*.
+#   * FK links reuse the existing style (``ForeignKey("table.column")``) into
+#     ``campaigns``, ``dags``, ``environment_parameters`` and the Stage 6
+#     ``execution_reports``.
+#
+# _Requirements: 11.1, 11.4, 11.8, 11.9_
+# ---------------------------------------------------------------------------
+
+
+class AgentRun(Base):
+    """One AI curation run of a campaign (Req. 11.1, 11.4).
+
+    ``thread_id`` is the LangGraph checkpoint thread key that makes the run
+    resumable; it is non-null so every persisted run is addressable by its
+    checkpoint thread (Req. 11.4). ``max_iterations`` is the loop guard, while
+    ``iterations_used`` and ``final_verdict_success`` summarize the outcome.
+
+    ``status`` persists as VARCHAR + CHECK (``native_enum=False``) from
+    :class:`AgentRunStatus`, so the generated CHECK bounds the value set to the
+    enum members (``pendente`` / ``em_execucao`` / ``concluido`` / ``falhou`` /
+    ``abortado``).
+    """
+
+    __tablename__ = "agent_runs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    campaign_id: Mapped[str] = mapped_column(
+        String, ForeignKey("campaigns.id"), nullable=False
+    )
+    status: Mapped[AgentRunStatus] = mapped_column(
+        _portable_enum(AgentRunStatus, "agent_run_status"),
+        default=AgentRunStatus.PENDING,
+        nullable=False,
+    )
+    # Loop guard (default 3 — Req. 3.6) and the summary of the outcome.
+    max_iterations: Mapped[int] = mapped_column(Integer, nullable=False)
+    iterations_used: Mapped[int] = mapped_column(
+        Integer, default=0, nullable=False
+    )
+    # LangGraph checkpoint thread key — non-null so the run is resumable.
+    thread_id: Mapped[str] = mapped_column(String, nullable=False)
+    # Overall verdict summary; nullable until the run reaches a terminal state.
+    final_verdict_success: Mapped[Optional[bool]] = mapped_column(
+        Boolean, nullable=True
+    )
+    created_at: Mapped[dt.datetime] = mapped_column(
+        DateTime, default=_utcnow, nullable=False
+    )
+    updated_at: Mapped[dt.datetime] = mapped_column(
+        DateTime, default=_utcnow, nullable=False
+    )
+
+
+class AgentIteration(Base):
+    """One pass through the plan→execute→measure→improve loop (Req. 11.5).
+
+    Belongs to an :class:`AgentRun` via ``run_id`` (1 run → N iterations).
+    ``index`` is the 0-based iteration number; ``refined_stage`` records which
+    stage node the evaluator routed back into and is null on the first pass.
+
+    ``refined_stage`` persists as VARCHAR + CHECK from :class:`AgentStage`
+    (``estagio_3_dag`` / ``estagio_4_operacionalizacao`` /
+    ``estagio_5_ambiente``).
+    """
+
+    __tablename__ = "agent_iterations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    run_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("agent_runs.id"), nullable=False
+    )
+    # 0-based iteration number within the run.
+    index: Mapped[int] = mapped_column(Integer, nullable=False)
+    # Which stage the evaluator refined into this iteration (null on first pass).
+    refined_stage: Mapped[Optional[AgentStage]] = mapped_column(
+        _portable_enum(AgentStage, "agent_stage"),
+        nullable=True,
+    )
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[dt.datetime] = mapped_column(
+        DateTime, default=_utcnow, nullable=False
+    )
+
+
+class AgentStageOutput(Base):
+    """The per-stage agent artifact of an iteration (Req. 11.5).
+
+    Belongs to an :class:`AgentIteration` via ``iteration_id`` (1 iteration →
+    N stage outputs). The serialized artifact (``ProducedDag`` |
+    ``ProducedOperationalization`` | ``ProvisionedEnvironment``) lives in the
+    portable JSON ``payload`` column. Where it corresponds to an existing
+    persisted entity it is linked via ``dag_id`` (the AI-origin ``Dag`` row
+    persisted through ``DagService``) or ``params_id`` (the
+    ``EnvironmentParameters`` row); both FKs are nullable because only one
+    applies per stage.
+
+    ``origin`` is always ``gerado_ia`` here — persisted via the existing
+    :class:`TranslationSource` portable enum, whose CHECK already admits
+    ``gerado_ia``, so no schema migration is required to store AI artifacts
+    (Req. 11.8).
+    """
+
+    __tablename__ = "agent_stage_outputs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    iteration_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("agent_iterations.id"), nullable=False
+    )
+    stage: Mapped[AgentStage] = mapped_column(
+        _portable_enum(AgentStage, "agent_stage"),
+        nullable=False,
+    )
+    # Always ``gerado_ia`` for AI-produced artifacts (Req. 11.8); reuses the
+    # existing portable origin enum whose CHECK already includes the value.
+    origin: Mapped[TranslationSource] = mapped_column(
+        _portable_enum(TranslationSource, "translation_source"),
+        default=TranslationSource.AI_GENERATED,
+        nullable=False,
+    )
+    # Serialized stage artifact (ProducedDag | ProducedOperationalization |
+    # ProvisionedEnvironment).
+    payload: Mapped[Any] = mapped_column(JSON, nullable=False)
+    # Linked AI-origin Dag row (when this is a DAG stage output); nullable.
+    dag_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("dags.id"), nullable=True
+    )
+    # Linked EnvironmentParameters row (when this is an operationalization
+    # output); nullable.
+    params_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("environment_parameters.id"), nullable=True
+    )
+    created_at: Mapped[dt.datetime] = mapped_column(
+        DateTime, default=_utcnow, nullable=False
+    )
+
+
+class AgentEvaluation(Base):
+    """The evaluator's reading of the Stage 6 report for an iteration (Req. 11.9).
+
+    Belongs to an :class:`AgentIteration` via ``iteration_id`` (0..1 per
+    iteration). ``report_id`` links the Stage 6 ``execution_reports`` row the
+    evaluator keyed on. The metrics it read (``success_rate``,
+    ``procedural_coverage``, ``verdict_success``, ``failed_nodes``) are stored
+    alongside the ``decision`` that drives the conditional edge and the LLM
+    ``rationale`` kept for auditability.
+
+    ``decision`` persists as VARCHAR + CHECK from :class:`EvaluatorDecision`
+    (``refinar`` / ``finalizar``). ``rationale`` is bounded to 10,000 characters
+    (Req. 11.9) with both a ``String`` length and a portable ``CHECK`` so the
+    bound is enforced on PostgreSQL and the test SQLite alike.
+    """
+
+    __tablename__ = "agent_evaluations"
+
+    __table_args__ = (
+        CheckConstraint(
+            f"length(rationale) <= {_RATIONALE_MAX_LENGTH}",
+            name="ck_agent_evaluations_rationale_max_length",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    iteration_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("agent_iterations.id"), nullable=False
+    )
+    # Stage 6 execution report the evaluator read.
+    report_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("execution_reports.id"), nullable=True
+    )
+    success_rate: Mapped[float] = mapped_column(Float, nullable=False)
+    procedural_coverage: Mapped[float] = mapped_column(Float, nullable=False)
+    verdict_success: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    # Serialized list of the DAG nodes that failed (drives the refine target).
+    failed_nodes: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
+    decision: Mapped[EvaluatorDecision] = mapped_column(
+        _portable_enum(EvaluatorDecision, "evaluator_decision"),
+        nullable=False,
+    )
+    # LLM-produced reasoning, bounded to 10,000 chars (Req. 11.9).
+    rationale: Mapped[str] = mapped_column(
+        String(_RATIONALE_MAX_LENGTH), nullable=False
+    )
+    created_at: Mapped[dt.datetime] = mapped_column(
+        DateTime, default=_utcnow, nullable=False
+    )
+
+
+class ExperienceMemory(Base):
+    """Long-term RAG experience memory over pgvector (Req. 11.1).
+
+    One row per stored curation outcome of a campaign (1 campaign → N rows).
+    ``embedding`` is a fixed-width pgvector ``VECTOR(EMBEDDING_DIM)`` column (the
+    width resolved from the ``AI_EMBEDDING_DIM`` setting, design default 1024)
+    retrieved by cosine similarity; ``content`` is the human-readable curation
+    snippet (technique, command, node, params); ``metadata`` carries the
+    technique id, verdict and metrics used to filter retrieval.
+
+    ``stage`` and ``outcome`` persist as VARCHAR + CHECK via the portable enums
+    (:class:`AgentStage` and :class:`AbilityResultStatus` — whose ``sucesso`` /
+    ``falha`` values match the design's ``sucesso | falha`` outcome).
+    """
+
+    __tablename__ = "experience_memory"
+
+    __table_args__ = (
+        # The design constrains the outcome to exactly two values
+        # (``sucesso | falha``). Task 2.1 defined no dedicated two-value outcome
+        # enum, so we bound the portable VARCHAR column with an explicit CHECK
+        # rather than widening it by reusing a four-member enum.
+        CheckConstraint(
+            "outcome IN ('sucesso', 'falha')",
+            name="ck_experience_memory_outcome",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    campaign_id: Mapped[str] = mapped_column(
+        String, ForeignKey("campaigns.id"), nullable=False
+    )
+    stage: Mapped[AgentStage] = mapped_column(
+        _portable_enum(AgentStage, "agent_stage"),
+        nullable=False,
+    )
+    # Outcome of the stored curation, bounded to ``sucesso | falha`` by the
+    # table CHECK above (matches AbilityResultStatus.SUCCESS/FAILURE values).
+    outcome: Mapped[str] = mapped_column(String, nullable=False)
+    # Human-readable curation snippet (technique, command, node, params).
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    # pgvector fixed-width embedding, dim = AI_EMBEDDING_DIM (default 1024).
+    embedding: Mapped[Any] = mapped_column(Vector(_embedding_dim()), nullable=False)
+    # technique_id, verdict and metrics used to filter retrieval.
+    meta: Mapped[Any] = mapped_column("metadata", JSON, nullable=True)
+    created_at: Mapped[dt.datetime] = mapped_column(
+        DateTime, default=_utcnow, nullable=False
+    )
