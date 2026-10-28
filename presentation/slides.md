@@ -37,7 +37,7 @@ canvasWidth: 1180
 
 <div class="absolute bottom-16 left-14 right-14 flex justify-between items-end">
   <div>
-    <img src="/images/qr-linkedin-nilsonsangy.png" alt="LinkedIn QR — Nilson Sangy" style="width:96px;height:96px;display:block;border-radius:.4rem;margin-bottom:.5rem;" />
+    <img src="/images/qr-linkedin-nilsonsangy.png" alt="LinkedIn QR, Nilson Sangy" style="width:96px;height:96px;display:block;border-radius:.4rem;margin-bottom:.5rem;" />
     <div style="font-size:1.35rem;font-weight:800;color:var(--ink);">Nilson Sangy</div>
     <div style="font-size:.95rem;color:var(--muted);">Instituto Tecnológico de Aeronáutica · STICKS research platform</div>
   </div>
@@ -831,7 +831,7 @@ layout: default
 <div class="box out">
 <div class="lbl">Output</div>
 <ul>
-<li>Consolidated <strong>report</strong>: success rate, telemetry, failed nodes, <strong>verdict</strong> — then torn down</li>
+<li>Consolidated <strong>report</strong>: success rate, telemetry, failed nodes, <strong>verdict</strong>, then torn down</li>
 </ul>
 </div>
 </div>
@@ -939,6 +939,89 @@ The last card on the left is the scientific payoff, which is really why this is 
 ---
 layout: default
 ---
+layout: default
+---
+
+# AI infrastructure &amp; tech stack
+
+<div class="grad-rule"></div>
+
+<div class="cards c3" style="gap:.8rem;">
+
+<div class="card edge-purple">
+<h3>Agent framework</h3>
+<ul>
+<li><strong>LangGraph</strong> (on LangChain), the agents are a <code>StateGraph</code>: a node per stage + a conditional edge for the loop.</li>
+<li>Fits because the domain is already a <strong>graph</strong> (the DAG) and the flow is already a <strong>cycle</strong>.</li>
+<li><strong>Multi-agent + orchestrator</strong>, one specialized agent per curated stage.</li>
+</ul>
+</div>
+
+<div class="card edge-red">
+<h3>LLM provider</h3>
+<ul>
+<li><strong>SEPINF</strong>, OpenAI-compatible endpoint.</li>
+<li>Model <code>glm-5.3-flash</code>.</li>
+<li>Wired via LangChain <code>ChatOpenAI</code> (<code>base_url</code> + <code>api_key</code> + <code>model</code>), read from <code>.env</code>, key never hardcoded.</li>
+</ul>
+</div>
+
+<div class="card edge-blue">
+<h3>Databases</h3>
+<ul>
+<li><strong>PostgreSQL</strong>, source of truth <em>and</em> LangGraph <strong>checkpointer</strong> (resumable runs).</li>
+<li><strong>pgvector</strong> (same DB), experience memory for <strong>RAG</strong>.</li>
+<li>No extra DB service introduced.</li>
+</ul>
+</div>
+
+</div>
+
+<div class="cards c3" style="gap:.8rem;margin-top:.8rem;">
+
+<div class="card flat edge-purple">
+<h3>Memory</h3>
+<ul>
+<li><strong>Short-term</strong> = LangGraph state via the PostgreSQL checkpointer.</li>
+<li><strong>Long-term</strong> = cross-campaign experience via pgvector RAG.</li>
+</ul>
+</div>
+
+<div class="card flat edge-blue">
+<h3>Learning &amp; loop</h3>
+<ul>
+<li><strong>No fine-tuning.</strong> Learn in-campaign via the loop + across campaigns via RAG.</li>
+<li>Loop bounded by a <strong>max-iteration guard</strong>.</li>
+</ul>
+</div>
+
+<div class="card flat edge-red">
+<h3>Safety (unchanged)</h3>
+<ul>
+<li>Agents plug into the <code>origin = gerado_ia</code> seams.</li>
+<li>Every proposal still passes <strong>containment, isolation, preview, audit</strong>.</li>
+</ul>
+</div>
+
+</div>
+
+<div class="pill purple" style="margin-top:.8rem;">Tool layer wraps existing backend services (STIX/ATT&amp;CK, Atomic Red Team, command parser, Docker/compose, Caldera), the agents never act free-form.</div>
+
+<!--
+This slide is the engineering bill of materials for the AI system, the concrete technologies and why each was chosen. I added it so the infrastructure is explicit and you can reason about it as a whole.
+
+Start top-left, the agent framework. We use LangGraph, built on top of LangChain. LangChain is the toolbox for talking to the model and calling tools; LangGraph is the layer that lets you model the agent as a graph of states, with real cycles and built-in memory. We chose it for a reason that is almost poetic for this project: our domain is already a graph, the technique DAG, and our workflow is already a cycle, plan then execute then measure then improve. LangGraph expresses exactly that: one node per stage and a conditional edge that loops back. And the architecture is multi-agent with an orchestrator, one specialized agent per curated stage, rather than a single do-everything model.
+
+Top-middle, the LLM provider. We use SEPINF, which exposes an OpenAI-compatible endpoint, with the model glm-5.3-flash. Because it is OpenAI-compatible, we wire it through LangChain's standard ChatOpenAI client, pointing the base URL and API key at SEPINF. The key lives in the environment file, never in the code.
+
+Top-right, databases, deliberately minimal. PostgreSQL, which the project already runs, plays two roles: source of truth for all structured data, and the LangGraph checkpointer, so the agent's state is snapshotted and a run can resume if interrupted. In the same PostgreSQL we enable the pgvector extension, which stores the experience memory as vectors for retrieval. We deliberately did not add a second database technology, one Postgres does both jobs.
+
+Bottom row. Memory has two tiers: short-term is the live run state held by the checkpointer; long-term is the cross-campaign experience retrieved via RAG from pgvector. Learning involves no model fine-tuning: the agent improves within a campaign through the loop, and across campaigns by retrieving what worked or failed before. The loop is always bounded by a maximum-iteration guard so it can never run forever or run up cost.
+
+The safety card never changes: the agents plug into the existing origin seams, stamping artifacts as AI-generated, and every proposal still passes the unchanged containment, isolation, preview, and audit gates. The bottom strip captures the last principle, the tool layer wraps our existing backend services, so the agent acts only through deterministic, tested tools, never free-form commands. That is the whole infrastructure on one slide.
+-->
+
+---
 
 # Orchestrator / planner (LLM)
 
@@ -1026,7 +1109,7 @@ layout: default
 </div>
 
 <div>
-<div style="font-size:.74rem;color:var(--ink-soft);margin-bottom:.35rem;line-height:1.3;"><strong>Same 7 techniques in all three</strong> — only the <strong>organization</strong> (ordering &amp; dependencies) changes. Stage 6 scores which arrangement reproduces ShadowRay best.</div>
+<div style="font-size:.74rem;color:var(--ink-soft);margin-bottom:.35rem;line-height:1.3;"><strong>Same 7 techniques in all three</strong>, only the <strong>organization</strong> (ordering &amp; dependencies) changes. Stage 6 scores which arrangement reproduces ShadowRay best.</div>
 
 <div class="cards c3" style="gap:.6rem;align-items:stretch;">
 
@@ -1080,7 +1163,7 @@ flowchart TB
 
 </div>
 
-<div class="card flat edge-grad" style="margin-top:.45rem;padding:.35rem .7rem;"><p style="font-size:.74rem;margin:0;line-height:1.3;"><strong>Same techniques, different structure — the agent proposes; Stage 6 decides.</strong> Each candidate is a hypothesis about how to <em>arrange</em> the fixed technique set, scored on procedural sufficiency.</p></div>
+<div class="card flat edge-grad" style="margin-top:.45rem;padding:.35rem .7rem;"><p style="font-size:.74rem;margin:0;line-height:1.3;"><strong>Same techniques, different structure, the agent proposes; Stage 6 decides.</strong> Each candidate is a hypothesis about how to <em>arrange</em> the fixed technique set, scored on procedural sufficiency.</p></div>
 </div>
 
 </div>
@@ -1424,7 +1507,7 @@ class: section-divider
 
 <div class="absolute bottom-16 left-14 right-14 flex justify-between items-end">
   <div>
-    <img src="/images/qr-linkedin-nilsonsangy.png" alt="LinkedIn QR — Nilson Sangy" style="width:96px;height:96px;display:block;border-radius:.4rem;margin-bottom:.5rem;" />
+    <img src="/images/qr-linkedin-nilsonsangy.png" alt="LinkedIn QR, Nilson Sangy" style="width:96px;height:96px;display:block;border-radius:.4rem;margin-bottom:.5rem;" />
     <div style="font-size:1.25rem;font-weight:800;">Nilson Sangy</div>
     <div style="font-size:.9rem;color:var(--muted);">CE-299 · Artificial Intelligence for Cybersecurity · Nov 20, 2026</div>
   </div>

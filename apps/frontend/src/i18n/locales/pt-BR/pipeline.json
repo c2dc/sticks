@@ -429,5 +429,52 @@
     "nextAria": "Avançar para o próximo estágio",
     "preConcluidoNota": "Este estágio já estava pronto por curadoria: o resultado existia antes de você agir.",
     "selectCampaignFirst": "Selecione uma campanha no Estágio 2 para habilitar este estágio."
+  },
+  "aiRun": {
+    "titulo": "Execução de curadoria por IA",
+    "descricao": "Inicie uma execução de IA e acompanhe cada iteração e o veredito do avaliador.",
+    "iniciar": "Iniciar execução de IA",
+    "iniciando": "Iniciando…",
+    "startError": "Não foi possível iniciar a execução de IA.",
+    "loadError": "Não foi possível carregar a execução de IA.",
+    "semExecucao": "Nenhuma execução de IA iniciada ainda.",
+    "run": {
+      "titulo": "Execução",
+      "status": "Status",
+      "iteracoesUsadas": "Iterações usadas",
+      "maxIteracoes": "Máximo de iterações",
+      "veredito": "Veredito final"
+    },
+    "status": {
+      "pendente": "Pendente",
+      "em_execucao": "Em execução",
+      "concluido": "Concluído",
+      "falhou": "Falhou",
+      "abortado": "Abortado"
+    },
+    "veredito": {
+      "sucesso": "Aprovado",
+      "falha": "Reprovado",
+      "pendente": "Aguardando veredito"
+    },
+    "iteracoes": {
+      "titulo": "Iterações",
+      "vazio": "Nenhuma iteração disponível ainda.",
+      "indice": "Iteração {{indice}}",
+      "estagioRefinado": "Estágio refinado",
+      "semEstagioRefinado": "Primeira passagem"
+    },
+    "avaliacao": {
+      "titulo": "Veredito do avaliador",
+      "decisao": "Decisão",
+      "taxaSucesso": "Taxa de sucesso",
+      "coberturaProcedural": "Cobertura procedural",
+      "justificativa": "Justificativa",
+      "ausente": "Veredito do avaliador ainda não disponível."
+    },
+    "decisao": {
+      "refinar": "Refinar",
+      "finalizar": "Finalizar"
+    }
   }
 }

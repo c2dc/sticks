@@ -11,6 +11,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from app.api import (
+    ai,
     audit,
     campaigns,
     emulation,
@@ -30,3 +31,4 @@ api_router.include_router(preferences.router)
 api_router.include_router(audit.router)
 api_router.include_router(topology.router)
 api_router.include_router(stix.router)
+api_router.include_router(ai.router)
