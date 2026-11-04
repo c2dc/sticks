@@ -1,532 +1,550 @@
-# Longhorn
+# Beyond the Procedural Semantics Gap: Autonomous and Stealth-Aware APT Emulation from Structured CTI
 
-### LLM-Driven Autonomous APT Campaign Analysis and Emulation
-
-[![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
-[![LLM](https://img.shields.io/badge/AI-LLM--Driven-purple.svg)](#architecture)
-[![STIX](https://img.shields.io/badge/CTI-STIX%202.x-orange.svg)](https://oasis-open.github.io/cti-documentation/)
-[![MITRE ATT&CK](https://img.shields.io/badge/Framework-MITRE%20ATT%26CK-red.svg)](https://attack.mitre.org/)
-[![Docker](https://img.shields.io/badge/Environment-Docker-blue.svg)](https://www.docker.com/)
-[![Caldera](https://img.shields.io/badge/Emulation-MITRE%20Caldera-green.svg)](https://caldera.mitre.org/)
-
-**Longhorn** is an LLM-driven software framework designed to automate the analysis, reconstruction, and emulation of Advanced Persistent Threat (APT) campaigns.
-
-The framework leverages Large Language Models (LLMs) to interpret structured Cyber Threat Intelligence (CTI), reconstruct adversary workflows, derive execution dependencies, identify environmental requirements, and generate the artifacts necessary for controlled adversary emulation.
-
-Unlike conventional CTI processing pipelines that rely primarily on predefined extraction and transformation rules, Longhorn employs LLM-based reasoning to automate the transition from descriptive threat intelligence to structured and executable representations.
-
-Its central objective is to establish an autonomous workflow capable of transforming APT campaign intelligence into reproducible experimental scenarios, minimizing manual intervention throughout the process.
+### An Autonomous, Measurement-Driven Approach to CTI-Based Adversary Emulation
 
 ---
 
-## Table of Contents
+## Overview
 
-- [Objectives](#objectives)
-- [Design Principles](#design-principles)
-- [Architecture](#architecture)
-- [Main Components](#main-components)
-  - [CTI Acquisition](#1-cti-acquisition)
-  - [LLM-Based Intelligence Analysis](#2-llm-based-intelligence-analysis)
-  - [Campaign Reconstruction](#3-campaign-reconstruction)
-  - [Environment and SUT Generation](#4-environment-and-sut-generation)
-  - [Automated Emulation Artifact Generation](#5-automated-emulation-artifact-generation)
-  - [Validation and Execution](#6-validation-and-execution)
-- [Technology Stack](#technology-stack)
-- [Repository Structure](#repository-structure)
-- [Installation](#installation)
-- [Configuration](#configuration)
-- [Automated Workflow](#automated-workflow)
-- [LLM Orchestration](#llm-orchestration)
-- [Experimental Environment](#experimental-environment)
-- [Research Context](#research-context)
-- [Security and Responsible Use](#security-and-responsible-use)
-- [Development Status](#development-status)
-- [Citation](#citation)
-- [License](#license)
+This project investigates an autonomous approach to transforming Structured Cyber Threat Intelligence (CTI) into executable Advanced Persistent Threat (APT) emulation environments.
 
----
+Building upon the research presented in *The Procedural Semantics Gap in Structured CTI: A Measurement-Driven STIX Analysis for APT Emulation*, this work explores how an autonomous system can reconstruct adversarial procedures, derive environmental requirements, instantiate System Under Test (SUT) environments, execute adversary emulation workflows, and evaluate execution outcomes without human intervention.
 
-## Objectives
+The central hypothesis is that structured CTI can support autonomous APT emulation when behavioral descriptions are combined with automated procedural reconstruction, environmental reasoning, and execution-aware validation.
 
-The primary objectives of Longhorn are:
+The proposed approach introduces three complementary research dimensions:
 
-- **Automated CTI Interpretation:** Use LLMs to interpret structured and unstructured threat intelligence.
-- **APT Campaign Reconstruction:** Reconstruct adversary activities and their logical relationships from campaign descriptions.
-- **Behavioral Modeling:** Automatically derive execution workflows from ATT&CK techniques and campaign context.
-- **Dependency Inference:** Identify procedural dependencies, preconditions, and execution constraints.
-- **Environment Generation:** Derive target system characteristics and infrastructure requirements.
-- **Automated Artifact Generation:** Generate structured emulation artifacts from reconstructed campaign workflows.
-- **Automated Validation:** Evaluate generated representations against predefined structural and environmental constraints.
-- **End-to-End Automation:** Minimize manual intervention across the CTI-to-emulation pipeline.
+- **Autonomous CTI Processing and SUT Derivation:** Transforming structured threat intelligence into procedural representations and executable experimental environments.
+- **Autonomous Adversary Emulation:** Generating and executing adversarial workflows without manual analyst intervention.
+- **Stealth-Aware Measurement and Evaluation:** Quantifying operational footprint, observability, telemetry overhead, and execution reproducibility.
 
-## Design Principles
+The objective is to investigate whether structured CTI can serve as the foundation for reproducible, autonomous, and measurable APT emulation.
 
-Longhorn is based on five fundamental design principles.
+## Research Objectives
 
-| Principle | Description |
+1. Investigate the extent to which structured CTI supports fully autonomous APT emulation.
+2. Automatically reconstruct procedural dependencies and execution requirements from STIX representations.
+3. Derive executable environment specifications from CTI and supporting vulnerability intelligence.
+4. Automatically instantiate and validate isolated SUT environments.
+5. Generate and execute adversarial workflows without human intervention.
+6. Introduce stealth-aware measurements to characterize operational footprint and observability.
+7. Quantify the limitations, reliability, and reproducibility of autonomous CTI-driven emulation.
+
+## Research Questions
+
+| ID | Research Question |
 |---|---|
-| Autonomy | LLM-driven processing across the complete workflow |
-| Context Awareness | Campaign-specific reasoning grounded in CTI |
-| Structured Generation | Machine-readable intermediate representations |
-| Iterative Validation | Automated verification and refinement |
-| Reproducibility | Consistent generation of experimental scenarios |
+| RQ1 | To what extent can structured CTI support fully autonomous APT emulation? |
+| RQ2 | Can procedural dependencies and execution requirements be reconstructed automatically from STIX representations? |
+| RQ3 | How accurately can an autonomous system derive suitable SUT environments from CTI? |
+| RQ4 | What proportion of reconstructed adversarial procedures can be executed successfully without analyst intervention? |
+| RQ5 | How can the operational footprint and observability of autonomous emulation be measured? |
+| RQ6 | What is the relationship between emulation completeness, execution reliability, and observability? |
 
-## Architecture
+---
 
-Longhorn adopts an LLM-centered architecture in which intelligence processing, reasoning, generation, and validation are coordinated through an automated workflow.
+# Methodology
+
+The proposed methodology consists of three autonomous stages, forming an integrated pipeline from structured CTI to experimentally evaluated adversary emulation.
+
+Each stage produces machine-readable outputs consumed by the subsequent stage. The complete workflow is designed to operate without manual corrections or analyst intervention during measured experimental runs.
+
+## Stage 1 — Autonomous CTI Processing and SUT Derivation
+
+**Objective:** Transform structured CTI into a validated procedural representation and its corresponding experimental environment.
+
+This stage integrates CTI processing, semantic reconstruction, and environment derivation.
+
+### Activities
+
+**1. CTI Ingestion and Normalization**
+
+Collect and normalize structured intelligence sources, including:
+
+- MITRE ATT&CK Enterprise.
+- MITRE ATT&CK Mobile.
+- MITRE ATT&CK ICS.
+- STIX 2.x bundles.
+- CAPEC.
+- Structured vulnerability intelligence.
+
+Establish traceability between source objects and generated emulation artifacts.
+
+**2. Procedural Semantics Reconstruction**
+
+Reconstruct adversarial procedures from descriptive CTI.
+
+The reconstruction process considers:
+
+- Technique and sub-technique relationships.
+- Campaign associations.
+- Intrusion-set behavior.
+- Procedural dependencies.
+- Preconditions and postconditions.
+- Execution context.
+- Confidence and uncertainty.
+
+The output is a directed procedural graph representing the reconstructed adversarial workflow.
+
+Explicitly represented relationships are distinguished from inferred dependencies. Missing information and unsupported assumptions are recorded rather than silently introduced.
+
+**3. Environment Semantics Reconstruction**
+
+Derive SUT requirements from available structured intelligence.
+
+The environmental model considers:
+
+| Dimension | Information |
+|---|---|
+| Platform | Operating system and architecture |
+| Software | Required applications and services |
+| Version | Software version constraints |
+| Vulnerability | Structured vulnerability references |
+| Configuration | Required service configuration |
+| Compatibility | Deployment and dependency constraints |
+| Validation | Expected environment state |
+
+**4. Autonomous SUT Generation**
+
+Generate isolated, reproducible experimental environments based on the reconstructed requirements.
+
+Potential technologies include:
+
+- Docker.
+- Docker Compose.
+- Linux and Windows-compatible environments.
+- Nginx.
+- Database services.
+
+Generated environments are validated against their specifications before proceeding to adversary emulation.
+
+### Measurements
+
+| Metric | Description |
+|---|---|
+| CTI Coverage | Proportion of eligible source techniques represented |
+| Procedural Completeness | Coverage of required procedural elements |
+| Dependency Accuracy | Correctness of reconstructed dependencies |
+| Environment Coverage | Proportion of identified requirements satisfied |
+| SUT Generation Success | Proportion of successfully generated environments |
+| Environment Validation | Proportion of environments passing validation |
+
+**Stage 1 Output:** A validated procedural graph and its corresponding SUT environment.
+
+---
+
+## Stage 2 — Autonomous Adversary Emulation
+
+**Objective:** Execute reconstructed adversarial workflows without manual intervention.
+
+This stage translates validated procedural representations into executable emulation artifacts and performs autonomous execution.
+
+### Activities
+
+**1. Automated Ability Generation**
+
+Generate execution abilities from the reconstructed procedural graph.
+
+Generated artifacts maintain traceability to their originating ATT&CK techniques and STIX objects.
+
+**2. Adversary Workflow Construction**
+
+Construct executable adversary workflows using the procedural dependencies identified in Stage 1.
+
+The workflow preserves:
+
+- Technique relationships.
+- Execution prerequisites.
+- Procedural ordering constraints.
+- Required environmental context.
+- Expected state transitions.
+
+**3. Automated Prerequisite Validation**
+
+Before execution, evaluate whether the required environmental and procedural conditions are satisfied.
+
+Unresolved prerequisites and incompatible environments result in explicit failure or abstention states.
+
+**4. Autonomous Execution**
+
+Integrate generated abilities and adversary workflows with MITRE Caldera.
+
+The execution engine performs the authorized emulation experiments against the generated SUT environments.
+
+**5. Execution-State Validation**
+
+Evaluate whether the expected outcomes of each emulation activity occurred.
+
+Record execution traces, state transitions, and failure conditions.
+
+Execution success is determined by outcome validation rather than command completion alone.
+
+### Measurements
+
+| Metric | Description |
+|---|---|
+| Execution Success Rate | Successfully validated executions / Attempted executions |
+| Technique Coverage | Techniques successfully represented and executed |
+| Prerequisite Validation | Proportion of satisfied execution prerequisites |
+| State Transition Validation | Proportion of expected transitions observed |
+| Autonomous Completion Rate | Experiments completed without manual intervention |
+| Execution Consistency | Similarity of outcomes across repeated runs |
+
+**Stage 2 Output:** Executed emulation workflows, validated outcomes, and machine-readable execution traces.
+
+---
+
+## Stage 3 — Stealth-Aware Measurement and Evaluation
+
+**Objective:** Quantify the operational footprint, observability, reliability, and reproducibility of autonomous emulation.
+
+This stage evaluates both the behavior of the emulation pipeline and the effects introduced by its measurement infrastructure.
+
+Stealth is treated as an experimentally measurable characteristic of the operational footprint and observability of emulation within controlled environments.
+
+### Activities
+
+**1. Operational Footprint Measurement**
+
+Measure the resources consumed by the emulation process.
+
+Relevant observations include:
+
+- CPU utilization.
+- Memory consumption.
+- Network activity.
+- Storage activity.
+- Execution duration.
+
+**2. Telemetry Overhead Assessment**
+
+Quantify the additional resource consumption introduced by monitoring and measurement infrastructure.
+
+Compare baseline and instrumented experimental conditions to distinguish emulation overhead from measurement-induced overhead.
+
+**3. Observability Evaluation**
+
+Evaluate the extent to which emulation activities produce observable events within the configured monitoring environment.
+
+Measurements include:
+
+- Event density.
+- Expected event capture completeness.
+- Event observation latency.
+- Telemetry consistency.
+
+**4. Measurement Distortion Analysis**
+
+Investigate whether instrumentation changes execution characteristics.
+
+Compare execution behavior under baseline and instrumented conditions.
+
+**5. Reproducibility and Reliability Evaluation**
+
+Perform repeated experiments to assess the consistency of:
+
+- Procedural execution.
+- Environment initialization.
+- Execution outcomes.
+- Resource consumption.
+- Telemetry observations.
+
+### Measurements
+
+| Metric | Description |
+|---|---|
+| Execution Footprint | Resources consumed during emulation |
+| Telemetry Overhead | Additional resource consumption introduced by instrumentation |
+| Event Density | Number of observable events generated during execution |
+| Observability Coverage | Proportion of expected observable events captured |
+| Detection Latency | Time between an execution event and its observation |
+| Measurement Distortion | Difference between baseline and instrumented execution |
+| Execution Variability | Variation across repeated experimental runs |
+| Reproducibility | Consistency of execution outcomes and measurements |
+
+**Stage 3 Output:** Quantitative experimental results describing autonomous emulation performance, operational footprint, observability, and measurement reliability.
+
+---
+
+## Conceptual Architecture
 
 ```text
-                 +-------------------------+
-                 |       CTI Sources       |
-                 |                         |
-                 |  MITRE ATT&CK            |
-                 |  STIX / TAXII            |
-                 |  MISP / OpenCTI          |
-                 |  APT Reports             |
-                 +------------+------------+
-                              |
-                              v
-                 +-------------------------+
-                 |    CTI Acquisition      |
-                 |    and Normalization   |
-                 +------------+------------+
-                              |
-                              v
-                 +-------------------------+
-                 |    LLM Orchestrator     |
-                 |                         |
-                 |  Context Management     |
-                 |  Task Decomposition     |
-                 |  Agent Coordination     |
-                 +------------+------------+
-                              |
-                              v
-                 +-------------------------+
-                 |   Intelligence Analysis |
-                 |                         |
-                 |  Technique Extraction   |
-                 |  Context Interpretation|
-                 |  Relationship Inference|
-                 +------------+------------+
-                              |
-                              v
-                 +-------------------------+
-                 |  Campaign Reconstruction|
-                 |                         |
-                 |  Workflow Generation    |
-                 |  Dependency Modeling    |
-                 |  Constraint Analysis    |
-                 +------------+------------+
-                              |
-                              v
-                 +-------------------------+
-                 |   Environment Modeling |
-                 |                         |
-                 |  Platform Identification|
-                 |  Software Requirements  |
-                 |  SUT Specification       |
-                 +------------+------------+
-                              |
-                              v
-                 +-------------------------+
-                 |   Artifact Generation   |
-                 |                         |
-                 |  Structured Workflows   |
-                 |  Emulation Specifications|
-                 |  Validation Metadata    |
-                 +------------+------------+
-                              |
-                              v
-                 +-------------------------+
-                 |   Automated Validation |
-                 |                         |
-                 |  Schema Verification    |
-                 |  Dependency Validation  |
-                 |  Consistency Checking   |
-                 +------------+------------+
-                              |
-                              v
-                 +-------------------------+
-                 |   Emulation Environment |
-                 |                         |
-                 |  MITRE Caldera          |
-                 |  Docker-based SUTs       |
-                 +-------------------------+
+                 STRUCTURED CTI
+                       |
+                       v
+        +-----------------------------+
+        |           STAGE 1           |
+        |                             |
+        |  AUTONOMOUS CTI PROCESSING  |
+        |       AND SUT DERIVATION    |
+        |                             |
+        |  - STIX ingestion           |
+        |  - Technique extraction     |
+        |  - Procedural reconstruction|
+        |  - Environment inference    |
+        |  - SUT generation            |
+        |  - Environment validation   |
+        +-----------------------------+
+                       |
+                       v
+        +-----------------------------+
+        |           STAGE 2           |
+        |                             |
+        |   AUTONOMOUS ADVERSARY      |
+        |         EMULATION           |
+        |                             |
+        |  - Ability generation       |
+        |  - Workflow construction    |
+        |  - Prerequisite validation  |
+        |  - Caldera integration      |
+        |  - Autonomous execution     |
+        |  - State validation         |
+        +-----------------------------+
+                       |
+                       v
+        +-----------------------------+
+        |           STAGE 3           |
+        |                             |
+        |   STEALTH-AWARE MEASUREMENT |
+        |       AND EVALUATION        |
+        |                             |
+        |  - Resource footprint       |
+        |  - Telemetry overhead       |
+        |  - Observability            |
+        |  - Measurement distortion   |
+        |  - Reproducibility          |
+        +-----------------------------+
+                       |
+                       v
+              EXPERIMENTAL RESULTS
 ```
 
-## Main Components
+---
 
-### 1. CTI Acquisition
+## Proposed Technical Stack
 
-Collects and normalizes threat intelligence from multiple sources.
-
-Potential sources include:
-
-- MITRE ATT&CK STIX repositories.
-- STIX/TAXII-compatible services.
-- MISP.
-- OpenCTI.
-- AlienVault Open Threat Exchange (OTX).
-- Structured and unstructured APT reports.
-
-### 2. LLM-Based Intelligence Analysis
-
-Uses Large Language Models to interpret collected threat intelligence and extract campaign-relevant information.
-
-Core responsibilities include:
-
-- Campaign description interpretation.
-- Technique identification and mapping.
-- Adversary behavior extraction.
-- Relationship identification.
-- Contextual enrichment.
-- Cross-source information correlation.
-
-### 3. Campaign Reconstruction
-
-Transforms extracted intelligence into structured representations of adversary activities.
-
-The LLM-based analysis supports:
-
-- Activity ordering.
-- Dependency inference.
-- Preconditions identification.
-- Behavioral relationship modeling.
-- Workflow reconstruction.
-- Campaign-specific execution constraints.
-
-The resulting representation is intended to capture both the behavioral characteristics and the procedural relationships necessary for subsequent processing.
-
-### 4. Environment and SUT Generation
-
-Derives the environmental specifications required to represent the target infrastructure.
-
-Relevant characteristics include:
-
-- Operating system requirements.
-- Software dependencies.
-- Service configurations.
-- Platform compatibility.
-- Vulnerability associations.
-- Network topology.
-- System Under Test (SUT) specifications.
-
-The generated environment specifications provide the basis for constructing reproducible experimental scenarios.
-
-### 5. Automated Emulation Artifact Generation
-
-Transforms validated campaign representations into structured emulation artifacts.
-
-This component supports:
-
-- Workflow serialization.
-- Technique-to-artifact association.
-- Execution metadata generation.
-- Dependency preservation.
-- Adversary profile specification.
-- Integration with emulation platforms.
-
-### 6. Validation and Execution
-
-Performs automated verification of generated artifacts and their consistency with the reconstructed campaign representation.
-
-Validation dimensions include:
-
-- Structural correctness.
-- Schema compliance.
-- Dependency consistency.
-- Environmental compatibility.
-- Technique traceability.
-- Workflow completeness.
-
-The framework is designed to integrate with MITRE Caldera for controlled execution and experimental evaluation.
-
-## Technology Stack
-
-| Technology | Purpose |
+| Component | Technology |
 |---|---|
-| Python | Core implementation and orchestration |
-| Large Language Models | Intelligence interpretation and automated reasoning |
-| STIX 2.x | Structured CTI representation |
-| MITRE ATT&CK | Adversary tactics and techniques |
-| TAXII 2.x | CTI collection and distribution |
-| LangChain / LLM APIs | Potential model orchestration and integration |
-| Pydantic | Structured output validation |
-| JSON | Intermediate representations and artifact serialization |
-| MITRE Caldera | Adversary emulation |
-| Docker | Isolated experimental environments |
+| CTI Representation | STIX 2.x |
+| Threat Intelligence | MITRE ATT&CK |
+| Supporting Knowledge | CAPEC |
+| Vulnerability Intelligence | Structured CVE/CPE data |
+| Data Processing | Python |
+| Procedural Representation | Directed Graphs |
+| SUT Generation | Docker / Docker Compose |
+| Adversary Emulation | MITRE Caldera |
+| Measurement | System and telemetry instrumentation |
+| Data Analysis | Python / Pandas |
+| Results | JSON / CSV |
 
-*The technology list should be adjusted to reflect the libraries and services actually implemented in the repository.*
+The final implementation may incorporate additional tools as required by the experimental design.
+
+---
 
 ## Repository Structure
 
-The following is a conceptual representation of the project organization:
-
 ```text
-Longhorn/
-├── config/
-│   └── config.py
-│
+.
 ├── data/
 │   ├── stix/
-│   ├── apt_campaigns/
-│   ├── reports/
-│   ├── generated_workflows/
-│   └── emulation_artifacts/
+│   ├── attack/
+│   ├── capec/
+│   └── vulnerability/
 │
-├── lib/
-│   ├── cti/
-│   ├── llm/
-│   ├── orchestration/
-│   ├── agents/
-│   ├── campaigns/
-│   ├── workflows/
-│   ├── environment/
-│   ├── validation/
-│   └── caldera/
+├── stage1_cti_sut/
+│   ├── ingestion/
+│   │   ├── stix_parser/
+│   │   └── normalization/
+│   │
+│   ├── reasoning/
+│   │   ├── technique_extraction/
+│   │   ├── dependency_inference/
+│   │   └── procedural_graph/
+│   │
+│   └── environment/
+│       ├── requirements/
+│       ├── compatibility/
+│       ├── sut_generation/
+│       └── validation/
 │
-├── prompts/
-│   ├── analysis/
+├── stage2_emulation/
+│   ├── ability_generation/
+│   ├── adversary_generation/
+│   ├── prerequisite_validation/
+│   ├── execution/
+│   └── state_validation/
+│
+├── stage3_measurement/
+│   ├── resource_footprint/
+│   ├── telemetry/
+│   ├── observability/
+│   ├── measurement_overhead/
+│   └── reproducibility/
+│
+├── experiments/
+│   ├── configurations/
+│   ├── datasets/
+│   └── scenarios/
+│
+├── results/
 │   ├── reconstruction/
-│   ├── environment/
-│   └── validation/
+│   ├── execution/
+│   └── measurement/
 │
-├── schemas/
-│   ├── campaign.schema.json
-│   ├── workflow.schema.json
-│   └── environment.schema.json
-│
-├── plugins/
-│
+├── config/
 ├── scripts/
-│
-├── tests/
-│
 ├── requirements.txt
-├── README.md
-└── main.py
+└── README.md
 ```
 
-> **Note:** This structure is illustrative and should be adapted to the actual repository.
+---
 
-## Installation
+## Experimental Design
 
-### Prerequisites
+The evaluation follows the three-stage methodology.
 
-- Python 3.10 or later.
-- Git.
-- Docker and Docker Compose.
-- Access to an LLM provider or locally hosted model.
-- MITRE Caldera for adversary emulation.
-- Access to the required CTI sources.
+| Experiment | Stage | Main Evaluation |
+|---|---|---|
+| Autonomous CTI reconstruction | 1 | Procedural semantics and dependency inference |
+| Autonomous SUT derivation | 1 | Environmental requirements and validation |
+| Autonomous adversary execution | 2 | Execution success and technique coverage |
+| Operational footprint measurement | 3 | Resource consumption |
+| Observability evaluation | 3 | Event coverage and observation latency |
+| Reproducibility evaluation | 3 | Consistency across repeated experiments |
 
-### Clone the Repository
+### Automation Boundary
 
-```bash
-git clone <repository-url>
-cd Longhorn
-```
+An important aspect of the experimental design is the explicit elimination of human intervention.
 
-### Create a Virtual Environment
+The pipeline must not rely on:
 
-```bash
-python -m venv .venv
-```
+- Manual corrections of generated abilities.
+- Analyst-provided procedural dependencies.
+- Manual SUT configuration.
+- Manual modification of execution workflows.
+- Manual recovery of failed experimental executions.
 
-Activate it:
+When information is insufficient, the system must record the limitation and produce a documented failure or abstention state.
 
-**Linux:**
+This enables the measurement of actual autonomous capability rather than the apparent success of a partially automated workflow.
 
-```bash
-source .venv/bin/activate
-```
+---
 
-**Windows:**
+## Evaluation Metrics
 
-```powershell
-.venv\Scripts\activate
-```
+The following metrics provide a common basis for evaluating the complete architecture.
 
-### Install Dependencies
+| Metric | Definition |
+|---|---|
+| CTI Coverage | Reconstructed techniques / Eligible source techniques |
+| Procedural Coverage | Validated procedural elements / Required procedural elements |
+| Environment Coverage | Satisfied environment requirements / Identified requirements |
+| Execution Success | Successfully validated executions / Attempted executions |
+| Automation Rate | Automatically completed operations / Total required operations |
+| Measurement Coverage | Captured expected events / Expected observable events |
+| Telemetry Overhead | Instrumented resource consumption relative to baseline |
+| Reproducibility | Consistency of outcomes across repeated experiments |
 
-```bash
-pip install -r requirements.txt
-```
+The evaluation distinguishes between generating an execution artifact, executing it successfully, and validating its intended behavior.
 
-## Configuration
+---
 
-Configure the project parameters in:
+## Experimental Principles
 
-```text
-config/config.py
-```
+The implementation follows seven principles:
 
-The configuration should define:
+1. **No Human-in-the-Loop:** No manual corrections or analyst-provided execution parameters during measured autonomous runs.
+2. **Traceability:** Every generated artifact maintains a reference to its originating CTI objects.
+3. **Explicit Uncertainty:** Missing procedural and environmental information is represented explicitly.
+4. **Reproducibility:** Experiments use versioned datasets, configurations, and execution records.
+5. **Isolation:** Experiments execute exclusively in authorized, controlled environments.
+6. **Measurement Transparency:** Instrumentation and collection overhead are documented.
+7. **Fail-Closed Execution:** Unresolved prerequisites and unsafe conditions prevent execution rather than triggering undocumented assumptions.
 
-- CTI source locations.
-- STIX dataset directories.
-- LLM provider and model selection.
-- API credentials.
-- Prompt and schema locations.
-- Generated artifact directories.
-- Caldera integration endpoints.
-- Docker environment parameters.
+---
 
-API credentials should be provided through environment variables rather than committed to the repository.
+## Expected Research Contributions
 
-Example:
+The project aims to establish four principal contributions.
 
-```bash
-export LLM_API_KEY="your-api-key"
-export LLM_MODEL="your-model"
-export CALDERA_URL="http://localhost:8888"
-```
+### C1 — Autonomous CTI Processing and SUT Derivation
 
-## Automated Workflow
+A framework capable of transforming structured CTI into procedural representations and corresponding experimental environments without manual intervention.
 
-Longhorn organizes its processing into three autonomous stages.
+### C2 — Autonomous Adversary Emulation
 
-### Stage 1 — CTI Acquisition and Intelligence Interpretation
+A methodology for generating and executing adversarial workflows from reconstructed procedures, with automated prerequisite and outcome validation.
 
-The framework collects structured and unstructured threat intelligence and uses LLM-based analysis to extract campaign information, identify ATT&CK techniques, and establish contextual relationships.
+### C3 — Stealth-Aware Measurement Framework
 
-**Output:**
-- Normalized CTI.
-- Campaign profiles.
-- Technique mappings.
-- Contextual intelligence representations.
+A measurement methodology for evaluating operational footprint, observability, telemetry overhead, and measurement-induced distortion.
 
-### Stage 2 — Autonomous Campaign and Environment Reconstruction
+### C4 — Empirical Evaluation of Autonomous Emulation
 
-LLM-based reasoning reconstructs campaign workflows, infers dependencies, identifies execution constraints, and derives the characteristics of the required target environment.
+An experimental assessment of the reliability, limitations, automation boundaries, and reproducibility of CTI-driven autonomous emulation.
 
-**Output:**
-- Structured campaign workflows.
-- Dependency representations.
-- Environment specifications.
-- SUT descriptions.
+---
 
-### Stage 3 — Automated Artifact Generation and Validation
+## Research Scope and Limitations
 
-The framework transforms reconstructed representations into structured emulation artifacts, validates their consistency, and prepares them for integration with the experimental environment.
+This project investigates the feasibility and limitations of autonomous APT emulation from structured CTI.
 
-**Output:**
-- Validated workflow representations.
-- Emulation specifications.
-- Execution metadata.
-- Experimental environment definitions.
+It does not assume that STIX provides sufficient procedural or environmental semantics for direct execution.
 
-## LLM Orchestration
+Instead, the research investigates the extent to which these semantics can be reconstructed automatically and where uncertainty remains.
 
-LLMs constitute the central reasoning and automation mechanism in Longhorn.
+Stealth-aware measurements are restricted to operational footprint, observability, and instrumentation effects in controlled experimental environments. The framework does not seek to evade security monitoring or conceal unauthorized activity.
 
-Rather than relying exclusively on predefined transformation rules, the framework uses model-driven processing to interpret campaign context and generate structured intermediate representations.
+The absence of human intervention is an experimental property of the pipeline, not an assertion that autonomous reconstruction will always be correct.
 
-The orchestration layer is responsible for coordinating the following logical tasks:
+---
 
-1. Intelligence interpretation.
-2. Campaign information extraction.
-3. Technique relationship inference.
-4. Procedural workflow reconstruction.
-5. Environment requirement derivation.
-6. Structured artifact generation.
-7. Automated consistency validation.
+## Reproducibility
 
-The framework can employ different models and orchestration strategies depending on the computational requirements and complexity of each task.
+Each experimental execution should produce a structured record containing:
 
-### Structured Outputs
+- Dataset identifier and version.
+- Original STIX object references.
+- Reconstructed procedural graph.
+- Environment specification.
+- Generated execution artifacts.
+- Execution outcome.
+- Validation results.
+- Measurement configuration.
+- Resource and telemetry measurements.
+- Failure and uncertainty records.
+- Experiment configuration and execution timestamp.
 
-LLM-generated outputs should conform to predefined schemas to support interoperability and automated processing.
+Results should be exportable in machine-readable formats such as JSON and CSV.
 
-Examples include:
+---
 
-- Campaign representations.
-- Technique mappings.
-- Workflow graphs.
-- Dependency specifications.
-- Environment descriptions.
-- Emulation metadata.
+## Research Foundation
 
-### Iterative Refinement
+This project extends the research presented in:
 
-Generated representations can undergo automated validation and refinement.
+**The Procedural Semantics Gap in Structured CTI: A Measurement-Driven STIX Analysis for APT Emulation**
 
-When a representation fails predefined constraints, the orchestration layer can request additional analysis and regenerate the affected representation.
+The original work investigates the limitations of structured CTI in supporting replay-ready adversary emulation.
 
-This process aims to improve consistency and reduce the need for manual correction.
+The proposed extension moves beyond measuring the semantic limitations of CTI toward evaluating whether an autonomous architecture can systematically reconstruct the missing semantics, generate executable environments, perform adversary emulation, and quantify its own operational characteristics.
 
-## Experimental Environment
-
-Longhorn supports the construction of controlled experimental environments using containerized infrastructure.
-
-A typical environment may include:
-
-- An emulation management server.
-- Dedicated simulation hosts.
-- Application servers.
-- Database services.
-- Isolated Docker networks.
-- Target systems representing campaign-specific environments.
-
-The generated specifications can be used to support reproducible experimental scenarios.
-
-## Research Context
-
-Longhorn investigates the application of Large Language Models to the autonomous transformation of structured and unstructured Cyber Threat Intelligence into executable adversary emulation representations.
-
-Its central research premise is that LLMs can bridge part of the gap between descriptive threat intelligence and the procedural and environmental information required for emulation.
-
-The framework explores whether autonomous reasoning can support:
-
-- Reconstruction of adversary execution workflows.
-- Inference of missing procedural relationships.
-- Identification of environmental dependencies.
-- Generation of structured emulation artifacts.
-- Automated validation of generated representations.
-
-A fundamental distinction is made between extracting information explicitly available in CTI sources and inferring additional information required to construct executable workflows.
-
-Inferred information should remain distinguishable from source-grounded evidence to preserve traceability and support experimental reproducibility.
-
-The framework provides an experimental foundation for evaluating the capabilities and limitations of LLM-driven automation in APT campaign emulation.
-
-## Security and Responsible Use
-
-Longhorn is intended for cybersecurity research, defensive security evaluation, and controlled adversary emulation.
-
-All generated artifacts and experiments should be restricted to authorized and isolated environments.
-
-The framework should enforce appropriate execution boundaries, validation requirements, and access controls when interacting with external systems.
-
-Users are responsible for ensuring that their activities comply with applicable laws, institutional policies, and authorization requirements.
-
-## Development Status
-
-Longhorn is under active research and development.
-
-Its architecture and capabilities may evolve as new LLM orchestration strategies, CTI sources, and automated validation mechanisms are incorporated.
-
-## Citation
-
-If you use Longhorn in academic research, please cite the associated research publication.
-
-```bibtex
-@misc{longhorn,
-  title        = {Longhorn: An LLM-Driven Framework for
-                  Autonomous APT Campaign Analysis and Emulation},
-  author       = {Ferraz, Ágney Lopes Roth and collaborators},
-  year         = {2026},
-  note         = {Research software}
-}
-```
+---
 
 ## License
 
-License information will be provided in this repository.
+To be defined.
 
 ## Acknowledgments
 
-- [MITRE ATT&CK](https://attack.mitre.org/)
-- [OASIS Cyber Threat Intelligence (CTI)](https://www.oasis-open.org/committees/cti/)
-- [MITRE Caldera](https://caldera.mitre.org/)
-- The open-source LLM research community.
+This research builds upon publicly available threat intelligence resources and open-source cybersecurity research tools, particularly:
+
+- MITRE ATT&CK
+- STIX
+- CAPEC
+- Docker
+- MITRE Caldera
+
+---
+
+**Research direction:** Autonomous, reproducible, and measurement-driven APT emulation from structured Cyber Threat Intelligence.
