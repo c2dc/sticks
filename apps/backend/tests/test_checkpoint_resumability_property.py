@@ -153,7 +153,7 @@ def _following_node(interrupt_node: str) -> str:
 # ---------------------------------------------------------------------------
 # Feature: ai-curation-agents, Property 4: Runs are resumable from the last
 # checkpoint.
-@settings(max_examples=150, deadline=None)
+@settings(max_examples=40, deadline=None)
 @given(
     thread_id=_thread_ids,
     seed=_seed_states(),

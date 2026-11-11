@@ -98,13 +98,13 @@ export function Stage1View({
             <p className="text-sm">{result.error_message || t("error.unknown")}</p>
             {result.failed_step ? (
               <p className="text-xs text-muted-foreground">
-                {t("stage1.processamento.failedStep", { step: result.failed_step })}
+                {t("stage1.processing.failedStep", { step: result.failed_step })}
               </p>
             ) : null}
           </div>
         ) : (
           <p className="text-xs text-muted-foreground">
-            {t("stage1.processamento.description")}
+            {t("stage1.processing.description")}
           </p>
         )}
       </StageSection>
@@ -118,25 +118,25 @@ export function Stage1View({
         kind="neutral"
       >
         {!output ? (
-          <EmptyNote>{t("stage1.saida.notRun")}</EmptyNote>
+          <EmptyNote>{t("stage1.output.notRun")}</EmptyNote>
         ) : output.is_empty ? (
-          <EmptyNote>{output.note || t("stage1.saida.empty")}</EmptyNote>
+          <EmptyNote>{output.note || t("stage1.output.empty")}</EmptyNote>
         ) : (
           <div className="flex flex-col gap-3">
             <TechniquesList techniques={output.techniques} />
             <CountRow
-              label={t("stage1.saida.relationships")}
+              label={t("stage1.output.relationships")}
               count={output.relationships.length}
             />
             <CountRow
-              label={t("stage1.saida.indicators")}
+              label={t("stage1.output.indicators")}
               count={output.indicators.length}
             />
             <CountRow
-              label={t("stage1.saida.infrastructure")}
+              label={t("stage1.output.infrastructure")}
               count={output.infrastructure.length}
             />
-            <CountRow label={t("stage1.saida.malware")} count={output.malware.length} />
+            <CountRow label={t("stage1.output.malware")} count={output.malware.length} />
             <MetadataBlock metadata={output.metadata} />
           </div>
         )}
@@ -177,7 +177,7 @@ export function CampaignStixBlock({
         data-testid="campaign-stix-not-found"
       >
         <p className="text-sm text-team-red">
-          {t("stage1.entrada.naoEncontrada")}
+          {t("stage1.input.notFound")}
         </p>
         {curated ? (
           <p className="break-all text-xs text-muted-foreground">{curated}</p>
@@ -193,19 +193,19 @@ export function CampaignStixBlock({
       data-section="campaign-stix"
     >
       <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        {t("stage1.entrada.campanhaStix")}
+        {t("stage1.input.campaignStix")}
       </p>
       <dl className="flex flex-col gap-2">
-        <Field label={t("stage1.entrada.nome")} value={campaign.name} />
-        <Field label={t("stage1.entrada.stixId")} value={campaign.stix_id} />
+        <Field label={t("stage1.input.name")} value={campaign.name} />
+        <Field label={t("stage1.input.stixId")} value={campaign.stix_id} />
         <Field
-          label={t("stage1.entrada.externalId")}
+          label={t("stage1.input.externalId")}
           value={campaign.external_id}
         />
         {campaign.description ? (
           <div className="flex flex-col">
             <dt className="text-xs font-medium text-muted-foreground">
-              {t("stage1.entrada.descricao")}
+              {t("stage1.input.description")}
             </dt>
             <dd className="max-h-40 overflow-auto whitespace-pre-wrap text-sm">
               {campaign.description}
@@ -215,7 +215,7 @@ export function CampaignStixBlock({
         {campaign.aliases.length > 0 ? (
           <div className="flex flex-col gap-1">
             <dt className="text-xs font-medium text-muted-foreground">
-              {t("stage1.entrada.aliases")}
+              {t("stage1.input.aliases")}
             </dt>
             <dd>
               <ul className="flex flex-wrap gap-1.5">
@@ -232,12 +232,12 @@ export function CampaignStixBlock({
           </div>
         ) : null}
         <Field
-          label={t("stage1.entrada.firstSeen")}
+          label={t("stage1.input.firstSeen")}
           value={campaign.first_seen}
         />
-        <Field label={t("stage1.entrada.lastSeen")} value={campaign.last_seen} />
+        <Field label={t("stage1.input.lastSeen")} value={campaign.last_seen} />
         <Field
-          label={t("stage1.entrada.versaoBase")}
+          label={t("stage1.input.baseVersion")}
           value={campaign.base_version}
         />
       </dl>
@@ -270,10 +270,10 @@ function TechniquesList({ techniques }: { techniques: Stage1Technique[] }) {
   return (
     <div className="flex flex-col gap-1">
       <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        {t("stage1.saida.techniques", { count: techniques.length })}
+        {t("stage1.output.techniques", { count: techniques.length })}
       </p>
       {techniques.length === 0 ? (
-        <p className="text-xs text-muted-foreground">{t("stage1.saida.noTechniques")}</p>
+        <p className="text-xs text-muted-foreground">{t("stage1.output.noTechniques")}</p>
       ) : (
         <ul className="flex flex-wrap gap-1.5">
           {techniques.map((tech, index) => (
@@ -308,7 +308,7 @@ function MetadataBlock({ metadata }: { metadata: Record<string, unknown> }) {
   return (
     <div className="flex flex-col gap-1">
       <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        {t("stage1.saida.metadata")}
+        {t("stage1.output.metadata")}
       </p>
       <dl className="flex flex-col gap-0.5">
         {entries.map(([key, value]) => (

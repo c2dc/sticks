@@ -4,24 +4,34 @@ import userEvent from "@testing-library/user-event"
 
 import { renderWithI18n } from "@/test/render"
 import { AiRunView } from "@/components/AiRunView"
-import type { AiEvaluation, AiIteration, AiRun, AiRunDetail } from "@/lib/ai"
+import type {
+  AiEvaluation,
+  AiIteration,
+  AiRun,
+  AiRunDetail,
+  AiStageOutput,
+  GroundTruthComparison,
+} from "@/lib/ai"
 
 // Mock the AI run wrappers so no network is used and the test fully controls the
-// run summary + the detail the view polls (startAiRun / getAiRun). The view
-// imports both from `@/lib/ai`, so mocking this module is enough.
+// run summary + the detail the view polls (startAiRun / getAiRun) and the
+// on-demand Ground_Truth_Comparison (compareAiRunWithCuration). The view imports
+// all three from `@/lib/ai`, so mocking this module is enough.
 vi.mock("@/lib/ai", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/ai")>()
   return {
     ...actual,
     startAiRun: vi.fn(),
     getAiRun: vi.fn(),
+    compareAiRunWithCuration: vi.fn(),
   }
 })
 
-import { getAiRun, startAiRun } from "@/lib/ai"
+import { compareAiRunWithCuration, getAiRun, startAiRun } from "@/lib/ai"
 
 const startMock = vi.mocked(startAiRun)
 const getMock = vi.mocked(getAiRun)
+const compareMock = vi.mocked(compareAiRunWithCuration)
 
 const CAMPAIGN = "shadowray"
 
@@ -33,7 +43,7 @@ function makeRun(overrides: Partial<AiRun> = {}): AiRun {
   return {
     id: 1,
     campaign_id: CAMPAIGN,
-    status: "em_execucao",
+    status: "running",
     thread_id: "thread-1",
     max_iterations: 3,
     iterations_used: 0,
@@ -49,8 +59,22 @@ function makeEvaluation(overrides: Partial<AiEvaluation> = {}): AiEvaluation {
     success_rate: 0.8,
     procedural_coverage: 0.6,
     verdict_success: true,
-    decision: "finalizar",
+    decision: "finish",
     rationale: "Cobertura procedural suficiente.",
+    ...overrides,
+  }
+}
+
+function makeStageOutput(overrides: Partial<AiStageOutput> = {}): AiStageOutput {
+  return {
+    id: 1000,
+    stage: "dag",
+    origin: "ai_generated",
+    payload: { nodes: ["T1190"] },
+    trace: {
+      agent_input: { modeling: "entrada de modelagem" },
+      processing: { reasoning: "raciocínio", llm_prompt: "PROMPT", llm_response: "RESPOSTA" },
+    },
     ...overrides,
   }
 }
@@ -62,6 +86,8 @@ function makeIteration(overrides: Partial<AiIteration> = {}): AiIteration {
     refined_stage: null,
     notes: null,
     created_at: "2024-01-02T03:04:05",
+    stage_outputs: [],
+    failing_agent: null,
     evaluation: null,
     ...overrides,
   }
@@ -78,6 +104,7 @@ function makeDetail(overrides: Partial<AiRunDetail> = {}): AiRunDetail {
 beforeEach(() => {
   startMock.mockReset()
   getMock.mockReset()
+  compareMock.mockReset()
 })
 
 afterEach(() => {
@@ -102,7 +129,7 @@ describe("AiRunView — starts a run and renders iterations/verdict (Req. 13.3, 
   })
 
   it("starts a run on click and renders a terminal run's iterations and evaluator verdict", async () => {
-    const run = makeRun({ status: "concluido", iterations_used: 1, final_verdict_success: true })
+    const run = makeRun({ status: "completed", iterations_used: 1, final_verdict_success: true })
     startMock.mockResolvedValue(run)
     // A single terminal read returns one iteration carrying the evaluator verdict.
     getMock.mockResolvedValue(
@@ -128,12 +155,14 @@ describe("AiRunView — starts a run and renders iterations/verdict (Req. 13.3, 
     expect(summary).toHaveTextContent("Concluído")
     expect(within(summary).getByText("Aprovado")).toBeInTheDocument()
 
-    // The iterations list renders exactly one iteration (index shown 1-based).
+    // Per-iteration navigation renders exactly the single selected iteration
+    // (index shown 1-based) and a navigator position readout "1 de 1".
     const iterations = Array.from(
       container.querySelectorAll('[data-section="ai-run-iteration"]'),
     ) as HTMLElement[]
     expect(iterations).toHaveLength(1)
     expect(iterations[0]).toHaveTextContent("Iteração 1")
+    expect(screen.getByText("Iteração 1 de 1")).toBeInTheDocument()
 
     // The evaluator verdict is rendered for that iteration: decision + metrics.
     const evaluation = iterations[0].querySelector(
@@ -148,9 +177,9 @@ describe("AiRunView — starts a run and renders iterations/verdict (Req. 13.3, 
   })
 
   it("surfaces a NEW iteration and verdict appearing on a later poll (Req. 13.3, 13.4)", async () => {
-    const runningRun = makeRun({ status: "em_execucao", iterations_used: 1 })
+    const runningRun = makeRun({ status: "running", iterations_used: 1 })
     const terminalRun = makeRun({
-      status: "concluido",
+      status: "completed",
       iterations_used: 2,
       final_verdict_success: true,
     })
@@ -174,8 +203,8 @@ describe("AiRunView — starts a run and renders iterations/verdict (Req. 13.3, 
           makeIteration({
             id: 101,
             index: 1,
-            refined_stage: "estagio_4_operacionalizacao",
-            evaluation: makeEvaluation({ id: 11, decision: "finalizar", verdict_success: true }),
+            refined_stage: "operationalization",
+            evaluation: makeEvaluation({ id: 11, decision: "finish", verdict_success: true }),
           }),
         ],
       }),
@@ -185,28 +214,31 @@ describe("AiRunView — starts a run and renders iterations/verdict (Req. 13.3, 
 
     await userEvent.click(screen.getByRole("button", { name: "Iniciar execução de IA" }))
 
-    const iterationEls = () =>
-      Array.from(
-        container.querySelectorAll('[data-section="ai-run-iteration"]'),
-      ) as HTMLElement[]
+    const currentIteration = () =>
+      container.querySelector('[data-section="ai-run-iteration"]') as HTMLElement | null
 
-    // Initially one iteration with the "verdict not available yet" note.
-    await waitFor(() => expect(iterationEls()).toHaveLength(1))
+    // Initially one iteration (navigator "1 de 1") with the "verdict not
+    // available yet" note; the view keeps polling because the run is non-terminal.
+    await waitFor(() => expect(currentIteration()).not.toBeNull())
+    expect(screen.getByText("Iteração 1 de 1")).toBeInTheDocument()
     expect(
       screen.getByText("Veredito do avaliador ainda não disponível."),
     ).toBeInTheDocument()
 
-    // After the next poll fires (the view re-reads on its ≤5s interval), the new
-    // iteration and its evaluator verdict appear (Req. 13.3, 13.4). The timeout
-    // comfortably exceeds the view's 3s poll interval.
-    await waitFor(() => expect(iterationEls()).toHaveLength(2), { timeout: 8000 })
-    const iterations = iterationEls()
-    expect(iterations[1]).toHaveTextContent("Iteração 2")
-    expect(iterations[1]).toHaveTextContent("estagio_4_operacionalizacao")
-    // The second iteration now carries a rendered evaluator verdict.
-    expect(
-      iterations[1].querySelector('[data-section="ai-run-evaluation"]'),
-    ).not.toBeNull()
+    // After the next poll fires (the view re-reads on its ≤5s interval), a brand
+    // new iteration appears; the navigator grows to "2 de 2" and — because the
+    // Researcher was parked on the last iteration — auto-advances to it so its
+    // input/processing/output and evaluator verdict surface (Req. 13.3, 13.4).
+    // The timeout comfortably exceeds the view's 3s poll interval.
+    await waitFor(() => expect(screen.getByText("Iteração 2 de 2")).toBeInTheDocument(), {
+      timeout: 8000,
+    })
+    const iteration = currentIteration() as HTMLElement
+    expect(iteration).toHaveTextContent("Iteração 2")
+    // The refined stage is shown via its meaningful English name, not the raw enum.
+    expect(iteration).toHaveTextContent("Agente de operacionalização")
+    // The newly-surfaced iteration carries a rendered evaluator verdict.
+    expect(iteration.querySelector('[data-section="ai-run-evaluation"]')).not.toBeNull()
 
     // The view polled at least twice (initial + follow-up) and stopped once the
     // run reached a terminal status.
@@ -223,5 +255,176 @@ describe("AiRunView — starts a run and renders iterations/verdict (Req. 13.3, 
     await screen.findByText("Não foi possível iniciar a execução de IA.")
     // A failed start never polls the read endpoint.
     expect(getMock).not.toHaveBeenCalled()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Task 9.8 — per-iteration Input/Processing/Output, view toggle to the Audit
+// tab, and the curated-only "Compare with curation" action (Req. 1.1, 1.5, 5.1).
+// ---------------------------------------------------------------------------
+
+describe("AiRunView — per-iteration trace, Audit toggle, curated compare (Req. 1.1, 1.5, 5.1)", () => {
+  async function startWithDetail(detail: AiRunDetail, curated = false) {
+    startMock.mockResolvedValue(detail.run)
+    getMock.mockResolvedValue(detail)
+    const utils = renderWithI18n(<AiRunView campaignId={CAMPAIGN} curated={curated} />)
+    await userEvent.click(screen.getByRole("button", { name: "Iniciar execução de IA" }))
+    await waitFor(() => expect(getMock).toHaveBeenCalled())
+    return utils
+  }
+
+  it("renders the selected iteration's agent steps as Input/Processing/Output trace panels", async () => {
+    const run = makeRun({ status: "completed", iterations_used: 1, final_verdict_success: true })
+    const { container } = await startWithDetail(
+      makeDetail({
+        run,
+        iterations: [
+          makeIteration({
+            evaluation: makeEvaluation(),
+            stage_outputs: [
+              makeStageOutput({ id: 1000, stage: "dag" }),
+              makeStageOutput({ id: 1001, stage: "operationalization" }),
+            ],
+          }),
+        ],
+      }),
+    )
+
+    // The iteration renders its agent steps as three-part trace panels.
+    const steps = await waitFor(() => {
+      const found = container.querySelectorAll('[data-section="agent-trace-panel"]')
+      expect(found.length).toBe(2)
+      return Array.from(found) as HTMLElement[]
+    })
+    // Ordered by the meaningful agent-step sequence and three-part each.
+    expect(steps.map((s) => s.getAttribute("data-stage"))).toEqual([
+      "dag",
+      "operationalization",
+    ])
+    expect(steps[0].querySelector('[data-part="input"]')).not.toBeNull()
+    expect(steps[0].querySelector('[data-part="processing"]')).not.toBeNull()
+    expect(steps[0].querySelector('[data-part="output"]')).not.toBeNull()
+    // The raw-LLM disclosure is closed by default (Req. 6.2, 6.3).
+    const details = steps[0].querySelector('[data-part="raw-details"]') as HTMLDetailsElement
+    expect(details).not.toBeNull()
+    expect(details.open).toBe(false)
+  })
+
+  it("toggles between the per-iteration view and the consolidated Audit tab", async () => {
+    const run = makeRun({ status: "completed", iterations_used: 1, final_verdict_success: true })
+    const { container } = await startWithDetail(
+      makeDetail({
+        run,
+        iterations: [
+          makeIteration({
+            index: 0,
+            stage_outputs: [makeStageOutput({ id: 1000, stage: "dag" })],
+          }),
+          makeIteration({
+            id: 101,
+            index: 1,
+            stage_outputs: [makeStageOutput({ id: 1001, stage: "environment" })],
+          }),
+        ],
+      }),
+    )
+
+    // Default view: per-iteration navigation (one iteration at a time).
+    await waitFor(() =>
+      expect(container.querySelector('[data-section="ai-run-iteration"]')).not.toBeNull(),
+    )
+    expect(container.querySelector('[data-section="ai-run-audit"]')).toBeNull()
+
+    // Switch to the Audit tab: the WHOLE trace is shown grouped by iteration.
+    await userEvent.click(screen.getByRole("tab", { name: "Auditoria" }))
+    const audit = await waitFor(() => {
+      const el = container.querySelector('[data-section="ai-run-audit"]')
+      expect(el).not.toBeNull()
+      return el as HTMLElement
+    })
+    expect(
+      audit.querySelectorAll('[data-section="ai-run-audit-iteration"]'),
+    ).toHaveLength(2)
+    // The per-iteration navigator is no longer shown.
+    expect(container.querySelector('[data-section="ai-run-iteration-nav"]')).toBeNull()
+
+    // Switch back to the per-iteration view.
+    await userEvent.click(screen.getByRole("tab", { name: "Por iteração" }))
+    await waitFor(() =>
+      expect(container.querySelector('[data-section="ai-run-iteration"]')).not.toBeNull(),
+    )
+  })
+
+  it("renders the curated-only 'Compare with curation' action for a completed curated run", async () => {
+    const run = makeRun({ status: "completed", iterations_used: 1, final_verdict_success: true })
+    const comparison: GroundTruthComparison = {
+      campaign_id: CAMPAIGN,
+      run_id: run.id,
+      stages: [
+        {
+          stage: "dag",
+          ai_items: ["T1190", "T1059"],
+          curated_items: ["T1190"],
+          matched: ["T1190"],
+          missing: [],
+          extra: ["T1059"],
+        },
+      ],
+    }
+    compareMock.mockResolvedValue(comparison)
+
+    const { container } = await startWithDetail(
+      makeDetail({ run, iterations: [makeIteration({ evaluation: makeEvaluation() })] }),
+      true,
+    )
+
+    // The compare action is offered for a completed curated run.
+    const action = await screen.findByRole("button", { name: "Comparar com a curadoria" })
+    expect(action).toBeInTheDocument()
+
+    await userEvent.click(action)
+
+    await waitFor(() => expect(compareMock).toHaveBeenCalledWith(CAMPAIGN, run.id))
+    // The per-stage comparison result renders.
+    const result = await waitFor(() => {
+      const el = container.querySelector('[data-section="ai-run-ground-truth-result"]')
+      expect(el).not.toBeNull()
+      return el as HTMLElement
+    })
+    expect(
+      result.querySelectorAll('[data-section="ai-run-ground-truth-stage"]'),
+    ).toHaveLength(1)
+    expect(within(result).getByText("Geração do DAG")).toBeInTheDocument()
+  })
+
+  it("does NOT render the compare action for a non-curated run", async () => {
+    const run = makeRun({ status: "completed", iterations_used: 1, final_verdict_success: true })
+    await startWithDetail(
+      makeDetail({ run, iterations: [makeIteration({ evaluation: makeEvaluation() })] }),
+      false,
+    )
+
+    await waitFor(() => expect(getMock).toHaveBeenCalled())
+    // Curated-only: a non-curated run never offers the comparison (Req. 5.1).
+    expect(
+      screen.queryByRole("button", { name: "Comparar com a curadoria" }),
+    ).toBeNull()
+    expect(compareMock).not.toHaveBeenCalled()
+  })
+
+  it("does NOT render the compare action for a curated run that did not complete", async () => {
+    // Terminal but aborted (not completed): polling stops, yet the action stays
+    // hidden because the gate requires `status === "completed"`.
+    const run = makeRun({ status: "aborted", iterations_used: 1 })
+    await startWithDetail(
+      makeDetail({ run, iterations: [makeIteration()] }),
+      true,
+    )
+
+    await waitFor(() => expect(getMock).toHaveBeenCalled())
+    // The action is gated on BOTH curated AND a completed run.
+    expect(
+      screen.queryByRole("button", { name: "Comparar com a curadoria" }),
+    ).toBeNull()
   })
 })

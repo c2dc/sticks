@@ -2,8 +2,8 @@
  * Typed API wrappers for the STIX inspection endpoints (`/api/stix/*`).
  *
  * This module is the single source of truth for the STIX-base types consumed
- * by the dashboard flow (base listing, intelligence dashboard, campaign/actor
- * selection). It mirrors the backend contract defined in `app/api/stix.py` and
+ * by the dashboard flow (base listing, package overview, campaign listing and
+ * campaign overview). It mirrors the backend contract defined in `app/api/stix.py` and
  * `app/services/stix/stix_service.py` (identical to the JSON the backend
  * returns).
  *
@@ -19,12 +19,14 @@ import { api } from "@/lib/api"
 // ===========================================================================
 
 /**
- * A known STIX base version with its on-disk availability
- * (backend `BaseStixInfo`, Req. 2.1, 2.2, 2.3).
+ * A known STIX base version with its database-backed availability
+ * (backend `BaseStixInfo`, Req. 2.1, 2.2, 2.3, 3.1, 3.2, 3.3).
  *
- * `downloaded` reflects live presence on disk; `selectable` is its exact
- * complement of availability (only downloaded bases can be selected).
- * `file` is populated only when the base is downloaded.
+ * `downloaded` reflects whether the version is persisted in the database (the
+ * single source of truth); `selectable` is its exact complement of
+ * availability (only persisted bases can be selected). `file` stays in the
+ * contract but is `null` for persisted versions, since the on-disk bundle is
+ * deleted after a successful persist and no longer signals availability.
  */
 export interface BaseStixInfo {
   version: string
@@ -40,7 +42,7 @@ export interface BasesResponse {
 }
 
 // ===========================================================================
-// Intelligence dashboard (Req. 3.1).
+// Package overview (Req. 3.1, 6.1).
 // ===========================================================================
 
 /**
@@ -56,17 +58,30 @@ export interface TypeCount {
 }
 
 /**
- * Intelligence dashboard for a downloaded base — per-type counts plus the base
- * identification (backend `DashboardStix`, Req. 3.1, 3.2).
+ * Package overview for a downloaded base — the base identification plus the
+ * per-type counts and the headline totals, read entirely from the database
+ * (backend `StixPackageOverview`, Req. 3.1–3.4, 6.1).
+ *
+ * `downloaded_at` is an ISO-8601 timestamp, or `null` when unknown. The `*_total`
+ * fields are the headline totals (campaigns, actors, techniques, tactics,
+ * malware and relationships) the backend derives from the persisted rows and
+ * per-type counts.
  */
-export interface DashboardStix {
+export interface StixPackageOverview {
   version: string
   name: string
+  downloaded_at: string | null
   counts: TypeCount[]
+  campaigns_total: number
+  actors_total: number
+  techniques_total: number
+  tactics_total: number
+  malware_total: number
+  relationships_total: number
 }
 
 // ===========================================================================
-// Campaigns and adversaries (Req. 4.2, 4.3).
+// Campaigns (Req. 4.2, 4.3).
 // ===========================================================================
 
 /**
@@ -82,27 +97,117 @@ export interface CampaignStix {
   curated_slug: string | null
 }
 
-/** Response shape of `GET /api/stix/bases/{version}/campaigns` (backend `CampaignsResponse`). */
-export interface CampaignsResponse {
-  version: string
-  campaigns: CampaignStix[]
+/**
+ * A campaign row of a package for the clickable list
+ * (backend `StixCampaignSummary`, Req. 4.3, 4.5). `campaign_key` is the stable
+ * key the UI/route use to address the campaign: the `curated_slug` when the
+ * campaign is curated, otherwise the `stix_id`.
+ */
+export interface StixCampaignSummary {
+  campaign_key: string
+  stix_id: string
+  name: string
+  external_id: string | null
+  curated: boolean
+  curated_slug: string | null
 }
 
 /**
- * A STIX `intrusion-set` (adversary) with its attributed campaigns
- * (backend `AdversaryStix`, Req. 4.3). Campaigns without attribution are grouped
- * under a synthetic "no associated adversary" adversary by the backend.
+ * One ATT&CK technique a campaign uses
+ * (backend `TechniqueElement`, Req. 4.4). All fields but the id are optional.
  */
-export interface AdversaryStix {
-  stix_id: string
-  name: string
-  campaigns: CampaignStix[]
+export interface TechniqueElement {
+  technique_id: string
+  technique_name: string | null
+  tactic: string | null
+  description: string | null
 }
 
-/** Response shape of `GET /api/stix/bases/{version}/actors` (backend `AdversariesResponse`). */
-export interface AdversariesResponse {
+/**
+ * Overview of a single campaign of a package
+ * (backend `StixCampaignOverview`, design Component 4, Req. 4.4, 4.5). Carries
+ * the campaign identity, its `description` and `aliases`, the ATT&CK
+ * `techniques` it uses and the `actors` attributed to it.
+ */
+export interface StixCampaignOverview {
+  campaign_key: string
+  stix_id: string
+  name: string
+  external_id: string | null
+  description: string | null
+  aliases: string[]
+  curated: boolean
+  curated_slug: string | null
+  techniques: TechniqueElement[]
+  actors: { stix_id: string; name: string }[]
+}
+
+// ===========================================================================
+// Package analytics (Req. 12.1–12.8).
+// ===========================================================================
+
+/**
+ * One ranked actor of a package — a threat actor with the number of campaigns
+ * attributed to it (backend `ActorRank`, Req. 12.2). `top_actors` is ordered by
+ * `campaigns_total`, descending.
+ */
+export interface ActorRank {
+  stix_id: string
+  name: string
+  campaigns_total: number
+}
+
+/**
+ * One ranked campaign of a package — a campaign with its curated marking and
+ * the number of ATT&CK techniques it uses (backend `CampaignRank`, Req. 12.3).
+ * `campaign_key` is the stable key (curated slug when curated, else the
+ * `stix_id`); `top_campaigns` is ordered by `techniques_total`, descending.
+ */
+export interface CampaignRank {
+  campaign_key: string
+  name: string
+  curated: boolean
+  techniques_total: number
+}
+
+/**
+ * One tactic bucket of the technique distribution — a tactic with the number of
+ * techniques mapped to it (backend `TacticDistribution`, Req. 12.5).
+ */
+export interface TacticDistribution {
+  tactic: string
+  techniques_total: number
+}
+
+/**
+ * One ranked technique of a package — the inverse of `CampaignRank`: for a
+ * single ATT&CK technique, the number of DISTINCT campaigns that use it
+ * (backend `TechniqueRank`). `top_techniques` is ordered by `campaigns_total`,
+ * descending.
+ */
+export interface TechniqueRank {
+  technique_id: string
+  technique_name: string | null
+  campaigns_total: number
+}
+
+/**
+ * Analytic aggregations of a downloaded base — curated vs. uncurated campaign
+ * totals, the top actors and campaigns, the technique distribution per tactic
+ * and the campaigns-per-technique ranking (`top_techniques`) — the inverse of
+ * `top_campaigns` (backend `StixPackageAnalytics`, design Component 5).
+ *
+ * Every field is derived entirely from the persisted rows of the version; no
+ * bundle reprocessing and no network.
+ */
+export interface StixPackageAnalytics {
   version: string
-  adversaries: AdversaryStix[]
+  curated_total: number
+  uncurated_total: number
+  top_actors: ActorRank[]
+  top_campaigns: CampaignRank[]
+  tactics: TacticDistribution[]
+  top_techniques: TechniqueRank[]
 }
 
 // ===========================================================================
@@ -130,34 +235,57 @@ export function downloadBase(version: string): Promise<BaseStixInfo> {
 }
 
 /**
- * Fetch the intelligence dashboard (per-type counts) for a downloaded base
- * (`GET /api/stix/bases/{version}/dashboard`, Req. 3.1). Side-effect free.
+ * Fetch the package overview (identification, per-type counts and headline
+ * totals) for a downloaded base
+ * (`GET /api/stix/bases/{version}/overview`, Req. 3.1, 6.1). Read from the
+ * database only; side-effect free.
  */
-export function getDashboard(version: string): Promise<DashboardStix> {
-  return api.get<DashboardStix>(
-    `/stix/bases/${encodeURIComponent(version)}/dashboard`,
+export function getPackageOverview(
+  version: string,
+): Promise<StixPackageOverview> {
+  return api.get<StixPackageOverview>(
+    `/stix/bases/${encodeURIComponent(version)}/overview`,
   )
 }
 
 /**
  * Fetch the campaigns of a downloaded base with curated-campaign marking
- * (`GET /api/stix/bases/{version}/campaigns`, Req. 4.2). Side-effect free.
+ * (`GET /api/stix/bases/{version}/campaigns`, Req. 4.3). The endpoint returns a
+ * bare array of {@link StixCampaignSummary}, returned as-is. Side-effect free.
  */
-export async function getCampaigns(version: string): Promise<CampaignStix[]> {
-  const resp = await api.get<CampaignsResponse>(
+export function getCampaigns(version: string): Promise<StixCampaignSummary[]> {
+  return api.get<StixCampaignSummary[]>(
     `/stix/bases/${encodeURIComponent(version)}/campaigns`,
   )
-  return resp.campaigns
 }
 
 /**
- * Fetch the adversaries (intrusion-sets) of a downloaded base with their nested,
- * attributed campaigns (`GET /api/stix/bases/{version}/actors`, Req. 4.3).
- * Side-effect free.
+ * Fetch the overview of a single campaign of a downloaded base — its identity,
+ * description, aliases, ATT&CK techniques and attributed actors
+ * (`GET /api/stix/bases/{version}/campaigns/{campaign_key}/overview`, Req. 6.2).
+ * Read from the database only; side-effect free.
  */
-export async function getAdversaries(version: string): Promise<AdversaryStix[]> {
-  const resp = await api.get<AdversariesResponse>(
-    `/stix/bases/${encodeURIComponent(version)}/actors`,
+export function getCampaignOverview(
+  version: string,
+  campaignKey: string,
+): Promise<StixCampaignOverview> {
+  return api.get<StixCampaignOverview>(
+    `/stix/bases/${encodeURIComponent(version)}/campaigns/${encodeURIComponent(
+      campaignKey,
+    )}/overview`,
   )
-  return resp.adversaries
+}
+
+/**
+ * Fetch the analytic aggregations (curated/uncurated totals, top actors, top
+ * campaigns and the per-tactic technique distribution) for a downloaded base
+ * (`GET /api/stix/bases/{version}/analytics`, Req. 12.8). Read from the
+ * database only; side-effect free.
+ */
+export function getPackageAnalytics(
+  version: string,
+): Promise<StixPackageAnalytics> {
+  return api.get<StixPackageAnalytics>(
+    `/stix/bases/${encodeURIComponent(version)}/analytics`,
+  )
 }

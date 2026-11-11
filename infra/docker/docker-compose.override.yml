@@ -6,3 +6,12 @@ services:
   postgres:
     ports: !override
       - "127.0.0.1:9090:5432"
+
+  # Override LOCAL (nao versionado) — o backend roda em container, entao
+  # ``localhost`` dentro dele nao e o host. O Caldera e publicado no host em
+  # 127.0.0.1:8888, alcancavel do container via host.docker.internal. Sem isto
+  # o run de IA falha com CalderaUnavailable (Connection refused) no estagio
+  # que precisa do Caldera.
+  sticks-backend:
+    environment:
+      PIPELINE_UI_CALDERA_URL_OVERRIDE: http://host.docker.internal:8888

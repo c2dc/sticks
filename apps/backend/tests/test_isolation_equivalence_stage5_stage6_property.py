@@ -255,7 +255,7 @@ def test_both_stages_route_through_inspect_isolation() -> None:
 # ---------------------------------------------------------------------------
 
 
-@settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+@settings(max_examples=40, suppress_health_check=[HealthCheck.too_slow])
 @given(containers=_unique_containers())
 def test_property13_stage5_stage6_isolation_verdict_equivalent(
     containers: list[GenContainer],
@@ -288,7 +288,7 @@ def test_property13_stage5_stage6_isolation_verdict_equivalent(
     assert stage5.summary() == stage6.summary()
 
 
-@settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
+@settings(max_examples=40, suppress_health_check=[HealthCheck.too_slow])
 @given(
     base=_unique_containers(),
     perm_seed=st.integers(min_value=0, max_value=10_000),

@@ -89,12 +89,20 @@ class ProducedDag(BaseModel):
       ``DagService._derive_edges`` helper). It is a ``dict`` to match the
       ``content`` (JSON) column of the ``Dag`` entity and let an AI implementation
       produce the same format with no schema change (Req. 9.3, 9.4).
+    * ``gaps`` — the campaign techniques (ATT&CK ``technique_id`` values) that
+      made it into the proposed graph but have **no backing command** in the
+      Command_Base (neither an exact ``technique_commands`` mapping nor a
+      similarity suggestion). The DAG agent records them here instead of
+      inventing an unsupported command, so the gap is surfaced rather than
+      papered over (Req. 11.4). Empty for the curation generator (which produces
+      no gaps) and whenever every node technique is backed.
     """
 
     origin: DagOrigin
     identifier: str
     label: Optional[str] = None
     content: dict = Field(default_factory=dict)
+    gaps: list[str] = Field(default_factory=list)
 
 
 @runtime_checkable

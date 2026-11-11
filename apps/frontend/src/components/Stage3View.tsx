@@ -502,16 +502,16 @@ export function Stage3View({
         {input.adversary ? (
           <div className="flex flex-col gap-0.5">
             <span className="text-xs font-medium text-muted-foreground">
-              {t("stage3.entrada.adversary")}
+              {t("stage3.input.adversary")}
             </span>
             <span className="text-sm font-medium">{input.adversary.name}</span>
           </div>
         ) : (
-          <EmptyNote>{t("stage3.entrada.noAdversary")}</EmptyNote>
+          <EmptyNote>{t("stage3.input.noAdversary")}</EmptyNote>
         )}
         <div className="flex flex-col gap-1">
           <span className="text-xs font-medium text-muted-foreground">
-            {t("stage3.entrada.abilities", { count: input.abilities.length })}
+            {t("stage3.input.abilities", { count: input.abilities.length })}
           </span>
           <ul className="flex flex-wrap gap-1.5">
             {input.abilities.map((ability) => (
@@ -546,9 +546,9 @@ export function Stage3View({
         {stage5 ? <Stage5ReadOnlyPanel verdict={stage5} /> : null}
 
         {!hasOperation ? (
-          <EmptyNote>{t("stage3.processamento.noOperation")}</EmptyNote>
+          <EmptyNote>{t("stage3.processing.noOperation")}</EmptyNote>
         ) : abilityResults.length === 0 ? (
-          <p className="text-xs text-muted-foreground">{t("stage3.processamento.pending")}</p>
+          <p className="text-xs text-muted-foreground">{t("stage3.processing.pending")}</p>
         ) : (
           // Canonical live tracking per Ability (Req. 2.1–2.7): exactly one of
           // the four states, an activity indicator while `em_execucao`, and the

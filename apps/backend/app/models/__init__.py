@@ -20,6 +20,7 @@ from app.models.domain import (
     AgentStageOutput,
     AuditLogEntry,
     Case,
+    ContainerEmulability,
     Dag,
     EnvironmentParametersRow,
     ExecutionReport,
@@ -29,9 +30,11 @@ from app.models.domain import (
     SessionState,
     StageRun,
     StixVersion,
+    TechniqueEmulability,
     UserPreferences,
 )
 from app.models.enums import (
+    PHASE_ORDER,
     AbilityResultStatus,
     AgentRunStatus,
     AgentStage,
@@ -41,6 +44,7 @@ from app.models.enums import (
     Language,
     OperationState,
     StageState,
+    TechniqueEmulabilityKind,
     Theme,
     TranslationSource,
 )
@@ -57,7 +61,9 @@ __all__ = [
     "Language",
     "AgentRunStatus",
     "AgentStage",
+    "PHASE_ORDER",
     "EvaluatorDecision",
+    "TechniqueEmulabilityKind",
     # Models
     "Case",
     "Dag",
@@ -79,4 +85,7 @@ __all__ = [
     "AgentStageOutput",
     "AgentEvaluation",
     "ExperienceMemory",
+    # Container emulability (agentic-phase-model-refactor task 12.1)
+    "TechniqueEmulability",
+    "ContainerEmulability",
 ]

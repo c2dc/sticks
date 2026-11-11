@@ -56,7 +56,7 @@ export function StixBasesList({ onSelectBase }: StixBasesListProps) {
         setLoadError(null)
       } catch {
         if (signal?.cancelled) return
-        setLoadError(t("stix.bases.erroCarregar"))
+        setLoadError(t("stix.bases.loadError"))
       } finally {
         if (!signal?.cancelled) setLoading(false)
       }
@@ -89,7 +89,7 @@ export function StixBasesList({ onSelectBase }: StixBasesListProps) {
         const message =
           error instanceof ApiError && error.message
             ? error.message
-            : t("stix.bases.erroDownload")
+            : t("stix.bases.downloadError")
         // Keep the base not-downloaded and surface a descriptive error (Req. 2.7).
         setDownloadError((prev) => ({ ...prev, [version]: message }))
       } finally {
@@ -106,11 +106,11 @@ export function StixBasesList({ onSelectBase }: StixBasesListProps) {
   return (
     <section className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
-        <h2 className="text-xl font-semibold">{t("stix.bases.titulo")}</h2>
+        <h2 className="text-xl font-semibold">{t("stix.bases.title")}</h2>
       </div>
 
       {loading ? (
-        <p className="text-sm text-muted-foreground">{t("stix.bases.carregando")}</p>
+        <p className="text-sm text-muted-foreground">{t("stix.bases.loading")}</p>
       ) : null}
 
       {loadError ? (
@@ -184,7 +184,7 @@ function BaseCard({
           <CardTitle className="text-base">{base.version}</CardTitle>
           {base.downloaded ? (
             <span className="inline-flex items-center rounded-full border border-team-blue/50 bg-team-blue/10 px-2 py-0.5 text-xs font-medium text-team-blue">
-              {t("stix.bases.jaBaixada")}
+              {t("stix.bases.alreadyDownloaded")}
             </span>
           ) : null}
         </div>
@@ -205,7 +205,7 @@ function BaseCard({
               onSelect()
             }}
           >
-            {t("stix.bases.selecionar")}
+            {t("stix.bases.select")}
           </Button>
         ) : (
           <Button
@@ -217,7 +217,7 @@ function BaseCard({
               onDownload()
             }}
           >
-            {downloading ? t("stix.bases.baixando") : t("stix.bases.baixar")}
+            {downloading ? t("stix.bases.downloading") : t("stix.bases.download")}
           </Button>
         )}
       </CardContent>

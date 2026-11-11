@@ -38,16 +38,22 @@ Task 15.3 (this change) adds the **SEPINF-failure / ``FAILED`` handling** and th
 **startup seam fallback**:
 
 * ``start``/``resume`` wrap the graph invocation so that when SEPINF is
-  unreachable or exceeds its 30-second timeout, the model returns an error, or an
+  unreachable or exceeds its 30-second timeout, the model returns an error, an
   LLM output cannot be parsed into a valid DAG/command set after the one repair
-  (``DagGenerationError`` and analogous node errors), the run is flipped to
-  ``FAILED`` recording a failure cause that identifies the FAILING NODE, NO AI
-  artifact is persisted for the failing node (``_persist_iterations`` is skipped
-  entirely on failure) and, once ``FAILED``, the run is never transitioned to a
-  successful/completed status (Req. 14.1, 14.2, 14.6). The ``agent_runs`` schema
-  has no dedicated error column, so the failure cause is recorded by logging the
-  failing-node diagnostic and leaving ``final_verdict_success`` null while the
-  status stays ``FAILED`` — consistent with the model (Req. 14.6).
+  (``DagGenerationError`` and analogous node errors), or a stage cannot be filled
+  because its required Agent_Input is absent, the run is flipped to ``FAILED``
+  recording a failure cause that identifies the FAILING STAGE, NO FULL AI artifact
+  is persisted for the failing node (``_persist_iterations`` is skipped entirely
+  on failure) and, once ``FAILED``, the run is never transitioned to a
+  successful/completed status (Req. 2.6, 4.4, 14.1, 14.2, 14.6). The structured
+  failure cause (failing stage + absent-input/cause) is written to the nullable
+  ``agent_runs.error`` column (task 3.2) and ``final_verdict_success`` is left
+  null; when the failing node captured a partial Audit_Trace in its sink up to the
+  failure, ``_fail_run`` also persists that partial trace with the failing agent's
+  identity — anchored on a minimal ``agent_stage_outputs`` row and its 1:1
+  ``agent_stage_traces`` row inside a SAVEPOINT — so the failure is auditable
+  (Req. 2.6). The AI path is the only processing path: ``_fail_run`` does NOT fall
+  back to human curation for the Run (Req. 4.4).
 * :func:`resolve_stage_agent` is the **startup seam fallback** (Req. 12.2, 12.3):
   it resolves a stage agent (Stage 3 DAG / Stage 4 operationalization / Stage 5
   environment) behind the pipeline's existing seam, and on an initialization
@@ -453,34 +459,54 @@ class AgentRunService:
         from app.services.ai.checkpointer import get_checkpointer
         from app.services.ai.graph import build_graph
 
-        return build_graph(checkpointer=get_checkpointer())
+        # Thread the request-scoped Session into the graph so the stage agents
+        # assemble their Agent_Input from the DATABASE (Campaign_Overview + RAG),
+        # never from disk (task 14.1, Req. 5.1, 5.2, 5.4). It is bound into the
+        # nodes as a keyword argument, so the live Session never lands on the
+        # checkpointed AgentState.
+        return build_graph(
+            checkpointer=get_checkpointer(), session=self._session
+        )
 
     # -- failure handling (Req. 14.1, 14.2, 14.6) -----------------------------
 
     def _fail_run(
         self, run: "AgentRun", exc: BaseException
     ) -> "RunFailedError":
-        """Mark ``run`` ``FAILED`` with its failing-node cause and raise (14.1/14.2).
+        """Mark ``run`` ``FAILED``, record the cause + partial trace, and raise (2.6/4.4/14.x).
 
         Invoked when the graph invocation in :meth:`start` / :meth:`resume` raises
         — SEPINF unreachable or no response within its 30-second timeout, a model
-        error response, or an LLM output that could not be parsed into a valid
+        error response, an LLM output that could not be parsed into a valid
         DAG/command set after the single permitted repair
         (:class:`~app.services.ai.agents.dag_agent.DagGenerationError` and
-        analogous node errors). It:
+        analogous node errors), or a stage that could not be filled because its
+        required Agent_Input was absent. It:
 
-        * classifies the FAILING NODE from the raised exception
+        * classifies the FAILING STAGE from the raised exception
           (:meth:`_failing_node`) so the recorded cause identifies it (Req. 14.1,
-          14.2, 14.4);
-        * flips the run to ``FAILED`` and records the failure cause. The
-          ``agent_runs`` schema has no dedicated error column, so the cause is
-          recorded by LOGGING the failing-node diagnostic and leaving
-          ``final_verdict_success`` null while the status stays ``FAILED`` —
-          consistent with the model (Req. 14.6);
-        * persists NO AI artifact for the failing node: it deliberately does NOT
-          call :meth:`_persist_iterations`, so no ``agent_iterations`` /
-          ``agent_stage_outputs`` / ``agent_evaluations`` rows are written for the
-          failing iteration (Req. 14.1, 14.2);
+          14.2, 14.4, 4.4);
+        * flips the run to ``FAILED`` and writes a structured cause — the failing
+          stage plus the absent-input/cause message — into the nullable
+          ``agent_runs.error`` column (added in task 3.2), leaving
+          ``final_verdict_success`` null while the status stays ``FAILED`` so a
+          failed run never reads as completed/aborted (Req. 2.6, 4.4, 14.6);
+        * persists NO full AI artifact for the failing node, but when a partial
+          Audit_Trace was captured in the agent's sink up to the failure (carried
+          on the exception by the failing node — design §A "Failure capture"),
+          persists that partial trace together with the identity of the failing
+          agent so the failure is auditable (Req. 2.6). The trace is anchored on a
+          minimal ``agent_stage_outputs`` row for the failing stage (an empty
+          payload sentinel — the stage produced no valid artifact) and its 1:1
+          ``agent_stage_traces`` row, written inside a SAVEPOINT so the whole
+          partial-trace write lands atomically or not at all (design §B /
+          §Error Handling). When no partial trace was captured (a SEPINF transport
+          error / bare timeout that reached no LLM call), no bookkeeping row is
+          written at all — only ``agent_runs.error`` records the cause;
+        * does NOT fall back to human curation for the Run — the AI path is the
+          only processing path (Req. 4.4). ``resolve_stage_agent``'s curation
+          fallback concerns an agent failing to INITIALIZE at startup, not a
+          Run's missing input, and is deliberately left untouched here;
         * flushes the ``FAILED`` status and RETURNS a :class:`RunFailedError` for
           the caller to raise (``raise self._fail_run(...)``), so once ``FAILED``
           the surrounding ``start`` / ``resume`` never reaches the
@@ -493,13 +519,15 @@ class AgentRunService:
         from app.models.enums import AgentRunStatus
 
         node = self._failing_node(exc)
+        error_message = self._failure_message(node, exc)
 
-        # Record the failing-node cause. There is no error column on agent_runs,
-        # so the cause is captured in the log and the run is left with a null
-        # verdict and FAILED status (Req. 14.6).
+        # Record the failing-stage cause. The structured message (failing stage +
+        # absent-input/cause) is persisted to the nullable agent_runs.error column
+        # and also logged for operability (Req. 2.6, 4.4, 14.6).
         logger.error(
-            "AI curation run %s failed at node '%s' (%s: %s); marking the run "
-            "FAILED and persisting no AI artifact for the failing node.",
+            "AI curation run %s failed at stage '%s' (%s: %s); marking the run "
+            "FAILED, recording the cause in agent_runs.error and persisting no "
+            "full AI artifact for the failing stage.",
             getattr(run, "id", None),
             node,
             type(exc).__name__,
@@ -510,12 +538,187 @@ class AgentRunService:
         # Leave final_verdict_success null: a failed run has no passing verdict and
         # must never read as completed/aborted (Req. 14.6).
         run.final_verdict_success = None
+        # Structured failure cause surfaced by the read endpoint (Req. 2.6, 4.4).
+        run.error = error_message
         run.updated_at = _utcnow()
-        # Deliberately NOT calling _persist_iterations: no AI artifact is persisted
-        # for the failing node (Req. 14.1, 14.2).
         self._session.flush()
 
+        # Persist the partial Audit_Trace captured up to the failure together with
+        # the failing agent's identity, when the failing node carried one on the
+        # exception (design §A / §B). No FULL AI artifact is persisted — only a
+        # minimal anchor stage-output row + its 1:1 trace row — and the write stays
+        # inside its own SAVEPOINT (Req. 2.6). A SEPINF transport error / bare
+        # timeout carries no partial trace, so nothing is written here.
+        self._persist_partial_trace(run, node, exc)
+
         return RunFailedError(node, exc)
+
+    @staticmethod
+    def _failure_message(node: str, exc: BaseException) -> str:
+        """Compose the structured ``agent_runs.error`` cause (Req. 2.6, 4.4).
+
+        The message names the FAILING STAGE and the absent-input/cause carried by
+        the exception, so the read endpoint can surface a failure that identifies
+        both the stage that failed and why. A node error that carries an explicit
+        ``cause`` (``DagGenerationError`` and analogous) contributes it verbatim;
+        otherwise the exception's own text (a SEPINF transport/timeout/model
+        error) is used.
+        """
+        cause = getattr(exc, "cause", None)
+        if isinstance(cause, str) and cause.strip():
+            detail = cause.strip()
+        else:
+            detail = str(exc).strip() or type(exc).__name__
+        return f"stage '{node}' failed: {detail}"
+
+    def _persist_partial_trace(
+        self, run: "AgentRun", node: str, exc: BaseException
+    ) -> None:
+        """Persist the partial Audit_Trace captured up to a stage failure (Req. 2.6).
+
+        When the failing node attached the partial trace it captured in its sink
+        (up to the failure) to the raised exception — the node appends its
+        :class:`~app.services.ai.state.AgentTrace` in a ``finally`` even when its
+        LLM call raised, so the sink holds the ``agent_input`` and the processing
+        gathered so far — this writes that partial trace so the failure is
+        auditable. Because the failing stage produced no valid artifact, the trace
+        is anchored on a MINIMAL ``agent_stage_outputs`` row (empty payload
+        sentinel, ``origin = ai_generated``, the failing stage) linked to an
+        ``agent_iterations`` row, plus the single 1:1 ``agent_stage_traces`` row
+        for it. The whole write is wrapped in a nested transaction (``SAVEPOINT``)
+        so the partial-trace rows land atomically or roll back together without
+        disturbing the already-flushed ``FAILED`` status (design §B).
+
+        No FULL AI artifact is persisted for the failing stage — only this
+        audit anchor (Req. 14.1, 14.2). When the exception carries no partial
+        trace (a SEPINF transport error / bare timeout that never reached an LLM
+        call) this is a no-op: no bookkeeping row is written, only
+        ``agent_runs.error`` records the cause.
+        """
+        trace = self._partial_trace(exc, node)
+        if trace is None:
+            return None
+
+        from app.models.domain import AgentIteration, AgentStageOutput
+        from app.models.enums import AgentStage, TranslationSource
+        from app.services.ai.agents._trace import persist_stage_trace
+
+        stage = self._stage_for_node(node)
+        if stage is None:
+            # The failing node could not be mapped to a persistable AgentStage
+            # (e.g. a transport failure reported as "unknown"); the cause is still
+            # recorded in agent_runs.error, but there is no stage slot to anchor a
+            # trace row on, so nothing more is written.
+            return None
+
+        # The 0-based index of the iteration the failure occurred in; the failing
+        # pass counts as one iteration so the audit anchor is addressable.
+        iteration_index = max(run.iterations_used, 0)
+
+        try:
+            with self._session.begin_nested():
+                iteration = AgentIteration(
+                    run_id=run.id,
+                    index=iteration_index,
+                    refined_stage=None,
+                    created_at=_utcnow(),
+                )
+                self._session.add(iteration)
+                self._session.flush()
+
+                # A minimal anchor: the stage produced no valid artifact, so the
+                # payload is an explicit empty sentinel rather than an Agent_Output
+                # (no FULL AI artifact is persisted for the failing stage).
+                stage_output = AgentStageOutput(
+                    iteration_id=iteration.id,
+                    stage=stage,
+                    origin=TranslationSource.AI_GENERATED,
+                    payload={},
+                    created_at=_utcnow(),
+                )
+                self._session.add(stage_output)
+                self._session.flush()
+
+                persist_stage_trace(self._session, stage_output, trace)
+        except Exception as persist_exc:  # noqa: BLE001 - audit write is best-effort
+            # The partial-trace write is an auditability aid layered on top of an
+            # already-FAILED run; a failure here must not mask the original run
+            # failure. The SAVEPOINT already rolled the partial rows back, so the
+            # FAILED status + error remain intact — log and move on.
+            logger.warning(
+                "Persisting the partial Audit_Trace for failed run %s at stage "
+                "'%s' did not complete (%s: %s); the run stays FAILED with its "
+                "recorded cause and no partial-trace rows were retained.",
+                getattr(run, "id", None),
+                node,
+                type(persist_exc).__name__,
+                persist_exc,
+            )
+
+        return None
+
+    @staticmethod
+    def _partial_trace(exc: BaseException, node: str) -> Optional[dict]:
+        """Extract the partial ``AgentTrace`` the failing node captured (Req. 2.6).
+
+        The failing node attaches the partial trace it accumulated in its sink
+        (up to the failure) to the raised exception so :meth:`_fail_run` can
+        persist it — design §A "Failure capture". This reads it off the exception,
+        accepting either a single ``AgentTrace`` dict (``exc.trace`` /
+        ``exc.partial_trace``) or the raw sink list (``exc.traces`` /
+        ``exc.partial_traces``), from which the LAST captured entry is used (the
+        most recent pass of the failing stage). The returned trace is stamped with
+        the failing ``stage`` when it carries none, so the anchor row and trace
+        agree. When no partial trace is present (a SEPINF transport error / bare
+        timeout) ``None`` is returned and no trace is persisted.
+        """
+        candidate: Any = None
+        for attr in ("partial_trace", "trace"):
+            value = getattr(exc, attr, None)
+            if isinstance(value, dict):
+                candidate = value
+                break
+        if candidate is None:
+            for attr in ("partial_traces", "traces"):
+                value = getattr(exc, attr, None)
+                if isinstance(value, list) and value:
+                    last = value[-1]
+                    if isinstance(last, dict):
+                        candidate = last
+                        break
+        if not isinstance(candidate, dict):
+            return None
+
+        trace = dict(candidate)
+        if not trace.get("stage"):
+            stage = AgentRunService._stage_for_node(node)
+            if stage is not None:
+                trace["stage"] = stage.value
+        return trace
+
+    @staticmethod
+    def _stage_for_node(node: str) -> "Optional[AgentStage]":
+        """Map a short node key (``"dag"`` …) onto an :class:`AgentStage` member.
+
+        The node errors name the failing stage with the router's short key
+        (``"dag"`` / ``"operationalize"`` / ``"environment"``); the persisted
+        ``agent_stage_outputs.stage`` / ``agent_stage_traces`` rows key on the
+        :class:`~app.models.enums.AgentStage` value. Returns the matching member,
+        or ``None`` when the key is not one of the three persistable AI stages (a
+        transport failure reported as ``"unknown"`` has no stage slot).
+        """
+        from app.models.enums import AgentStage
+
+        mapping = {
+            "dag": AgentStage.DAG,
+            AgentStage.DAG.value: AgentStage.DAG,
+            "operationalize": AgentStage.OPERATIONALIZATION,
+            "operationalization": AgentStage.OPERATIONALIZATION,
+            AgentStage.OPERATIONALIZATION.value: AgentStage.OPERATIONALIZATION,
+            "environment": AgentStage.ENVIRONMENT,
+            AgentStage.ENVIRONMENT.value: AgentStage.ENVIRONMENT,
+        }
+        return mapping.get(node)
 
     @staticmethod
     def _failing_node(exc: BaseException) -> str:
@@ -749,6 +952,7 @@ class AgentRunService:
         artifacts = final_state.get("artifacts") or {}
         evaluation = final_state.get("evaluation") or None
         refine_stage = final_state.get("refine_stage")
+        notes = self._iteration_notes(final_state, evaluation)
 
         try:
             # A nested transaction (SAVEPOINT) makes the whole iteration write
@@ -757,10 +961,14 @@ class AgentRunService:
             # rows survive a mid-write failure (Req. 11.6, 11.7).
             with self._session.begin_nested():
                 iteration = self._persist_iteration_row(
-                    run, iteration_index, refine_stage
+                    run, iteration_index, refine_stage, notes
                 )
                 self._persist_stage_outputs(
-                    final_state, artifacts, iteration_id=iteration.id, run=run
+                    final_state,
+                    artifacts,
+                    iteration_id=iteration.id,
+                    iteration_index=iteration_index,
+                    run=run,
                 )
                 if evaluation:
                     self._persist_evaluation_row(
@@ -788,7 +996,11 @@ class AgentRunService:
         return None
 
     def _persist_iteration_row(
-        self, run: "AgentRun", index: int, refine_stage: Optional[str]
+        self,
+        run: "AgentRun",
+        index: int,
+        refine_stage: Optional[str],
+        notes: Optional[str] = None,
     ) -> "AgentIteration":
         """Create and flush the ``agent_iterations`` row for the completed pass.
 
@@ -796,31 +1008,78 @@ class AgentRunService:
         ``index`` of the pass; ``refined_stage`` carries the stage the evaluator
         routed back into for this iteration (``None`` on the first pass), mapped
         from the final state's ``refine_stage`` onto an :class:`AgentStage` member
-        when it names one. The row is flushed so its ``id`` is available for the
-        stage-output / evaluation FKs written within the same transaction.
+        when it names one, and ``notes`` records the per-iteration "why" — the
+        evaluator's Refinement_Route / finish rationale (Req. 15.6). The row is
+        flushed so its ``id`` is available for the stage-output / evaluation FKs
+        written within the same transaction.
         """
         from app.models.domain import AgentIteration
-        from app.models.enums import AgentStage
-
-        refined = None
-        if refine_stage is not None:
-            try:
-                refined = AgentStage(refine_stage)
-            except ValueError:
-                # The state's refine_stage uses the router's short keys ("dag" /
-                # "operationalize" / "environment"); when it is not a direct
-                # AgentStage value leave refined_stage null rather than guess.
-                refined = None
 
         iteration = AgentIteration(
             run_id=run.id,
             index=index,
-            refined_stage=refined,
+            refined_stage=self._refined_stage(refine_stage),
+            notes=notes,
             created_at=_utcnow(),
         )
         self._session.add(iteration)
         self._session.flush()
         return iteration
+
+    @staticmethod
+    def _refined_stage(refine_stage: Optional[str]) -> "Optional[AgentStage]":
+        """Map the state's ``refine_stage`` onto an :class:`AgentStage` (Req. 15.1).
+
+        The evaluator's ``_diagnose_failing_stage`` writes an :class:`AgentStage`
+        *value* onto ``state["refine_stage"]`` (``dag`` /
+        ``operationalization`` / ``environment``), so a refining
+        iteration lands a direct value here. For robustness this also accepts the
+        router's short refine keys (``"dag"`` / ``"operationalize"`` /
+        ``"environment"``) in case either shape reaches the state, so
+        ``refined_stage`` is populated whenever the evaluator refined (Req. 15.1,
+        15.2). An absent or unrecognised value leaves ``refined_stage`` null
+        (the first pass, or a FINISH that refined nothing) rather than guessing.
+        """
+        from app.models.enums import AgentStage
+
+        if refine_stage is None:
+            return None
+        try:
+            return AgentStage(refine_stage)
+        except ValueError:
+            pass
+        short_keys = {
+            "dag": AgentStage.DAG,
+            "operationalize": AgentStage.OPERATIONALIZATION,
+            "operationalization": AgentStage.OPERATIONALIZATION,
+            "environment": AgentStage.ENVIRONMENT,
+        }
+        return short_keys.get(refine_stage)
+
+    @staticmethod
+    def _iteration_notes(
+        final_state: dict, evaluation: Optional[dict]
+    ) -> Optional[str]:
+        """Record the per-iteration "why" for ``agent_iterations.notes`` (Req. 15.6).
+
+        The evaluator produces, for every iteration, a ``rationale`` explaining
+        the decision it made — the Refinement_Route reasoning (which stage it
+        chose to re-enter and why) on a refining pass, or the finish reasoning on
+        a passing verdict. That "why" is carried on
+        ``final_state["evaluation"]["rationale"]``; this records it on the
+        iteration's ``notes`` column so the reason each iteration was refined (or
+        finished) is auditable on the iteration row itself, not only on the
+        evaluation row (Req. 15.6). An explicit ``final_state["notes"]`` takes
+        precedence when a node set one; absent any rationale the notes stay null.
+        """
+        explicit = final_state.get("notes")
+        if isinstance(explicit, str) and explicit.strip():
+            return explicit.strip()
+        if evaluation:
+            rationale = evaluation.get("rationale")
+            if isinstance(rationale, str) and rationale.strip():
+                return rationale.strip()
+        return None
 
     def _persist_stage_outputs(
         self,
@@ -828,6 +1087,7 @@ class AgentRunService:
         artifacts: dict,
         *,
         iteration_id: int,
+        iteration_index: int,
         run: "AgentRun",
     ) -> None:
         """Persist the iteration's ``agent_stage_outputs`` via the factored hooks.
@@ -848,12 +1108,22 @@ class AgentRunService:
           :func:`env_agent.persist_stage_output`, which reads the serialized
           environment straight off the state.
 
+        Each hook is also handed the matching :class:`~app.services.ai.state.AgentTrace`
+        dict — looked up from ``final_state["traces"]`` by ``(stage, iteration)``
+        (:meth:`_trace_for`) — so it writes the 1:1 ``agent_stage_traces`` row for
+        the just-persisted output in the SAME flush, inside this iteration's
+        SAVEPOINT (Req. 2.1, 2.5). A genuinely-absent trace is passed as ``None``
+        and no trace row is written for that output.
+
         Missing artifacts are skipped (a stage that did not run this pass simply
         has no row). All hooks only ``add``/``flush`` onto the shared ``Session``;
         the enclosing nested transaction in :meth:`_persist_iterations` owns the
         commit/rollback boundary.
         """
+        from app.models.enums import AgentStage
         from app.services.ai.agents import dag_agent, env_agent, op_agent
+
+        traces = final_state.get("traces")
 
         dag_payload = artifacts.get("dag")
         if dag_payload:
@@ -865,6 +1135,9 @@ class AgentRunService:
                 iteration_id=iteration_id,
                 campaign_id=run.campaign_id,
                 produced=produced_dag,
+                trace=self._trace_for(
+                    traces, AgentStage.DAG.value, iteration_index
+                ),
             )
 
         op_payload = artifacts.get("operationalization")
@@ -875,13 +1148,56 @@ class AgentRunService:
 
             produced_op = ProducedOperationalization.model_validate(op_payload)
             op_agent.persist_stage_output(
-                self._session, iteration_id, produced_op
+                self._session,
+                iteration_id,
+                produced_op,
+                trace=self._trace_for(
+                    traces,
+                    AgentStage.OPERATIONALIZATION.value,
+                    iteration_index,
+                ),
             )
 
         if artifacts.get("environment"):
             env_agent.persist_stage_output(
-                self._session, final_state, iteration_id=iteration_id
+                self._session,
+                final_state,
+                iteration_id=iteration_id,
+                trace=self._trace_for(
+                    traces, AgentStage.ENVIRONMENT.value, iteration_index
+                ),
             )
+
+    @staticmethod
+    def _trace_for(
+        traces: Any, stage: str, iteration_index: int
+    ) -> Optional[dict]:
+        """Look up the ``AgentTrace`` for ``(stage, iteration_index)`` (Req. 2.1).
+
+        The append-only ``traces`` channel accumulates one
+        :class:`~app.services.ai.state.AgentTrace` dict per AI node per pass, each
+        keyed by its English ``stage`` value (``dag`` /
+        ``operationalization`` / ``environment``) and the 0-based
+        ``iteration`` the node ran in. This returns the trace matching the
+        persisting stage output's stage and iteration, or ``None`` when no such
+        trace was captured (a curation fallback, or an AI path that recorded
+        nothing) — in which case the hook writes no ``agent_stage_traces`` row.
+
+        When several traces match (a refine loop re-entered the same stage across
+        passes, all accumulated in the channel), the LAST matching one is
+        returned so the persisted trace reflects the most recent pass of that
+        stage — consistent with the checkpointer overwriting ``artifacts`` each
+        pass so the persisted output is also the last pass's.
+        """
+        if not isinstance(traces, list):
+            return None
+        match: Optional[dict] = None
+        for entry in traces:
+            if not isinstance(entry, dict):
+                continue
+            if entry.get("stage") == stage and entry.get("iteration") == iteration_index:
+                match = entry
+        return match
 
     def _persist_evaluation_row(
         self, final_state: dict, evaluation: dict, *, iteration_id: int

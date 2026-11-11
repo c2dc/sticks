@@ -1,5 +1,22 @@
 """CaseService — read and parse the 8 curated cases (task 3.1).
 
+One-shot ingest only (sub-step 2.4, Req. 1.1, 4.1, 4.2)
+-------------------------------------------------------
+After the curated ingest (``CuratedIngestService``, sub-step 2.1) the database
+is the single source of truth. The disk-reading methods here
+(:meth:`CaseService.load_case` / :meth:`try_load_case` / :meth:`load_all_cases`
+/ :meth:`load_all_cases_safe` and the ``*_path`` resolvers) are **no longer
+called at request time** — they survive only as the one-shot ingest path that
+``CuratedIngestService`` / ``CurationDagGenerator`` use to populate the database.
+Every request-time consumer (Stage 1 structural modeling, Stage 3/4
+operationalization, the emulation/topology/DAG endpoints, the AI ground-truth
+comparison) now resolves campaign content from the ``campaigns``/``dags``/
+``abilities``/``adversaries`` rows, so the runtime never touches
+``packages/cli/data/api`` nor ``packages/cli/data/dag``. The in-memory curated
+registry (:data:`CURATED_CASES`, exposed via :meth:`list_cases`) carries no disk
+access and stays in use for the curated display names and the curated/non-curated
+distinction.
+
 This service reads the *real* curated files that live under the sticks data
 directory and turns them into typed, in-memory results:
 

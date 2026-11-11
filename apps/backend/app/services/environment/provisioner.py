@@ -95,6 +95,7 @@ from app.services.environment.operationalization import (
     EnvironmentParameters,
     EnvironmentPlatform,
 )
+from app.services.environment.vm_confirmation_gate import VmConfirmationRecord
 from app.services.environment.target_setup import (
     DockerTargetSetup,
     SetupPhase,
@@ -305,6 +306,15 @@ class ProvisionedEnvironment(BaseModel):
             egress loss, the offline setup and the per-host egress verdicts
             (Req. 6.3). Defaults to a not-approved summary, so an output built
             before the sub-stages run keeps the full shape with ``ready`` ``False``.
+        vm_confirmation: :class:`~app.services.environment.vm_confirmation_gate.VmConfirmationRecord`
+            recording the VM_Confirmation_Gate verdict (Req. 14.6-14.8). The
+            application **always** provisions a container (Container_Preference,
+            Req. 14.6): the effective platform is always ``CONTAINER`` and the VM
+            count provisioned is always ``0``. When a campaign would require a VM,
+            this record carries the explicit-confirmation request to the Researcher
+            (Req. 14.7) and marks the VM as a future contract **not** executed
+            (Req. 14.8). Defaults to a dormant record (not triggered) on the normal
+            container-only path.
         failed_step: The pipeline step that failed — one of the inherited
             ``"subir_conteineres"``, ``"aguardar_saude"``,
             ``"carregar_abilities"``, ``"verificar_isolamento"`` or one of the new
@@ -324,6 +334,7 @@ class ProvisionedEnvironment(BaseModel):
     health: HealthSummary = Field(default_factory=HealthSummary)
     loaded_abilities: bool = False
     substages: SubStageSummary = Field(default_factory=SubStageSummary)
+    vm_confirmation: VmConfirmationRecord = Field(default_factory=VmConfirmationRecord)
     origin: TranslationSource = TranslationSource.HUMAN_CURATION
     failed_step: Optional[str] = None
     error_message: Optional[str] = None
@@ -870,27 +881,29 @@ class CurationEnvironmentProvisioner:
         """Build the ``POST /api/v2/abilities`` payloads from the Abilities.
 
         Sends the fields the Caldera v2 Ability schema uses; absent fields are
-        omitted (Caldera fills its own defaults). Reuses the same projection as the
-        ``OperationRunner`` to keep the payload coherent.
+        omitted (Caldera fills its own defaults), except ``technique_name`` which
+        the shared projection guarantees to be non-empty (this Caldera version
+        raises ``KeyError: 'technique_name'`` otherwise — see
+        ``ai-run-caldera-ability-technique-name``). Executors that expose
+        ``model_dump`` are serialized, matching the previous behavior.
+
+        Delegates to :func:`build_caldera_ability_payloads` so this provisioner
+        and the ``OperationRunner`` share one projection and the same
+        ``technique_name`` invariant.
         """
-        payloads: list[Mapping[str, Any]] = []
-        for ability in abilities:
-            payload: dict[str, Any] = {}
-            ability_id = getattr(ability, "ability_id", None)
-            if ability_id:
-                payload["ability_id"] = ability_id
-            for attr in ("name", "tactic", "technique_name", "technique_id", "description"):
-                value = getattr(ability, attr, None)
-                if value is not None:
-                    payload[attr] = value
-            executors = getattr(ability, "executors", None)
-            if executors:
-                payload["executors"] = [
-                    e.model_dump() if hasattr(e, "model_dump") else e
-                    for e in executors
-                ]
-            payloads.append(payload)
-        return payloads
+        # Local import keeps parity with the lazy CalderaClient import above and
+        # avoids any import-order coupling with the caldera package.
+        from app.services.caldera.ability_payload import build_caldera_ability_payloads
+
+        def _normalize_executors(executors: Any) -> list[Any]:
+            return [
+                e.model_dump() if hasattr(e, "model_dump") else e
+                for e in executors
+            ]
+
+        return build_caldera_ability_payloads(
+            abilities, executor_normalizer=_normalize_executors
+        )
 
     @staticmethod
     def _adversary_payload(case: CaseData) -> Optional[Mapping[str, Any]]:

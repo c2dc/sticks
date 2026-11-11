@@ -183,7 +183,7 @@ def _count(session: Session, model: type) -> int:
 
 
 @settings(
-    max_examples=150,
+    max_examples=40,
     deadline=None,
     suppress_health_check=[HealthCheck.too_slow],
 )

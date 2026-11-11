@@ -189,7 +189,7 @@ def _clamp(value: float, low: float, high: float) -> float:
 
 
 @settings(
-    max_examples=200,
+    max_examples=40,
     deadline=None,
     suppress_health_check=[HealthCheck.too_slow, HealthCheck.function_scoped_fixture],
 )

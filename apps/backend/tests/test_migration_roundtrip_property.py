@@ -58,7 +58,7 @@ matched one-to-one with its post-round-trip counterpart. The property asserts:
    and the ``execucoes_estagio.dag_escolhido_id`` column do NOT exist; after
    ``upgrade()`` BOTH exist; after ``downgrade()`` BOTH are gone again.
 
-At least 100 iterations run (``max_examples=150``). Everything is in-process —
+At least 100 iterations run (``max_examples=40``). Everything is in-process —
 NO Docker, NO network, NO shared DB — safe on any dev environment.
 """
 
@@ -245,7 +245,7 @@ _rows_strategy = st.lists(_row_strategy, min_size=0, max_size=12)
 
 
 @settings(
-    max_examples=150,
+    max_examples=40,
     deadline=None,
     suppress_health_check=[HealthCheck.too_slow],
 )

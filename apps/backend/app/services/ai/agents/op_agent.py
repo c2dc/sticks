@@ -43,7 +43,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Callable, Optional
 
-from app.models.enums import TranslationSource
+from app.models.enums import AgentStage, TranslationSource
 from app.services.environment.operationalizer import ProducedOperationalization
 
 if TYPE_CHECKING:  # pragma: no cover - typing only, no runtime import
@@ -83,6 +83,7 @@ class AiOperationalizer:
         memory: "ExperienceMemory | None" = None,
         atomic_lookup: "Callable[[str], list[dict]] | None" = None,
         parser: "Callable[[str], dict] | None" = None,
+        trace_sink: "Optional[list[dict]]" = None,
     ) -> None:
         """Assemble the agent with lazily-injected collaborators.
 
@@ -112,6 +113,12 @@ class AiOperationalizer:
         self._memory = memory
         self._atomic = atomic_lookup
         self._parser = parser
+        # Optional Audit_Trace sink injected by the LangGraph ``node`` wrapper,
+        # carried as an instance attribute — NOT an ``operationalize`` parameter —
+        # so the ``@runtime_checkable`` ``OperationalizerByOrigin`` seam signature
+        # (``operationalize(campaign, dag)``) is byte-for-byte unchanged (design
+        # §A). When ``None`` no trace is captured and behavior is unchanged.
+        self._trace_sink = trace_sink
 
     # -- Seam API -----------------------------------------------------------
 
@@ -142,13 +149,62 @@ class AiOperationalizer:
         :class:`ProducedOperationalization` (Req. 8.4). Every emitted command is
         still subject to the unchanged downstream containment check — this method
         only proposes (Req. 8.1).
+
+        Audit_Trace capture (Req. 1.2, 1.3, 2.2, 2.3): when the node wrapper
+        injected an ``trace_sink`` (a ``list[dict]``) into the constructor, the
+        agent appends a single :class:`~app.services.ai.state.AgentTrace` dict
+        capturing its LLM call sites — ``agent_input`` carrying the DAG (the
+        prior-stage artifact used as the modeling for this stage), the retrieved
+        experience and the (absent) attack context / prior artifacts;
+        ``processing`` carrying the per-node ``llm_prompt`` / raw ``llm_response``,
+        the ``reasoning``, the ``tools_invoked`` and the (absent) repair fields.
+        The sink is an injected instance attribute (NOT an ``operationalize``
+        parameter) so the ``@runtime_checkable`` ``OperationalizerByOrigin`` seam
+        signature is byte-for-byte unchanged; genuinely-absent elements are
+        recorded with an explicit ``None`` sentinel the serialization layer maps to
+        "not available".
         """
         experience = self._prime_experience(campaign, dag)
 
-        selections = self._select_per_node(campaign, dag, experience)
+        # Per-node LLM prompt/response capture for the trace (populated by the
+        # selection pass when an LLM is injected; stays empty on the deterministic
+        # fallback so the trace honestly records "no LLM call").
+        llm_calls: list[dict[str, Any]] = []
+        selections = self._select_per_node(
+            campaign, dag, experience, llm_calls=llm_calls
+        )
 
         abilities = self._build_abilities(selections)
         parameters = self._derive_parameters(campaign, selections)
+
+        if self._trace_sink is not None:
+            tools_invoked = ["tool_atomic_lookup", "tool_parse_command"]
+            if self._memory is not None:
+                tools_invoked.insert(0, "experience_memory.retrieve")
+            self._trace_sink.append(
+                {
+                    "stage": AgentStage.OPERATIONALIZATION.value,
+                    "iteration": None,
+                    "agent_input": {
+                        "modeling": self._dag_summary(dag),
+                        "retrieved_experience": experience,
+                        "attack_context": None,
+                        "prior_artifacts": {"dag": self._dag_summary(dag)},
+                    },
+                    "processing": {
+                        "llm_prompt": [call["prompt"] for call in llm_calls]
+                        if llm_calls
+                        else None,
+                        "llm_response": [call["response"] for call in llm_calls]
+                        if llm_calls
+                        else None,
+                        "reasoning": None,
+                        "tools_invoked": tools_invoked,
+                        "repair_attempts": 0,
+                        "repair_hints": None,
+                    },
+                }
+            )
 
         return ProducedOperationalization(
             campaign_id=campaign,
@@ -156,6 +212,25 @@ class AiOperationalizer:
             parameters=parameters,
             origin=self.origin(),
         )
+
+    @staticmethod
+    def _dag_summary(dag: "DagView") -> dict[str, Any]:
+        """A compact, JSON-native summary of the DAG for the trace ``agent_input``."""
+        nodes = []
+        for node in getattr(dag, "nodes", []) or []:
+            nodes.append(
+                {
+                    "node_id": getattr(node, "node_id", None),
+                    "technique_id": getattr(node, "technique_id", None),
+                    "technique_name": getattr(node, "technique_name", None),
+                    "tactic": getattr(node, "tactic", None),
+                }
+            )
+        return {
+            "campaign_id": getattr(dag, "campaign_id", None),
+            "name": getattr(dag, "name", None),
+            "nodes": nodes,
+        }
 
     # -- Collaborators resolved lazily --------------------------------------
 
@@ -211,6 +286,8 @@ class AiOperationalizer:
         campaign: str,
         dag: "DagView",
         experience: list[dict[str, Any]],
+        *,
+        llm_calls: "Optional[list[dict[str, Any]]]" = None,
     ) -> list[dict[str, Any]]:
         """Select/parametrize one Ability worth of commands per DAG node (Req. 2.2).
 
@@ -246,7 +323,9 @@ class AiOperationalizer:
             if not pool:
                 continue
 
-            chosen = self._choose_commands(node, pool, experience)
+            chosen = self._choose_commands(
+                node, pool, experience, llm_calls=llm_calls
+            )
             if not chosen:
                 continue
 
@@ -275,17 +354,23 @@ class AiOperationalizer:
         node: Any,
         pool: list[dict[str, Any]],
         experience: list[dict[str, Any]],
+        *,
+        llm_calls: "Optional[list[dict[str, Any]]]" = None,
     ) -> list[dict[str, Any]]:
         """Pick the concrete commands to propose for ``node`` from its ``pool``.
 
         With an LLM injected, delegates the selection/adaptation to it; on any LLM
         error (or when no LLM is injected) falls back to the deterministic default
         so the agent never hard-fails on priming alone. The returned commands are
-        normalized to ``{"name", "platform", "command"}`` entries.
+        normalized to ``{"name", "platform", "command"}`` entries. When
+        ``llm_calls`` is supplied the LLM prompt/response for this node is recorded
+        into it for the Audit_Trace.
         """
         if self._chat is not None:
             try:
-                chosen = self._choose_with_llm(node, pool, experience)
+                chosen = self._choose_with_llm(
+                    node, pool, experience, llm_calls=llm_calls
+                )
                 if chosen:
                     return chosen
             except Exception:  # noqa: BLE001 - degrade to deterministic selection
@@ -297,6 +382,8 @@ class AiOperationalizer:
         node: Any,
         pool: list[dict[str, Any]],
         experience: list[dict[str, Any]],
+        *,
+        llm_calls: "Optional[list[dict[str, Any]]]" = None,
     ) -> list[dict[str, Any]]:
         """Ask the injected LLM to select/adapt the atomic tests for ``node``.
 
@@ -315,6 +402,16 @@ class AiOperationalizer:
         text = getattr(reply, "content", reply)
         if not isinstance(text, str):
             text = str(text)
+
+        if llm_calls is not None:
+            llm_calls.append(
+                {
+                    "node_id": getattr(node, "node_id", None)
+                    or getattr(node, "technique_id", None),
+                    "prompt": prompt,
+                    "response": text,
+                }
+            )
 
         try:
             proposed = json.loads(text)
@@ -464,6 +561,7 @@ class AiOperationalizer:
                     ability_id=ability_id,
                     name=selection.get("technique_name"),
                     technique_id=selection.get("technique_id"),
+                    technique_name=selection.get("technique_name"),
                     tactic=selection.get("tactic"),
                     description=None,
                     executors=[
@@ -602,6 +700,7 @@ def build_agent(
     chat: Any = None,
     memory: "ExperienceMemory | None" = None,
     session: Any = None,
+    trace_sink: "Optional[list[dict]]" = None,
 ) -> AiOperationalizer:
     """Build the Stage 4 :class:`AiOperationalizer`, resolving collaborators lazily.
 
@@ -642,7 +741,23 @@ def build_agent(
         except Exception:  # noqa: BLE001 - propose without RAG priming
             resolved_memory = None
 
-    return AiOperationalizer(chat=resolved_chat, memory=resolved_memory)
+    # Bind the Atomic Red Team command pool to the request-scoped session so the
+    # pool is sourced from the DB-backed Command_Base, never from disk (task
+    # 14.1, Req. 12.1, 12.3, 5.2). With no session the lookup is left unset and
+    # the agent's own lazy default yields an empty pool (no disk read).
+    resolved_atomic: "Callable[[str], list[dict]] | None" = None
+    if session is not None:
+        from app.services.ai.tools import tool_atomic_lookup
+
+        def resolved_atomic(technique_id: str) -> list[dict]:  # type: ignore[misc]
+            return tool_atomic_lookup(technique_id, session=session)
+
+    return AiOperationalizer(
+        chat=resolved_chat,
+        memory=resolved_memory,
+        atomic_lookup=resolved_atomic,
+        trace_sink=trace_sink,
+    )
 
 
 def _dag_from_state(state: "AgentState") -> "DagView":
@@ -721,7 +836,7 @@ def _dag_from_state(state: "AgentState") -> "DagView":
     )
 
 
-def node(state: "AgentState") -> dict:
+def node(state: "AgentState", *, session: Any = None) -> dict:
     """LangGraph node for Stage 4 — operationalize the DAG, write the artifact.
 
     Builds the :class:`AiOperationalizer` with lazily-resolved collaborators
@@ -747,8 +862,24 @@ def node(state: "AgentState") -> dict:
     campaign_id = state.get("campaign_id", "") or ""
     dag = _dag_from_state(state)
 
-    agent = build_agent(session=state.get("_session"))
+    # Local trace sink injected into the agent: it appends its AgentTrace at its
+    # LLM call sites; we stamp the current iteration and return it under the
+    # append-only ``traces`` channel (design §A). The ``Annotated[list[dict], add]``
+    # reducer merges it. The sink is passed through the constructor (not
+    # ``operationalize``) so the seam signature is unchanged.
+    sink: list[dict] = []
+    # The session is threaded by ``build_graph`` as a bound kwarg so the agent's
+    # Atomic Red Team command pool and RAG come from the DATABASE, never from disk
+    # (task 14.1, Req. 12.1, 12.3, 5.2). A legacy ``state["_session"]`` channel is
+    # honoured so direct callers/tests keep working.
+    resolved_session = session if session is not None else state.get("_session")
+    agent = build_agent(session=resolved_session, trace_sink=sink)
     produced = agent.operationalize(campaign_id, dag)
+
+    iteration = state.get("iteration", 0)
+    for trace in sink:
+        if trace.get("iteration") is None:
+            trace["iteration"] = iteration
 
     existing_artifacts = dict(state.get("artifacts") or {})
     existing_artifacts["operationalization"] = produced.model_dump(mode="json")
@@ -765,6 +896,7 @@ def node(state: "AgentState") -> dict:
                 "service_count": len(produced.parameters.services),
             }
         ],
+        "traces": sink,
     }
 
 
@@ -774,6 +906,7 @@ def persist_stage_output(
     produced: ProducedOperationalization,
     *,
     persist_parameters: bool = True,
+    trace: Optional[dict] = None,
 ) -> Any:
     """Run_Service hook: persist the Stage 4 output as an ``agent_stage_outputs`` row.
 
@@ -802,6 +935,12 @@ def persist_stage_output(
             :class:`EnvironmentParameters` and link ``params_id``; when false, the
             caller already holds a params row (or none applies) and only the
             stage-output row is written.
+        trace: The matching :class:`~app.services.ai.state.AgentTrace` dict the
+            Run_Service looked up from ``final_state["traces"]`` by
+            ``(stage, iteration)``. When supplied, one 1:1 ``agent_stage_traces``
+            row is written for the just-flushed stage output in the SAME flush,
+            inside the Run_Service's existing SAVEPOINT (Req. 2.1, 2.5). Absent
+            processing elements are carried with the explicit ``None`` sentinel.
 
     Returns:
         The persisted :class:`~app.models.domain.AgentStageOutput` instance
@@ -834,6 +973,12 @@ def persist_stage_output(
     )
     session.add(stage_output)
     session.flush()
+
+    # Write the 1:1 Audit_Trace row for this stage output in the same flush, so
+    # it lands inside the Run_Service's per-iteration SAVEPOINT (Req. 2.1, 2.5).
+    from app.services.ai.agents._trace import persist_stage_trace
+
+    persist_stage_trace(session, stage_output, trace)
     return stage_output
 
 

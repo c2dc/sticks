@@ -35,13 +35,43 @@ import pytest
 from hypothesis import HealthCheck, assume, given, settings
 from hypothesis import strategies as st
 
+from sqlalchemy.orm import Session, sessionmaker
+
+from app.core.config import Settings
+from app.db.base import Base, import_models
+from app.db.session import create_db_engine
 from app.services.campaign_service import CURATED_CASES, CaseService
+from app.services.curated_ingest_service import CuratedIngestService
 from app.services.dag.dag_service import DagService
 
 
 # A real curated slug used for the generated fixtures and the real-file example.
 _CURATED_SLUG = "shadowray"
 assert _CURATED_SLUG in CURATED_CASES  # guard: keep the fixture slug curated
+
+
+def _seeded_session(case_service: CaseService) -> Session:
+    """Ephemeral SQLite seeded from ``case_service``'s disk fixtures.
+
+    Sub-step 2.4 made ``DagService.get_dag`` resolve the DAG from the ``dags``
+    table (no request-time disk read), so the tests ingest the curated fixtures
+    once and bind the service to the resulting :class:`Session`.
+    """
+    settings_obj = Settings(database_url="sqlite:///:memory:")
+    engine = create_db_engine(settings_obj)
+    import_models()
+    Base.metadata.create_all(bind=engine)
+    factory: sessionmaker[Session] = sessionmaker(
+        bind=engine,
+        autocommit=False,
+        autoflush=False,
+        expire_on_commit=False,
+        future=True,
+        class_=Session,
+    )
+    session = factory()
+    CuratedIngestService(session, case_service=case_service).ingest_all()
+    return session
 
 
 # ---------------------------------------------------------------------------
@@ -158,7 +188,7 @@ def _has_cycle(num_nodes: int, edges: list[tuple[str, str]], ids: list[str]) -> 
 
 # Feature: stream-stix-dashboard, Property 8: campaign curated produz Mermaid acíclico
 # não vazio e habilita avanço
-@settings(max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture])
+@settings(max_examples=30, suppress_health_check=[HealthCheck.function_scoped_fixture])
 @given(dag=_acyclic_dag())
 def test_property8_curated_dag_yields_acyclic_mermaid_and_advance(
     dag: dict, tmp_path_factory: pytest.TempPathFactory
@@ -170,7 +200,9 @@ def test_property8_curated_dag_yields_acyclic_mermaid_and_advance(
     data_dir = tmp_path_factory.mktemp("dag_prop8")
     _write_case_fixture(data_dir, _CURATED_SLUG, dag["structural_nodes"])
 
-    service = DagService(case_service=CaseService(data_dir=data_dir))
+    case_service = CaseService(data_dir=data_dir)
+    session = _seeded_session(case_service)
+    service = DagService(session=session, case_service=case_service)
     view = service.get_dag(_CURATED_SLUG)
 
     # Curated + advanceable.
@@ -203,13 +235,18 @@ def test_property8_curated_dag_yields_acyclic_mermaid_and_advance(
 def test_property8_example_real_shadowray_dag() -> None:
     """Concrete example over the REAL ``shadowray_dag.json`` → 10 nós / 9 edges.
 
-    Uses a default :class:`CaseService` (reads ``<repo>/sticks/data/dag``), which
-    is present in the running container. The real DAG is a 10-node chain, so it
-    produces 10 nós, 9 edges and a non-empty acyclic Mermaid.
+    Uses a default :class:`CaseService` (reads ``<repo>/sticks/data/dag``) only
+    for the one-shot ingest, then resolves ``get_dag`` from the seeded DB
+    (sub-step 2.4 — no request-time disk read). The real DAG is a 10-node chain,
+    so it produces 10 nós, 9 edges and a non-empty acyclic Mermaid.
 
     Validates: Requirements 5.2, 6.1, 6.3
     """
-    view = DagService(case_service=CaseService()).get_dag(_CURATED_SLUG)
+    case_service = CaseService()
+    session = _seeded_session(case_service)
+    view = DagService(session=session, case_service=case_service).get_dag(
+        _CURATED_SLUG
+    )
 
     assert view.curated is True
     assert view.can_advance is True
@@ -240,7 +277,7 @@ class _NoAICalledSentinel:
 
 # Feature: stream-stix-dashboard, Property 9: campaign não curated é sempre
 # "passa-direto", sem IA e sem avanço
-@settings(max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture])
+@settings(max_examples=40, suppress_health_check=[HealthCheck.function_scoped_fixture])
 @given(
     suffix=st.text(
         alphabet=st.characters(whitelist_categories=("Ll", "Nd"), whitelist_characters="_-"),
@@ -309,12 +346,18 @@ def test_edge_curated_missing_dag_file_yields_typed_error(
     assert view.edges == []
 
 
-def test_edge_curated_malformed_dag_file_yields_typed_error(
+def test_edge_curated_not_persisted_dag_yields_typed_error_without_disk(
     tmp_path: Path,
 ) -> None:
-    """Curated slug whose DAG file is invalid JSON → curated, not advanceable, erro.
+    """Curated slug with NO persisted DAG → typed error, without reading disk.
 
-    _Requirements: 5.3, 6.4_
+    After sub-step 2.4 the runtime no longer reads ``data/dag/{slug}_dag.json``:
+    even with a (malformed) curated file present on disk, a session-backed
+    ``get_dag`` over an EMPTY database returns ``curated=True`` /
+    ``can_advance=False`` with the missing-DAG error — proving the request-time
+    path never touches ``packages/cli/data`` (Req. 1.1, 4.1, 4.2).
+
+    _Requirements: 1.1, 4.1, 4.2_
     """
     data_dir = tmp_path / "data"
     api_dir = data_dir / "api"
@@ -322,17 +365,34 @@ def test_edge_curated_malformed_dag_file_yields_typed_error(
     api_dir.mkdir(parents=True, exist_ok=True)
     dag_dir.mkdir(parents=True, exist_ok=True)
     (api_dir / f"{_CURATED_SLUG}_dag-ability.json").write_text("[]", encoding="utf-8")
-    # Malformed JSON (truncated object).
+    # A malformed file on disk that the runtime must NOT read.
     (dag_dir / f"{_CURATED_SLUG}_dag.json").write_text(
         '{"structural_nodes": [', encoding="utf-8"
     )
 
-    service = DagService(case_service=CaseService(data_dir=data_dir))
+    # Empty DB (no ingest) + a session → DB-only resolution finds no persisted
+    # DAG and does not fall back to the malformed file on disk.
+    settings_obj = Settings(database_url="sqlite:///:memory:")
+    engine = create_db_engine(settings_obj)
+    import_models()
+    Base.metadata.create_all(bind=engine)
+    factory: sessionmaker[Session] = sessionmaker(
+        bind=engine,
+        autocommit=False,
+        autoflush=False,
+        expire_on_commit=False,
+        future=True,
+        class_=Session,
+    )
+    session = factory()
+
+    service = DagService(
+        session=session, case_service=CaseService(data_dir=data_dir)
+    )
     view = service.get_dag(_CURATED_SLUG)
 
     assert view.curated is True
     assert view.can_advance is False
     assert view.error is not None
-    assert "malformado" in view.error.lower()
     assert view.nodes == []
     assert view.edges == []

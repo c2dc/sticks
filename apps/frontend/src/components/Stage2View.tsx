@@ -76,20 +76,20 @@ export function Stage2View({ campaignId }: { campaignId: string }) {
               humanCuration={output.human_curation}
             />
             <p className="text-xs text-muted-foreground">
-              {t("stage2.processamento.description")}
+              {t("stage2.processing.description")}
             </p>
           </>
         ) : (
-          <EmptyNote>{t("stage2.saida.suppressed")}</EmptyNote>
+          <EmptyNote>{t("stage2.output.suppressed")}</EmptyNote>
         )}
       </StageSection>
 
       {/* Output — curated Abilities, ordering, Adversary; or absence (3.6–3.8). */}
       <StageSection data-section="saida" label={t("sections.saida")} kind="neutral">
         {suppressed || !output ? (
-          <EmptyNote>{t("stage2.saida.suppressed")}</EmptyNote>
+          <EmptyNote>{t("stage2.output.suppressed")}</EmptyNote>
         ) : !output.has_abilities ? (
-          <EmptyNote>{output.note || t("stage2.saida.noAbilities")}</EmptyNote>
+          <EmptyNote>{output.note || t("stage2.output.noAbilities")}</EmptyNote>
         ) : (
           <div className="flex flex-col gap-4">
             <AbilitiesList abilities={output.abilities} />
@@ -149,7 +149,7 @@ function AbilitiesList({ abilities }: { abilities: Ability[] }) {
   return (
     <div className="flex flex-col gap-2">
       <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        {t("stage2.saida.abilities", { count: abilities.length })}
+        {t("stage2.output.abilities", { count: abilities.length })}
       </p>
       <ul className="flex flex-col gap-2">
         {abilities.map((ability) => (
@@ -165,7 +165,7 @@ function AbilitiesList({ abilities }: { abilities: Ability[] }) {
               </span>
             </div>
             <p className="text-xs text-muted-foreground">
-              {t("stage2.saida.tactic")}: {ability.tactic}
+              {t("stage2.output.tactic")}: {ability.tactic}
             </p>
             {ability.description ? (
               <p className="mt-1 text-xs">{ability.description}</p>
@@ -198,7 +198,7 @@ function OrderingBlock({ ordering }: { ordering: string[] }) {
   return (
     <div className="flex flex-col gap-1">
       <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        {t("stage2.saida.ordering")}
+        {t("stage2.output.ordering")}
       </p>
       <ol className="flex flex-col gap-0.5">
         {ordering.map((abilityId, index) => (
@@ -224,12 +224,12 @@ function AdversaryBlock({
 }) {
   const { t } = useTranslation("pipeline")
   if (!hasAdversary || !adversary) {
-    return <EmptyNote>{note || t("stage2.saida.noAdversary")}</EmptyNote>
+    return <EmptyNote>{note || t("stage2.output.noAdversary")}</EmptyNote>
   }
   return (
     <div className="flex flex-col gap-1 rounded-md border border-team-red/30 bg-team-red/5 p-2">
       <p className="text-xs font-semibold uppercase tracking-wide text-team-red">
-        {t("stage2.saida.adversary")}
+        {t("stage2.output.adversary")}
       </p>
       <span className="text-sm font-medium">{adversary.name}</span>
       {adversary.description ? (
@@ -237,7 +237,7 @@ function AdversaryBlock({
       ) : null}
       {adversary.atomic_ordering.length > 0 ? (
         <p className="text-xs text-muted-foreground">
-          {t("stage2.saida.adversaryOrdering", {
+          {t("stage2.output.adversaryOrdering", {
             count: adversary.atomic_ordering.length,
           })}
         </p>

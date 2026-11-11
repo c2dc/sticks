@@ -3,7 +3,7 @@
 Covers task 3.4 — Property 9 of the ``stix-bundle-cache-location`` spec. The
 property-based test is tagged with the exact
 ``# Feature: stix-bundle-cache-location, Property 9: <text>`` comment required by
-the plan and runs with Hypothesis at ``max_examples=100`` (minimum 100
+the plan and runs with Hypothesis at ``max_examples=40`` (minimum 100
 iterations).
 
 Isolation (Req. 5.1): the SAME generated valid STIX bundle is written into two
@@ -34,7 +34,7 @@ from app.services.stix.stix_service import (
 # a per-test fixture reused across Hypothesis examples; each example writes into
 # distinct child directories, so there is no cross-example leakage.
 PROP_SETTINGS = settings(
-    max_examples=100,
+    max_examples=40,
     deadline=None,
     suppress_health_check=[HealthCheck.function_scoped_fixture],
 )

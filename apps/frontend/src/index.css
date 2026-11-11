@@ -77,3 +77,33 @@
     @apply bg-background text-foreground;
   }
 }
+
+@layer utilities {
+  /* Gentle floating bob for the orchestrator avatar on the guided Run screen.
+     Disabled implicitly for reduced-motion: callers simply omit the animation. */
+  @keyframes float {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-5px);
+    }
+  }
+
+  /* Indeterminate progress bar sweep for an in-flight STIX base download. */
+  @keyframes loading {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(200%);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .animate-\[float_3s_ease-in-out_infinite\] {
+      animation: none !important;
+    }
+  }
+}

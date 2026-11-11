@@ -74,17 +74,34 @@ def get_checkpointer():
 
     dsn = _to_libpq_dsn(get_settings().database_url)
 
-    # ``open=False`` defers establishing any connection until the pool is first
-    # used (first checkpoint read/write). ``autocommit=True`` is required for
-    # ``PostgresSaver.setup()`` to persist the checkpoint tables and
-    # ``row_factory=dict_row`` is required because the saver accesses rows by
-    # column name.
+    # ``open=False`` keeps the constructor from touching the network, honouring
+    # "no connection at import": this factory is lazy (``@lru_cache``) and only
+    # runs on the FIRST real use of the checkpointer (a probe, a run), never at
+    # import time. We then open the pool explicitly before handing it out —
+    # current ``psycopg_pool`` raises ``PoolClosed`` ("the pool is not open yet")
+    # if a pool built with ``open=False`` is used without an explicit ``open()``,
+    # which previously surfaced as a spurious "checkpointer unavailable" (503) on
+    # every AI run even with a healthy PostgreSQL. ``autocommit=True`` is required
+    # for ``PostgresSaver.setup()`` to persist the checkpoint tables and
+    # ``row_factory=dict_row`` because the saver accesses rows by column name.
     pool = ConnectionPool(
         conninfo=dsn,
         open=False,
         kwargs={"autocommit": True, "row_factory": dict_row},
     )
-    return PostgresSaver(pool)
+    # Open the pool now (first-use, still lazy w.r.t. import). ``wait=True`` makes
+    # a genuinely unreachable database fail here with a clear error — which the
+    # caller's availability probe maps to a real "dependency unavailable" — rather
+    # than the misleading ``PoolClosed``.
+    pool.open(wait=True, timeout=10.0)
+
+    saver = PostgresSaver(pool)
+    # Ensure the LangGraph checkpoint tables exist before the first read/write.
+    # ``setup()`` is idempotent (``CREATE ... IF NOT EXISTS``) and safe to run on
+    # every process-first build; without it the very first ``get_tuple`` probe
+    # fails on a missing ``checkpoints`` table.
+    saver.setup()
+    return saver
 
 
 def setup_checkpointer() -> None:

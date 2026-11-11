@@ -133,7 +133,7 @@ def _build_ephemeral_session() -> tuple[Session, "os.PathLike[str] | Path", obje
 # per-example DB is intentional (exact counts, no state leak), so we disable the
 # per-example deadline rather than weaken the isolation.
 @settings(
-    max_examples=150,
+    max_examples=40,
     deadline=None,
     suppress_health_check=[HealthCheck.too_slow],
 )

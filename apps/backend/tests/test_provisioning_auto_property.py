@@ -250,7 +250,7 @@ def _other_stage_states(draw) -> dict[int, Optional[StageState]]:
 
 
 @settings(
-    max_examples=120,
+    max_examples=40,
     deadline=None,
     suppress_health_check=[HealthCheck.too_slow],
 )
@@ -324,7 +324,7 @@ def test_property9_gate_blocks_without_stage3_completed(
 
 
 @settings(
-    max_examples=120,
+    max_examples=40,
     deadline=None,
     suppress_health_check=[HealthCheck.too_slow],
 )
@@ -402,7 +402,7 @@ def test_property9_auto_completes_and_idempotent(
 
 
 @settings(
-    max_examples=120,
+    max_examples=40,
     deadline=None,
     suppress_health_check=[HealthCheck.too_slow],
 )

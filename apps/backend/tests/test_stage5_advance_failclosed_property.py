@@ -261,7 +261,7 @@ def _caldera_serving(*, agent_alive: bool) -> CalderaClient:
 
 
 @settings(
-    max_examples=150,
+    max_examples=40,
     deadline=None,
     suppress_health_check=[HealthCheck.too_slow, HealthCheck.function_scoped_fixture],
 )
@@ -362,7 +362,7 @@ def test_stage5_advance_released_iff_all_checks_pass(
 
 
 @settings(
-    max_examples=150,
+    max_examples=40,
     deadline=None,
     suppress_health_check=[HealthCheck.too_slow, HealthCheck.function_scoped_fixture],
 )

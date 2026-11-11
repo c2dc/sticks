@@ -83,6 +83,7 @@ from app.models.domain import AbilityResult, Operation
 from app.models.enums import AbilityResultStatus, OperationState
 from app.services.audit import AuditLogger, AuditPersistenceError
 from app.services.caldera import CalderaClient, OperationLink
+from app.services.caldera.ability_payload import build_caldera_ability_payloads
 from app.services.caldera.client import (
     OperationStateResult,
     TERMINAL_OPERATION_STATES,
@@ -998,29 +999,17 @@ class OperationRunner:
 
         Accepts SQLAlchemy ``Ability`` rows or duck-typed equivalents; sends the
         fields Caldera's v2 ability schema uses. Missing fields are simply
-        omitted (Caldera fills its own defaults).
+        omitted (Caldera fills its own defaults), except ``technique_name`` which
+        is guaranteed non-empty by the shared projection (this Caldera version
+        raises ``KeyError: 'technique_name'`` otherwise — see
+        ``ai-run-caldera-ability-technique-name``). Executors are passed through
+        as-is here.
+
+        Delegates to :func:`build_caldera_ability_payloads` so both this runner
+        and ``CurationEnvironmentProvisioner`` share one projection and the same
+        ``technique_name`` invariant.
         """
-        payloads: list[dict] = []
-        for ability in abilities:
-            payload: dict = {}
-            ability_id = getattr(ability, "ability_id", None)
-            if ability_id:
-                payload["ability_id"] = ability_id
-            for attr in (
-                "name",
-                "tactic",
-                "technique_name",
-                "technique_id",
-                "description",
-            ):
-                value = getattr(ability, attr, None)
-                if value is not None:
-                    payload[attr] = value
-            executors = getattr(ability, "executors", None)
-            if executors:
-                payload["executors"] = executors
-            payloads.append(payload)
-        return payloads
+        return build_caldera_ability_payloads(abilities)
 
     def _derive_target_containers(self, abilities: Sequence[object]) -> list[str]:
         """Derive the distinct internal target containers from the Abilities.

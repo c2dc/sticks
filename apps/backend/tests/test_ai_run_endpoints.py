@@ -60,6 +60,8 @@ from app.services.ai.run_service import (
     RunFailedError,
 )
 
+from _stix_seed import ensure_stix_campaigns
+
 _CAMPAIGN_ID = "campaign-under-test"
 
 
@@ -97,6 +99,13 @@ def session_factory() -> Iterator[sessionmaker[Session]]:
         future=True,
         class_=Session,
     )
+    # Seed the persisted STIX campaign the start endpoint's DB-backed guard now
+    # validates against (``_known_campaign_or_404`` over ``stix_campaigns`` —
+    # Req. 2.2, 2.3, 4.4). ``campaign-under-test`` is a NON-curated campaign
+    # (``curated_slug`` left null, so the Campaign_Key resolves to its stix_id),
+    # proving the guard accepts any persisted campaign — curated or not — not
+    # only the 8 curated slugs.
+    ensure_stix_campaigns(factory, [_CAMPAIGN_ID])
     try:
         yield factory
     finally:
@@ -264,8 +273,8 @@ def test_post_start_dependency_unavailable_persists_no_row(
 
     assert resp.status_code == 503, resp.text
     detail = resp.json()["detail"]
-    assert detail["motivo"] == "dependencia_indisponivel"
-    assert detail["dependencia"] == "checkpointer"
+    assert detail["reason"] == "dependency_unavailable"
+    assert detail["dependency"] == "checkpointer"
 
     # No partial agent_runs row survived the rolled-back failed attempt.
     db_session.expire_all()
@@ -292,8 +301,8 @@ def test_post_start_run_failed_persists_no_row(
 
     assert resp.status_code == 503, resp.text
     detail = resp.json()["detail"]
-    assert detail["motivo"] == "execucao_falhou"
-    assert detail["no"] == "dag"
+    assert detail["reason"] == "run_failed"
+    assert detail["node"] == "dag"
 
     db_session.expire_all()
     after = db_session.execute(

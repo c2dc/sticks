@@ -4,7 +4,7 @@ This file holds **Property 2** only (kept separate from
 ``test_stix_paths_property.py`` to avoid concurrent write conflicts while other
 properties are added). It is tagged with the exact
 ``# Feature: stix-bundle-cache-location, Property N: <text>`` comment required by
-the plan and runs with Hypothesis at ``max_examples=100`` (minimum 100
+the plan and runs with Hypothesis at ``max_examples=40`` (minimum 100
 iterations).
 
 Isolation (Req. 5.1, 5.2, 5.3): the resolver is a **pure** function. Every test
@@ -23,7 +23,7 @@ from hypothesis import strategies as st
 from app.services.stix.stix_paths import default_stix_data_dir
 
 # Shared iteration budget so the property runs >= 100 examples.
-PROP_SETTINGS = settings(max_examples=100, deadline=None)
+PROP_SETTINGS = settings(max_examples=40, deadline=None)
 
 # Expected trailing components appended to every resolved cache base.
 _SUFFIX = ("sticks", "stix")

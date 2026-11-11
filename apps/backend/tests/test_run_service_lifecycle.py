@@ -312,7 +312,7 @@ def _op_artifact_final_state() -> dict:
     """
     state = _passing_final_state()
     state["artifacts"] = {
-        "operationalization": {"origin": "gerado_ia", "nodes": []}
+        "operationalization": {"origin": "ai_generated", "nodes": []}
     }
     return state
 

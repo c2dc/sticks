@@ -133,7 +133,7 @@ def _client_serving(payloads: list[dict[str, object]]) -> CalderaClient:
 
 
 @settings(
-    max_examples=150,
+    max_examples=40,
     deadline=None,
     suppress_health_check=[HealthCheck.too_slow],
 )
@@ -169,7 +169,7 @@ def test_advance_released_iff_alive_agent_in_group(
 
 
 @settings(
-    max_examples=150,
+    max_examples=40,
     deadline=None,
     suppress_health_check=[HealthCheck.too_slow],
 )

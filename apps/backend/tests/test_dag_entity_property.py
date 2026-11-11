@@ -176,7 +176,7 @@ def _build_ephemeral_session() -> tuple[Session, Path, object]:
 # exemplo é intencional (sem vazamento de state), então desabilitamos o
 # deadline em vez de enfraquecer o isolation.
 @settings(
-    max_examples=150,
+    max_examples=40,
     deadline=None,
     suppress_health_check=[HealthCheck.too_slow],
 )

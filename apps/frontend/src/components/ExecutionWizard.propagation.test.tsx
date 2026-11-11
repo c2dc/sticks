@@ -4,23 +4,23 @@ import userEvent from "@testing-library/user-event"
 
 import { renderWithI18n } from "@/test/render"
 import { ExecutionWizard } from "@/components/ExecutionWizard"
-import type { Campaign, CampaignStates, CasesResponse } from "@/lib/campaigns"
+import type { CasesResponse } from "@/lib/campaigns"
 import type { Stage1ResultStix } from "@/lib/stages"
 import type { BaseStixInfo } from "@/lib/stix"
 
 /**
- * Feature: pipeline-seis-estagios — propagation of the chosen base version to
- * Stage 1 (Req. 4.1, 5.1, 5.2).
+ * Feature: ai-first-campaign-flow (task 9.10) — propagation of the chosen STIX
+ * base version into Setup step A ({@link BaseStixView}).
  *
- * The wizard is entered with no campaign chosen; it resolves a probe slug via
- * `fetchCases` and renders the real `<BaseStixView campaignId={probe} />` as the
- * body of Stage 1. With no base selected yet, Stage 1 shows the bases list
+ * The two-layer shell renders the real `<BaseStixView campaignId={probe} />` as
+ * the first Setup step. With no base selected yet, step A shows the bases list
  * (StixBasesList → `getBases`) and does NOT read the completion verdict. Once a
  * base is selected, BaseStixView reads `getStageBaseStix(probe, version)` with
  * the chosen version — that call is the propagation assertion.
  *
- * Only the network wrappers (`@/lib/stages`, `@/lib/stix`, `@/lib/campaigns`) and
- * `@/lib/wizard` (getCampaign) are mocked; BaseStixView renders for real.
+ * Only the network wrappers (`@/lib/stages`, `@/lib/stix`, `@/lib/campaigns`)
+ * are mocked; BaseStixView renders for real. The Run view is stubbed since it is
+ * never reached in these tests.
  */
 
 vi.mock("@/lib/stages", async (importOriginal) => {
@@ -30,7 +30,7 @@ vi.mock("@/lib/stages", async (importOriginal) => {
 
 vi.mock("@/lib/stix", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/stix")>()
-  return { ...actual, getBases: vi.fn() }
+  return { ...actual, getBases: vi.fn(), getPackageOverview: vi.fn() }
 })
 
 vi.mock("@/lib/campaigns", async (importOriginal) => {
@@ -38,37 +38,20 @@ vi.mock("@/lib/campaigns", async (importOriginal) => {
   return { ...actual, fetchCases: vi.fn() }
 })
 
-vi.mock("@/lib/wizard", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/wizard")>()
-  return { ...actual, getCampaign: vi.fn(), resetCampaign: vi.fn() }
-})
+vi.mock("@/components/GuidedRunView", () => ({
+  GuidedRunView: ({ campaignId }: { campaignId: string }) => (
+    <div data-testid="guided-run-view">{campaignId}</div>
+  ),
+}))
 
 import { getStageBaseStix } from "@/lib/stages"
-import { getBases } from "@/lib/stix"
+import { getBases, getPackageOverview, type StixPackageOverview } from "@/lib/stix"
 import { fetchCases } from "@/lib/campaigns"
-import { getCampaign } from "@/lib/wizard"
 
 const getStageBaseStixMock = vi.mocked(getStageBaseStix)
 const getBasesMock = vi.mocked(getBases)
+const getPackageOverviewMock = vi.mocked(getPackageOverview)
 const fetchCasesMock = vi.mocked(fetchCases)
-const getCampaignMock = vi.mocked(getCampaign)
-
-function states(completed: number[]): CampaignStates {
-  const all = [1, 2, 3, 4, 5, 6] as const
-  return {
-    fully_completed: completed.length === 6,
-    stages: all.map((stage) => ({
-      stage,
-      state: completed.includes(stage) ? "concluido" : "nao_iniciado",
-      progress: completed.includes(stage) ? 100 : 0,
-      blocked: stage > 1 && !completed.includes(stage - 1),
-    })),
-  }
-}
-
-function makeCampaign(completed: number[]): Campaign {
-  return { id: "shadowray", name: "ShadowRay", states: states(completed) }
-}
 
 function makeCases(): CasesResponse {
   return {
@@ -88,6 +71,21 @@ function makeStage1Result(version: string): Stage1ResultStix {
   }
 }
 
+function makeOverview(version: string): StixPackageOverview {
+  return {
+    version,
+    name: "MITRE ATT&CK v18.0",
+    downloaded_at: null,
+    counts: [],
+    campaigns_total: 0,
+    actors_total: 0,
+    techniques_total: 0,
+    tactics_total: 0,
+    malware_total: 0,
+    relationships_total: 0,
+  }
+}
+
 const bases: BaseStixInfo[] = [
   {
     version: "18.0",
@@ -98,16 +96,16 @@ const bases: BaseStixInfo[] = [
   },
 ]
 
-describe("ExecutionWizard — propagates the version to Stage 1 (Req. 4.1, 5.1, 5.2)", () => {
+describe("ExecutionWizard — propagates the version to Setup step A (task 9.10)", () => {
   beforeEach(() => {
     getStageBaseStixMock.mockReset()
     getStageBaseStixMock.mockResolvedValue(makeStage1Result("18.0"))
     getBasesMock.mockReset()
     getBasesMock.mockResolvedValue(bases)
+    getPackageOverviewMock.mockReset()
+    getPackageOverviewMock.mockResolvedValue(makeOverview("18.0"))
     fetchCasesMock.mockReset()
     fetchCasesMock.mockResolvedValue(makeCases())
-    getCampaignMock.mockReset()
-    getCampaignMock.mockResolvedValue(makeCampaign([]))
   })
 
   it("on selecting a base: BaseStixView calls getStageBaseStix(probe, version)", async () => {
@@ -117,17 +115,23 @@ describe("ExecutionWizard — propagates the version to Stage 1 (Req. 4.1, 5.1, 
     await waitFor(() => expect(getBasesMock).toHaveBeenCalled())
     expect(getStageBaseStixMock).not.toHaveBeenCalled()
 
-    // Select the base 18.0 from the list; the verdict read fires with the probe
-    // id resolved from fetchCases.
-    const selectButton = await screen.findByRole("button", { name: "Selecionar" })
-    await userEvent.click(selectButton)
+    // The picker starts empty: open the dropdown and click 18.0. A downloaded
+    // version is selected directly on the click (Req. 7.1) — no separate
+    // "Selecionar" button. The verdict read fires with the probe id resolved
+    // from fetchCases.
+    const user = userEvent.setup()
+    // Open the dropdown (trigger carries the "Bases STIX" aria-label).
+    await user.click(await screen.findByRole("button", { name: /Bases STIX/ }))
+    // The options render as buttons inside the listbox; clicking 18.0 selects.
+    const option = await screen.findByRole("option", { name: /18\.0/ })
+    await user.click(option.querySelector("button") as HTMLButtonElement)
 
     await waitFor(() =>
       expect(getStageBaseStixMock).toHaveBeenCalledWith("shadowray", "18.0"),
     )
   })
 
-  it("with no base selected: Stage 1 shows the bases list and does not query the verdict", async () => {
+  it("with no base selected: Setup step A shows the bases list and does not query the verdict", async () => {
     renderWithI18n(<ExecutionWizard />)
 
     await waitFor(() => expect(getBasesMock).toHaveBeenCalled())

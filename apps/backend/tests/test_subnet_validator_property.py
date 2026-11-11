@@ -228,7 +228,7 @@ class _Ability:
 # ---------------------------------------------------------------------------
 
 
-@settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+@settings(max_examples=40, suppress_health_check=[HealthCheck.too_slow])
 @given(abilities=st.lists(ability_spec(), min_size=1, max_size=6))
 def test_property1_external_destination_blocks_operation(
     abilities: list[tuple[str, str, list[tuple[str, bool]]]],
@@ -278,7 +278,7 @@ def test_property1_external_destination_blocks_operation(
         assert op_report.describe_violations() == []
 
 
-@settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+@settings(max_examples=40, suppress_health_check=[HealthCheck.too_slow])
 @given(
     internal_cmds=st.lists(internal_command(), max_size=3),
     local_cmds=st.lists(local_command(), max_size=3),

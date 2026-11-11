@@ -329,6 +329,39 @@ LAB_IMAGES: dict[str, str] = {
     "mariadb-target": "sticks-mariadb-target:latest",
 }
 
+# **Caldera is the fixed, audited execution engine (C2)** — not an agent decision
+# and not an optional target (design §E, Req. 12.2). The whole safety chain
+# (``OperationRunner``, containment, isolation, the 1:1 audit) runs **through**
+# Caldera. This constant **records the fixed-engine contract** in the
+# provisioning path so the "compiled once from source, reused" idempotency is
+# explicit and not folded into the generic lab-image map:
+#
+# - **Service / image.** Caldera is the ``caldera-attacker`` lab service, pinned
+#   to the stable image :data:`CALDERA_ENGINE_IMAGE`
+#   (``sticks-caldera-attacker:latest``). It is the same entry already present in
+#   :data:`LAB_IMAGES`; this alias names it so the engine contract is traceable.
+# - **Compiled once from source.** The image is built **from source** at
+#   ``infra/docker/.docker/caldera`` (the magma UI is compiled into the image at
+#   build time — Docker Hub is outdated and is **not** used). The build happens
+#   **only** when the image is missing: :meth:`DockerComposeExecutor.up` inspects
+#   the local engine (read-only, :meth:`DockerComposeExecutor._image_exists_docker`)
+#   and ``build``s solely the services whose image is absent, then ``up``s with
+#   ``--no-build`` — so a present Caldera image is **reused**, never rebuilt
+#   (Req. 11.1-11.3).
+# - **Reused across runs (idempotent, cached image).** The deprovision runs
+#   ``docker compose down`` **without** ``--rmi``/``-v``, so the Caldera image
+#   (and the lab images) **survive teardown** and the next Run reuses the cached
+#   image with no new build (Req. 8.2, 11.6).
+#
+# The agent does **not** decide Caldera, and this task adds **no** new execution
+# machinery: the behavior above is the already-implemented ``up``/``down`` path;
+# this constant and docstring only **document and preserve** the contract so the
+# audit trace and future readers can point at the fixed engine explicitly.
+CALDERA_SERVICE: str = "caldera-attacker"
+#: Stable image of the fixed Caldera execution engine — built once from source
+#: (``infra/docker/.docker/caldera``) and reused across Runs (cached, idempotent).
+CALDERA_ENGINE_IMAGE: str = LAB_IMAGES[CALDERA_SERVICE]
+
 
 class DockerComposeExecutor:
     """Production implementation of the :class:`ComposeExecutor` seam (task 1.2).
@@ -767,4 +800,6 @@ __all__ = [
     "DockerComposeExecutor",
     "LAB_SERVICES",
     "LAB_IMAGES",
+    "CALDERA_SERVICE",
+    "CALDERA_ENGINE_IMAGE",
 ]

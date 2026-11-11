@@ -27,10 +27,16 @@ section and the emulation sequence diagram (the ``.../emulation/preview`` +
       aggregate + per-Ability results). ``ABORTED`` (audit-trail failure,
       Req. 6.9) surfaces its message so the UI can flag the interrupted trail.
 
-Handlers are kept thin: they resolve the case (its Abilities + Adversary) via
-:class:`CaseService`, then delegate to the preview builder or the
-:class:`OperationRunner`. All the enforcement lives in the runner and the
+Handlers are kept thin: they resolve the campaign's Abilities + Adversary
+**from the database** (``Ability``/``Adversary`` rows keyed by ``campaign_id``,
+Req. 3.4), then delegate to the preview builder or the :class:`OperationRunner`.
+The request-time disk read through ``CaseService`` was removed (sub-step 2.4):
+the runtime resolves purely from the database and never touches
+``packages/cli/data/api`` (Req. 1.1, 4.1, 4.2); a campaign with no persisted
+content is a 404. All the enforcement lives in the runner and the
 ``containment`` package — this layer only translates outcomes into HTTP.
+
+_Requirements: 6.5, 6.6, 6.7, 6.2, 6.4, 4.6, 3.4_
 
 Dependency injection (Windows dev; NO real Caldera/Docker)
 ----------------------------------------------------------
@@ -60,13 +66,23 @@ from typing import Callable, Iterator, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Path, status
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
+from app.models.domain import (
+    Ability as AbilityModel,
+    Adversary as AdversaryModel,
+)
 from app.models.enums import AbilityResultStatus, OperationState
 from app.services.audit import AuditLogger
 from app.services.caldera import CalderaApiError, CalderaClient, CalderaUnavailable
-from app.services.campaign_service import AbilityData, CaseData, CaseService
+from app.services.campaign_service import (
+    AbilityData,
+    AdversaryData,
+    CaseData,
+    Executor,
+)
 from app.services.containment import EmulationPreview, preview_abilities
 from app.services.operation.runner import (
     OperationRunResult,
@@ -267,27 +283,140 @@ def get_runner_factory(
 # ---------------------------------------------------------------------------
 
 
-def _load_case_or_error(campaign: str, case_service: CaseService) -> CaseData:
-    """Resolve a curated case, mapping unknown/failed reads to HTTP errors.
+def _executors_from_json(executors: object) -> list[Executor]:
+    """Map an ``Ability.executors`` JSON column into typed :class:`Executor`.
 
-    An unknown slug is a 404; a missing/malformed case file is a descriptive 422
-    (mirroring the campaigns router's per-case handling). The returned
-    :class:`CaseData` exposes the Abilities and Adversary the emulation needs.
+    ``executors`` is the ORM JSON column — a list of ``{name, platform, command}``
+    objects. Missing/malformed entries degrade defensively to empty executors so
+    a single bad record never breaks the emulation assembly.
     """
-    if campaign not in case_service.list_cases():
+    if not isinstance(executors, list):
+        return []
+    out: list[Executor] = []
+    for entry in executors:
+        if not isinstance(entry, dict):
+            continue
+        out.append(
+            Executor(
+                name=entry.get("name"),
+                platform=entry.get("platform"),
+                command=entry.get("command"),
+            )
+        )
+    return out
+
+
+def _resolve_case_from_db(campaign: str, db: Session) -> Optional[CaseData]:
+    """Resolve a campaign's Abilities + Adversary from the database (Req. 3.4).
+
+    Reads the ``Ability`` rows and the ``Adversary`` row keyed by
+    ``campaign_id == campaign`` and assembles a :class:`CaseData` carrying the
+    same Abilities/Adversary the emulation needs — the DB replaces the disk read
+    through :class:`CaseService` for any persisted campaign. Abilities are
+    ordered by the Adversary's ``atomic_ordering`` (the authoritative sequence /
+    dependencies between Abilities), with any ability not covered by the ordering
+    appended afterwards by id so none are dropped.
+
+    Returns ``None`` when the campaign has no persisted Abilities, signalling the
+    caller to fall back to the disk read (the transient secondary path kept until
+    sub-step 2.4). Pure read: no network access.
+    """
+    adversary_row = (
+        db.execute(
+            select(AdversaryModel)
+            .where(AdversaryModel.campaign_id == campaign)
+            .order_by(AdversaryModel.id)
+        )
+        .scalars()
+        .first()
+    )
+
+    ability_rows = (
+        db.execute(
+            select(AbilityModel).where(AbilityModel.campaign_id == campaign)
+        )
+        .scalars()
+        .all()
+    )
+    if not ability_rows:
+        # No persisted Abilities → fall back to disk (Req. 3.2-style transient
+        # secondary path until the disk removal of sub-step 2.4).
+        return None
+
+    by_id: dict[str, AbilityModel] = {r.ability_id: r for r in ability_rows}
+    ordered: list[AbilityModel] = []
+    seen: set[str] = set()
+    if adversary_row is not None and isinstance(
+        adversary_row.atomic_ordering, list
+    ):
+        for ability_id in adversary_row.atomic_ordering:
+            row = by_id.get(ability_id)
+            if row is not None and row.ability_id not in seen:
+                ordered.append(row)
+                seen.add(row.ability_id)
+    for row in sorted(ability_rows, key=lambda r: r.ability_id):
+        if row.ability_id not in seen:
+            ordered.append(row)
+            seen.add(row.ability_id)
+
+    abilities = [
+        AbilityData(
+            ability_id=r.ability_id,
+            name=r.name,
+            tactic=r.tactic,
+            technique_name=r.technique_name,
+            technique_id=r.technique_id,
+            description=r.description,
+            executors=_executors_from_json(r.executors),
+        )
+        for r in ordered
+    ]
+
+    adversary = None
+    if adversary_row is not None:
+        ordering = adversary_row.atomic_ordering
+        adversary = AdversaryData(
+            id=adversary_row.id,
+            name=adversary_row.name,
+            description=adversary_row.description,
+            atomic_ordering=(
+                list(ordering) if isinstance(ordering, list) else []
+            ),
+        )
+
+    # ``*_file`` fields are kept for contract compatibility; the DB path does not
+    # read any file, so they are informative placeholders only.
+    return CaseData(
+        id=campaign,
+        name=campaign,
+        ability_file="",
+        adversary_file="",
+        dag_file="",
+        abilities=abilities,
+        adversary=adversary,
+    )
+
+
+def _load_case_or_error(campaign: str, db: Session) -> CaseData:
+    """Resolve a campaign's Abilities + Adversary from the database (Req. 3.4).
+
+    Database-only sourcing (Req. 1.1, 4.1): reads the ``Ability``/``Adversary``
+    rows keyed by ``campaign_id`` via :func:`_resolve_case_from_db`. The curated
+    ingest (sub-step 2.1) persisted that content, so the emulation resolves
+    purely from the database and never reads ``packages/cli/data/api`` (the disk
+    fallback was removed — Req. 4.1, 4.2).
+
+    A campaign with no persisted Abilities is a 404 (Req. 2.3, 4.4): there is
+    nothing to emulate for it, and the runtime no longer falls back to the
+    curated files on disk.
+    """
+    case = _resolve_case_from_db(campaign, db)
+    if case is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Caso desconhecido: {campaign!r}.",
         )
-    result = case_service.try_load_case(campaign)
-    if not result.ok or result.case is None:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=(
-                result.error.detail if result.error else f"Falha ao ler {campaign!r}."
-            ),
-        )
-    return result.case
+    return case
 
 
 def _preview_view(campaign: str, preview: EmulationPreview) -> EmulationPreviewResponse:
@@ -377,8 +506,7 @@ def preview_emulation(
     confirmation. External destinations are flagged (``has_external``) but not
     refused here; refusal is the emulation endpoint's job.
     """
-    case_service = CaseService()
-    case = _load_case_or_error(campaign, case_service)
+    case = _load_case_or_error(campaign, db)
     preview = preview_abilities(case.abilities)
     return _preview_view(campaign, preview)
 
@@ -424,8 +552,7 @@ def execute_emulation(
     * ``COMPLETED`` / ``ABORTED`` -> **200** with the operation result (ABORTED
       surfaces the audit-failure message).
     """
-    case_service = CaseService()
-    case = _load_case_or_error(campaign, case_service)
+    case = _load_case_or_error(campaign, db)
 
     adversary_id = case.adversary.id if case.adversary else ""
     # Build the raw Adversary payload for Caldera's `POST /api/v2/adversaries`

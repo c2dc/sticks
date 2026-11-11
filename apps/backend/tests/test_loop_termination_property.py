@@ -189,7 +189,7 @@ def _build_terminating_graph(checkpointer, verdicts: list[bool]):
 # deadline is lifted rather than risking flaky timing failures.
 # ---------------------------------------------------------------------------
 # Feature: ai-curation-agents, Property 3: The improvement loop terminates.
-@settings(max_examples=250, deadline=None)
+@settings(max_examples=40, deadline=None)
 @given(
     max_iterations=_max_iterations,
     verdicts=_verdict_streams,

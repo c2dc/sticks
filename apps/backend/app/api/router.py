@@ -19,6 +19,7 @@ from app.api import (
     preferences,
     session_state,
     stix,
+    threat_intel,
     topology,
 )
 
@@ -32,3 +33,4 @@ api_router.include_router(audit.router)
 api_router.include_router(topology.router)
 api_router.include_router(stix.router)
 api_router.include_router(ai.router)
+api_router.include_router(threat_intel.router)

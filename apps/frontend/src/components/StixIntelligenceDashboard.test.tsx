@@ -4,25 +4,26 @@ import { screen } from "@testing-library/react"
 import { renderWithI18n } from "@/test/render"
 import { StixIntelligenceDashboard } from "@/components/StixIntelligenceDashboard"
 import { ApiError } from "@/lib/api"
-import type { DashboardStix } from "@/lib/stix"
+import type { StixPackageOverview } from "@/lib/stix"
 
 // Mock the STIX API wrappers so no network is used.
 vi.mock("@/lib/stix", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/stix")>()
   return {
     ...actual,
-    getDashboard: vi.fn(),
+    getPackageOverview: vi.fn(),
   }
 })
 
-import { getDashboard } from "@/lib/stix"
+import { getPackageOverview } from "@/lib/stix"
 
-const getDashboardMock = vi.mocked(getDashboard)
+const getPackageOverviewMock = vi.mocked(getPackageOverview)
 
-function makeDashboard(): DashboardStix {
+function makeOverview(): StixPackageOverview {
   return {
     version: "14.0",
     name: "Enterprise ATT&CK v14.0",
+    downloaded_at: "2024-01-01T00:00:00+00:00",
     counts: [
       {
         label: "Campanhas",
@@ -37,16 +38,22 @@ function makeDashboard(): DashboardStix {
         description: "Comportamentos usados pelo adversário para atingir objetivos.",
       },
     ],
+    campaigns_total: 12,
+    actors_total: 8,
+    techniques_total: 201,
+    tactics_total: 14,
+    malware_total: 30,
+    relationships_total: 500,
   }
 }
 
 describe("StixIntelligenceDashboard (Req. 3 — intelligence counts, no partial on error)", () => {
   beforeEach(() => {
-    getDashboardMock.mockReset()
+    getPackageOverviewMock.mockReset()
   })
 
   it("renders the version id and every count card (label + count + description)", async () => {
-    getDashboardMock.mockResolvedValue(makeDashboard())
+    getPackageOverviewMock.mockResolvedValue(makeOverview())
 
     renderWithI18n(
       <StixIntelligenceDashboard version="14.0" onGoToSelection={vi.fn()} />,
@@ -70,7 +77,7 @@ describe("StixIntelligenceDashboard (Req. 3 — intelligence counts, no partial 
   })
 
   it("shows a descriptive error and renders NO count cards on an ApiError(422) (Req. 3.5)", async () => {
-    getDashboardMock.mockRejectedValue(
+    getPackageOverviewMock.mockRejectedValue(
       new ApiError(422, "Bundle inválido", {
         detail: {
           motivo: "bundle_invalido",

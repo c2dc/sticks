@@ -33,6 +33,8 @@ from app.db.base import Base, import_models
 from app.db.session import create_db_engine, get_db
 from app.main import create_app
 
+from _stix_seed import ensure_stix_campaigns
+
 
 _REAL_SLUG = "shadowray"
 
@@ -56,6 +58,21 @@ def session_factory() -> Iterator[sessionmaker[Session]]:
         future=True,
         class_=Session,
     )
+    # The ``/dag`` endpoint guard now validates the campaign against the
+    # persisted STIX campaigns (``_known_campaign_or_404`` over
+    # ``stix_campaigns`` — Req. 2.2, 2.3, 4.4), so the curated slug must exist as
+    # a ``stix_campaigns`` row to pass the guard.
+    ensure_stix_campaigns(factory, [_REAL_SLUG])
+    # One-shot curated ingest (sub-step 2.1): the ``/dag`` endpoint now resolves
+    # the DAG from the ``dags`` table (sub-step 2.4 removed the request-time disk
+    # read), so the curated DAG must be persisted before the endpoint reads it.
+    from app.services.curated_ingest_service import CuratedIngestService
+
+    seed_session = factory()
+    try:
+        CuratedIngestService(seed_session).ingest_all()
+    finally:
+        seed_session.close()
     try:
         yield factory
     finally:

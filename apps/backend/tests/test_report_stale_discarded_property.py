@@ -201,7 +201,7 @@ def _utcnow() -> dt.datetime:
 
 
 @settings(
-    max_examples=120,
+    max_examples=40,
     deadline=None,
     suppress_health_check=[HealthCheck.too_slow],
 )

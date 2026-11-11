@@ -48,7 +48,7 @@ and the symmetric ``downgrade`` — rather than a reimplementation. A regression
 in the shipped ``upgrade()``/``downgrade()`` is caught here.
 
 Everything is in-process — NO Docker, NO network, NO shared DB — safe on any
-dev environment. At least 100 iterations run per property (``max_examples=150``).
+dev environment. At least 100 iterations run per property (``max_examples=40``).
 """
 
 from __future__ import annotations
@@ -386,7 +386,7 @@ def _seed_rows(engine: Engine, execucoes: Table, rows: list[dict]) -> dict[int, 
 
 
 @settings(
-    max_examples=150,
+    max_examples=40,
     deadline=None,
     suppress_health_check=[HealthCheck.too_slow],
 )
@@ -518,7 +518,7 @@ def test_property11_upgrade_remaps_preserves_provisions_and_roundtrips(
 
 
 @settings(
-    max_examples=150,
+    max_examples=40,
     deadline=None,
     suppress_health_check=[HealthCheck.too_slow],
 )

@@ -83,11 +83,11 @@ export function Landing({ onStart }: LandingProps) {
         <LandingWordmark />
 
         <h1 className="text-balance text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
-          {t("landing.titulo")}
+          {t("landing.title")}
         </h1>
 
         <p className="text-balance text-lg text-muted-foreground sm:text-xl">
-          {t("landing.subtitulo")}
+          {t("landing.subtitle")}
         </p>
 
         <Button

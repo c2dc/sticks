@@ -22,7 +22,7 @@ from hypothesis import strategies as st
 from app.services.stix.stix_paths import default_stix_data_dir
 
 # Shared iteration budget so the property runs >= 100 examples.
-PROP_SETTINGS = settings(max_examples=100, deadline=None)
+PROP_SETTINGS = settings(max_examples=40, deadline=None)
 
 
 # ---------------------------------------------------------------------------

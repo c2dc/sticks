@@ -261,12 +261,12 @@ def test_dashboard_contagem_por_tipo_deterministica(tmp_path: Path) -> None:
     # Ordem estável e completa dos seis tipos exigidos.
     rotulos = [c.label for c in dashboard.counts]
     assert rotulos == [
-        "campanhas",
-        "tecnicas",
-        "taticas",
-        "intrusion_sets",
+        "campaigns",
+        "techniques",
+        "tactics",
+        "actors",
         "malware",
-        "relacionamentos",
+        "relationships",
     ]
     por_tipo = {c.stix_type: c.count for c in dashboard.counts}
     assert por_tipo["campaign"] == 2

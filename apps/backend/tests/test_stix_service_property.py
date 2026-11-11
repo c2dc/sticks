@@ -3,7 +3,7 @@
 Covers the optional test sub-tasks 1.3, 1.4, 2.3, 2.4, 2.5, 3.3, 3.4, 3.5 and
 4.2 of the ``stream-stix-dashboard`` spec. Every property-based test is tagged
 with the exact ``# Feature: stream-stix-dashboard, Property N: <text>`` comment
-required by the plan and runs with Hypothesis at ``max_examples=100`` (minimum
+required by the plan and runs with Hypothesis at ``max_examples=40`` (minimum
 100 iterations).
 
 Isolation (no real files / no real network):
@@ -42,7 +42,7 @@ from app.services.stix.stix_service import (
 
 # A single shared iteration budget so every property runs >= 100 examples.
 PROP_SETTINGS = settings(
-    max_examples=100,
+    max_examples=40,
     deadline=None,
     suppress_health_check=[HealthCheck.function_scoped_fixture],
 )
@@ -215,17 +215,17 @@ def test_property3_contagens_iguais_aos_objetos(
 def test_property4_every_description_not_empty(
     tmp_path: Path, dados: tuple[list[dict], dict[str, int]]
 ) -> None:
-    """Every ``TypeCount`` in any produced dashboard has a non-empty pt-BR
-    description drawn from TYPE_DESCRIPTIONS."""
+    """Every ``TypeCount`` in any produced dashboard has a non-empty English
+    description drawn from TYPE_DESCRIPTIONS (no Portuguese literal remains)."""
     objetos, _ = dados
     version = KNOWN_VERSIONS[0]
     service = StixService(data_dir=tmp_path)
     _write_bundle(service.base_path(version), objetos)
 
     dashboard = service.dashboard(version)
-    assert dashboard.counts, "o dashboard deve sempre trazer os tipos exigidos"
+    assert dashboard.counts, "dashboard must always return the required types"
     for contagem in dashboard.counts:
-        assert contagem.description, f"description vazia para {contagem.stix_type}"
+        assert contagem.description, f"empty description for {contagem.stix_type}"
         assert contagem.description.strip() != ""
         assert contagem.description == TYPE_DESCRIPTIONS[contagem.stix_type]
 

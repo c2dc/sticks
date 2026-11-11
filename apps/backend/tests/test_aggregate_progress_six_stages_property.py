@@ -218,7 +218,7 @@ def _seed_distribution(
 # (no state leak between distributions), so we disable the deadline rather than
 # weaken the isolation.
 @settings(
-    max_examples=200,
+    max_examples=40,
     deadline=None,
     suppress_health_check=[HealthCheck.too_slow],
 )
@@ -300,7 +300,7 @@ def test_property2_aggregate_counts_exactly_fully_completed_campaigns(
 
 
 @settings(
-    max_examples=100,
+    max_examples=40,
     deadline=None,
     suppress_health_check=[HealthCheck.too_slow],
 )

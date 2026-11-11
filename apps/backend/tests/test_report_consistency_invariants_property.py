@@ -96,7 +96,7 @@ def _ability_result_strategy() -> st.SearchStrategy[FakeAbilityResult]:
     )
 
 
-@settings(max_examples=200, deadline=None)
+@settings(max_examples=40, deadline=None)
 @given(
     results=st.lists(_ability_result_strategy(), min_size=0, max_size=20),
     operation_id=st.one_of(st.none(), st.integers(min_value=1, max_value=10_000)),

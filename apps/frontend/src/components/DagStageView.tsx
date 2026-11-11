@@ -38,12 +38,12 @@ import {
  *
  * Rendered states (Req. 3.4, 3.5):
  * - **loading** — `role="status"` note while `getDags` resolves.
- * - **error** — pt-BR message `stix.dag.erro` on a load/choice failure.
- * - **no DAG** (empty list) — note `stix.dag.semDag` and the "Generate with AI"
+ * - **error** — pt-BR message `stix.dag.error` on a load/choice failure.
+ * - **no DAG** (empty list) — note `stix.dag.noDag` and the "Generate with AI"
  *   button **visible but disabled** with the "coming soon" hint; advancing is
  *   blocked (no DAG to choose). Clicking the button is a no-op (no AI).
  * - **list** — each {@link DagSummary} with its identifier/label and the origin
- *   (`stix.dag.origem.<origin>`), the DAG selection, the selected graph via
+ *   (`stix.dag.source.<origin>`), the DAG selection, the selected graph via
  *   `MermaidDiagram` and the "Select DAG" action that calls `chooseDag`.
  *   The "Generate with AI" button stays visible and disabled (Req. 6.1, 6.5).
  */
@@ -75,7 +75,7 @@ export function DagStageView({
       })
       .catch(() => {
         if (!active) return
-        setError(t("stix.dag.erro"))
+        setError(t("stix.dag.error"))
         setLoading(false)
       })
     return () => {
@@ -86,13 +86,13 @@ export function DagStageView({
   return (
     <Card className="flex flex-col">
       <CardHeader className="gap-1 pb-3">
-        <CardTitle className="text-base">{t("stix.dag.titulo")}</CardTitle>
+        <CardTitle className="text-base">{t("stix.dag.title")}</CardTitle>
         <CardDescription>{campaignId}</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4 pt-0">
         {loading ? (
           <p className="text-sm text-muted-foreground" role="status">
-            {t("stix.dag.carregando")}
+            {t("stix.dag.loading")}
           </p>
         ) : error ? (
           <EmptyNote>{error}</EmptyNote>
@@ -100,7 +100,7 @@ export function DagStageView({
           <DagList
             campaignId={campaignId}
             dags={dags}
-            onError={() => setError(t("stix.dag.erro"))}
+            onError={() => setError(t("stix.dag.error"))}
             onDagChosen={onDagChosen}
           />
         ) : (
@@ -118,12 +118,12 @@ export function DagStageView({
 
 /**
  * "No DAG" state: the Campaign has no persisted DAG, so advancing beyond
- * Stage 2 is blocked (nothing to choose) and we show the note `stix.dag.semDag`
+ * Stage 2 is blocked (nothing to choose) and we show the note `stix.dag.noDag`
  * (Req. 3.4). The disabled "Generate DAG" button is rendered by the parent.
  */
 function NoDag() {
   const { t } = useTranslation("stix")
-  return <EmptyNote>{t("stix.dag.semDag")}</EmptyNote>
+  return <EmptyNote>{t("stix.dag.noDag")}</EmptyNote>
 }
 
 /**
@@ -135,11 +135,11 @@ function GenerateWithAiButton() {
   const { t } = useTranslation("stix")
   return (
     <div className="flex items-center gap-2">
-      <Button variant="outline" disabled aria-disabled title={t("stix.dag.emBreve")}>
+      <Button variant="outline" disabled aria-disabled title={t("stix.dag.comingSoon")}>
         <Sparkles aria-hidden />
-        {t("stix.dag.gerarComIa")}
+        {t("stix.dag.generateWithAi")}
       </Button>
-      <span className="text-xs text-muted-foreground">({t("stix.dag.emBreve")})</span>
+      <span className="text-xs text-muted-foreground">({t("stix.dag.comingSoon")})</span>
     </div>
   )
 }
@@ -193,7 +193,7 @@ function DagList({
   return (
     <div className="flex flex-col gap-4">
       {showSelectionUI ? (
-      <ul className="flex flex-col gap-2" aria-label={t("stix.dag.selecionar")}>
+      <ul className="flex flex-col gap-2" aria-label={t("stix.dag.select")}>
         {dags.map((dag) => {
           const selected = dag.id === selectedId
           return (
@@ -213,7 +213,7 @@ function DagList({
                   {dag.label || dag.identifier}
                 </span>
                 <span className="text-xs text-muted-foreground">
-                  {t("stix.dag.origem.label")}: {t(`stix.dag.origem.${dag.origin}`)}
+                  {t("stix.dag.source.label")}: {t(`stix.dag.source.${dag.origin}`)}
                 </span>
               </button>
             </li>
@@ -230,7 +230,7 @@ function DagList({
             {choosing ? (
               <Loader2 className="animate-spin" aria-hidden />
             ) : null}
-            {t("stix.dag.selecionar")}
+            {t("stix.dag.select")}
           </Button>
         </div>
       ) : null}
@@ -281,7 +281,7 @@ function DagGraph({
   if (loading) {
     return (
       <p className="text-sm text-muted-foreground" role="status">
-        {t("stix.dag.carregando")}
+        {t("stix.dag.loading")}
       </p>
     )
   }

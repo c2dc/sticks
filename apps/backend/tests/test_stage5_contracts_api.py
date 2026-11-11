@@ -271,13 +271,13 @@ def test_post_provision_shape_happy_path(
     environment = body["environment"]
     assert environment is not None
     assert environment["campaign_id"] == _SLUG
-    assert environment["platform"] == "conteiner"
+    assert environment["platform"] == "container"
     assert environment["target_containers"], "target containers must be resolved"
     assert environment["isolation"]["approved"] is True
     assert environment["health"]["approved"] is True
     assert environment["loaded_abilities"] is True
     assert environment["compose_file"]
-    assert environment["origin"] == "curadoria_humana"
+    assert environment["origin"] == "human_curation"
 
     # Happy path: completed, with no blocking reason.
     assert body["completed"] is True
@@ -285,7 +285,7 @@ def test_post_provision_shape_happy_path(
 
     # The per-Stage state reflects the completion of Stage 5.
     stage5 = next(e for e in body["states"]["stages"] if e["stage"] == 5)
-    assert stage5["state"] == "concluido"
+    assert stage5["state"] == "completed"
 
 
 # ===========================================================================

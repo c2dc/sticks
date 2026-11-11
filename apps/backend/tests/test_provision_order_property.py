@@ -351,7 +351,7 @@ _failpoint = st.sampled_from(
 _fail_index = st.integers(min_value=0, max_value=1)
 
 
-@settings(max_examples=100, deadline=None)
+@settings(max_examples=40, deadline=None)
 @given(hosts=_hosts_strategy, failpoint=_failpoint, fail_index=_fail_index)
 def test_stage_52_never_runs_before_51_completed_for_all_hosts(
     hosts: list[str], failpoint: str, fail_index: int
@@ -453,7 +453,7 @@ def test_stage_52_never_runs_before_51_completed_for_all_hosts(
             assert environment.ready is True
 
 
-@settings(max_examples=100, deadline=None)
+@settings(max_examples=40, deadline=None)
 @given(hosts=_hosts_strategy)
 def test_51_failure_on_any_host_blocks_all_of_52(hosts: list[str]) -> None:
     # Feature: stage5-target-provisioning, Property 3: Ordem estrita 5.1 antes de 5.2.

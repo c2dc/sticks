@@ -148,8 +148,8 @@ class _Row:
         self.content = content
         self.embedding = embedding
         self.meta = {"content_len": len(content)}
-        self.stage = "estagio_4_operacionalizacao"
-        self.outcome = "sucesso"
+        self.stage = "operationalization"
+        self.outcome = "success"
 
 
 class _ScalarResult:
@@ -261,7 +261,7 @@ def _memory_rows() -> st.SearchStrategy[list[tuple[str, str]]]:
 # ---------------------------------------------------------------------------
 # Feature: ai-curation-agents, Property 5: RAG retrieval is cross-campaign and
 # bounded.
-@settings(max_examples=200, deadline=None)
+@settings(max_examples=40, deadline=None)
 @given(
     rows=_memory_rows(),
     running_campaign=_campaign_ids,

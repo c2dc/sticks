@@ -86,6 +86,23 @@ from app.services.containment.isolation import (
 )
 from app.services.operation.runner import OperationRunner
 
+from _stix_seed import ensure_stix_campaigns
+
+
+def _seed_curated_stix_campaigns(session_factory: sessionmaker[Session]) -> None:
+    """Seed the persisted STIX campaigns the DB-backed guard validates against.
+
+    Ensures every curated slug has a matching ``stix_campaigns`` row so the
+    Campaign_Key resolves to the slug and the guard (``_known_campaign_or_404``)
+    accepts it, keeping the curated flow green without regression (Req. 9.3).
+    Idempotent and self-healing (re-run on every client build): one test in this
+    module re-persists an empty bundle for the curated version, wiping its
+    ``stix_campaigns`` children, so the re-seed restores them regardless of test
+    ordering. The additional non-curated keys exercised across the suite
+    (``costaricto``) are seeded too.
+    """
+    ensure_stix_campaigns(session_factory, CURATED_CASES.keys())
+
 
 # ---------------------------------------------------------------------------
 # Mocked Caldera transports (no real network) — same contract as the sibling
@@ -184,6 +201,24 @@ def session_factory() -> Iterator[sessionmaker[Session]]:
         future=True,
         class_=Session,
     )
+    # Seed the persisted STIX campaigns the DB-backed guard now validates against
+    # (``_known_campaign_or_404`` over ``stix_campaigns`` — Req. 2.2, 2.3, 4.4).
+    # The campaigns surface is the single source of truth, so the curated slugs
+    # exercised across this suite must exist as ``stix_campaigns`` rows (with
+    # ``curated_slug`` set so the Campaign_Key resolves to the slug) for the guard
+    # to accept them exactly as the curated flow did before the migration.
+    _seed_curated_stix_campaigns(factory)
+    # One-shot curated ingest (sub-step 2.1): the campaigns/stage/dag endpoints
+    # now resolve the DAG + Abilities/Adversary from the database (sub-step 2.4
+    # removed the request-time disk read), so the curated content must be
+    # persisted before the endpoints read it.
+    from app.services.curated_ingest_service import CuratedIngestService
+
+    seed_session = factory()
+    try:
+        CuratedIngestService(seed_session).ingest_all()
+    finally:
+        seed_session.close()
     try:
         yield factory
     finally:
@@ -207,6 +242,11 @@ def _make_client(
     client fully mocked (no real Caldera/Docker is ever contacted).
     """
     transport = transport or httpx.MockTransport(_healthy_router)
+    # Re-heal the persisted curated campaigns the DB-backed guard validates
+    # against: the module-scoped DB is shared and one test re-persists an empty
+    # bundle for the curated version (wiping its stix_campaigns), so re-seeding
+    # here keeps the guard green regardless of test ordering (Req. 9.3).
+    _seed_curated_stix_campaigns(session_factory)
     app = create_app()
 
     def _get_db_override() -> Iterator[Session]:
@@ -413,7 +453,7 @@ def test_detail_campaign_returns_abilities_adversary_and_origin(
     body = resp.json()
 
     assert body["id"] == _REAL_SLUG
-    assert body["translation_source"] == "curadoria_humana"
+    assert body["translation_source"] == "human_curation"
     assert isinstance(body["abilities"], list) and body["abilities"]
     # Every ability carries its stable id.
     for ability in body["abilities"]:
@@ -450,12 +490,16 @@ def test_get_stage1_returns_bundle_dashboard(
     """``GET .../stage/1`` returns the Stage-1 (STIX-base Selection) bundle
     dashboard + conclusion verdict (six Stages, Req. 5.7, 5.8, 5.10).
 
-    In the SIX-Stage scheme, Stage 1 is the STIX-base Selection. The handler
-    delegates to ``Stage1Service``; we pin its ``StixService`` to a temp data
-    dir and seed the curated bundle so the stage concludes with no network
-    egress (opening the screen without an explicit version defaults to the
-    curated version)."""
+    In the SIX-Stage scheme, Stage 1 is the STIX-base Selection. Completion /
+    availability now derives from the database persistence state
+    (``StixPackageReadService.is_persisted``), not the on-disk bundle (Req. 3.4,
+    3.5): the handler reads the dashboard/campaigns of a persisted version from
+    the database. We therefore seed a persisted state (via
+    ``StixPersistenceService``, from a curated bundle written in a temp data dir)
+    so the stage concludes with no network egress (opening the screen without an
+    explicit version defaults to the curated version)."""
     import app.services.stix.stage1_service as stage1_module
+    from app.services.stix.stix_persistence_service import StixPersistenceService
     from app.services.stix.stix_service import CURATED_VERSION, StixService
 
     base = StixService(data_dir=tmp_path).base_path(CURATED_VERSION)
@@ -468,6 +512,15 @@ def test_get_stage1_returns_bundle_dashboard(
         "StixService",
         lambda *a, **k: StixService(data_dir=tmp_path),
     )
+
+    # Seed the persisted database state the handler reads from (Req. 3.4, 3.5).
+    session = session_factory()
+    try:
+        StixPersistenceService(
+            session, StixService(data_dir=tmp_path)
+        ).persist_from_disk(CURATED_VERSION)
+    finally:
+        session.close()
 
     client = _make_client(session_factory)
     resp = client.get(f"/api/campaigns/{_REAL_SLUG}/stage/1")
@@ -520,9 +573,9 @@ def test_get_stage4_returns_abilities_and_parameters(
     assert body["abilities"]["has_abilities"] is True
     assert len(body["abilities"]["abilities"]) > 0
     assert len(body["abilities"]["ordering"]) > 0
-    # 2nd artifact: EnvironmentParameters (platform conteiner, origin curated).
+    # 2nd artifact: EnvironmentParameters (platform container, origin curated).
     assert body["parameters"]["campaign_id"] == _REAL_SLUG
-    assert body["parameters"]["platform"] == "conteiner"
+    assert body["parameters"]["platform"] == "container"
     assert body["parameters"]["origin"] == TranslationSource.HUMAN_CURATION.value
     # Both produced → completion criterion satisfied (Req. 8.8).
     assert body["both_produced"] is True
@@ -651,16 +704,16 @@ def test_put_preferences_persists_theme_and_language(
     stored values back (Req. 7.4, 8.4)."""
     client = _make_client(session_factory)
     resp = client.put(
-        "/api/preferences", json={"theme": "escuro", "language": "en"}
+        "/api/preferences", json={"theme": "dark", "language": "en"}
     )
     assert resp.status_code == 200, resp.text
-    assert resp.json() == {"theme": "escuro", "language": "en"}
+    assert resp.json() == {"theme": "dark", "language": "en"}
 
     # A partial update keeps the omitted field at its previously persisted value.
-    resp2 = client.put("/api/preferences", json={"theme": "claro"})
+    resp2 = client.put("/api/preferences", json={"theme": "light"})
     assert resp2.status_code == 200, resp2.text
     body2 = resp2.json()
-    assert body2["theme"] == "claro"
+    assert body2["theme"] == "light"
     assert body2["language"] == "en"
 
 
@@ -702,7 +755,7 @@ def test_get_audit_returns_persisted_trail_oldest_first(
                     ability_id="a-1",
                     command="curl http://192.168.20.30/a",
                     target_container="target-a",
-                    result="sucesso",
+                    result="success",
                     recorded_at=now,
                 ),
                 AuditLogEntry(
@@ -710,7 +763,7 @@ def test_get_audit_returns_persisted_trail_oldest_first(
                     ability_id="a-2",
                     command="curl http://192.168.20.31/b",
                     target_container="target-b",
-                    result="falha",
+                    result="failure",
                     recorded_at=now + dt.timedelta(seconds=1),
                 ),
             ]
@@ -837,7 +890,7 @@ def test_preview_then_not_confirmed_runs_nothing(
     body = run.json()
     assert body["started"] is False
     assert body["result"] == "nao_confirmada"
-    assert body["state"] == "nao_iniciada"
+    assert body["state"] == "not_started"
     assert body["operation_id"] is None
 
     # Nothing ran => no Operation was created for this case (and therefore no
@@ -873,7 +926,7 @@ def test_preview_then_confirmed_happy_path_succeeds_with_aggregate(
     body = run.json()
     assert body["started"] is True
     assert body["result"] == "concluida"
-    assert body["state"] == "finalizada"
+    assert body["state"] == "finished"
     assert body["total_success"] == 1
     assert body["total_failure"] == 0
     assert body["results"], "per-Ability results must be present"
@@ -910,8 +963,8 @@ def test_get_dags_lists_curated_backfill(
     body = resp.json()
     assert body["campaign_id"] == _REAL_SLUG
     assert isinstance(body["dags"], list) and body["dags"], body
-    # At least one curated DAG (curadoria_humana) appears after the backfill.
-    assert any(d["origin"] == "curadoria_humana" for d in body["dags"]), body
+    # At least one curated DAG (human_curation) appears after the backfill.
+    assert any(d["origin"] == "human_curation" for d in body["dags"]), body
     # Each summary carries the expected identity (id, origin, identifier).
     for dag in body["dags"]:
         assert isinstance(dag["id"], int)
@@ -1046,13 +1099,29 @@ def test_choose_dag_without_persisted_dag_returns_409(
     """``choose-dag`` on a campaign WITHOUT any persisted DAG → 409 (NO_DAG,
     Req. 6.2).
 
-    The backfill only runs on LISTING (``GET .../dags``); therefore, calling
-    ``choose-dag`` for a dedicated curated slug BEFORE any listing hits the
-    ``NO_DAG`` branch (no persisted DAG). Uses its own slug so as not to collide
-    with the backfill triggered by other tests in the module's shared DB."""
-    client = _make_client(session_factory)
+    After sub-step 2.4 the curated DAGs are persisted by the one-shot ingest
+    (not a lazy disk backfill on listing), so this test uses a dedicated curated
+    slug and first REMOVES its persisted ``Dag`` row to reach the ``NO_DAG``
+    branch (no persisted DAG) deterministically, without colliding with the
+    module's shared DB."""
+    from app.models.domain import Dag as DagModel
+
     slug_sem_dag = "operation_midnighteclipse"
 
+    # Remove any persisted DAG for the dedicated slug so the NO_DAG branch is hit.
+    cleanup_session = session_factory()
+    try:
+        for row in (
+            cleanup_session.query(DagModel)
+            .filter(DagModel.campaign_id == slug_sem_dag)
+            .all()
+        ):
+            cleanup_session.delete(row)
+        cleanup_session.commit()
+    finally:
+        cleanup_session.close()
+
+    client = _make_client(session_factory)
     resp = client.post(
         f"/api/campaigns/{slug_sem_dag}/stage/3/choose-dag",
         json={"dag_id": 1},
@@ -1114,14 +1183,17 @@ def test_get_stage2_lists_campaigns_and_readonly_attributes(
     assert body["campaign_id"] == _REAL_SLUG
     assert body["version"] == CURATED_VERSION
 
-    # List of bundle campaigns: at least the 8 curated selectable ones.
+    # List of bundle campaigns: the curated-campaign gate is removed, so EVERY
+    # listed campaign is selectable — curated or not (Req. 4.1, 4.5).
     campaigns = body["campaigns"]
     assert isinstance(campaigns, list) and campaigns, body
-    selecionaveis = [c for c in campaigns if c["selectable"]]
-    assert len(selecionaveis) >= 8, selecionaveis
-    # Every selectable campaign is curated and has a curated_slug.
-    for c in selecionaveis:
-        assert c["curated"] is True
+    assert all(c["selectable"] is True for c in campaigns), campaigns
+    # The 8 curated campaigns are still present (and selectable), each with a
+    # curated_slug.
+    curated = [c for c in campaigns if c["curated"]]
+    assert len(curated) >= 8, curated
+    for c in curated:
+        assert c["selectable"] is True
         assert c["curated_slug"]
 
     # Read-only view of the current selection: identity present, never runs.
@@ -1141,13 +1213,57 @@ def test_get_stage2_unknown_slug_returns_404(
 
 def test_post_stage2_select_extracts_attributes_and_concludes(
     session_factory: sessionmaker[Session],
+    tmp_path: Path,
 ) -> None:
-    """``POST .../stage/2/select`` extracts the curated campaign's attributes and
-    completes the Stage when the extraction succeeds (Req. 6.3, 6.4, 6.6).
+    """``POST .../stage/2/select`` extracts the campaign attributes from the DB
+    and completes the Stage (Req. 6.3, 6.4, 6.6).
 
-    For a real curated campaign (``_REAL_SLUG``) the structural extraction of the
-    curated DAG produces the associated techniques; the typed result carries the
-    identity, the techniques and ``completed == True`` with no error cause."""
+    Stage 2 now reads identity + techniques from the persisted STIX (no disk,
+    no curated gate). We seed a bundle with the ShadowRay campaign and one
+    technique, persist it to the DB, then assert the POST completes with the
+    identity and techniques read from the database."""
+    from app.services.stix.stix_persistence_service import StixPersistenceService
+    from app.services.stix.stix_service import CURATED_VERSION, StixService
+
+    bundle = {
+        "type": "bundle",
+        "objects": [
+            {
+                "type": "campaign",
+                "id": "campaign--shadowray-0001",
+                "name": "ShadowRay",
+                "external_references": [
+                    {"source_name": "mitre-attack", "external_id": "C0045"}
+                ],
+            },
+            {
+                "type": "attack-pattern",
+                "id": "attack-pattern--t1190",
+                "name": "Exploit Public-Facing Application",
+                "external_references": [
+                    {"source_name": "mitre-attack", "external_id": "T1190"}
+                ],
+            },
+            {
+                "type": "relationship",
+                "id": "relationship--uses-1",
+                "relationship_type": "uses",
+                "source_ref": "campaign--shadowray-0001",
+                "target_ref": "attack-pattern--t1190",
+            },
+        ],
+    }
+    base = StixService(data_dir=tmp_path).base_path(CURATED_VERSION)
+    base.parent.mkdir(parents=True, exist_ok=True)
+    base.write_text(json.dumps(bundle), encoding="utf-8")
+    session = session_factory()
+    try:
+        StixPersistenceService(
+            session, StixService(data_dir=tmp_path)
+        ).persist_from_disk(CURATED_VERSION)
+    finally:
+        session.close()
+
     client = _make_client(session_factory)
     resp = client.post(
         f"/api/campaigns/{_REAL_SLUG}/stage/2/select",

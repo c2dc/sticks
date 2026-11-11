@@ -155,7 +155,7 @@ def test_stages_channel_emits_frame_reflecting_persisted_stage_run(
 
     assert frame["campaign_id"] == "shadowray"
     assert frame["stage"] == 1
-    assert frame["state"] == StageState.COMPLETED.value  # "concluido"
+    assert frame["state"] == StageState.COMPLETED.value  # "completed"
     assert frame["progress"] == 100
     # First frame reports no prior transition.
     assert frame["previous_state"] is None
@@ -237,7 +237,7 @@ def test_stages_channel_accepts_all_six_stages(
     assert frame.get("valid") is not False
     assert frame["campaign_id"] == "shadowray"
     assert frame["stage"] == stage
-    assert frame["state"] == StageState.COMPLETED.value  # "concluido"
+    assert frame["state"] == StageState.COMPLETED.value  # "completed"
     assert frame["progress"] == 100
 
 
@@ -348,7 +348,7 @@ def test_operation_channel_emits_per_ability_and_final_aggregate(
 
     assert frame["found"] is True
     assert frame["final"] is True
-    assert frame["state"] == OperationState.FINISHED.value  # "finalizada"
+    assert frame["state"] == OperationState.FINISHED.value  # "finished"
     assert frame["aggregate"] == {"total_success": 1, "total_failure": 1}
 
     results = {r["ability_id"]: r for r in frame["results"]}
@@ -399,7 +399,7 @@ def test_operation_channel_pushes_while_running_then_stops_on_max_frames(
 
     assert frame["found"] is True
     assert frame["final"] is False
-    assert frame["state"] == OperationState.RUNNING.value  # "em_execucao"
+    assert frame["state"] == OperationState.RUNNING.value  # "running"
     assert frame["results"][0]["ability_id"] == "ability-run"
     assert (
         frame["results"][0]["status"] == AbilityResultStatus.RUNNING.value

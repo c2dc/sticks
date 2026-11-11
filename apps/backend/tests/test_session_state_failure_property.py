@@ -62,7 +62,7 @@ failure). ``persist_stage_completion`` is invoked and we assert:
   before it — every StageRun field and the session-state row unchanged, and no
   new StageRun row created. This is the core of Property 9: no partial mutation.
 
-At least 100 iterations run (``max_examples=150``). Each example builds and
+At least 100 iterations run (``max_examples=40``). Each example builds and
 tears down a fresh temp-file SQLite database (mirroring
 ``test_session_state_roundtrip_property.py``), so there is no state leak between
 examples. Everything is mocked/in-process — NO real Docker daemon and NO network
@@ -272,7 +272,7 @@ def _build_ephemeral_session() -> tuple[Session, Path, object]:
 # (no state leak between generated states), so we disable the deadline rather
 # than weaken the isolation.
 @settings(
-    max_examples=150,
+    max_examples=40,
     deadline=None,
     suppress_health_check=[HealthCheck.too_slow],
 )

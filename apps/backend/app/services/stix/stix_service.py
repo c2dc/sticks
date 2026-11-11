@@ -138,25 +138,25 @@ def version_is_curated(version: str) -> bool:
     return version == CURATED_VERSION
 
 
-# pt-BR description per counted STIX object type (Req. 3.3). The dashboard fills
+# English description per counted STIX object type (Req. 3.3). The dashboard fills
 # each ``TypeCount.description`` from this map; every description is non-empty.
 TYPE_DESCRIPTIONS: dict[str, str] = {
-    "campaign": "Campanhas de adversário observadas no mundo real.",
-    "attack-pattern": "Técnicas e subtécnicas de ataque do ATT&CK.",
-    "x-mitre-tactic": "Objetivos táticos do adversário (fases).",
-    "intrusion-set": "Grupos/atores de ameaça associados a campanhas.",
-    "malware": "Software malicioso catalogado.",
-    "relationship": "Ligações entre objetos (ex.: atribuição campanha→ator).",
+    "campaign": "campaign",
+    "attack-pattern": "attack-pattern",
+    "x-mitre-tactic": "x-mitre-tactic",
+    "intrusion-set": "intrusion-set",
+    "malware": "malware",
+    "relationship": "relationship",
 }
 
-# Logical label (pt-BR) exposed in the dashboard per STIX object type (Req. 3.2).
+# Logical label (English) exposed in the dashboard per STIX object type (Req. 3.2).
 ROTULO_TIPO: dict[str, str] = {
-    "campaign": "campanhas",
-    "attack-pattern": "tecnicas",
-    "x-mitre-tactic": "taticas",
-    "intrusion-set": "intrusion_sets",
+    "campaign": "campaigns",
+    "attack-pattern": "techniques",
+    "x-mitre-tactic": "tactics",
+    "intrusion-set": "actors",
     "malware": "malware",
-    "relationship": "relacionamentos",
+    "relationship": "relationships",
 }
 
 # Mapping of the 8 curated campaign slugs (CaseService.CURATED_CASES) to the
@@ -169,10 +169,10 @@ SLUG_TO_STIX: dict[str, dict[str, Any]] = {
     "c0026": {"referencias": ["C0026"], "nome_canonico": "C0026"},
     "costaricto": {"referencias": ["C0004"], "nome_canonico": "CostaRicto"},
     "operation_midnighteclipse": {
-        "referencias": ["C0036"],
+        "referencias": ["C0048"],
         "nome_canonico": "Operation MidnightEclipse",
     },
-    "outer_space": {"referencias": ["C0030"], "nome_canonico": "Operation Outer Space"},
+    "outer_space": {"referencias": ["C0042"], "nome_canonico": "Outer Space"},
     "salesforce_data_exfiltration": {
         "referencias": [],
         "nome_canonico": "Salesforce Data Exfiltration",
@@ -274,8 +274,8 @@ class BaseStixInfo(BaseModel):
 class TypeCount(BaseModel):
     """A per-type object count for the intelligence dashboard (Req. 3.2, 3.3).
 
-    ``label`` is the logical label, ``stix_type`` the raw STIX ``type`` and
-    ``description`` a non-empty description of what the type means.
+    ``label`` is the English logical label, ``stix_type`` the raw STIX ``type``
+    and ``description`` a non-empty English description of what the type means.
     """
 
     label: str

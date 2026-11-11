@@ -164,19 +164,19 @@ export function EnvironmentStageView({
       {/* Contained lab topology — diagram + internal networks. */}
       <StageSection
         data-section="topology"
-        label={t("stage4.topologia.titulo")}
+        label={t("stage4.topology.title")}
         kind="blue"
-        description={t("stage4.topologia.descricao")}
+        description={t("stage4.topology.description")}
         className="md:col-span-2"
       >
         <MermaidDiagram definition={mermaid} className="w-full overflow-auto" />
 
         <div className="flex flex-col gap-1">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            {t("stage4.topologia.redes")}
+            {t("stage4.topology.networks")}
           </p>
           {networks.length === 0 ? (
-            <p className="text-xs text-muted-foreground">{t("stage4.topologia.semRedes")}</p>
+            <p className="text-xs text-muted-foreground">{t("stage4.topology.noNetworks")}</p>
           ) : (
             <ul className="flex flex-col gap-0.5">
               {networks.map((network) => (
@@ -194,7 +194,7 @@ export function EnvironmentStageView({
             className="truncate text-[11px] text-muted-foreground"
             title={compose_file}
           >
-            {t("stage4.topologia.composeFile")}: <code>{compose_file}</code>
+            {t("stage4.topology.composeFile")}: <code>{compose_file}</code>
           </p>
         ) : null}
       </StageSection>
@@ -202,7 +202,7 @@ export function EnvironmentStageView({
       {/* Isolation state — ready / blocked / not verifiable. */}
       <StageSection
         data-section="isolation"
-        label={t("stage4.isolamento.titulo")}
+        label={t("stage4.isolation.title")}
         kind={isolated ? "blue" : "red"}
       >
         <IsolationIndicator
@@ -215,12 +215,12 @@ export function EnvironmentStageView({
       {/* Environment hosts — name / container / role / IPs. */}
       <StageSection
         data-section="hosts"
-        label={t("stage4.topologia.hosts")}
+        label={t("stage4.topology.hosts")}
         kind="neutral"
         className="md:col-span-3"
       >
         {hosts.length === 0 ? (
-          <EmptyNote>{t("stage4.topologia.semHosts")}</EmptyNote>
+          <EmptyNote>{t("stage4.topology.noHosts")}</EmptyNote>
         ) : (
           <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {hosts.map((host) => (
@@ -269,10 +269,10 @@ function IsolationIndicator({
       <div className="flex flex-col gap-2" role="status">
         <span className="inline-flex items-center gap-1.5 rounded-full bg-team-blue/10 px-2.5 py-1 text-sm font-medium text-team-blue">
           <CheckCircle2 className="size-4" aria-hidden />
-          {t("stage4.isolamento.isolado")}
+          {t("stage4.isolation.isolated")}
         </span>
         <p className="text-xs text-muted-foreground">
-          {t("stage4.isolamento.isoladoDescricao")}
+          {t("stage4.isolation.isolatedDescription")}
         </p>
       </div>
     )
@@ -281,8 +281,8 @@ function IsolationIndicator({
   // Both remaining states are blocking: non-isolated or unverifiable.
   const Icon = unavailable ? ShieldQuestion : ShieldAlert
   const title = unavailable
-    ? t("stage4.isolamento.indisponivel")
-    : t("stage4.isolamento.naoIsolado")
+    ? t("stage4.isolation.unavailable")
+    : t("stage4.isolation.notIsolated")
 
   return (
     <div className="flex flex-col gap-2">
@@ -292,11 +292,11 @@ function IsolationIndicator({
       </span>
       {unavailable ? (
         <p className="text-xs text-muted-foreground">
-          {t("stage4.isolamento.indisponivelDescricao")}
+          {t("stage4.isolation.unavailableDescription")}
         </p>
       ) : null}
       {reason ? <p className="text-sm text-team-red">{reason}</p> : null}
-      <p className="text-xs text-muted-foreground">{t("stage4.isolamento.bloqueado")}</p>
+      <p className="text-xs text-muted-foreground">{t("stage4.isolation.blocked")}</p>
     </div>
   )
 }
@@ -306,9 +306,9 @@ function HostCard({ host }: { host: TopologyHost }) {
   const { t } = useTranslation("pipeline")
   const roleLabel =
     host.role === "attacker"
-      ? t("stage4.topologia.papel.attacker")
+      ? t("stage4.topology.role.attacker")
       : host.role === "target"
-        ? t("stage4.topologia.papel.target")
+        ? t("stage4.topology.role.target")
         : host.role
 
   return (

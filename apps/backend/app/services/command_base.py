@@ -1,0 +1,187 @@
+"""Command_Base - consultable command index shared by DAG and operationalization.
+
+The Command_Base is the queryable command index that both the DAG generation
+agent and the operationalization agent consume (Req. 11.2, 12.1). It is composed
+of two halves following the two-memory rule (see
+:mod:`app.services.ai.memory`):
+
+* **Exact half (relational).** The ``technique_commands`` table maps an ATT&CK
+  ``technique_id`` to concrete commands, each carrying its executor, platform
+  and provenance (``atomic_red_team`` | ``threat_intel``). These are the exact,
+  factual mappings and are returned first (Req. 7.4, 12.1).
+* **Similarity half (vector).** When no exact relational mapping exists for a
+  technique, the Command_Base falls back to associative command affinities
+  retrieved by similarity from the ``experience_memory`` pgvector store, via the
+  Session-injected :class:`app.services.ai.memory.ExperienceMemory` (Req. 7.5,
+  12.3).
+
+:meth:`CommandBase.has_command_for` signals whether a technique has any backing
+command at all (exact or by similarity) so the DAG generation agent can flag a
+gap instead of inventing an unsupported command (Req. 11.4).
+
+This module performs no I/O at import time: the ORM model and the experience
+memory are resolved lazily inside the methods, matching the conventions of the
+other Session-injected services (Req. 1.7).
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any, Optional
+
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.services.ai.memory import ExperienceMemory
+
+# Sentinel campaign id for technique-level (campaign-agnostic) retrieval.
+# ``ExperienceMemory.retrieve`` excludes the running campaign from its results;
+# the Command_Base queries affinities by technique rather than by campaign, so
+# it passes a sentinel that cannot collide with any real campaign id, keeping
+# every stored affinity eligible for the similarity fallback.
+_NO_CAMPAIGN = "__command_base_no_campaign__"
+
+
+@dataclass(frozen=True)
+class CommandSuggestion:
+    """One command suggested for a technique, exact or by similarity.
+
+    ``exact`` distinguishes the two halves of the Command_Base: ``True`` means
+    the suggestion came from the relational ``technique_commands`` mapping;
+    ``False`` means it was recovered by similarity from the Experience_Memory.
+    """
+
+    technique_id: str
+    command: str
+    executor: str  # "sh" | "powershell" | "cmd" | ...
+    platform: str  # "linux" | "windows" | ...
+    source: str  # "atomic_red_team" | "threat_intel"
+    exact: bool  # True = relational mapping; False = similarity
+
+
+class CommandBase:
+    """Queryable command index: exact relational mapping + similarity fallback.
+
+    Session-injected like the other services; the Experience_Memory is injected
+    too (or lazily constructed over the same session) so the similarity fallback
+    shares the request-scoped unit of work.
+    """
+
+    def __init__(
+        self, session: Session, *, memory: Optional[ExperienceMemory] = None
+    ) -> None:
+        self._session = session
+        self._memory = memory
+
+    # ---- public API --------------------------------------------------------
+
+    def commands_for_technique(
+        self, technique_id: str, *, k: int = 5
+    ) -> list[CommandSuggestion]:
+        """Return commands backing a technique: exact first, else by similarity.
+
+        Reads the ``technique_commands`` rows mapped to ``technique_id`` and maps
+        them to :class:`CommandSuggestion` with ``exact=True`` (Req. 7.4, 12.1).
+        When at least one exact mapping exists, only the exact suggestions are
+        returned. Otherwise the method falls back to the Experience_Memory and
+        returns up to ``k`` command affinities retrieved by similarity for the
+        technique, each with ``exact=False`` (Req. 7.5, 12.3).
+        """
+        exact = self._exact_commands(technique_id)
+        if exact:
+            return exact
+        return self._similar_commands(technique_id, k=k)
+
+    def has_command_for(self, technique_id: str) -> bool:
+        """True if the technique has at least one backing command.
+
+        Returns ``True`` when there is at least one exact relational mapping OR
+        at least one similarity suggestion for ``technique_id``; ``False`` only
+        when neither half of the Command_Base can back the technique, letting the
+        DAG generation agent flag the gap (Req. 11.4).
+        """
+        return bool(self.commands_for_technique(technique_id, k=1))
+
+    # ---- exact (relational) half -------------------------------------------
+
+    def _exact_commands(self, technique_id: str) -> list[CommandSuggestion]:
+        """Map ``technique_commands`` rows for the technique to suggestions."""
+        # Imported lazily to avoid import-time I/O and circular imports with
+        # app.models (Req. 1.7).
+        from app.models.domain import TechniqueCommand
+
+        stmt = (
+            select(TechniqueCommand)
+            .where(TechniqueCommand.technique_id == technique_id)
+            .order_by(TechniqueCommand.id)
+        )
+        rows = self._session.execute(stmt).scalars().all()
+        return [
+            CommandSuggestion(
+                technique_id=row.technique_id,
+                command=row.command,
+                executor=row.executor,
+                platform=row.platform,
+                source=row.source,
+                exact=True,
+            )
+            for row in rows
+        ]
+
+    # ---- similarity (vector) half ------------------------------------------
+
+    def _similar_commands(
+        self, technique_id: str, *, k: int
+    ) -> list[CommandSuggestion]:
+        """Retrieve command affinities for the technique from Experience_Memory.
+
+        Queries the Experience_Memory by the technique id and projects each hit
+        into a :class:`CommandSuggestion` with ``exact=False`` (Req. 7.5, 12.3).
+        Hits that carry no usable command payload are skipped. If the memory is
+        unavailable it degrades to an empty set (handled inside
+        :meth:`ExperienceMemory.retrieve`).
+        """
+        memory = self._resolve_memory()
+        hits = memory.retrieve(campaign_id=_NO_CAMPAIGN, query=technique_id, k=k)
+
+        suggestions: list[CommandSuggestion] = []
+        for hit in hits:
+            suggestion = self._hit_to_suggestion(technique_id, hit)
+            if suggestion is not None:
+                suggestions.append(suggestion)
+        return suggestions
+
+    def _resolve_memory(self) -> ExperienceMemory:
+        """Return the injected Experience_Memory or build one over the session."""
+        if self._memory is None:
+            self._memory = ExperienceMemory(self._session)
+        return self._memory
+
+    @staticmethod
+    def _hit_to_suggestion(
+        technique_id: str, hit: dict[str, Any]
+    ) -> Optional[CommandSuggestion]:
+        """Project a retrieval hit into a similarity :class:`CommandSuggestion`.
+
+        Command affinities store the concrete command plus its executor/platform/
+        source in the hit metadata; the human-readable ``content`` is used as a
+        last-resort command text. Hits without any command payload are skipped so
+        unrelated experience rows do not masquerade as commands.
+        """
+        metadata = hit.get("metadata") or {}
+
+        command = metadata.get("command")
+        if not command:
+            content = hit.get("content")
+            command = content if isinstance(content, str) and content.strip() else None
+        if not command:
+            return None
+
+        return CommandSuggestion(
+            technique_id=metadata.get("technique_id") or technique_id,
+            command=command,
+            executor=metadata.get("executor", ""),
+            platform=metadata.get("platform", ""),
+            source=metadata.get("source", "threat_intel"),
+            exact=False,
+        )

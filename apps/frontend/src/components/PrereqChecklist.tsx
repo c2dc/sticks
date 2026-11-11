@@ -348,7 +348,7 @@ export function PrereqChecklist({
       id: "conteineresSaudaveis",
       step: "aguardar_saude",
       state: states.aguardar_saude,
-      label: t("stage5.provisionamento.prerequisitos.conteineresSaudaveis", {
+      label: t("stage5.provisioning.prerequisites.healthyContainers", {
         defaultValue: "Contêineres saudáveis",
       }),
       cause: healthCause,
@@ -358,7 +358,7 @@ export function PrereqChecklist({
       id: "prerequisitosOnline",
       step: "build_online",
       state: states.build_online,
-      label: t("stage5.provisionamento.prerequisitos.prerequisitosOnline", {
+      label: t("stage5.provisioning.prerequisites.onlinePrerequisites", {
         defaultValue: "Pré-requisitos online obtidos",
       }),
       cause: onlineCause,
@@ -367,7 +367,7 @@ export function PrereqChecklist({
       id: "egressoPerdido",
       step: "verificar_egresso",
       state: states.verificar_egresso,
-      label: t("stage5.provisionamento.prerequisitos.egressoPerdido", {
+      label: t("stage5.provisioning.prerequisites.egressLost", {
         defaultValue: "Egresso perdido (verificado)",
       }),
       cause: egressCause,
@@ -376,7 +376,7 @@ export function PrereqChecklist({
       id: "abilitiesCarregadas",
       step: "carregar_abilities",
       state: states.carregar_abilities,
-      label: t("stage5.provisionamento.prerequisitos.abilitiesCarregadas", {
+      label: t("stage5.provisioning.prerequisites.abilitiesLoaded", {
         defaultValue: "Abilities carregadas no Caldera",
       }),
       cause: abilitiesCause,
@@ -385,7 +385,7 @@ export function PrereqChecklist({
       id: "isolamentoAprovado",
       step: "verificar_isolamento",
       state: states.verificar_isolamento,
-      label: t("stage5.provisionamento.prerequisitos.isolamentoAprovado", {
+      label: t("stage5.provisioning.prerequisites.isolationApproved", {
         defaultValue: "Isolamento aprovado",
       }),
       cause: isolationCause,
@@ -401,7 +401,7 @@ export function PrereqChecklist({
   return (
     <StageSection
       data-section="prerequisitos"
-      label={t("stage5.provisionamento.prerequisitos.titulo", {
+      label={t("stage5.provisioning.prerequisites.title", {
         defaultValue: "Pré-requisitos de execução",
       })}
       kind={hasFailure ? "red" : ready ? "blue" : "neutral"}
@@ -421,7 +421,7 @@ export function PrereqChecklist({
         >
           <span className="inline-flex items-center gap-1.5 text-sm font-medium text-team-red">
             <ShieldAlert className="size-4" aria-hidden />
-            {t("stage5.provisionamento.falha.titulo", {
+            {t("stage5.provisioning.failure.title", {
               defaultValue: "Provisionamento falhou",
             })}
           </span>
@@ -429,7 +429,7 @@ export function PrereqChecklist({
             <p className="text-xs text-team-red">{errorMessage}</p>
           ) : null}
           <p className="text-xs text-muted-foreground">
-            {t("stage5.provisionamento.falha.estagio6Bloqueado", {
+            {t("stage5.provisioning.failure.stage6Blocked", {
               defaultValue:
                 "O Estágio 6 (Execução da Campanha) permanece bloqueado até que o provisionamento conclua.",
             })}
@@ -443,7 +443,7 @@ export function PrereqChecklist({
         >
           <CheckCircle2 className="mt-px size-4 shrink-0 text-team-blue" aria-hidden />
           <p className="text-sm font-medium text-team-blue">
-            {t("stage5.provisionamento.prerequisitos.pronto", {
+            {t("stage5.provisioning.prerequisites.ready", {
               defaultValue:
                 "Ambiente pronto — todos os pré-requisitos foram verificados.",
             })}
@@ -452,7 +452,7 @@ export function PrereqChecklist({
       ) : blocked ? (
         /* While pending/in-progress: Stage 6 stays blocked (Req. 7.3). */
         <p className="text-xs text-muted-foreground">
-          {t("stage5.provisionamento.falha.estagio6Bloqueado", {
+          {t("stage5.provisioning.failure.stage6Blocked", {
             defaultValue:
               "O Estágio 6 (Execução da Campanha) permanece bloqueado até que o provisionamento conclua.",
           })}
@@ -473,7 +473,7 @@ function PrereqItem({ item }: { item: ChecklistItem }) {
 
   const statusDefault =
     statusKey === "ok" ? "OK" : statusKey === "falha" ? "Falha" : "Pendente"
-  const statusLabel = t(`stage5.provisionamento.prerequisitos.${statusKey}`, {
+  const statusLabel = t(`stage5.provisioning.prerequisites.${statusKey}`, {
     defaultValue: statusDefault,
   })
 

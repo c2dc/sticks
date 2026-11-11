@@ -87,7 +87,10 @@ from app.services.environment.compose_executor import CommandResult
 from app.services.environment.provisioner import CurationEnvironmentProvisioner
 from app.services.environment.health import ContainerStateInfo
 from app.services.operation.runner import OperationRunner
+from app.services.stix.stix_persistence_service import StixPersistenceService
 from app.services.stix.stix_service import CURATED_VERSION, StixService
+
+from _stix_seed import ensure_stix_campaigns
 
 
 # A real curated case present on disk (11 Abilities, no external destinations).
@@ -261,6 +264,21 @@ def session_factory() -> Iterator[sessionmaker[Session]]:
         future=True,
         class_=Session,
     )
+    # The campaigns / stages guard now validates against the persisted STIX
+    # campaigns (``_known_campaign_or_404`` over ``stix_campaigns`` — Req. 2.2,
+    # 2.3, 4.4), so the curated slug exercised here must exist as a
+    # ``stix_campaigns`` row for the stage requests to pass the guard.
+    ensure_stix_campaigns(factory, [_SLUG])
+    # One-shot curated ingest (sub-step 2.1): the Stage 3/4 contracts resolve the
+    # DAG + Abilities from the database (sub-step 2.4 removed the request-time
+    # disk read), so the curated content must be persisted before the requests.
+    from app.services.curated_ingest_service import CuratedIngestService
+
+    seed_session = factory()
+    try:
+        CuratedIngestService(seed_session).ingest_all()
+    finally:
+        seed_session.close()
     try:
         yield factory
     finally:
@@ -392,9 +410,32 @@ def test_detail_campaign_returns_six_stages(
 
 def test_stage1_contract_bundle_dashboard(
     session_factory: sessionmaker[Session],
+    stix_data_dir: Path,
     pin_stix_to_temp_dir: None,
 ) -> None:
-    """Estágio 1 (Seleção da base STIX): dashboard do bundle + verdict (Req. 5.7, 5.8)."""
+    """Estágio 1 (Seleção da base STIX): dashboard do bundle + verdict (Req. 3.4, 3.5).
+
+    A base STIX completion/availability agora deriva do state persistido no banco
+    (``StixPackageReadService.is_persisted``), não do bundle em disco: por isso
+    semeia-se o banco (via :class:`StixPersistenceService`, a partir do bundle
+    curated em ``stix_data_dir``) antes de ler o Estágio 1, que monta o
+    dashboard/campaigns a partir do banco.
+    """
+    base_path = StixService(data_dir=stix_data_dir).base_path(CURATED_VERSION)
+    session = session_factory()
+    try:
+        StixPersistenceService(
+            session, StixService(data_dir=stix_data_dir)
+        ).persist_from_disk(CURATED_VERSION)
+    finally:
+        session.close()
+    # The persistence deletes the on-disk bundle after the commit (Req. 1.1). The
+    # module-scoped ``stix_data_dir`` is shared with the Estágio-2 read (which
+    # lists the campaigns from disk), so restore the seeded bundle to keep the
+    # fixture state independent of test ordering.
+    base_path.parent.mkdir(parents=True, exist_ok=True)
+    base_path.write_text(json.dumps(_CURATED_BUNDLE), encoding="utf-8")
+
     client = _make_client(session_factory)
     resp = client.get(f"/api/campaigns/{_SLUG}/stage/1")
     assert resp.status_code == 200, resp.text
@@ -459,7 +500,7 @@ def test_stage4_contract_operationalization(
     assert body["abilities"]["has_abilities"] is True
     assert len(body["abilities"]["ordering"]) > 0
     assert body["parameters"]["campaign_id"] == _SLUG
-    assert body["parameters"]["platform"] == "conteiner"
+    assert body["parameters"]["platform"] == "container"
     assert body["parameters"]["origin"] == TranslationSource.HUMAN_CURATION.value
     assert body["both_produced"] is True
 

@@ -349,3 +349,101 @@ def test_derrubar_nunca_inclui_rmi_preserva_imagem(
     # NUNCA remove imagens nem volumes de dados persistentes.
     assert "--rmi" not in down
     assert "-v" not in down and "--volumes" not in down
+
+
+# ---------------------------------------------------------------------------
+# Caldera fixed-engine contract (task 6.1 — design §E, Req. 12.2)
+# ---------------------------------------------------------------------------
+#
+# Caldera is the FIXED, audited execution engine (C2): not an agent decision and
+# not an optional target. These example tests RECORD the "compiled once from
+# source, reused" idempotency of the Caldera image in the provisioning path —
+# WITHOUT adding any new execution machinery. They pin the recorded contract
+# (`CALDERA_SERVICE`/`CALDERA_ENGINE_IMAGE`) against the lab image map and assert
+# the already-implemented `up` (build-once when missing, else `--no-build`) and
+# `down` (preserves the image) behavior for the engine specifically.
+
+
+def test_caldera_engine_contract_pins_the_fixed_image() -> None:
+    """A Caldera é a engine FIXA, fixada à imagem estável, dentro do mapa do lab.
+    _Requirements: 12.2_"""
+    from app.services.environment.compose_executor import (
+        CALDERA_ENGINE_IMAGE,
+        CALDERA_SERVICE,
+        LAB_IMAGES,
+        LAB_SERVICES,
+    )
+
+    # O serviço da engine é um serviço do laboratório (não uma peça à parte).
+    assert CALDERA_SERVICE == "caldera-attacker"
+    assert CALDERA_SERVICE in LAB_SERVICES
+    # A imagem registrada da engine é EXATAMENTE a pinada no mapa do lab —
+    # construída uma vez a partir do fonte (`infra/docker/.docker/caldera`).
+    assert CALDERA_ENGINE_IMAGE == "sticks-caldera-attacker:latest"
+    assert CALDERA_ENGINE_IMAGE == LAB_IMAGES[CALDERA_SERVICE]
+
+
+def test_caldera_image_present_is_reused_never_rebuilt(
+    monkeypatch: pytest.MonkeyPatch, coletor: list[LogLine]
+) -> None:
+    """Imagem da Caldera já construída -> reuso (``up --no-build``, sem ``build``).
+    _Requirements: 12.2, 11.2_"""
+    from app.services.environment.compose_executor import CALDERA_ENGINE_IMAGE
+
+    grav = _GravadorPopen(code=0)
+    monkeypatch.setattr(subprocess, "Popen", grav)
+
+    # A imagem da engine (e as demais) já existem no engine local.
+    DockerComposeExecutor(image_exists=lambda _n: True).up(
+        "docker/docker-compose.yml", on_log=coletor.append
+    )
+
+    # Nenhum ``build`` foi emitido — a engine fixa é reusada da imagem em cache.
+    assert all("build" not in a for a in grav.argvs)
+    assert len(grav.argvs) == 1 and "--no-build" in grav.argvs[0]
+
+
+def test_caldera_image_missing_is_built_once_from_source(
+    monkeypatch: pytest.MonkeyPatch, coletor: list[LogLine]
+) -> None:
+    """Imagem da Caldera ausente -> construída uma vez (do fonte) e então ``up``.
+    _Requirements: 12.2, 11.3_"""
+    from app.services.environment.compose_executor import CALDERA_SERVICE
+
+    grav = _GravadorPopen(code=0)
+    monkeypatch.setattr(subprocess, "Popen", grav)
+
+    # Só a imagem da engine Caldera falta; as demais já existem (reuso).
+    def _existe(name: str) -> bool:
+        return "caldera-attacker" not in name
+
+    DockerComposeExecutor(image_exists=_existe).up(
+        "docker/docker-compose.yml", on_log=coletor.append
+    )
+
+    assert len(grav.argvs) == 2, "esperava build (da engine) seguido de up"
+    build, up = grav.argvs
+    # O ``build`` nomeia APENAS o serviço da engine fixa (compilada do fonte).
+    assert "build" in build
+    assert build[build.index("build") + 1 :] == [CALDERA_SERVICE]
+    # Em seguida, ``up --no-build`` reusa tudo (a engine recém-construída inclusa).
+    assert "up" in up and "--no-build" in up
+
+
+def test_caldera_image_survives_teardown_for_reuse(
+    monkeypatch: pytest.MonkeyPatch, coletor: list[LogLine]
+) -> None:
+    """``down`` preserva a imagem da engine (sem ``--rmi``) -> reuso no próximo Run.
+    _Requirements: 12.2, 11.6_"""
+    grav = _GravadorPopen(code=0)
+    monkeypatch.setattr(subprocess, "Popen", grav)
+
+    DockerComposeExecutor().down(
+        "docker/docker-compose.yml", on_log=coletor.append
+    )
+
+    assert len(grav.argvs) == 1
+    down = grav.argvs[0]
+    assert "down" in down
+    # A imagem da engine fixa NÃO é removida no teardown (idempotente, cacheada).
+    assert "--rmi" not in down

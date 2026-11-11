@@ -52,6 +52,7 @@ from app.services.environment.provisioner import (
     ProvisionedEnvironment,
     SubStageSummary,
 )
+from app.services.environment.resource_gate import ResourceGate, ResourceLimits
 
 _SLUG = "ai-env-faked"
 _CONTAINER = "nginx"
@@ -376,3 +377,119 @@ def test_deprovision_failure_preserves_remaining_resources() -> None:
     assert out.deprovisioned is False
     assert out.remaining_resources == ["nginx", "lab_net"]
     assert out.message == "compose down failed: daemon unavailable"
+
+
+# ---------------------------------------------------------------------------
+# 4. ResourceGate wired BEFORE provisioning (task 6.2, Req. 3.1, 12.2)
+#    The agent proposes targets; the code-level gate disposes. A rejected plan
+#    fails the environment stage with the exceeded-limit reasons and creates NO
+#    container (the pipeline is never called).
+# ---------------------------------------------------------------------------
+
+
+def _params_with_hosts(count: int) -> EnvironmentParameters:
+    """A fixed Stage 4 output proposing ``count`` target hosts (one per container)."""
+    return EnvironmentParameters(
+        campaign_id=_SLUG,
+        platform=EnvironmentPlatform.CONTAINER,
+        hosts=[
+            TargetHost(label=f"host_{i}", container=f"c{i}") for i in range(count)
+        ],
+        network_context=["internal lab segment"],
+        origin=TranslationSource.HUMAN_CURATION,
+    )
+
+
+def test_resource_gate_rejection_creates_no_container_and_records_reasons() -> None:
+    """A plan exceeding the container limit fails the stage; pipeline never runs.
+
+    With a gate limited to 2 containers and an agent proposing 3, the
+    ResourceGate rejects BEFORE any container is created: the injected pipeline's
+    ``provision`` is NOT called, the returned environment carries
+    ``failed_step="resource_gate"`` (so ``ready`` stays ``False``) with the
+    exceeded-limit reason in ``error_message``, and the origin is still
+    ``gerado_ia`` (task 6.2, Req. 3.1, 12.2).
+    """
+    pipeline = _FakePipeline(environment=_ready_environment())
+    agent = AiEnvironmentProvisioner(
+        pipeline=pipeline,
+        resource_gate=ResourceGate(ResourceLimits(max_containers=2)),
+    )
+
+    environment = agent.provision(_params_with_hosts(3))
+
+    # No container was created: the pipeline was never delegated to.
+    assert pipeline.provision_calls == []
+
+    # The stage failed on the resource gate, keeping Stage 5 incomplete.
+    assert environment.failed_step == "resource_gate"
+    assert environment.ready is False
+    assert environment.origin is TranslationSource.AI_GENERATED
+    assert "3" in (environment.error_message or "")
+    assert "2" in (environment.error_message or "")
+
+    # The proposed targets are preserved for traceability.
+    assert environment.target_containers == ["c0", "c1", "c2"]
+
+
+def test_resource_gate_rejection_records_verdict_in_trace() -> None:
+    """The rejected ResourceGate verdict is recorded in the trace gates block.
+
+    The environment stage trace's ``processing.gates.resource_gate`` carries
+    ``approved=False`` and the exceeded-limit reason(s), so the audit shows the
+    code-level gate ran and why it rejected (design §E, task 6.2).
+    """
+    sink: list[dict] = []
+    pipeline = _FakePipeline(environment=_ready_environment())
+    agent = AiEnvironmentProvisioner(
+        pipeline=pipeline,
+        resource_gate=ResourceGate(ResourceLimits(max_containers=1)),
+        trace_sink=sink,
+    )
+
+    agent.provision(_params_with_hosts(3))
+
+    assert len(sink) == 1
+    gate = sink[0]["processing"]["gates"]["resource_gate"]
+    assert gate["approved"] is False
+    assert gate["reasons"]
+    assert any("3" in reason for reason in gate["reasons"])
+
+
+def test_resource_gate_approval_proceeds_to_pipeline_and_records_verdict() -> None:
+    """An approved plan proceeds to the pipeline and records an empty-reason verdict.
+
+    When the proposed plan is within the limits the gate approves, the agent
+    delegates to the pipeline (one container-provisioning call) and the trace
+    records ``resource_gate.approved=True`` with no reasons (task 6.2).
+    """
+    sink: list[dict] = []
+    pipeline = _FakePipeline(environment=_ready_environment())
+    agent = AiEnvironmentProvisioner(pipeline=pipeline, trace_sink=sink)
+
+    environment = agent.provision(_params())
+
+    # The gate approved, so the pipeline was delegated to exactly once.
+    assert len(pipeline.provision_calls) == 1
+    assert environment.ready is True
+    assert environment.origin is TranslationSource.AI_GENERATED
+
+    gate = sink[0]["processing"]["gates"]["resource_gate"]
+    assert gate["approved"] is True
+    assert gate["reasons"] == []
+
+
+def test_empty_proposal_is_approved_and_proceeds() -> None:
+    """An empty proposal (zero hosts) is approved — nothing proposed consumes nothing.
+
+    A zero-footprint plan passes every limit, so the gate approves and the agent
+    proceeds to the pipeline, matching ``build_resource_plan``'s zero-footprint
+    contract (task 6.2).
+    """
+    pipeline = _FakePipeline(environment=_ready_environment())
+    agent = AiEnvironmentProvisioner(pipeline=pipeline)
+
+    environment = agent.provision(_params_with_hosts(0))
+
+    assert len(pipeline.provision_calls) == 1
+    assert environment.origin is TranslationSource.AI_GENERATED

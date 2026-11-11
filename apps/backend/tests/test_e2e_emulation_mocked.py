@@ -376,7 +376,7 @@ def test_full_flow_preview_confirmation_emulation_audit_and_aggregate(
         nc_body = not_confirmed.json()
         assert nc_body["started"] is False
         assert nc_body["result"] == "nao_confirmada"
-        assert nc_body["state"] == "nao_iniciada"
+        assert nc_body["state"] == "not_started"
         assert nc_body["operation_id"] is None
 
         db = session_factory()
@@ -402,7 +402,7 @@ def test_full_flow_preview_confirmation_emulation_audit_and_aggregate(
     body = run.json()
     assert body["started"] is True
     assert body["result"] == "concluida"
-    assert body["state"] == "finalizada"
+    assert body["state"] == "finished"
 
     # Aggregate is consistent with the per-Ability link statuses (Req. 4.5).
     assert body["total_success"] == 2
@@ -416,7 +416,7 @@ def test_full_flow_preview_confirmation_emulation_audit_and_aggregate(
     }
     for ability_id, command in _EXECUTED_COMMANDS.items():
         assert command in status_by_command, command
-        expected = "sucesso" if _LINK_STATUS[ability_id] == 0 else "falha"
+        expected = "success" if _LINK_STATUS[ability_id] == 0 else "failure"
         assert status_by_command[command] == expected
     for r in body["results"]:
         assert r["target_container"], "every result must name a target container"
@@ -452,7 +452,7 @@ def test_full_flow_preview_confirmation_emulation_audit_and_aggregate(
         assert r["target_container"], "audit row must record the target container"
         assert r["result"], "audit row must record the result"
         # The recorded result text reflects the per-command success/failure.
-        assert r["result"].startswith(("sucesso", "falha"))
+        assert r["result"].startswith(("success", "failure"))
 
     # --- Cross-check against the persisted rows (belt and suspenders) --------
     # The HTTP audit trail matches the DB, and the AbilityResult rows persisted

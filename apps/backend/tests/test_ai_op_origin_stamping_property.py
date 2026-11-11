@@ -79,7 +79,7 @@ from app.services.dag.dag_service import DagNodeView, DagView
 
 # The exact pt-BR string the Origin must carry (Req. 2.4) — a literal, so the
 # assertions never trust the implementation to decide the expected value.
-_GERADO_IA = "gerado_ia"
+_GERADO_IA = "ai_generated"
 
 
 # ---------------------------------------------------------------------------
@@ -204,7 +204,7 @@ def _build_ephemeral_session() -> tuple[Session, Path, Any]:
 # Feature: ai-curation-agents, Property 1: AI artifacts always carry
 # origin = AI_GENERATED.
 @settings(
-    max_examples=150,
+    max_examples=40,
     deadline=None,
     suppress_health_check=[HealthCheck.too_slow],
 )

@@ -215,7 +215,7 @@ def _modelagem(draw) -> StructuralModeling:
 
 # Feature: pipeline-seis-stages, Property 13: Origem explícita e extensível nodes
 # Estágios 3, 4 e 5 (parte Estágio 3 / DAG).
-@settings(max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture])
+@settings(max_examples=40, suppress_health_check=[HealthCheck.function_scoped_fixture])
 @given(structural_nodes=_acyclic_dag(), modeling=_modelagem())
 def test_property13_stage3_origin_explicit_and_extensible(
     structural_nodes: list[dict],

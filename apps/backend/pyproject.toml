@@ -25,6 +25,9 @@ dependencies = [
     "pgvector>=0.3",
     "langgraph>=0.2",
     "langgraph-checkpoint-postgres>=2.0",
+    "pyyaml>=6.0",
+    "python-multipart>=0.0.9",
+    "pypdf>=4.2",
 ]
 
 [project.optional-dependencies]

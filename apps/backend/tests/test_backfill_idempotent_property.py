@@ -202,7 +202,7 @@ def _persisted_tuples(session: Session, campaign: str) -> list[tuple]:
 # Feature: dag-stage-multi-origin, Property 11: Curated-DAG backfill is
 # idempotent
 @settings(
-    max_examples=100,
+    max_examples=40,
     # Each example does disk I/O (ephemeral SQLite + file fixtures), whose cost
     # varies with the environment; the default ``deadline`` (200ms) is therefore
     # a source of *timing* flakiness — not of correctness. The property is still

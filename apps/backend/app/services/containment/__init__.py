@@ -48,6 +48,16 @@ from app.services.containment.isolation import (
     inspect_isolation,
     verify_isolation,
 )
+from app.services.containment.isolation_gate import (
+    IsolationAuditSink,
+    IsolationEvent,
+    IsolationProof,
+    IsolationRequired,
+    RecordingIsolationAuditSink,
+    isolate,
+    require_isolation,
+    validate_destination,
+)
 from app.services.containment.preview import (
     AbilityPreview,
     CommandPreview,
@@ -107,4 +117,13 @@ __all__ = [
     "NetworkNotFound",
     "inspect_isolation",
     "verify_isolation",
+    # isolation_gate (task 9.1) — Network_Boundary between environment & execution
+    "IsolationAuditSink",
+    "IsolationEvent",
+    "IsolationProof",
+    "IsolationRequired",
+    "RecordingIsolationAuditSink",
+    "isolate",
+    "require_isolation",
+    "validate_destination",
 ]

@@ -95,7 +95,7 @@ export function ProvisioningConsole({
   return (
     <StageSection
       data-section="console"
-      label={t("stage5.provisionamento.console.titulo")}
+      label={t("stage5.provisioning.console.title")}
       kind="neutral"
       className={className}
     >
@@ -103,13 +103,13 @@ export function ProvisioningConsole({
         ref={scrollRef}
         role="log"
         aria-live="polite"
-        aria-label={t("stage5.provisionamento.console.titulo")}
+        aria-label={t("stage5.provisioning.console.title")}
         className="h-72 overflow-auto rounded-md border bg-zinc-950 p-3 font-mono text-xs leading-relaxed text-zinc-100"
       >
         {lines.length === 0 ? (
           <p className="flex items-center gap-1.5 text-zinc-400">
             <TerminalSquare className="size-3.5" aria-hidden />
-            {t("stage5.provisionamento.console.vazio")}
+            {t("stage5.provisioning.console.empty")}
           </p>
         ) : (
           <ul className="flex flex-col gap-0.5">
@@ -143,7 +143,7 @@ const STREAM_COLOR: Record<string, string> = {
 function ConsoleLine({ line }: { line: LogLineView }) {
   const { t } = useTranslation("pipeline")
   const streamColor = STREAM_COLOR[line.stream] ?? "text-zinc-100"
-  const stepLabel = t(`stage5.provisionamento.console.etapas.${line.step}`, {
+  const stepLabel = t(`stage5.provisioning.console.steps.${line.step}`, {
     defaultValue: line.step,
   })
   // Sub-stage marker — rendered only when the backend tagged the line (5.1/5.2).
@@ -151,7 +151,7 @@ function ConsoleLine({ line }: { line: LogLineView }) {
   const substageKey = line.substage ? `s${line.substage.replace(/\./g, "")}` : null
   const substageLabel =
     line.substage && substageKey
-      ? t(`stage5.provisionamento.console.subetapas.${substageKey}`, {
+      ? t(`stage5.provisioning.console.substeps.${substageKey}`, {
           defaultValue: line.substage,
         })
       : null

@@ -25,6 +25,35 @@ class StageArtifacts(TypedDict, total=False):
     environment: dict  # ProvisionedEnvironment.model_dump()
 
 
+class ExecutionResult(TypedDict, total=False):
+    """The real execution outcome the ``execution`` phase hands to ``evaluation``.
+
+    This is the explicit contract that decouples the verdict from the execution
+    step (Req. 2.1, 2.2): the ``execution`` node (:func:`app.services.ai.graph.
+    execute_node`) computes this structured view from the live Stage 6 runner
+    result — the runner ``verdict`` (its :class:`~app.services.operation.runner.
+    RunOutcome` value), the containment/isolation booleans and whether the
+    Operation executed to completion — and the ``evaluation`` node reads it as its
+    input rather than re-deriving the verdict from the raw runner internals.
+
+    The derived ``containment_passed`` / ``isolation_passed`` booleans are carried
+    here explicitly because the serialized ``report`` only preserves the runner's
+    dataclass FIELDS (``abilities`` / ``verdicts``), not the ``@property``
+    aggregates (``allowed`` / ``passed``): the execution phase, which still holds
+    the live result object, is the one place those verdicts are available, so it
+    records them for the evaluator (Req. 2.2 — real containment/isolation state).
+    """
+
+    verdict: str  # the runner RunOutcome value, e.g. "concluida" / "isolamento_falhou"
+    verdict_success: bool  # True iff the Operation ran to completion and passed
+    executed: bool  # True iff the Operation actually started executing on Caldera
+    containment_passed: Optional[bool]  # containment pre-flight verdict (None if absent)
+    isolation_passed: Optional[bool]  # isolation pre-flight verdict (None if absent)
+    total_success: int
+    total_failure: int
+    message: str
+
+
 class EvaluationResult(TypedDict, total=False):
     """Evaluator output for the last pass over the Stage 6 report."""
 
@@ -34,6 +63,20 @@ class EvaluationResult(TypedDict, total=False):
     failed_nodes: list[str]
     decision: str  # EvaluatorDecision value
     rationale: str
+
+
+class AgentTrace(TypedDict, total=False):
+    """Per-node input + processing trace captured for the Audit_Trace.
+
+    Appended to the append-only ``traces`` channel by each AI agent's node.
+    The produced output is already carried in ``artifacts[...]`` and linked
+    back to this trace by the ``(stage, iteration)`` pair.
+    """
+
+    stage: str  # English AgentStage value: dag | operationalization | environment | execution | evaluation
+    iteration: int
+    agent_input: dict  # prior-stage artifacts, selected-campaign context, retrieved experience, attack/stix
+    processing: dict  # llm_prompt, llm_response, reasoning, tools_invoked, repair_attempts, retrieved_experience, prior_artifacts
 
 
 class AgentState(TypedDict, total=False):
@@ -49,7 +92,9 @@ class AgentState(TypedDict, total=False):
     retrieved_experience: list[dict]  # RAG hits injected into prompts
     artifacts: StageArtifacts  # outputs of the current iteration
     report: Optional[dict]  # Stage 6 report of the last execute
+    execution_result: Optional[ExecutionResult]  # structured result execution -> evaluation
     evaluation: Optional[EvaluationResult]  # evaluator output of the last pass
     refine_stage: Optional[str]  # AgentStage to re-enter, or None
     history: Annotated[list[dict], add]  # append-only per-node trace (reducer)
+    traces: Annotated[list[dict], add]  # NEW: per-node input+processing trace
     error: Optional[str]

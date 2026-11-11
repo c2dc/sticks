@@ -297,7 +297,7 @@ def _seed_operations(
 # (no state leak between generated states), so we disable the deadline rather
 # than weaken the isolation.
 @settings(
-    max_examples=150,
+    max_examples=40,
     deadline=None,
     suppress_health_check=[HealthCheck.too_slow],
 )

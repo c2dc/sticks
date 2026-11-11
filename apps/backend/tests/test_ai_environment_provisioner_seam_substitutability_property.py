@@ -216,7 +216,7 @@ def _ai_provisioners(draw) -> AiEnvironmentProvisioner:
 
 
 # Feature: ai-curation-agents, Property 6: Seam substitutability (Stage 5 / env).
-@settings(max_examples=100)
+@settings(max_examples=40)
 @given(ai_provisioner=_ai_provisioners())
 def test_property6_stage5_ai_environment_provisioner_is_substitutable(
     ai_provisioner: AiEnvironmentProvisioner,

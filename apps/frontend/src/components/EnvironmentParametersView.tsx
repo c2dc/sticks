@@ -78,9 +78,9 @@ export function EnvironmentParametersView({ campaignId }: { campaignId: string }
       {/* Platform + translation origin. */}
       <StageSection
         data-section="plataforma"
-        label={t("parametrosAmbiente.titulo")}
+        label={t("environmentParameters.title")}
         kind="purple"
-        description={t("parametrosAmbiente.descricao")}
+        description={t("environmentParameters.description")}
       >
         <div className="flex flex-wrap items-center gap-2">
           <PlatformBadge platform={platform} />
@@ -91,11 +91,11 @@ export function EnvironmentParametersView({ campaignId }: { campaignId: string }
       {/* Target hosts derived from the curated DAG nodes (Req. 8.3). */}
       <StageSection
         data-section="hosts"
-        label={t("parametrosAmbiente.hosts.titulo")}
+        label={t("environmentParameters.hosts.title")}
         kind="blue"
       >
         {hosts.length === 0 ? (
-          <EmptyNote>{t("parametrosAmbiente.hosts.vazio")}</EmptyNote>
+          <EmptyNote>{t("environmentParameters.hosts.empty")}</EmptyNote>
         ) : (
           <ul className="grid gap-2 sm:grid-cols-2">
             {hosts.map((host, index) => (
@@ -108,11 +108,11 @@ export function EnvironmentParametersView({ campaignId }: { campaignId: string }
       {/* Services/vulnerabilities inferred from the commands (Req. 8.3). */}
       <StageSection
         data-section="servicos"
-        label={t("parametrosAmbiente.servicos.titulo")}
+        label={t("environmentParameters.services.title")}
         kind="red"
       >
         {services.length === 0 ? (
-          <EmptyNote>{t("parametrosAmbiente.servicos.vazio")}</EmptyNote>
+          <EmptyNote>{t("environmentParameters.services.empty")}</EmptyNote>
         ) : (
           <ul className="flex flex-col gap-2">
             {services.map((service, index) => (
@@ -125,11 +125,11 @@ export function EnvironmentParametersView({ campaignId }: { campaignId: string }
       {/* network_context derived from the nodes (network-context notes). */}
       <StageSection
         data-section="network-context"
-        label={t("parametrosAmbiente.networkContext.titulo")}
+        label={t("environmentParameters.networkContext.title")}
         kind="neutral"
       >
         {network_context.length === 0 ? (
-          <EmptyNote>{t("parametrosAmbiente.networkContext.vazio")}</EmptyNote>
+          <EmptyNote>{t("environmentParameters.networkContext.empty")}</EmptyNote>
         ) : (
           <ul className="flex flex-col gap-1">
             {network_context.map((note, index) => (
@@ -154,7 +154,7 @@ export function EnvironmentParametersView({ campaignId }: { campaignId: string }
  */
 function PlatformBadge({ platform }: { platform: EnvironmentPlatform }) {
   const { t } = useTranslation("pipeline")
-  const key = `parametrosAmbiente.plataforma.${platform}`
+  const key = `environmentParameters.platform.${platform}`
   const translated = t(key)
   const label = translated === key ? platform : translated
 
@@ -208,7 +208,7 @@ function TargetHostCard({ host }: { host: TargetHost }) {
       {host.address ? (
         <p className="truncate text-xs text-muted-foreground" title={host.address}>
           <span className="text-muted-foreground">
-            {t("parametrosAmbiente.hosts.endereco")}:{" "}
+            {t("environmentParameters.hosts.address")}:{" "}
           </span>
           <code className="font-mono">{host.address}</code>
         </p>
@@ -216,7 +216,7 @@ function TargetHostCard({ host }: { host: TargetHost }) {
       {host.container ? (
         <p className="truncate text-xs text-muted-foreground" title={host.container}>
           <span className="text-muted-foreground">
-            {t("parametrosAmbiente.hosts.container")}:{" "}
+            {t("environmentParameters.hosts.container")}:{" "}
           </span>
           <code className="font-mono">{host.container}</code>
         </p>
@@ -224,7 +224,7 @@ function TargetHostCard({ host }: { host: TargetHost }) {
       {host.vulnerabilities.length > 0 ? (
         <div className="flex flex-col gap-0.5">
           <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-            {t("parametrosAmbiente.hosts.vulnerabilidades")}
+            {t("environmentParameters.hosts.vulnerabilities")}
           </span>
           <ul className="flex flex-wrap gap-1">
             {host.vulnerabilities.map((vuln, index) => (
@@ -253,7 +253,7 @@ function ServiceCard({ service }: { service: RequiredService }) {
         <span className="text-sm">{service.description}</span>
         {service.origin_technique ? (
           <span className="text-xs text-muted-foreground">
-            {t("parametrosAmbiente.servicos.tecnicaOrigem")}:{" "}
+            {t("environmentParameters.services.sourceTechnique")}:{" "}
             <code className="font-mono">{service.origin_technique}</code>
           </span>
         ) : null}

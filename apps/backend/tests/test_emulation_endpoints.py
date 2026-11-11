@@ -170,6 +170,17 @@ def session_factory() -> Iterator[sessionmaker[Session]]:
         future=True,
         class_=Session,
     )
+    # One-shot curated ingest (sub-step 2.1): the runtime resolves the campaign's
+    # Abilities/Adversary/DAG from the database (sub-step 2.4 removed the
+    # request-time disk read), so the real curated cases must be persisted before
+    # the endpoints read them.
+    from app.services.curated_ingest_service import CuratedIngestService
+
+    seed_session = factory()
+    try:
+        CuratedIngestService(seed_session).ingest_all()
+    finally:
+        seed_session.close()
     try:
         yield factory
     finally:
@@ -272,7 +283,7 @@ def test_emulation_not_confirmed_runs_nothing(
     body = resp.json()
     assert body["started"] is False
     assert body["result"] == "nao_confirmada"
-    assert body["state"] == "nao_iniciada"
+    assert body["state"] == "not_started"
     assert body["operation_id"] is None
 
 
@@ -289,7 +300,7 @@ def test_emulation_external_destination_returns_409(
 
     original = emulation_module._load_case_or_error
     emulation_module._load_case_or_error = (  # type: ignore[assignment]
-        lambda campaign, case_service: _external_destination_case(campaign)
+        lambda campaign, case_service, db=None: _external_destination_case(campaign)
     )
     try:
         resp = client.post(
@@ -361,7 +372,7 @@ def _client_with_internal_case(
 
     original_loader = emulation_module._load_case_or_error
     emulation_module._load_case_or_error = (  # type: ignore[assignment]
-        lambda campaign, case_service: _internal_only_case(campaign)
+        lambda campaign, case_service, db=None: _internal_only_case(campaign)
     )
     return client, original_loader
 
@@ -509,7 +520,7 @@ def test_emulation_happy_path_success_with_aggregate(
     body = resp.json()
     assert body["started"] is True
     assert body["result"] == "concluida"
-    assert body["state"] == "finalizada"
+    assert body["state"] == "finished"
     assert body["total_success"] == 1
     assert body["total_failure"] == 0
     assert body["results"], "per-Ability results must be present"

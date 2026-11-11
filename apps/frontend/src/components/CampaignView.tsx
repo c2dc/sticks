@@ -1,10 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react"
 import { useTranslation } from "react-i18next"
-import { CheckCircle2, Loader2 } from "lucide-react"
+import { Container } from "lucide-react"
 
-import { CampaignStixBlock } from "@/components/Stage1View"
-import { EmptyNote, StageSection } from "@/components/StageSection"
-import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import {
   getStageCampaign,
@@ -12,62 +16,56 @@ import {
   type ListedCampaign,
   type Stage2Response,
   type CampaignSelectionResult,
-  type TechniqueElement,
 } from "@/lib/stages"
+import {
+  getCampaignOverview,
+  type StixCampaignOverview,
+  type TechniqueElement,
+} from "@/lib/stix"
 
 /**
- * CampaignView — body of **Stage 2 (Campaign selection)** of the six-stage
- * scheme (Req. 4.1, 6.2, 6.3, 6.5).
+ * CampaignView — compact **campaign selection** within the chosen STIX package.
  *
- * Stage 2 receives the STIX bundle of the base selected in Stage 1 and lets the
- * Researcher pick ONE campaign from the package. On selection, the backend
- * extracts the campaign attributes (STIX identity + ATT&CK techniques) and
- * completes the stage when the extraction succeeds (Req. 6.3, 6.5, 6.6). The 8
- * curated campaigns are selectable on version 18; other campaigns appear in the
- * list but disabled (no curated artifacts on disk — Req. 6.2, 6.5).
+ * A simple, searchable list of the campaigns in the bundle; clicking a
+ * campaign selects it directly (no separate "select" button) and shows a
+ * lightweight OVERVIEW panel (identity + aliases + description + a technique
+ * summary + attributed actors) — not a heavy dashboard. Every campaign is
+ * selectable (no curated gating). On a successful extraction it reports the
+ * chosen slug + the typed result to the wizard, which transitions to the Run.
  *
  * Flow:
- * - On mount, reads `getStageCampaign(campaignId, version)` → list of campaigns +
- *   the current selection (read-only; opening the screen never executes).
- * - Selecting a campaign calls `selectCampaign(campaignId, slug, version)` →
- *   {@link CampaignSelectionResult}. An extraction failure surfaces in the typed
- *   result (`completed === false` with `error_message`/`failed_step`), not as an
- *   HTTP error (Req. 6.7).
- * - The extracted attributes are shown **reusing** the campaign identity block of
- *   `Stage1View` ({@link CampaignStixBlock}) plus the technique list; when
- *   `completed`, a completion indicator is shown.
- *
- * Props (lean contract for the wizard wiring in task 14.4):
- * - `campaignId`: Campaign slug; used in the Stage 2 wrappers.
- * - `version`: STIX base version selected in Stage 1 (optional; when omitted,
- *   the backend applies the default curated version).
- * - `onCompleted`: called after a successful extraction with the
- *   {@link CampaignSelectionResult} (`completed === true`). The wizard re-reads/
- *   derives its state from there.
+ * - On mount, reads `getStageCampaign(campaignId, version)` → list + read-only
+ *   selection (read-only; opening the screen never executes).
+ * - Clicking a campaign calls `selectCampaign(campaignId, slug, version)` (the
+ *   extraction flow that reports completion to the wizard; an extraction
+ *   failure surfaces in the typed result as `completed === false`, not as an
+ *   HTTP error) AND, when a version is known, fetches
+ *   `getCampaignOverview(version, campaignKey)` to render the richer overview
+ *   panel from the persisted package (Req. 7.3, 7.4).
  */
 export function CampaignView({
   campaignId,
   version,
+  probing = false,
   onCompleted,
 }: {
   campaignId: string
   version?: string
-  onCompleted?: (
-    curatedSlug: string,
-    result: CampaignSelectionResult,
-  ) => void
+  /**
+   * `true` while the list is addressed through the PROBE slug (no campaign has
+   * been chosen by the Researcher yet). In this mode the component NEVER adopts
+   * the backend's read-only selection — otherwise the probe campaign (e.g. the
+   * first curated case) would appear auto-selected with its attributes shown
+   * before the user picks anything. Only a real selection made in this screen
+   * ever shows an overview.
+   */
+  probing?: boolean
+  onCompleted?: (curatedSlug: string, result: CampaignSelectionResult) => void
 }) {
   const { t } = useTranslation("pipeline")
 
-  // Report an already-completed selection to the wizard at most once per
-  // load. When reopening Stage 2 for a campaign whose selection the backend
-  // already persisted (read-only `selection.completed`), the wizard still needs
-  // to learn the chosen slug so it adopts the campaignId and marks Stage 2
-  // complete — without requiring the researcher to click "select" again.
+  // Report an already-completed selection to the wizard at most once per load.
   const completionReported = useRef<string | null>(null)
-  // Keep the parent callback in a ref so `reportCompletion` has a stable
-  // identity: the parent (wizard) re-creates onCompleted on every render, and
-  // depending on it directly would re-run the load effect in a loop.
   const onCompletedRef = useRef(onCompleted)
   useEffect(() => {
     onCompletedRef.current = onCompleted
@@ -83,18 +81,74 @@ export function CampaignView({
 
   const [data, setData] = useState<Stage2Response | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
-  // Current selection (extraction result). Starts with the read-only selection
-  // returned by the Stage 2 read; updates on each `selectCampaign`.
   const [selection, setSelection] = useState<CampaignSelectionResult | null>(null)
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null)
   const [selecting, setSelecting] = useState(false)
-  // Distinguish "no selection yet" from "selection attempted": the initial
-  // read-only read and a failed extraction can carry the same empty content, so
-  // the content alone is not enough to choose between the "not extracted" note
-  // and the failure block. `selectionApplied` becomes `true` when the initial
-  // read already brings a completed selection OR when the Researcher triggers
-  // `select`.
+  // Distinguish "no selection yet" from "selection attempted".
   const [selectionApplied, setSelectionApplied] = useState(false)
+  // The richer campaign overview served by `getCampaignOverview` (Req. 7.4).
+  const [overview, setOverview] = useState<StixCampaignOverview | null>(null)
+  // Preserve the reader's scroll position when switching the selected
+  // campaign. Selecting a different campaign briefly collapses the overview
+  // panel below the list (to a one-line "selecting…" placeholder) and then
+  // re-expands it with the new campaign's content. That momentary shrink of
+  // the page makes the browser clamp the scroll position toward the top, so
+  // the reader loses their place. We capture the scroll offset of the nearest
+  // scrolling ancestor at selection time and restore it through the layout
+  // transitions until the overview settles.
+  const rootRef = useRef<HTMLDivElement | null>(null)
+  const preservedScroll = useRef<{ element: Element | Window; top: number } | null>(null)
+
+  // Find the nearest scrollable ancestor of `node`, falling back to the window
+  // (the SetupScreen scrolls the page itself, not an inner container).
+  const findScrollParent = (node: HTMLElement | null): Element | Window => {
+    let current: HTMLElement | null = node?.parentElement ?? null
+    while (current) {
+      const style = window.getComputedStyle(current)
+      const overflowY = style.overflowY
+      if (
+        (overflowY === "auto" || overflowY === "scroll") &&
+        current.scrollHeight > current.clientHeight
+      ) {
+        return current
+      }
+      current = current.parentElement
+    }
+    return window
+  }
+
+  const scrollTopOf = (target: Element | Window): number =>
+    target === window
+      ? window.scrollY
+      : (target as Element).scrollTop
+
+  const restoreScroll = (target: Element | Window, top: number): void => {
+    if (target === window) {
+      // Prefer setting the document scrolling element directly: it is the most
+      // portable path and avoids the browser's smooth-scroll heuristics (and,
+      // in jsdom, the unimplemented `window.scrollTo`). Fall back to
+      // `window.scrollTo` only when no scrolling element is exposed.
+      if (document.scrollingElement) {
+        document.scrollingElement.scrollTop = top
+      } else if (typeof window.scrollTo === "function") {
+        window.scrollTo({ top, behavior: "auto" })
+      }
+    } else {
+      ;(target as Element).scrollTop = top
+    }
+  }
+
+  // Restore the captured scroll position across the layout changes that happen
+  // while a selection is in flight and once the overview re-expands. Runs
+  // synchronously before paint so the reader never sees the jump.
+  useLayoutEffect(() => {
+    const pending = preservedScroll.current
+    if (!pending) return
+    restoreScroll(pending.element, pending.top)
+    // Clear once the selection has settled and the overview has resolved, so a
+    // later manual scroll by the reader is not fought by a stale restore.
+    if (!selecting) preservedScroll.current = null
+  }, [selecting, overview, selection])
 
   useEffect(() => {
     let active = true
@@ -103,22 +157,22 @@ export function CampaignView({
     setSelection(null)
     setSelectedSlug(null)
     setSelectionApplied(false)
+    setOverview(null)
     completionReported.current = null
     getStageCampaign(campaignId, version)
       .then((resp) => {
         if (!active) return
         setData(resp)
-        setSelection(resp.selection)
-        // The read-only selection only "counts" as applied when it already came
-        // completed (e.g. when reopening the screen of a case that already
-        // selected a campaign).
-        setSelectionApplied(resp.selection.completed)
-        // Stage 2 requires an explicit campaign choice: picking the campaign
-        // to reproduce is the core action of this stage. We do NOT auto-report
-        // a read-only selection nor auto-pick the first campaign, so the
-        // researcher actively selects (and the wizard never adopts the probe's
-        // campaign on its own). The read-only selection is still shown for
-        // context when reopening the stage.
+        // Adopt the read-only selection ONLY when it is a real, completed
+        // selection of THIS campaign (reopening a campaign already selected)
+        // AND we are not merely probing the list. While probing, the campaignId
+        // is the PROBE slug, so a persisted selection of that same slug would be
+        // wrongly adopted and shown as auto-selected — so never adopt it here.
+        const readOnly = resp.selection
+        const reopeningThisCampaign =
+          !probing && readOnly.completed && readOnly.campaign_id === campaignId
+        setSelection(reopeningThisCampaign ? readOnly : null)
+        setSelectionApplied(reopeningThisCampaign)
       })
       .catch(() => {
         if (active) setLoadError(t("stageView.loadError"))
@@ -126,27 +180,49 @@ export function CampaignView({
     return () => {
       active = false
     }
-  }, [campaignId, version, t])
+  }, [campaignId, version, probing, t])
 
+  // Clicking a campaign selects it directly (Req. 7.3). Two things happen:
+  //   (a) the existing extraction flow runs via `selectCampaign` and reports
+  //       completion to the wizard (this is what unlocks the Run), and
+  //   (b) when a version is known, the richer overview is fetched via
+  //       `getCampaignOverview(version, campaignKey)` and rendered (Req. 7.4).
+  // The overview fetch is best-effort: a missing version (undefined) skips it
+  // gracefully, matching the selection flow that already tolerates one.
   const handleSelect = async (slug: string) => {
+    // Capture the scroll position BEFORE the state changes below reflow the
+    // page, so the layout effect can hold the reader in place.
+    const scrollTarget = findScrollParent(rootRef.current)
+    preservedScroll.current = { element: scrollTarget, top: scrollTopOf(scrollTarget) }
+
+    setSelectedSlug(slug)
     setSelecting(true)
     setLoadError(null)
     setSelectionApplied(true)
+    setOverview(null)
+
+    const overviewPromise = version
+      ? getCampaignOverview(version, slug).catch(() => null)
+      : Promise.resolve(null)
+
     try {
       const result = await selectCampaign(campaignId, slug, version)
       setSelection(result)
-      // Report the chosen curated slug so the wizard can adopt it as the
-      // campaignId that drives Stages 3..6.
       if (result.completed) reportCompletion(slug, result)
     } catch {
       setLoadError(t("stageView.loadError"))
     } finally {
       setSelecting(false)
     }
+
+    // Populate the overview panel once the campaign overview resolves (if a
+    // version was available). Failures leave the overview empty without
+    // disrupting the selection flow above.
+    setOverview(await overviewPromise)
   }
 
   if (loadError) {
-    return <EmptyNote>{loadError}</EmptyNote>
+    return <p className="text-sm text-muted-foreground">{loadError}</p>
   }
   if (!data) {
     return (
@@ -157,98 +233,77 @@ export function CampaignView({
   }
 
   return (
-    <div className="grid gap-4 md:grid-cols-3">
-      {/* Bundle campaign list (Input) — campaign selection. */}
-      <StageSection
-        data-section="campaigns"
-        label={t("campanha.titulo")}
-        kind="blue"
-        description={t("campanha.descricao")}
-      >
-        <CampaignList
-          campaigns={data.campaigns}
-          selectedSlug={selectedSlug}
-          selecting={selecting}
-          onSelectSlug={setSelectedSlug}
-          onSelect={handleSelect}
-        />
-      </StageSection>
+    <div ref={rootRef} className="flex flex-col gap-3">
+      <CampaignList
+        campaigns={data.campaigns}
+        selectedSlug={selectedSlug}
+        selecting={selecting}
+        onSelect={handleSelect}
+      />
 
-      {/* Extracted attributes (Output) — identity reusing the Stage1View block
-          + the technique list, and the completion indicator. */}
-      <StageSection
-        data-section="atributos"
-        label={t("campanha.atributos")}
-        kind="neutral"
-        className="md:col-span-2"
-      >
-        <ExtractedAttributes selection={selection} applied={selectionApplied} />
-      </StageSection>
+      {/* Compact overview — only after a selection is applied (Req. 8.4). */}
+      {selectionApplied || selecting ? (
+        <div data-section="atributos">
+          <CampaignOverview
+            selection={selection}
+            overview={overview}
+            applied={selectionApplied}
+            selecting={selecting}
+          />
+        </div>
+      ) : null}
     </div>
   )
 }
 
 /**
- * Bundle campaign list. The Researcher can pick ANY campaign from the STIX
- * bundle — there is no curated/non-curated distinction in the UI (the future AI
- * operationalizer treats every campaign uniformly). A search box filters the
- * list by name so a specific campaign (e.g. ShadowRay) is easy to find among
- * the dozens in the bundle. No campaign is selected by default.
+ * Simple, searchable campaign list. Every campaign in the bundle is selectable
+ * (no curated/non-curated distinction). A compact search box filters by name.
  */
 function CampaignList({
   campaigns,
   selectedSlug,
   selecting,
-  onSelectSlug,
   onSelect,
 }: {
   campaigns: ListedCampaign[]
   selectedSlug: string | null
   selecting: boolean
-  onSelectSlug: (slug: string) => void
   onSelect: (slug: string) => void
 }) {
   const { t } = useTranslation("pipeline")
   const [query, setQuery] = useState("")
 
-  // The identifier sent to the backend selection: prefer the curated slug when
-  // present, otherwise fall back to the STIX id so every campaign is selectable.
   const slugOf = (campaign: ListedCampaign): string =>
     campaign.curated_slug ?? campaign.stix_id
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
     if (!q) return campaigns
-    return campaigns.filter((c) =>
-      (c.name ?? "").toLowerCase().includes(q),
-    )
+    return campaigns.filter((c) => (c.name ?? "").toLowerCase().includes(q))
   }, [campaigns, query])
 
   if (campaigns.length === 0) {
-    return <EmptyNote>{t("campanha.semCampanhas")}</EmptyNote>
+    return <p className="text-sm text-muted-foreground">{t("campaign.noCampaigns")}</p>
   }
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-2">
       <input
         type="search"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder={t("campanha.buscarPlaceholder")}
-        aria-label={t("campanha.buscarLabel")}
-        className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-team-blue"
+        placeholder={t("campaign.searchPlaceholder")}
+        aria-label={t("campaign.searchLabel")}
+        className="h-9 w-full rounded-md border bg-background px-3 text-sm outline-none focus:ring-1 focus:ring-team-blue"
       />
 
-      <p className="text-xs text-muted-foreground" aria-live="polite">
-        {t("campanha.contagem", { count: filtered.length })}
-      </p>
-
       {filtered.length === 0 ? (
-        <EmptyNote>{t("campanha.semResultados")}</EmptyNote>
+        <p className="text-sm text-muted-foreground">{t("campaign.noResults")}</p>
       ) : (
         <ul
-          className="flex max-h-96 flex-col gap-2 overflow-y-auto pr-1"
-          aria-label={t("campanha.listaLabel")}
+          className="flex max-h-64 flex-col gap-1 overflow-y-auto pr-1"
+          aria-label={t("campaign.listLabel")}
         >
           {filtered.map((campaign) => {
             const slug = slugOf(campaign)
@@ -259,9 +314,9 @@ function CampaignList({
                   type="button"
                   aria-pressed={selected}
                   disabled={selecting}
-                  onClick={() => onSelectSlug(slug)}
+                  onClick={() => onSelect(slug)}
                   className={cn(
-                    "flex w-full flex-col items-start gap-0.5 rounded-md border p-3 text-left text-sm transition-colors",
+                    "flex w-full items-center gap-2 rounded-md border px-3 py-2 text-left text-sm transition-colors",
                     selected
                       ? "border-team-blue ring-1 ring-team-blue"
                       : "hover:bg-muted/50",
@@ -269,11 +324,7 @@ function CampaignList({
                   )}
                 >
                   <span className="font-medium">{campaign.name}</span>
-                  {campaign.description ? (
-                    <span className="line-clamp-2 text-xs text-muted-foreground">
-                      {campaign.description}
-                    </span>
-                  ) : null}
+                  <ContainerEmulabilityMark campaign={campaign} />
                 </button>
               </li>
             )
@@ -281,79 +332,117 @@ function CampaignList({
         </ul>
       )}
 
-      <div className="flex items-center justify-end">
-        <Button
-          size="sm"
-          onClick={() => selectedSlug && onSelect(selectedSlug)}
-          disabled={!selectedSlug || selecting}
-        >
-          {selecting ? (
-            <Loader2 className="mr-1 size-4 animate-spin" aria-hidden />
-          ) : null}
-          {selecting
-            ? t("campanha.selecionando")
-            : t("campanha.selecionar")}
-        </Button>
-      </div>
+      <span className="text-xs text-muted-foreground" aria-live="polite">
+        {t("campaign.count", { count: filtered.length })}
+      </span>
     </div>
   )
 }
 
 /**
- * Panel of the attributes extracted from the selected campaign. Before any
- * selection/extraction, it shows the `campanha.naoExtraido` note. After the
- * extraction:
- * - STIX identity reusing {@link CampaignStixBlock} (the same block as
- *   Stage1View, Req. 6.3);
- * - the list of extracted ATT&CK techniques (Req. 6.4);
- * - a completion indicator when `completed`, or the failure cause
- *   (`error_message`/`failed_step`) when the extraction failed (Req. 6.5, 6.7).
+ * Per-campaign Container_Emulability marking in the campaign list (Req. 6.4,
+ * 6.5). Shows a container icon ONLY on campaigns marked container-emulable
+ * (`container_emulable === true`) — the only ones runnable end-to-end at this
+ * stage. A non-emulable campaign (`container_emulable === false`) stays in the
+ * list (never removed) with an accessible, screen-reader-only reason naming the
+ * blocking techniques when known. A campaign whose marking has not been derived
+ * yet (`null`/`undefined`) renders nothing, so the absence of an icon is never
+ * mistaken for a non-emulable verdict.
+ *
+ * Both the icon and the reason use English i18n keys with en + pt-BR values
+ * (I18n_Parity); the icon itself carries an `aria-label` so assistive tech
+ * announces it rather than treating it as decorative.
  */
-function ExtractedAttributes({
+function ContainerEmulabilityMark({ campaign }: { campaign: ListedCampaign }) {
+  const { t } = useTranslation("pipeline")
+
+  if (campaign.container_emulable === true) {
+    return (
+      <span
+        className="ml-auto inline-flex shrink-0 items-center text-team-blue"
+        data-testid="container-emulable-icon"
+        title={t("campaign.containerEmulability.emulable")}
+      >
+        <Container
+          className="size-4"
+          aria-label={t("campaign.containerEmulability.emulable")}
+        />
+      </span>
+    )
+  }
+
+  if (campaign.container_emulable === false) {
+    const blocking = campaign.blocking_techniques ?? []
+    const reason =
+      blocking.length > 0
+        ? t("campaign.containerEmulability.notEmulableWithTechniques", {
+            techniques: blocking.join(", "),
+          })
+        : t("campaign.containerEmulability.notEmulable")
+    return (
+      <span className="sr-only" data-testid="container-not-emulable-reason">
+        {reason}
+      </span>
+    )
+  }
+
+  return null
+}
+
+/**
+ * The compact overview panel of the selected campaign: identity line (name +
+ * ATT&CK id), aliases, a short description, a technique summary and the
+ * attributed actors. Mounted only after a selection is applied (Req. 8.4).
+ *
+ * The richer content is served by `getCampaignOverview` (`overview`, Req. 7.4);
+ * the `selection` from `selectCampaign` still drives the completion/failure
+ * indicator that unlocks the Run for the wizard.
+ */
+function CampaignOverview({
   selection,
+  overview,
   applied,
+  selecting,
 }: {
   selection: CampaignSelectionResult | null
-  /** `true` when a selection was already attempted/applied (vs. freshly opened). */
+  overview: StixCampaignOverview | null
   applied: boolean
+  selecting: boolean
 }) {
   const { t } = useTranslation("pipeline")
 
-  // Freshly opened screen with no selection applied → nothing to show yet. A
-  // failed extraction (`applied` with `!completed`) does NOT fall here: it shows
-  // the failure block below with the reported cause (Req. 6.7).
+  if (selecting) {
+    return (
+      <p className="text-sm text-muted-foreground" role="status">
+        {t("campaign.selecting")}
+      </p>
+    )
+  }
   if (!selection || !applied) {
-    return <EmptyNote>{t("campanha.naoExtraido")}</EmptyNote>
+    return <p className="text-sm text-muted-foreground">{t("campaign.notExtracted")}</p>
   }
 
   return (
-    <div className="flex flex-col gap-3" data-section="atributos-extraidos">
-      {/* STIX identity — reuses the Stage1View campaign block. */}
-      <CampaignStixBlock campaign={selection.identity} />
+    <div
+      className="flex flex-col gap-2 rounded-md border bg-muted/20 p-3"
+      data-section="atributos-extraidos"
+    >
+      {overview ? <OverviewBody overview={overview} /> : null}
 
-      {/* Extracted ATT&CK techniques. */}
-      <TechniquesList techniques={selection.techniques} />
-
-      {/* Extraction completion or failure. */}
       {selection.completed ? (
-        <p
-          className="flex items-center gap-1.5 rounded-md border border-team-blue/40 bg-team-blue/10 px-3 py-2 text-xs text-team-blue"
-          data-testid="campaign-completed"
-          role="status"
-        >
-          <CheckCircle2 className="size-4" aria-hidden />
-          {t("campanha.concluido")}
+        <p className="sr-only" data-testid="campaign-completed" role="status">
+          {t("campaign.completed")}
         </p>
       ) : (
         <div
-          className="flex flex-col gap-1 rounded-md border border-team-red/30 bg-team-red/5 px-3 py-2 text-team-red"
+          className="flex flex-col gap-0.5 rounded-md border border-team-red/30 bg-team-red/5 px-2 py-1.5 text-team-red"
           role="alert"
           data-testid="campaign-failure"
         >
-          <p className="text-xs">{selection.error_message || t("campanha.falha")}</p>
+          <p className="text-xs">{selection.error_message || t("campaign.failure")}</p>
           {selection.failed_step ? (
             <p className="text-xs text-muted-foreground">
-              {t("campanha.falhaEtapa", { step: selection.failed_step })}
+              {t("campaign.failedStep", { step: selection.failed_step })}
             </p>
           ) : null}
         </div>
@@ -362,31 +451,103 @@ function ExtractedAttributes({
   )
 }
 
-/** List of the ATT&CK techniques extracted from the campaign (Req. 6.4). */
-function TechniquesList({ techniques }: { techniques: TechniqueElement[] }) {
+/**
+ * The richer campaign overview served by `getCampaignOverview` (Req. 7.4):
+ * identity (name + ATT&CK id), aliases, a short description, the ATT&CK
+ * technique summary and the attributed actors.
+ */
+function OverviewBody({ overview }: { overview: StixCampaignOverview }) {
+  return (
+    <>
+      <IdentityOverview overview={overview} />
+      <TechniqueSummary techniques={overview.techniques} />
+      <ActorSummary actors={overview.actors} />
+    </>
+  )
+}
+
+/** Compact identity line: name, ATT&CK id, aliases, short description. */
+function IdentityOverview({ overview }: { overview: StixCampaignOverview }) {
   const { t } = useTranslation("pipeline")
   return (
     <div className="flex flex-col gap-1">
-      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        {t("campanha.tecnicas", { count: techniques.length })}
-      </p>
+      <div className="flex flex-wrap items-baseline gap-2">
+        <span className="text-sm font-semibold">
+          {overview.name || t("campaign.attributes")}
+        </span>
+        {overview.external_id ? (
+          <span className="rounded border px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
+            {overview.external_id}
+          </span>
+        ) : null}
+      </div>
+      {overview.aliases.length > 0 ? (
+        <div className="flex flex-wrap gap-1">
+          {overview.aliases.map((alias) => (
+            <span
+              key={alias}
+              className="rounded-full border border-team-blue/30 bg-team-blue/5 px-2 py-0.5 text-xs"
+            >
+              {alias}
+            </span>
+          ))}
+        </div>
+      ) : null}
+      {overview.description ? (
+        <p className="whitespace-pre-line text-xs text-muted-foreground">{overview.description}</p>
+      ) : null}
+    </div>
+  )
+}
+
+/** A short technique summary: count + a few technique chips. */
+function TechniqueSummary({ techniques }: { techniques: TechniqueElement[] }) {
+  const { t } = useTranslation("pipeline")
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        {t("campaign.techniques", { count: techniques.length })}
+      </span>
       {techniques.length === 0 ? (
-        <p className="text-xs text-muted-foreground">{t("campanha.semTecnicas")}</p>
+        <span className="text-xs text-muted-foreground">{t("campaign.noTechniques")}</span>
       ) : (
-        <ul className="flex flex-wrap gap-1.5">
+        <ul className="flex flex-wrap gap-1">
           {techniques.map((technique, index) => (
             <li
               key={technique.technique_id ?? index}
-              className="rounded-md border border-team-blue/30 bg-team-blue/5 px-2 py-0.5 text-xs"
-              title={technique.description ?? undefined}
+              className="rounded border border-team-blue/30 bg-team-blue/5 px-1.5 py-0.5 text-xs"
+              title={technique.technique_name ?? undefined}
             >
               <span className="font-medium">{technique.technique_id}</span>
               {technique.technique_name ? (
-                <span className="text-muted-foreground">
-                  {" "}
-                  · {technique.technique_name}
-                </span>
+                <span className="text-muted-foreground"> · {technique.technique_name}</span>
               ) : null}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
+/** The actors attributed to the campaign: count + a chip per actor. */
+function ActorSummary({ actors }: { actors: { stix_id: string; name: string }[] }) {
+  const { t } = useTranslation("pipeline")
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        {t("campaign.actors", { count: actors.length })}
+      </span>
+      {actors.length === 0 ? (
+        <span className="text-xs text-muted-foreground">{t("campaign.noActors")}</span>
+      ) : (
+        <ul className="flex flex-wrap gap-1">
+          {actors.map((actor) => (
+            <li
+              key={actor.stix_id}
+              className="rounded border border-team-red/30 bg-team-red/5 px-1.5 py-0.5 text-xs"
+            >
+              <span className="font-medium">{actor.name}</span>
             </li>
           ))}
         </ul>

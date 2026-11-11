@@ -66,11 +66,11 @@ describe("StixBasesList (Req. 2 — bases listing, badge, download)", () => {
     expect(cards[0].getAttribute("data-version")).toBe("15.1")
     expect(cards[1].getAttribute("data-version")).toBe("14.0")
 
-    // "Já baixada" badge only on the downloaded base (14.0) (Req. 2.2).
-    const badges = screen.getAllByText("Já baixada")
+    // "Disponível no banco de dados" badge only on the downloaded base (14.0) (Req. 2.2).
+    const badges = screen.getAllByText("Disponível no banco de dados")
     expect(badges).toHaveLength(1)
-    expect(within(cards[1]).getByText("Já baixada")).toBeInTheDocument()
-    expect(within(cards[0]).queryByText("Já baixada")).toBeNull()
+    expect(within(cards[1]).getByText("Disponível no banco de dados")).toBeInTheDocument()
+    expect(within(cards[0]).queryByText("Disponível no banco de dados")).toBeNull()
 
     // The not-downloaded base (15.1) exposes a "Baixar" button (Req. 2.4).
     expect(within(cards[0]).getByRole("button", { name: "Baixar" })).toBeInTheDocument()
@@ -120,7 +120,7 @@ describe("StixBasesList (Req. 2 — bases listing, badge, download)", () => {
     // The 15.1 row flipped to downloaded: badge now present, "Selecionar" shown.
     await waitFor(() => {
       const card = baseCards(container)[0]
-      expect(within(card).getByText("Já baixada")).toBeInTheDocument()
+      expect(within(card).getByText("Disponível no banco de dados")).toBeInTheDocument()
       expect(within(card).getByRole("button", { name: "Selecionar" })).toBeInTheDocument()
     })
   })
@@ -141,7 +141,7 @@ describe("StixBasesList (Req. 2 — bases listing, badge, download)", () => {
 
     // The base stays not-downloaded: no badge, "Baixar" still present, and the
     // list was NOT re-fetched after the failure.
-    expect(within(card).queryByText("Já baixada")).toBeNull()
+    expect(within(card).queryByText("Disponível no banco de dados")).toBeNull()
     expect(within(card).getByRole("button", { name: "Baixar" })).toBeInTheDocument()
     expect(getBasesMock).toHaveBeenCalledTimes(1)
   })

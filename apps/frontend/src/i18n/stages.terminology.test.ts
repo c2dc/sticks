@@ -4,7 +4,7 @@ import i18n from "@/i18n"
 
 /**
  * i18n terminology test for the six-stage scheme
- * (pipeline-seis-estagios, task 14.5).
+ * (pipeline-six-stages, task 14.5).
  *
  * Asserts, against the loaded i18n resources, that:
  * - the six `stages.{1..6}.name` keys exist in both pt-BR and en;
@@ -43,40 +43,40 @@ function resource(lng: string, key: string): string {
   return i18n.getResource(lng, "pipeline", key) as string
 }
 
-describe("i18n — terminologia 'Estágio'/'Stage' em stages.1..6", () => {
-  it("pt-BR expõe os seis stages com 'Estágio' e os nomes de design", () => {
+describe("i18n — 'Estágio'/'Stage' terminology in stages.1..6", () => {
+  it("pt-BR exposes the six stages with 'Estágio' and the design names", () => {
     for (const n of STAGES) {
       const name = resource("pt-BR", `stages.${n}.name`)
       const short = resource("pt-BR", `stages.${n}.short`)
-      expect(name, `stages.${n}.name deve existir em pt-BR`).toBeTruthy()
-      expect(short, `stages.${n}.short deve existir em pt-BR`).toBeTruthy()
-      // Terminologia pt-BR: "Estágio".
+      expect(name, `stages.${n}.name must exist in pt-BR`).toBeTruthy()
+      expect(short, `stages.${n}.short must exist in pt-BR`).toBeTruthy()
+      // pt-BR terminology: "Estágio".
       expect(name).toContain("Estágio")
       expect(short).toContain("Estágio")
-      // Nome de design do estágio.
+      // Design name of the stage.
       expect(name).toContain(PT_NAMES[n])
     }
   })
 
-  it("en expõe os seis stages com 'Stage' e os nomes de design em inglês", () => {
+  it("en exposes the six stages with 'Stage' and the English design names", () => {
     for (const n of STAGES) {
       const name = resource("en", `stages.${n}.name`)
       const short = resource("en", `stages.${n}.short`)
-      expect(name, `stages.${n}.name deve existir em en`).toBeTruthy()
-      expect(short, `stages.${n}.short deve existir em en`).toBeTruthy()
-      // Terminologia en: "Stage".
+      expect(name, `stages.${n}.name must exist in en`).toBeTruthy()
+      expect(short, `stages.${n}.short must exist in en`).toBeTruthy()
+      // en terminology: "Stage".
       expect(name).toContain("Stage")
       expect(short).toContain("Stage")
       expect(name).toContain(EN_NAMES[n])
     }
   })
 
-  it("não existe um sétimo estágio (o esquema é exatamente 1..6)", () => {
+  it("there is no seventh stage (the scheme is exactly 1..6)", () => {
     expect(resource("pt-BR", "stages.7.name")).toBeUndefined()
     expect(resource("en", "stages.7.name")).toBeUndefined()
   })
 
-  it("mantém paridade de chaves de stages entre pt-BR e en", () => {
+  it("keeps stage key parity between pt-BR and en", () => {
     for (const n of STAGES) {
       expect(resource("pt-BR", `stages.${n}.name`)).toBeTruthy()
       expect(resource("en", `stages.${n}.name`)).toBeTruthy()
