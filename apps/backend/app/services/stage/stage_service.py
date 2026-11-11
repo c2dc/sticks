@@ -103,10 +103,10 @@ from app.services.campaign_service import (
     AbilityData,
     AdversaryData,
     CaseData,
-    CaseFileError,
     CaseService,
     DagData,
     DagNode,
+    Executor,
 )
 from app.services.containment.command_parser import parse_command
 from app.services.containment.subnets import is_internal_ip
@@ -555,6 +555,7 @@ class Stage2AbilityView(BaseModel):
     ability_id: str
     name: Optional[str] = None
     technique_id: Optional[str] = None
+    technique_name: Optional[str] = None
     tactic: Optional[str] = None
     description: Optional[str] = None
     executors: list[Stage2ExecutorView] = Field(default_factory=list)
@@ -1059,6 +1060,72 @@ def _adversary_view(adversary: AdversaryData) -> Stage2AdversaryView:
 
 
 # ---------------------------------------------------------------------------
+# DB-backed operationalization views (Stage 4 — Req. 3.3)
+# ---------------------------------------------------------------------------
+#
+# The Stage-4 operationalization resolves its curated Abilities/Adversary from
+# the database (``Ability``/``Adversary`` rows keyed by ``campaign_id``) instead
+# of reading ``data/api/{slug}_dag-*.json`` from disk via the ``CaseService``.
+# The ``CuratedIngestService`` (sub-step 2.1) persists those rows with the exact
+# same content that used to be read from disk, so the views built here are
+# equivalent to the disk-sourced ones (Req. 3.6). Disk removal is a later task
+# (5.1); this sub-step only switches the operationalization source.
+
+
+def _executor_views_from_json(executors: Any) -> list[Stage2ExecutorView]:
+    """Map the ``Ability.executors`` JSON into executor views (Req. 3.2).
+
+    ``executors`` is the ORM JSON column — a list of ``{name, platform, command}``
+    objects. Missing/malformed entries degrade defensively to empty views so a
+    single bad record never breaks the operationalization assembly.
+    """
+    if not isinstance(executors, list):
+        return []
+    views: list[Stage2ExecutorView] = []
+    for entry in executors:
+        if not isinstance(entry, dict):
+            continue
+        views.append(
+            Stage2ExecutorView(
+                name=entry.get("name"),
+                platform=entry.get("platform"),
+                command=entry.get("command"),
+            )
+        )
+    return views
+
+
+def _ability_view_from_row(ability: AbilityModel) -> Stage2AbilityView:
+    """Map an ``Ability`` ORM row into the Stage-4 Output view (Req. 3.2, 3.3)."""
+    return Stage2AbilityView(
+        ability_id=ability.ability_id,
+        name=ability.name,
+        technique_id=ability.technique_id,
+        technique_name=ability.technique_name,
+        tactic=ability.tactic,
+        description=ability.description,
+        executors=_executor_views_from_json(ability.executors),
+        translation_source=(
+            ability.translation_source or TranslationSource.HUMAN_CURATION
+        ),
+    )
+
+
+def _adversary_view_from_row(adversary: AdversaryModel) -> Stage2AdversaryView:
+    """Map an ``Adversary`` ORM row into the Stage-4 Output view (Req. 3.5)."""
+    ordering = adversary.atomic_ordering
+    return Stage2AdversaryView(
+        id=adversary.id,
+        name=adversary.name,
+        description=adversary.description,
+        atomic_ordering=list(ordering) if isinstance(ordering, list) else [],
+        translation_source=(
+            adversary.translation_source or TranslationSource.HUMAN_CURATION
+        ),
+    )
+
+
+# ---------------------------------------------------------------------------
 # Service
 # ---------------------------------------------------------------------------
 
@@ -1219,9 +1286,32 @@ class StageService:
         external_id = references[0] if references else None
         return (name, external_id)
 
+    # ---- database-backed DAG resolution (Req. 1.1, 4.1) -------------------
+
+    def _resolve_dag_from_db(self, slug: str) -> Optional[DagData]:
+        """Resolve a campaign's structural DAG from the ``dags`` table (Req. 4.1).
+
+        Rebuilds a full :class:`DagData` from the persisted ``dags.content`` via
+        :meth:`~app.services.dag.dag_service.DagService.resolve_dag_data_from_db`
+        — the single reconstruction shared with Stage 3 — so the structural
+        modeling (Stage 1) and the operationalization (Stage 4) read the same
+        DB-sourced graph the curated ingest persisted (equivalent to the former
+        disk read — Req. 1.4, 3.6). Returns ``None`` when the campaign has no
+        persisted DAG. Pure read: no disk, no network.
+        """
+        # Local import to avoid a module-level import cycle (``dag_service``
+        # imports ``stage_service``).
+        from app.services.dag.dag_service import DagService
+
+        return DagService(
+            session=self._session, case_service=self._case_service
+        ).resolve_dag_data_from_db(slug)
+
     # ---- public API -------------------------------------------------------
 
-    def run_stage1(self, slug: str, version: Optional[str] = None) -> Stage1Result:
+    def run_stage2_selection(
+        self, slug: str, version: Optional[str] = None
+    ) -> Stage1Result:
         """Run Stage 1 (structural modeling) for the curated case ``slug``.
 
         Reads the case's structural DAG, derives the structural elements
@@ -1258,25 +1348,24 @@ class StageService:
         campaign_stix = self._build_campaign_stix(slug, version)
         input = Stage1Input(campaign_id=slug, name=name, campaign_stix=campaign_stix)
 
-        # --- Step 1: read the case (DAG + abilities + adversary) -----------
+        # --- Step 1: read the structural DAG from the database -------------
+        # Database-only sourcing (Req. 1.1, 4.1): the structural graph comes from
+        # the ``dags`` table (persisted by the curated ingest, sub-step 2.1), no
+        # longer from ``data/dag/{slug}_dag.json``. The per-node fields the
+        # modeling derives from (``attacker_commands``/``provides``/relations) are
+        # preserved in the persisted content, so the extraction is equivalent to
+        # the former disk read (Req. 1.4, 3.6).
         step = Stage1Step.READ_CASE
         try:
-            case = self._case_service.load_case(slug)
-        except CaseFileError as exc:
-            return self._fail(
-                slug,
-                input,
-                step,
-                f"Falha ao ler o caso {slug!r}: {exc.detail}",
-            )
+            dag = self._resolve_dag_from_db(slug)
         except Exception as exc:  # defensive: any unexpected read error
             return self._fail(
                 slug, input, step, f"Erro inesperado ao ler o caso {slug!r}: {exc}"
             )
 
-        # A case with no DAG cannot be structurally modeled — that is a failure
-        # (the structural input is missing), not an empty-but-valid extraction.
-        if case.dag is None:
+        # No persisted DAG → the campaign cannot be structurally modeled (the
+        # structural input is missing), not an empty-but-valid extraction.
+        if dag is None:
             return self._fail(
                 slug,
                 input,
@@ -1289,22 +1378,21 @@ class StageService:
             campaign_id=slug,
             name=name,
             campaign_stix=campaign_stix,
-            dag_file=case.dag_file,
-            stix_reference=case.dag.campaign_file,
-            campaign_name=case.dag.campaign_name,
+            stix_reference=dag.campaign_file,
+            campaign_name=dag.campaign_name,
         )
 
         # --- Step 2 + 3: derive the structural elements --------------------
         try:
             step = Stage1Step.EXTRACT_TECHNIQUES
-            techniques = _extract_techniques(case.dag)
-            relationships = _extract_relationships(case.dag)
+            techniques = _extract_techniques(dag)
+            relationships = _extract_relationships(dag)
 
             step = Stage1Step.EXTRACT_ELEMENTS
-            indicators = _extract_indicators(case.dag)
-            infrastructure = _extract_infrastructure(case.dag)
-            malware = _extract_malware(case.dag)
-            metadata = _extract_metadata(case.dag)
+            indicators = _extract_indicators(dag)
+            infrastructure = _extract_infrastructure(dag)
+            malware = _extract_malware(dag)
+            metadata = _extract_metadata(dag)
         except Exception as exc:  # defensive: derivation should not throw
             return self._fail(
                 slug,
@@ -1336,7 +1424,7 @@ class StageService:
         # --- Step 4: persist everything in ONE transaction (Req. 2.4/2.6) --
         step = Stage1Step.PERSIST
         try:
-            stage_run = self._persist(case, output)
+            stage_run = self._persist(slug, name, output)
         except SQLAlchemyError as exc:
             # Rollback guarantees no partial extraction is persisted (Req. 2.6).
             self._session.rollback()
@@ -1355,7 +1443,7 @@ class StageService:
             stage_run_id=stage_run.id,
         )
 
-    def read_stage1(
+    def read_stage2_selection(
         self, slug: str, version: Optional[str] = None
     ) -> Stage1Result:
         """Read-only view of Stage 1 — NEVER executes or persists.
@@ -1366,7 +1454,7 @@ class StageService:
 
         - It always builds the input (derivable from the case files, no write).
         - If the stage's :class:`StageRun` is ``concluido``, it derives the output
-          from the DAG purely (same pure extractors as :meth:`run_stage1`) so the
+          from the DAG purely (same pure extractors as :meth:`run_stage2_selection`) so the
           screen can show what was modeled — WITHOUT persisting anything.
         - If the stage is ``erro``, it surfaces the persisted error detail.
         - Otherwise (``nao_iniciado`` / ``em_andamento`` / no row) it returns the
@@ -1378,7 +1466,7 @@ class StageService:
         and completed). It is built defensively and never raises; ``version`` is
         optional and backward-compatible (omitted → ``versao_ausente`` fallback).
 
-        Only :meth:`run_stage1` (the POST path) performs the modeling + write.
+        Only :meth:`run_stage2_selection` (the POST path) performs the modeling + write.
         """
         name = self._case_service.list_cases().get(slug, slug)
         # Informative, defensive campaign STIX block — attached in every view.
@@ -1390,23 +1478,23 @@ class StageService:
         row = self._stage_run_row(slug, STAGE_MODELING)
         state = row.state if row is not None else StageState.NOT_STARTED
 
-        # Try to enrich the input from the case files (read-only). A read
-        # failure here is non-fatal for the "not started" view; it only matters
-        # when the stage is already concluido (then we surface it).
-        case = None
+        # Try to enrich the input from the persisted DAG (read-only, DB-only —
+        # Req. 1.1, 4.1). A read failure here is non-fatal for the "not started"
+        # view; it only matters when the stage is already concluido (then we
+        # surface it).
+        dag: Optional[DagData] = None
         try:
-            case = self._case_service.load_case(slug)
-            if case.dag is not None:
+            dag = self._resolve_dag_from_db(slug)
+            if dag is not None:
                 input = Stage1Input(
                     campaign_id=slug,
                     name=name,
                     campaign_stix=campaign_stix,
-                    dag_file=case.dag_file,
-                    stix_reference=case.dag.campaign_file,
-                    campaign_name=case.dag.campaign_name,
+                    stix_reference=dag.campaign_file,
+                    campaign_name=dag.campaign_name,
                 )
         except Exception:  # noqa: BLE001 - read-only view must not raise
-            case = None
+            dag = None
 
         # Not completed: report the current state with NO output. Opening the
         # screen never fabricates a "concluido" output (the bug this fixes).
@@ -1423,22 +1511,22 @@ class StageService:
 
         # Completed: derive the output purely from the DAG for display, without
         # any persistence. If the DAG can't be read now, show an empty output.
-        if case is not None and case.dag is not None:
-            techniques = _extract_techniques(case.dag)
+        if dag is not None:
+            techniques = _extract_techniques(dag)
             if techniques:
                 output = Stage1Output(
                     techniques=techniques,
-                    relationships=_extract_relationships(case.dag),
-                    indicators=_extract_indicators(case.dag),
-                    infrastructure=_extract_infrastructure(case.dag),
-                    malware=_extract_malware(case.dag),
-                    metadata=_extract_metadata(case.dag),
+                    relationships=_extract_relationships(dag),
+                    indicators=_extract_indicators(dag),
+                    infrastructure=_extract_infrastructure(dag),
+                    malware=_extract_malware(dag),
+                    metadata=_extract_metadata(dag),
                 )
             else:
                 output = Stage1Output(
                     is_empty=True,
                     note=f"Nenhum elemento estrutural foi extraído para o caso {name}.",
-                    metadata=_extract_metadata(case.dag),
+                    metadata=_extract_metadata(dag),
                 )
         else:
             output = Stage1Output(is_empty=True, note=None)
@@ -1451,6 +1539,134 @@ class StageService:
             stage_run_id=(row.id if row is not None else None),
         )
 
+    # ---- Stage 4 operationalization: DB-backed resolution (Req. 3.3) ------
+
+    def build_case_from_db(self, slug: str) -> CaseData:
+        """Public DB-only :class:`CaseData` resolver (Req. 1.1, 4.1).
+
+        Thin public wrapper over :meth:`_build_case_from_db` so the API layer can
+        resolve a campaign's curated content (Abilities, Adversary, structural
+        DAG) from the database without reading disk. See
+        :meth:`_build_case_from_db` for the sourcing contract.
+        """
+        return self._build_case_from_db(slug)
+
+    def _build_case_from_db(self, slug: str) -> CaseData:
+        """Assemble a full :class:`CaseData` from the database (Req. 1.1, 4.1).
+
+        Resolves the Abilities, the Adversary and the structural DAG from the
+        ``abilities``/``adversaries``/``dags`` rows keyed by ``campaign_id``
+        (persisted by the curated ingest of sub-step 2.1), ordered by the
+        Adversary's ``atomic_ordering``. Replaces the former
+        ``CaseService.load_case`` disk read used to feed the ``OperationRunner``
+        in :meth:`run_stage3`; the content is equivalent to the disk-sourced one
+        (Req. 1.4, 3.6). The ``*_file`` fields are informative placeholders only
+        (no file is read). Pure read: no disk, no network.
+        """
+        name = self._case_service.list_cases().get(slug, slug)
+        adversary_row = self._load_adversary_row(slug)
+        ability_views = self._load_ability_views(slug, adversary_row)
+
+        abilities = [
+            AbilityData(
+                ability_id=a.ability_id,
+                name=a.name,
+                tactic=a.tactic,
+                technique_name=a.technique_name,
+                technique_id=a.technique_id,
+                description=a.description,
+                executors=[
+                    Executor(
+                        name=e.name, platform=e.platform, command=e.command
+                    )
+                    for e in a.executors
+                ],
+            )
+            for a in ability_views
+        ]
+
+        adversary = None
+        if adversary_row is not None:
+            adversary = AdversaryData(
+                id=adversary_row.id,
+                name=adversary_row.name,
+                description=adversary_row.description,
+                atomic_ordering=(
+                    list(adversary_row.atomic_ordering)
+                    if isinstance(adversary_row.atomic_ordering, list)
+                    else []
+                ),
+            )
+
+        dag = self._resolve_dag_from_db(slug)
+
+        return CaseData(
+            id=slug,
+            name=name,
+            ability_file="",
+            adversary_file="",
+            dag_file="",
+            abilities=abilities,
+            adversary=adversary,
+            dag=dag,
+        )
+
+    def _load_adversary_row(self, campaign_id: str) -> Optional[AdversaryModel]:
+        """Load the ``Adversary`` row for ``campaign_id`` from the DB (Req. 3.3).
+
+        Returns ``None`` when the campaign has no persisted Adversary. A single
+        Adversary per campaign is expected (the curated ingest upserts one);
+        when more than one exists, the first by id keeps the result stable.
+        """
+        return (
+            self._session.execute(
+                select(AdversaryModel)
+                .where(AdversaryModel.campaign_id == campaign_id)
+                .order_by(AdversaryModel.id)
+            )
+            .scalars()
+            .first()
+        )
+
+    def _load_ability_views(
+        self, campaign_id: str, adversary: Optional[AdversaryModel]
+    ) -> list[Stage2AbilityView]:
+        """Load the campaign's Abilities from the DB, ordered for Stage 4 (Req. 3.3).
+
+        Resolves the ``Ability`` rows keyed by ``campaign_id`` and orders them by
+        the Adversary's ``atomic_ordering`` when present (the authoritative
+        sequence/dependencies between Abilities). Abilities not referenced by the
+        ordering are appended afterwards by ability id so none are dropped; when
+        there is no Adversary, the natural ability-id order is used.
+        """
+        rows = (
+            self._session.execute(
+                select(AbilityModel).where(
+                    AbilityModel.campaign_id == campaign_id
+                )
+            )
+            .scalars()
+            .all()
+        )
+        by_id: dict[str, AbilityModel] = {r.ability_id: r for r in rows}
+
+        ordered: list[AbilityModel] = []
+        seen: set[str] = set()
+        if adversary is not None and isinstance(adversary.atomic_ordering, list):
+            for ability_id in adversary.atomic_ordering:
+                row = by_id.get(ability_id)
+                if row is not None and row.ability_id not in seen:
+                    ordered.append(row)
+                    seen.add(row.ability_id)
+        # Append any remaining abilities not covered by the ordering, by id, so
+        # nothing is silently dropped.
+        for row in sorted(rows, key=lambda r: r.ability_id):
+            if row.ability_id not in seen:
+                ordered.append(row)
+                seen.add(row.ability_id)
+
+        return [_ability_view_from_row(r) for r in ordered]
+
     # ---- Stage 2: curated-translation assembly (task 8.2) -----------------
 
     def assemble_stage2(
@@ -1460,14 +1676,16 @@ class StageService:
 
         Operationalization is Stage 3 (``stage=3``,
         :data:`STAGE_OPERATIONALIZATION`; Req. 8.4) — the stage that turns the
-        abstract techniques into executable Abilities (Req. 4.1). For the curated
-        cases the operationalization already exists on disk, so this method
-        *assembles* it (the method keeps its historical ``assemble_stage2`` name,
-        as do the ``Stage2*`` result types):
+        abstract techniques into executable Abilities (Req. 4.1). The curated
+        operationalization is persisted in the database (``Ability``/``Adversary``
+        rows keyed by ``campaign_id``), so this method resolves it from the DB
+        rather than reading the curated files from disk (Req. 3.3); the method
+        keeps its historical ``assemble_stage2`` name, as do the ``Stage2*``
+        result types:
 
         * **Input** = the abstract ATT&CK techniques produced upstream
           (Req. 4.1). ``stage1`` may be passed in to avoid re-running the
-          upstream modeling; when omitted it is computed via :meth:`run_stage1`.
+          upstream modeling; when omitted it is computed via :meth:`run_stage2_selection`.
         * **Output** = the curated Abilities — each with its technique id, tactic,
           description and the concrete command per executor (Req. 4.1) — the
           ordering/dependencies (``atomic_ordering``, Req. 4.1), the Adversary
@@ -1498,7 +1716,7 @@ class StageService:
         # Source the abstract techniques from Stage 1 (Req. 3.1). Reuse a passed
         # result when available so callers can avoid re-running Stage 1.
         if stage1 is None:
-            stage1 = self.run_stage1(slug)
+            stage1 = self.run_stage2_selection(slug)
 
         input = _stage2_input_from_stage1(slug, name, stage1)
 
@@ -1508,27 +1726,27 @@ class StageService:
                 campaign_id=slug, input=input, output=None, suppressed=True
             )
 
-        # Load the curated Abilities/Adversary for the output. A read/parse
-        # failure here should not crash the assembly — represent it as "no
-        # abilities" so the UI can render the absence state (Req. 3.7).
-        try:
-            case = self._case_service.load_case(slug)
-        except CaseFileError:
-            case = None
-        except Exception:  # defensive: any unexpected read error
-            case = None
-
-        abilities: list[AbilityData] = list(case.abilities) if case else []
-        adversary: Optional[AdversaryData] = case.adversary if case else None
+        # Resolve the curated Abilities/Adversary for the output from the
+        # database (Req. 3.3): ``Ability``/``Adversary`` rows keyed by
+        # ``campaign_id`` (== the case slug), ordered by the Adversary's
+        # ``atomic_ordering``. This replaces the former disk read via the
+        # ``CaseService``; the ``CuratedIngestService`` persists the exact same
+        # curated content, so the output stays equivalent (Req. 3.6).
+        adversary_row = self._load_adversary_row(slug)
+        ability_views = self._load_ability_views(slug, adversary_row)
 
         # No curated Abilities → indicate absence of Stage-2 output (Req. 3.7).
-        if not abilities:
+        if not ability_views:
             output = Stage2Output(
                 abilities=[],
                 ordering=[],
-                adversary=(_adversary_view(adversary) if adversary else None),
+                adversary=(
+                    _adversary_view_from_row(adversary_row)
+                    if adversary_row is not None
+                    else None
+                ),
                 has_abilities=False,
-                has_adversary=adversary is not None,
+                has_adversary=adversary_row is not None,
                 note=(
                     "O caso "
                     f"{name} não possui Abilities curadas; não há Saída do "
@@ -1536,7 +1754,7 @@ class StageService:
                 ),
                 adversary_note=(
                     None
-                    if adversary is not None
+                    if adversary_row is not None
                     else (
                         "Este caso não possui Adversary associado; não há "
                         "agrupamento de Abilities."
@@ -1545,16 +1763,14 @@ class StageService:
             )
             return Stage2Result(campaign_id=slug, input=input, output=output)
 
-        ability_views = [_ability_view(a) for a in abilities]
-
         # Ordering/dependencies: prefer the Adversary's atomic_ordering; fall
         # back to the natural ability order when there is no Adversary (Req. 3.3).
-        if adversary is not None:
-            ordering = list(adversary.atomic_ordering)
-            adversary_view = _adversary_view(adversary)
+        if adversary_row is not None:
+            ordering = list(adversary_row.atomic_ordering or [])
+            adversary_view = _adversary_view_from_row(adversary_row)
             adversary_note = None
         else:
-            ordering = [a.ability_id for a in abilities]
+            ordering = [a.ability_id for a in ability_views]
             adversary_view = None
             adversary_note = (
                 "Este caso não possui Adversary associado; não há agrupamento "
@@ -1568,7 +1784,7 @@ class StageService:
             translation_source=TranslationSource.HUMAN_CURATION,
             human_curation=True,
             has_abilities=True,
-            has_adversary=adversary is not None,
+            has_adversary=adversary_row is not None,
             adversary_note=adversary_note,
         )
         return Stage2Result(campaign_id=slug, input=input, output=output)
@@ -1595,15 +1811,15 @@ class StageService:
         """
         name = self._case_service.list_cases().get(slug, slug)
 
-        try:
-            case = self._case_service.load_case(slug)
-        except CaseFileError:
-            case = None
-        except Exception:  # defensive
-            case = None
-
-        abilities = list(case.abilities) if case else []
-        adversary = case.adversary if case else None
+        # Database-only sourcing (Req. 1.1, 4.1): resolve the Abilities and the
+        # Adversary from the ``abilities``/``adversaries`` rows keyed by
+        # ``campaign_id`` (persisted by the curated ingest of sub-step 2.1),
+        # ordered by the Adversary's ``atomic_ordering``. This replaces the former
+        # disk read via ``CaseService.load_case``; the ingest persists the exact
+        # same curated content, so the assembled input is equivalent (Req. 1.4,
+        # 3.6).
+        adversary_row = self._load_adversary_row(slug)
+        ability_views = self._load_ability_views(slug, adversary_row)
 
         ability_inputs = [
             Stage3AbilityInput(
@@ -1611,23 +1827,22 @@ class StageService:
                 name=a.name,
                 technique_id=a.technique_id,
                 tactic=a.tactic,
-                executors=[
-                    Stage2ExecutorView(
-                        name=e.name, platform=e.platform, command=e.command
-                    )
-                    for e in a.executors
-                ],
+                executors=list(a.executors),
             )
-            for a in abilities
+            for a in ability_views
         ]
         adversary_input = (
             Stage3AdversaryInput(
-                id=adversary.id,
-                name=adversary.name,
-                description=adversary.description,
-                atomic_ordering=list(adversary.atomic_ordering),
+                id=adversary_row.id,
+                name=adversary_row.name,
+                description=adversary_row.description,
+                atomic_ordering=(
+                    list(adversary_row.atomic_ordering)
+                    if isinstance(adversary_row.atomic_ordering, list)
+                    else []
+                ),
             )
-            if adversary is not None
+            if adversary_row is not None
             else None
         )
 
@@ -1718,9 +1933,10 @@ class StageService:
                 "requer um OperationRunner (tarefa 7.3)."
             )
 
-        # Delegate the actual emulation (Req. 4.2–4.5). Reload the full case so
-        # the runner has the complete curated data to load into Caldera.
-        case = self._case_service.load_case(slug)
+        # Delegate the actual emulation (Req. 4.2–4.5). Build the full case from
+        # the database (DB-only sourcing — Req. 1.1, 4.1) so the runner has the
+        # complete curated data to load into Caldera, without reading disk.
+        case = self._build_case_from_db(slug)
         run_result = self._operation_runner.run(case, confirmed=confirmed)
 
         # Runner refused to execute (containment violation, Caldera unavailable,
@@ -2002,67 +2218,42 @@ class StageService:
 
     # ---- persistence ------------------------------------------------------
 
-    def _persist(self, case: CaseData, output: Stage1Output) -> StageRun:
-        """Persist the case, its extracted elements and the completed StageRun.
+    def _persist(self, slug: str, name: str, output: Stage1Output) -> StageRun:
+        """Persist the campaign row and the completed structural-modeling StageRun.
 
         Runs as a single unit of work committed once at the end. On any DB error
-        the caller rolls back, so either *all* extracted elements are persisted
-        or *none* are (no partial extraction — Req. 2.6). The ``StageRun`` is
-        upserted (one row per ``(campaign_id, stage=1)``) so re-running the
-        structural modeling for a case updates the existing run rather than
-        piling up rows. Structural modeling persists under stage 1 after the
-        renumbering.
+        the caller rolls back, so no partial state is ever persisted (Req. 2.6).
+        The ``StageRun`` is upserted (one row per ``(campaign_id, stage=1)``) so
+        re-running the structural modeling for a campaign updates the existing
+        run rather than piling up rows. Structural modeling persists under stage
+        1 after the renumbering.
+
+        Database-only sourcing (Req. 1.1, 4.1): the structural DAG and the
+        Abilities/Adversary now come from the database (the curated ingest of
+        sub-step 2.1 already persisted the ``abilities``/``adversaries`` rows),
+        so this persistence only upserts the ``campaigns`` row (identity) and the
+        StageRun — it no longer rewrites the curated Abilities/Adversary from a
+        disk-sourced ``CaseData``, and it no longer records the ``*_file`` disk
+        paths.
         """
-        # Upsert the Case row (metadata + file paths + translation source).
-        db_case = self._session.get(CaseModel, case.id)
+        # Upsert the Case row (identity + translation source). The curated ingest
+        # already filled it; keep this as a defensive idempotent upsert so Stage 1
+        # works even if only the DAG was persisted.
+        db_case = self._session.get(CaseModel, slug)
         if db_case is None:
-            db_case = CaseModel(id=case.id)
+            db_case = CaseModel(id=slug)
             self._session.add(db_case)
-        db_case.name = case.name
-        db_case.ability_file = case.ability_file
-        db_case.adversary_file = case.adversary_file
-        db_case.dag_file = case.dag_file
-        db_case.translation_source = case.translation_source
+        if not db_case.name:
+            db_case.name = name
+        if db_case.translation_source is None:
+            db_case.translation_source = TranslationSource.HUMAN_CURATION
 
-        # Flush the parent Case row BEFORE inserting any child Ability/Adversary.
-        # The children carry a FK to campaigns.id; without this explicit flush the
-        # unit-of-work can order a child INSERT before the parent, raising a
-        # ForeignKeyViolation (abilities_campaign_id_fkey). Still one transaction:
-        # the single commit() at the end keeps the all-or-nothing guarantee.
         self._session.flush()
-
-        # Persist the curated Abilities (upsert by ability_id), associated with
-        # the case. Executors are stored as the JSON column.
-        for ability in case.abilities:
-            db_ability = self._session.get(AbilityModel, ability.ability_id)
-            if db_ability is None:
-                db_ability = AbilityModel(ability_id=ability.ability_id)
-                self._session.add(db_ability)
-            db_ability.campaign_id = case.id
-            db_ability.name = ability.name
-            db_ability.tactic = ability.tactic
-            db_ability.technique_name = ability.technique_name
-            db_ability.technique_id = ability.technique_id
-            db_ability.description = ability.description
-            db_ability.executors = [e.model_dump() for e in ability.executors]
-            db_ability.translation_source = TranslationSource.HUMAN_CURATION
-
-        # Persist the Adversary when present (upsert by id).
-        if case.adversary is not None:
-            db_adv = self._session.get(AdversaryModel, case.adversary.id)
-            if db_adv is None:
-                db_adv = AdversaryModel(id=case.adversary.id)
-                self._session.add(db_adv)
-            db_adv.campaign_id = case.id
-            db_adv.name = case.adversary.name
-            db_adv.description = case.adversary.description
-            db_adv.atomic_ordering = list(case.adversary.atomic_ordering)
-            db_adv.translation_source = TranslationSource.HUMAN_CURATION
 
         # Upsert the structural-modeling StageRun (Stage 1) and mark it
         # concluido (Req. 2.4).
         stage_run = self._get_or_create_stage_run(
-            case.id, stage=STAGE_MODELING
+            slug, stage=STAGE_MODELING
         )
         stage_run.state = StageState.COMPLETED
         stage_run.progress = 100

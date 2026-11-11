@@ -101,7 +101,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.models.domain import ProvisionedEnvironmentRow, StageRun
-from app.models.enums import PersistedEnvironmentPlatform, StageState
+from app.models.enums import EnvironmentPlatform, StageState
 from app.services.caldera.client import (
     DEFAULT_GROUP,
     CalderaApiError,
@@ -263,6 +263,14 @@ class ProvisioningStage5Result(BaseModel):
     stage_run_id:
         The id of the Stage 5 ``StageRun`` updated by this call; ``None`` when the
         gate blocked or the persistence failed.
+    recommended_target_os:
+        The ``target_os`` (``linux`` | ``windows``) of the campaign's
+        **Provisioning_Map** — the per-campaign recommended environment Stage 5
+        consults as the source of the recommended environment (Req. 8.4). Derived
+        additively from the persisted ``provisioning_map`` row (or freshly
+        derived) when the provisioning path ran; ``None`` when the gate blocked or
+        the map could not be derived. Advisory only — it never blocks or alters
+        the existing provisioner flow.
     """
 
     campaign_id: str
@@ -274,6 +282,7 @@ class ProvisioningStage5Result(BaseModel):
     persistence_failed: bool = False
     reused: bool = False
     stage_run_id: Optional[int] = None
+    recommended_target_os: Optional[str] = None
 
 
 class AgentHealthCause(str, enum.Enum):
@@ -583,6 +592,58 @@ class EnvironmentStageService:
             )
             return None
 
+    def recommended_provisioning_map(self, campaign: str) -> Optional[str]:
+        """Return the campaign's recommended ``target_os`` from the Provisioning_Map (Req. 8.4).
+
+        The source of the recommended environment Stage 5 consults is the
+        per-campaign **Provisioning_Map** (Req. 8.4). This **read-only, additive**
+        helper resolves it through
+        :meth:`app.services.provisioning_map_service.ProvisioningMapService.derive`
+        — which derives the ``target_os`` + fixed inventory from the campaign's
+        abilities and persists the single ``provisioning_map`` row (idempotent
+        upsert, Req. 8.1, 8.2) — and returns the derived ``target_os`` (``linux`` |
+        ``windows``).
+
+        It never raises on the provisioning path: the ``ProvisioningMapService``
+        and the :class:`ExperienceMemory` it needs are built lazily over the same
+        session, and any failure (no abilities, Vector_Store/embedder outage, …)
+        is logged and swallowed, returning ``None`` — the existing provisioner
+        flow is unaffected (the wiring is additive — Req. 8.4).
+        """
+        try:
+            # Lazy imports so this module's import stays cheap/side-effect-free
+            # and never couples to the AI memory / map service at import time.
+            from app.services.ai.memory import ExperienceMemory
+            from app.services.provisioning_map_service import ProvisioningMapService
+
+            service = ProvisioningMapService(
+                self._session, memory=ExperienceMemory(self._session)
+            )
+            provisioning_map = service.derive(campaign)
+            # The derivation only ``flush``es its row; commit it as its own
+            # self-contained unit of work so the Provisioning_Map is durable
+            # regardless of the Stage 5 path that follows (including the reuse
+            # path, which returns without its own commit). The upsert is
+            # idempotent (latest-wins), so committing here is safe to repeat.
+            self._session.commit()
+            return provisioning_map.target_os
+        except Exception as exc:  # noqa: BLE001 - advisory read, never blocks Stage 5
+            # Preserve the Stage 5 transaction integrity: roll back the aborted
+            # map unit of work so the provisioning path continues from a clean
+            # session state.
+            try:
+                self._session.rollback()
+            except Exception:  # noqa: BLE001 - best-effort cleanup
+                pass
+            logger.warning(
+                "Provisioning_Map not available for campaign %s (%s: %s); Stage 5 "
+                "proceeds without the recommended target_os.",
+                campaign,
+                type(exc).__name__,
+                exc,
+            )
+            return None
+
     def auto_complete_stage4(self, campaign: str) -> AutoProvisioningResult:
         """Try to automatically complete the Stage 4 of the curated Campaign ``campaign``.
 
@@ -762,6 +823,13 @@ class EnvironmentStageService:
                 error_message=_MSG_GATE_STAGE5,
             )
 
+        # Source of the recommended environment: the campaign's Provisioning_Map
+        # (Req. 8.4). Additive and advisory — it derives/reads the per-campaign
+        # ``target_os`` (``linux`` | ``windows``) from the persisted
+        # ``provisioning_map`` row (deriving it idempotently if absent) and carries
+        # it in the result, without altering the existing provisioner flow.
+        recommended_target_os = self.recommended_provisioning_map(campaign)
+
         # (1b) Idempotency (Req. 1.6): if the environment **has already** been
         # provisioned successfully for the Campaign and remains provisioned —
         # there is a ``ready`` persisted :class:`ProvisionedEnvironmentRow` **and**
@@ -787,6 +855,7 @@ class EnvironmentStageService:
                     environment=environment,
                     reused=True,
                     stage_run_id=(run.id if run is not None else None),
+                    recommended_target_os=recommended_target_os,
                 )
 
         # (2) Stage 5 input: the EnvironmentParameters (Stage 4 output).
@@ -808,6 +877,7 @@ class EnvironmentStageService:
                 campaign_id=campaign,
                 persistence_failed=True,
                 error_message=_MSG_PERSISTENCE_FAILURE_STAGE5,
+                recommended_target_os=recommended_target_os,
             )
 
         self._log_buffer.clear(campaign)
@@ -897,6 +967,7 @@ class EnvironmentStageService:
                 error_message=screen_error_message,
                 environment=environment,
                 persistence_failed=True,
+                recommended_target_os=recommended_target_os,
             )
 
         self._session.refresh(stage_run)
@@ -907,6 +978,7 @@ class EnvironmentStageService:
             error_message=screen_error_message,
             environment=environment,
             stage_run_id=stage_run.id,
+            recommended_target_os=recommended_target_os,
         )
 
     # Intent alias: the Stage 5 provisioning is **started** with no manual action
@@ -1187,7 +1259,7 @@ class EnvironmentStageService:
         """
         now = _utcnow()
         content = environment.model_dump(mode="json")
-        platform = PersistedEnvironmentPlatform(environment.platform.value)
+        platform = EnvironmentPlatform(environment.platform.value)
 
         row = self._environment_row(campaign_id)
         if row is None:

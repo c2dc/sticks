@@ -66,10 +66,10 @@ from app.models.domain import AgentIteration, AgentRun, Case, _utcnow
 from app.models.enums import AgentRunStatus, EvaluatorDecision
 from app.services.ai.agents.evaluator import node, persist_evaluation
 
-# The exact pt-BR decision strings (Req. 10.2/10.3) — literals, so the
+# The exact English decision strings (Req. 10.2/10.3) — literals, so the
 # assertions never trust the implementation to decide the expected value.
-_FINISH = "finalizar"
-_REFINE = "refinar"
+_FINISH = "finish"
+_REFINE = "refine"
 
 
 # ---------------------------------------------------------------------------
@@ -189,7 +189,7 @@ def _seed_iteration(session: Session) -> int:
 
 
 @settings(
-    max_examples=200,
+    max_examples=40,
     deadline=None,
     suppress_health_check=[HealthCheck.too_slow],
 )

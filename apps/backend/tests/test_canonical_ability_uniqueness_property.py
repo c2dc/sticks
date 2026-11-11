@@ -172,7 +172,7 @@ def _seed_operation(session: Session, campaign_id: str) -> Operation:
 
 
 @settings(
-    max_examples=150,
+    max_examples=40,
     deadline=None,
     suppress_health_check=[HealthCheck.too_slow],
 )

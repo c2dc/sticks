@@ -4,34 +4,30 @@ import userEvent from "@testing-library/user-event"
 
 import { renderWithI18n } from "@/test/render"
 import { ExecutionWizard } from "@/components/ExecutionWizard"
-import type { Campaign, CampaignStates, CasesResponse } from "@/lib/campaigns"
+import type { CasesResponse } from "@/lib/campaigns"
 
 /**
- * UI tests for the six-stage ExecutionWizard (pipeline-seis-estagios,
- * Req. 1.1, 1.2, 4.1, 4.2, 4.3). The wizard is reached straight from the
- * Landing with NO campaign chosen: it resolves a probe slug via `fetchCases`
- * (used only to list base/campaign options in Stages 1-2) and adopts the chosen
- * campaign id when CampaignView reports a selection, which unlocks Stages 3..6.
+ * UI tests for the two-layer ExecutionWizard (ai-first-campaign-flow). The
+ * top-level flow is NOT the old linear `1..6` ruler; it is two conceptual
+ * layers:
  *
- * We mock `fetchCases` + `getCampaign`/`resetCampaign` (network) and the Stage-4
- * conclusion wrapper, and stub the stage body components. The CampaignView stub
- * fires `onCompleted("shadowray", …)` on mount so reaching Stage 2 selects the
- * single curated campaign and unlocks the later stages.
+ * - **Layer 1 — Setup** ({@link SetupScreen}): a SINGLE stylish screen where the
+ *   STIX package version AND the campaign are picked, one below the other. The
+ *   campaign panel is revealed only once a base is ready. There is no "Step N of
+ *   6" ruler and no stepwise "Continue" between base and campaign — both live on
+ *   the same screen.
+ * - **Layer 2 — Run** ({@link GuidedRunView}): the guided, orchestrator-led AI
+ *   loop as the PRIMARY view, reached once a campaign is selected. A "change
+ *   campaign" control returns to Setup.
+ *
+ * We mock `fetchCases` (network) and stub the Setup bodies + the Run view. The
+ * CampaignView stub exposes a button to report the chosen slug, which is what
+ * transitions the flow to the Run.
  */
-
-vi.mock("@/lib/wizard", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/wizard")>()
-  return { ...actual, getCampaign: vi.fn(), resetCampaign: vi.fn() }
-})
 
 vi.mock("@/lib/campaigns", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/campaigns")>()
   return { ...actual, fetchCases: vi.fn() }
-})
-
-vi.mock("@/lib/stages", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/stages")>()
-  return { ...actual, completeOperationalization: vi.fn() }
 })
 
 vi.mock("@/components/BaseStixView", async () => {
@@ -49,85 +45,41 @@ vi.mock("@/components/BaseStixView", async () => {
     },
   }
 })
-// CampaignView stub: on mount, reports the chosen curated slug so the wizard
-// adopts it as campaignId (unlocking Stages 3..6), mirroring a real selection.
+
+// CampaignView stub: offers a button that reports the chosen slug, mirroring a
+// real selection that transitions the flow to the Run.
 vi.mock("@/components/CampaignView", () => ({
   CampaignView: ({
+    campaignId,
     onCompleted,
   }: {
     campaignId: string
     version?: string
     onCompleted?: (slug: string, result: unknown) => void
-  }) => {
-    return (
-      <div data-testid="campaign-view">
-        <button
-          type="button"
-          data-testid="select-campaign"
-          onClick={() => onCompleted?.("shadowray", { completed: true })}
-        >
-          select
-        </button>
-      </div>
-    )
-  },
-}))
-vi.mock("@/components/DagStageView", () => ({
-  DagStageView: ({ campaignId }: { campaignId: string }) => (
-    <div data-testid="dag-stage-view">{campaignId}</div>
-  ),
-}))
-vi.mock("@/components/Stage2View", () => ({
-  Stage2View: ({ campaignId }: { campaignId: string }) => (
-    <div data-testid="stage2-view">{campaignId}</div>
-  ),
-}))
-vi.mock("@/components/EnvironmentParametersView", () => ({
-  EnvironmentParametersView: ({ campaignId }: { campaignId: string }) => (
-    <div data-testid="environment-parameters-view">{campaignId}</div>
-  ),
-}))
-vi.mock("@/components/EnvironmentStageView", () => ({
-  EnvironmentStageView: ({ campaignId }: { campaignId: string }) => (
-    <div data-testid="environment-stage-view">{campaignId}</div>
-  ),
-}))
-vi.mock("@/components/Stage3View", () => ({
-  Stage3View: ({ campaignId }: { campaignId: string }) => (
-    <div data-testid="stage3-view">{campaignId}</div>
-  ),
-}))
-vi.mock("@/components/ReportView", () => ({
-  ReportView: ({ campaignId }: { campaignId: string }) => (
-    <div data-testid="report-view">{campaignId}</div>
+  }) => (
+    <div data-testid="campaign-view">
+      <span data-testid="campaign-view-id">{campaignId}</span>
+      <button
+        type="button"
+        data-testid="select-campaign"
+        onClick={() => onCompleted?.("shadowray", { completed: true })}
+      >
+        select
+      </button>
+    </div>
   ),
 }))
 
-import { getCampaign, resetCampaign } from "@/lib/wizard"
+// GuidedRunView stub (Layer 2): echoes the campaignId it is handed.
+vi.mock("@/components/GuidedRunView", () => ({
+  GuidedRunView: ({ campaignId }: { campaignId: string }) => (
+    <div data-testid="guided-run-view">{campaignId}</div>
+  ),
+}))
+
 import { fetchCases } from "@/lib/campaigns"
-import { completeOperationalization } from "@/lib/stages"
 
-const getCampaignMock = vi.mocked(getCampaign)
-const resetCampaignMock = vi.mocked(resetCampaign)
 const fetchCasesMock = vi.mocked(fetchCases)
-const completeOperationalizationMock = vi.mocked(completeOperationalization)
-
-function states(completed: number[]): CampaignStates {
-  const all = [1, 2, 3, 4, 5, 6] as const
-  return {
-    fully_completed: completed.length === 6,
-    stages: all.map((stage) => ({
-      stage,
-      state: completed.includes(stage) ? "concluido" : "nao_iniciado",
-      progress: completed.includes(stage) ? 100 : 0,
-      blocked: stage > 1 && !completed.includes(stage - 1),
-    })),
-  }
-}
-
-function makeCampaign(completed: number[]): Campaign {
-  return { id: "shadowray", name: "ShadowRay", states: states(completed) }
-}
 
 function makeCases(): CasesResponse {
   return {
@@ -136,206 +88,108 @@ function makeCases(): CasesResponse {
   }
 }
 
-/** Walk Stage 1 → 2 and click the stub's select button to set campaignId. */
-async function selectCampaignAtStage2() {
-  const advance = screen.getByRole("button", {
-    name: /Avançar para o próximo estágio/,
-  })
-  await userEvent.click(advance)
-  await screen.findByTestId("campaign-view")
-  await userEvent.click(screen.getByTestId("select-campaign"))
-}
-
-// Controls whether the BaseStixView stub auto-reports Stage 1 as concluded.
-// Individual tests can set this to false before rendering to verify the
-// blocked state.
+// Controls whether the BaseStixView stub auto-reports the base as ready.
 let baseStixAutoComplete = true
 
-describe("ExecutionWizard (6 stages — Req. 1.1, 1.2, 4.1–4.3)", () => {
+/**
+ * Select a campaign on the unified Setup screen and then advance to the Run.
+ * Selection alone no longer jumps to the Run: it reveals the campaign
+ * overview and the explicit Next button, which is what transitions.
+ */
+async function reachRun() {
+  await screen.findByTestId("campaign-view")
+  await userEvent.click(screen.getByTestId("select-campaign"))
+  await userEvent.click(await screen.findByTestId("advance-to-run"))
+  await screen.findByTestId("guided-run-view")
+}
+
+describe("ExecutionWizard (unified Setup + guided Run)", () => {
   beforeEach(() => {
     baseStixAutoComplete = true
-    getCampaignMock.mockReset()
-    resetCampaignMock.mockReset()
     fetchCasesMock.mockReset()
     fetchCasesMock.mockResolvedValue(makeCases())
-    completeOperationalizationMock.mockReset()
   })
 
-  it("shows the step indicator 'Passo 1 de 6' and a six-badge track (1..6)", async () => {
-    getCampaignMock.mockResolvedValue(makeCampaign([]))
-
+  it("shows the unified Setup screen with NO six-stage ruler / 'Step N of 6'", async () => {
     const { container } = renderWithI18n(<ExecutionWizard />)
-    await waitFor(() => expect(getCampaignMock).toHaveBeenCalledWith("shadowray"))
+    await screen.findByTestId("base-stix-view")
 
-    expect(screen.getByText("Passo 1 de 6")).toBeInTheDocument()
+    // No stepwise "Passo N de 6" nor a six-stage trail.
+    expect(screen.queryByText(/Passo \d+ de 6/)).toBeNull()
+    expect(container.querySelectorAll("[data-stage]")).toHaveLength(0)
+    expect(screen.queryByText(/Estágio [3-6]/)).toBeNull()
 
-    const badges = Array.from(
-      container.querySelectorAll("[data-stage]"),
-    ) as HTMLElement[]
-    expect(badges).toHaveLength(6)
-    expect(badges.map((b) => b.getAttribute("data-stage"))).toEqual([
-      "1",
-      "2",
-      "3",
-      "4",
-      "5",
-      "6",
-    ])
+    // The hero + both selection panels are present on one screen.
+    expect(screen.getByText(/Vamos preparar sua emulação/)).toBeInTheDocument()
+    expect(container.querySelectorAll("[data-section='setup-panel']")).toHaveLength(2)
   })
 
-  it("renders BaseStixView (STIX base selection) as the body of Stage 1", async () => {
-    getCampaignMock.mockResolvedValue(makeCampaign([]))
-
+  it("renders BaseStixView and CampaignView together once the base is ready", async () => {
     renderWithI18n(<ExecutionWizard />)
-    await waitFor(() => expect(getCampaignMock).toHaveBeenCalledWith("shadowray"))
 
     expect(await screen.findByTestId("base-stix-view")).toBeInTheDocument()
-    expect(screen.queryByTestId("campaign-view")).not.toBeInTheDocument()
-    expect(screen.queryByTestId("dag-stage-view")).not.toBeInTheDocument()
+    // Base auto-completes → the campaign panel is revealed on the same screen.
+    expect(await screen.findByTestId("campaign-view")).toBeInTheDocument()
+    expect(screen.queryByTestId("guided-run-view")).not.toBeInTheDocument()
   })
 
-  it("blocks 'Avançar' at Stage 1 while the stage is not concluded", async () => {
+  it("keeps the campaign panel locked until the base is ready", async () => {
     baseStixAutoComplete = false
-    getCampaignMock.mockResolvedValue(makeCampaign([]))
-
     renderWithI18n(<ExecutionWizard />)
-    await waitFor(() => expect(getCampaignMock).toHaveBeenCalledWith("shadowray"))
+    await screen.findByTestId("base-stix-view")
 
-    const advance = screen.getByRole("button", {
-      name: /Avançar para o próximo estágio/,
-    })
-    expect(advance).toBeDisabled()
-    expect(advance).toHaveAttribute("aria-disabled", "true")
-
-    await userEvent.click(advance)
-    expect(screen.getByText("Passo 1 de 6")).toBeInTheDocument()
-    expect(screen.getByTestId("base-stix-view")).toBeInTheDocument()
-  })
-
-  it("enables 'Avançar' once Stage 1 is concluded and advances to Stage 2 (Campaign selection)", async () => {
-    getCampaignMock.mockResolvedValue(makeCampaign([1]))
-
-    renderWithI18n(<ExecutionWizard />)
-    await waitFor(() => expect(getCampaignMock).toHaveBeenCalledWith("shadowray"))
-
-    const advance = screen.getByRole("button", {
-      name: /Avançar para o próximo estágio/,
-    })
-    await waitFor(() => expect(advance).not.toBeDisabled())
-    await userEvent.click(advance)
-
-    expect(await screen.findByText("Passo 2 de 6")).toBeInTheDocument()
-    expect(screen.getByTestId("campaign-view")).toBeInTheDocument()
-    expect(screen.queryByTestId("base-stix-view")).not.toBeInTheDocument()
-  })
-
-  it("maps each stage number to its body component across the six stages", async () => {
-    getCampaignMock.mockResolvedValue(makeCampaign([1, 2, 3, 4, 5, 6]))
-
-    renderWithI18n(<ExecutionWizard />)
-    await waitFor(() => expect(getCampaignMock).toHaveBeenCalledWith("shadowray"))
-
-    const advance = () =>
-      screen.getByRole("button", { name: /Avançar para o próximo estágio/ })
-
-    // Stage 1 — BaseStixView.
-    expect(await screen.findByTestId("base-stix-view")).toBeInTheDocument()
-
-    // Stage 2 — CampaignView; selecting the campaign unlocks Stages 3..6.
-    await selectCampaignAtStage2()
-    expect(screen.getByTestId("campaign-view")).toBeInTheDocument()
-
-    // Stage 3 — DagStageView.
-    await userEvent.click(advance())
-    expect(await screen.findByTestId("dag-stage-view")).toBeInTheDocument()
-
-    // Stage 4 — Stage2View + EnvironmentParametersView.
-    await userEvent.click(advance())
-    expect(await screen.findByTestId("stage2-view")).toBeInTheDocument()
-    expect(screen.getByTestId("environment-parameters-view")).toBeInTheDocument()
-
-    // Stage 5 — EnvironmentStageView.
-    await userEvent.click(advance())
-    expect(await screen.findByTestId("environment-stage-view")).toBeInTheDocument()
-
-    // Stage 6 — Stage3View + ReportView; no "Avançar" on the last.
-    await userEvent.click(advance())
-    expect(await screen.findByTestId("stage3-view")).toBeInTheDocument()
-    expect(screen.getByTestId("report-view")).toBeInTheDocument()
-    expect(screen.getByText("Passo 6 de 6")).toBeInTheDocument()
+    // The campaign body is not rendered while the base is not ready; a locked
+    // hint is shown instead.
+    expect(screen.queryByTestId("campaign-view")).toBeNull()
     expect(
-      screen.queryByRole("button", { name: /Avançar para o próximo estágio/ }),
-    ).not.toBeInTheDocument()
+      screen.getByText(/Escolha uma versão do pacote STIX acima/),
+    ).toBeInTheDocument()
   })
 
-  it("enables 'Próximo' on Stage 4 when it is available but NOT yet concluded, and clicking concludes it", async () => {
-    getCampaignMock.mockResolvedValue(makeCampaign([1, 2, 3]))
-    completeOperationalizationMock.mockImplementation(async () => {
-      getCampaignMock.mockResolvedValue(makeCampaign([1, 2, 3, 4]))
-      return makeCampaign([1, 2, 3, 4]).states as never
-    })
-
+  it("selecting a campaign transitions to the guided Run as the primary view", async () => {
     renderWithI18n(<ExecutionWizard />)
-    await waitFor(() => expect(getCampaignMock).toHaveBeenCalledWith("shadowray"))
+    await screen.findByTestId("base-stix-view")
 
-    const advance = () =>
-      screen.getByRole("button", { name: /Avançar para o próximo estágio/ })
+    await reachRun()
 
-    await selectCampaignAtStage2() // 1 → 2 (+ select)
-    await userEvent.click(advance()) // 2 → 3
-    await screen.findByTestId("dag-stage-view")
-    await userEvent.click(advance()) // 3 → 4
-    await screen.findByTestId("stage2-view")
-    expect(screen.getByText("Passo 4 de 6")).toBeInTheDocument()
-
-    const button4 = advance()
-    expect(button4).not.toBeDisabled()
-
-    await userEvent.click(button4)
-    await waitFor(() =>
-      expect(completeOperationalizationMock).toHaveBeenCalledWith("shadowray"),
-    )
-    expect(await screen.findByTestId("environment-stage-view")).toBeInTheDocument()
-    expect(screen.getByText("Passo 5 de 6")).toBeInTheDocument()
+    const run = screen.getByTestId("guided-run-view")
+    expect(run).toHaveTextContent("shadowray")
+    // The Run is the primary view: the Setup bodies are gone, and it is not an
+    // overlay dialog.
+    expect(screen.queryByTestId("base-stix-view")).toBeNull()
+    expect(screen.queryByTestId("campaign-view")).toBeNull()
+    expect(screen.queryByRole("dialog")).toBeNull()
   })
 
-  it("renders the next button's visible label as 'Próximo'", async () => {
-    getCampaignMock.mockResolvedValue(makeCampaign([1]))
+  it("a 'back to setup' control returns to the unified Setup from the Run", async () => {
     renderWithI18n(<ExecutionWizard />)
-    await waitFor(() => expect(getCampaignMock).toHaveBeenCalledWith("shadowray"))
+    await screen.findByTestId("base-stix-view")
+    await reachRun()
 
-    const button = screen.getByRole("button", {
-      name: /Avançar para o próximo estágio/,
-    })
-    expect(button).toHaveTextContent("Próximo")
-  })
+    await userEvent.click(screen.getByTestId("back-to-setup"))
 
-  it("resets the trail to Stage 1 and recomputes from the re-read when the campaign is restarted (R6.3)", async () => {
-    getCampaignMock.mockResolvedValue(makeCampaign([1, 2, 3, 4, 5, 6]))
-    resetCampaignMock.mockImplementation(async () => {
-      getCampaignMock.mockResolvedValue(makeCampaign([]))
-      return undefined as never
-    })
-
-    renderWithI18n(<ExecutionWizard />)
-    await waitFor(() => expect(getCampaignMock).toHaveBeenCalledWith("shadowray"))
-
-    const advance = () =>
-      screen.getByRole("button", { name: /Avançar para o próximo estágio/ })
-
-    // Walk 1 → 2 (+ select) → 3 so the wizard is on a later stage before restart.
-    await selectCampaignAtStage2()
-    await userEvent.click(advance()) // 2 → 3
-    await screen.findByTestId("dag-stage-view")
-    expect(screen.getByText("Passo 3 de 6")).toBeInTheDocument()
-
-    const restart = screen.getByRole("button", { name: /Reiniciar/ })
-    await userEvent.click(restart)
-
-    await waitFor(() => expect(resetCampaignMock).toHaveBeenCalledWith("shadowray"))
-
-    expect(await screen.findByText("Passo 1 de 6")).toBeInTheDocument()
+    // Back on the unified Setup screen (both panels visible again).
     expect(await screen.findByTestId("base-stix-view")).toBeInTheDocument()
-    expect(screen.queryByTestId("dag-stage-view")).not.toBeInTheDocument()
+    expect(await screen.findByTestId("campaign-view")).toBeInTheDocument()
+    expect(screen.queryByTestId("guided-run-view")).toBeNull()
+  })
+
+  it("the probe slug from fetchCases drives Setup listings before a campaign is chosen", async () => {
+    renderWithI18n(<ExecutionWizard />)
+    await waitFor(() => expect(fetchCasesMock).toHaveBeenCalled())
+
+    // The CampaignView is addressed by the probe id until a campaign is picked.
+    expect(await screen.findByTestId("campaign-view-id")).toHaveTextContent(
+      "shadowray",
+    )
+  })
+
+  it("Back on the Setup screen returns to the Landing via onExitToStart", async () => {
+    const onExitToStart = vi.fn()
+    renderWithI18n(<ExecutionWizard onExitToStart={onExitToStart} />)
+    await screen.findByTestId("base-stix-view")
+
+    await userEvent.click(screen.getByRole("button", { name: /Voltar/ }))
+    expect(onExitToStart).toHaveBeenCalledTimes(1)
   })
 })

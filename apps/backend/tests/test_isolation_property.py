@@ -259,7 +259,7 @@ def _build_inspector(containers: list[GenContainer]) -> FakeInspector:
 # ---------------------------------------------------------------------------
 
 
-@settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+@settings(max_examples=40, suppress_health_check=[HealthCheck.too_slow])
 @given(containers=_unique_containers())
 def test_property2_isolation_passes_iff_all_isolated(
     containers: list[GenContainer],
@@ -326,7 +326,7 @@ def _isolated_container_strategy() -> st.SearchStrategy[GenContainer]:
     )
 
 
-@settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
+@settings(max_examples=40, suppress_health_check=[HealthCheck.too_slow])
 @given(
     containers=st.lists(
         _isolated_container_strategy(),

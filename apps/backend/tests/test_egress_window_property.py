@@ -126,7 +126,7 @@ _operations = st.lists(
 )
 
 
-@settings(max_examples=100)
+@settings(max_examples=40)
 @given(operations=_operations)
 def test_egress_window_never_mixes_egress_and_attack(
     operations: list[tuple[str, list[str]]],

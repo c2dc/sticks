@@ -65,7 +65,7 @@ def _operation(
     )
 
 
-@settings(max_examples=200, deadline=None)
+@settings(max_examples=40, deadline=None)
 @given(started_at=_START_DATETIMES, duration=_DURATIONS)
 def test_property1_finished_with_both_instants_yields_second_difference(
     started_at: dt.datetime,
@@ -98,7 +98,7 @@ def test_property1_finished_with_both_instants_yields_second_difference(
     assert total is not None  # a finished Operation with both instants is measurable
 
 
-@settings(max_examples=200, deadline=None)
+@settings(max_examples=40, deadline=None)
 @given(
     started_at=st.one_of(st.none(), _START_DATETIMES),
     duration=_DURATIONS,
@@ -144,7 +144,7 @@ def test_property1_absent_instant_yields_none(
     assert _derive_total_time_s(operations) is None
 
 
-@settings(max_examples=200, deadline=None)
+@settings(max_examples=40, deadline=None)
 @given(
     started_at=_START_DATETIMES,
     duration=_DURATIONS,

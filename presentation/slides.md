@@ -483,8 +483,8 @@ layout: default
 
 <div class="cards c3" style="margin-top:.7rem;gap:.7rem;">
 <div class="card flat edge-blue" style="padding:.5rem .8rem;"><p><strong>Sequential gating</strong>, a stage starts only when the previous one is complete.</p></div>
-<div class="card flat edge-purple" style="padding:.5rem .8rem;"><p><strong>Input · Processing · Output</strong>, the same contract on every stage.</p></div>
-<div class="card flat edge-red" style="padding:.5rem .8rem;"><p><strong>AI loop (future)</strong>, stages 3&#8211;6 become a plan &#8594; execute &#8594; measure cycle: the verdict refines the next iteration.</p></div>
+<div class="card flat edge-purple" style="padding:.5rem .8rem;"><p><strong>Stage 6 is one stage.</strong> Execution + measurement + report are a single stage (<code>STAGE_EXECUTION = 6</code>), not three.</p></div>
+<div class="card flat edge-red" style="padding:.5rem .8rem;"><p><strong>AI loop (implemented)</strong>, stages 3&#8211;6 form a plan &#8594; execute &#8594; measure &#8594; improve cycle: the verdict refines the next iteration.</p></div>
 </div>
 
 <!--
@@ -602,7 +602,7 @@ layout: default
 <div>
 <span class="pill">APT41, DUST</span><span class="pill">ATT&amp;CK C0010</span><span class="pill">ATT&amp;CK C0026</span><span class="pill">CostaRicto</span><span class="pill">Op. MidnightEclipse</span><span class="pill">Op. Outer Space</span><span class="pill">Salesforce Exfil</span><span class="pill">ShadowRay</span>
 </div>
-<p style="margin-top:.4rem;">The <strong>ground truth</strong> for comparing human vs. future AI curation.</p>
+<p style="margin-top:.4rem;">The <strong>ground truth</strong> for comparing human vs. AI curation.</p>
 </div>
 </div>
 
@@ -660,7 +660,7 @@ layout: default
 </div>
 
 <div class="card flat edge-red" style="padding:.6rem .8rem;"><p><strong>Why the DAG comes before commands:</strong> it defines the campaign's <em>chaining</em>. Atomic Red Team gives a command <em>per technique</em>, but <strong>order &amp; dependencies</strong> come from here.</p></div>
-<div class="card flat edge-purple" style="padding:.6rem .8rem;"><p><strong>Extension point:</strong> a future <code>AiDagGenerator</code> plugs into the same seam, emitting <code>origin = ai_generated</code>, no schema change.</p></div>
+<div class="card flat edge-purple" style="padding:.6rem .8rem;"><p><strong>Extension point (implemented):</strong> the <code>AiDagGenerator</code> plugs into the same seam, emitting <code>origin = ai_generated</code>, no schema change.</p></div>
 </div>
 
 </div>
@@ -805,7 +805,9 @@ layout: default
 
 <div class="grad-rule"></div>
 
-<div class="two-col even" style="gap:1.2rem;align-items:start;margin-top:1.6rem;">
+<div class="pill red" style="margin-bottom:.4rem;">One single stage in the code — execution, measurement and report are <strong>not</strong> separate stages (<code>STAGE_EXECUTION = 6</code>).</div>
+
+<div class="two-col even" style="gap:1.2rem;align-items:start;margin-top:.4rem;">
 
 <div>
 <img src="/images/stage-6.png" style="display:block;width:100%;height:460px;object-fit:contain;object-position:top;" alt="Stage 6 execution, measurement and report screen" />
@@ -836,14 +838,14 @@ layout: default
 </div>
 </div>
 
-<div class="card flat edge-blue" style="padding:.6rem .8rem;"><p><strong>Procedural sufficiency</strong> = did the curated procedure reproduce the campaign? Success rate over the DAG, per-technique telemetry, failed nodes, overall verdict.</p></div>
-<div class="card flat edge-red" style="padding:.6rem .8rem;"><p><strong>Always tears down.</strong> After measuring, the environment is deprovisioned. This is the measurable signal the AI agent will optimize against.</p></div>
+<div class="card flat edge-blue" style="padding:.6rem .8rem;"><p><strong>Execution and measurement live in the same stage.</strong> Entering Stage 6 auto-starts the run; the measurement/report is the <em>output</em> of that same stage, not a Stage 7. <strong>Procedural sufficiency</strong> = did the curated procedure reproduce the campaign? Success rate over the DAG, per-technique telemetry, failed nodes, overall verdict.</p></div>
+<div class="card flat edge-red" style="padding:.6rem .8rem;"><p><strong>Always tears down.</strong> After measuring, the environment is deprovisioned. This is the measurable signal the AI agent optimizes against.</p></div>
 </div>
 
 </div>
 
 <!--
-Stage six is Execution, Measurement, and Report, the payoff stage, where the whole pipeline either proves itself or shows us exactly where it falls short.
+Stage six is Execution, Measurement, and Report, the payoff stage, where the whole pipeline either proves itself or shows us exactly where it falls short. And let me settle a question up front, because it comes up every time: execution and measurement are not two separate stages. In the code there is a single constant, STAGE_EXECUTION equals six, described as "execution plus measurement plus report." Entering stage six auto-starts the run, and the measurement and the report are simply the output of that same stage. There is no stage seven. So when you hear me say "measure" and "report," I am still talking about stage six.
 
 The input is the isolated, verified environment with the Abilities loaded from stage five. The processing is the most safety-critical in the system, so it is built as a series of gates that must all pass before a single command runs. Gate one: explicit human confirmation, the researcher sees the exact commands and their targets in a preview and must confirm. Gate two: containment, every command's target is parsed and validated, and if any points outside the internal subnets the entire run is refused. Gate three: isolation, the read-only check that the targets are still isolated. Gate four: Caldera must be up and healthy. Only when all four gates pass does execution begin.
 
@@ -958,20 +960,19 @@ layout: default
 </div>
 
 <div class="card edge-red">
-<h3>LLM provider</h3>
+<h3>LLM &amp; embeddings</h3>
 <ul>
-<li><strong>SEPINF</strong>, OpenAI-compatible endpoint.</li>
-<li>Model <code>glm-5.3-flash</code>.</li>
-<li>Wired via LangChain <code>ChatOpenAI</code> (<code>base_url</code> + <code>api_key</code> + <code>model</code>), read from <code>.env</code>, key never hardcoded.</li>
+<li><strong>Reasoning LLM:</strong> <strong>SEPINF</strong>, OpenAI-compatible endpoint; model from <code>.env</code> (<code>SEPINF_MODEL_ID</code>). Wired via LangChain <code>ChatOpenAI</code>, key never hardcoded.</li>
+<li><strong>Embeddings:</strong> local <strong>Ollama</strong> <code>nomic-embed-text</code>, <strong>768-dim</strong>, on GPU. Separate from the reasoning LLM.</li>
 </ul>
 </div>
 
 <div class="card edge-blue">
-<h3>Databases</h3>
+<h3>Storage, two memories in one Postgres</h3>
 <ul>
 <li><strong>PostgreSQL</strong>, source of truth <em>and</em> LangGraph <strong>checkpointer</strong> (resumable runs).</li>
-<li><strong>pgvector</strong> (same DB), experience memory for <strong>RAG</strong>.</li>
-<li>No extra DB service introduced.</li>
+<li><strong>pgvector</strong> (same DB) = <strong>vector memory</strong>: <code>experience_memory</code> for RAG.</li>
+<li>Exact facts stay in <strong>structured tables/JSON</strong>; associative knowledge in the <strong>vector store</strong>. One Postgres, no extra DB service.</li>
 </ul>
 </div>
 
@@ -980,9 +981,9 @@ layout: default
 <div class="cards c3" style="gap:.8rem;margin-top:.8rem;">
 
 <div class="card flat edge-purple">
-<h3>Memory</h3>
+<h3>Memory (two tiers)</h3>
 <ul>
-<li><strong>Short-term</strong> = LangGraph state via the PostgreSQL checkpointer.</li>
+<li><strong>Short-term</strong> = LangGraph state via the PostgreSQL checkpointer (<code>thread_id</code>, resumable).</li>
 <li><strong>Long-term</strong> = cross-campaign experience via pgvector RAG.</li>
 </ul>
 </div>
@@ -991,14 +992,14 @@ layout: default
 <h3>Learning &amp; loop</h3>
 <ul>
 <li><strong>No fine-tuning.</strong> Learn in-campaign via the loop + across campaigns via RAG.</li>
-<li>Loop bounded by a <strong>max-iteration guard</strong>.</li>
+<li>Loop bounded by a <strong>max-iteration guard</strong> (<code>AI_MAX_ITERATIONS</code>, default 3).</li>
 </ul>
 </div>
 
 <div class="card flat edge-red">
 <h3>Safety (unchanged)</h3>
 <ul>
-<li>Agents plug into the <code>origin = gerado_ia</code> seams.</li>
+<li>Agents plug into the <code>origin = ai_generated</code> seams.</li>
 <li>Every proposal still passes <strong>containment, isolation, preview, audit</strong>.</li>
 </ul>
 </div>
@@ -1008,17 +1009,87 @@ layout: default
 <div class="pill purple" style="margin-top:.8rem;">Tool layer wraps existing backend services (STIX/ATT&amp;CK, Atomic Red Team, command parser, Docker/compose, Caldera), the agents never act free-form.</div>
 
 <!--
-This slide is the engineering bill of materials for the AI system, the concrete technologies and why each was chosen. I added it so the infrastructure is explicit and you can reason about it as a whole.
+This slide is the engineering bill of materials for the AI system, and these are the technologies actually wired in the code today, not a wishlist.
 
-Start top-left, the agent framework. We use LangGraph, built on top of LangChain. LangChain is the toolbox for talking to the model and calling tools; LangGraph is the layer that lets you model the agent as a graph of states, with real cycles and built-in memory. We chose it for a reason that is almost poetic for this project: our domain is already a graph, the technique DAG, and our workflow is already a cycle, plan then execute then measure then improve. LangGraph expresses exactly that: one node per stage and a conditional edge that loops back. And the architecture is multi-agent with an orchestrator, one specialized agent per curated stage, rather than a single do-everything model.
+Start top-left, the agent framework. We use LangGraph, built on top of LangChain. LangChain is the toolbox for talking to the model and calling tools; LangGraph is the layer that lets you model the agent as a graph of states, with real cycles and built-in memory. We chose it for a reason that is almost poetic for this project: our domain is already a graph, the technique DAG, and our workflow is already a cycle, plan then execute then measure then improve. LangGraph expresses exactly that: one node per stage and a conditional edge that loops back. The agent system is a compiled StateGraph with six nodes, orchestrate, dag, operationalize, environment, execute, evaluate, and it is multi-agent with an orchestrator, one specialized agent per curated stage.
 
-Top-middle, the LLM provider. We use SEPINF, which exposes an OpenAI-compatible endpoint, with the model glm-5.3-flash. Because it is OpenAI-compatible, we wire it through LangChain's standard ChatOpenAI client, pointing the base URL and API key at SEPINF. The key lives in the environment file, never in the code.
+Top-middle, the model layer, and notice there are two distinct models. The reasoning LLM is SEPINF, an OpenAI-compatible endpoint; the specific model is read from the environment file, the variable SEPINF_MODEL_ID, so swapping it is a config change. Separately, and this is important, the embeddings are produced by a local Ollama model called nomic-embed-text, which outputs seven-hundred-sixty-eight-dimensional vectors and runs on the GPU. So the thing that reasons and the thing that turns text into vectors are two different models, deliberately, the embeddings are cheap, local, and deterministic, while the reasoning calls go to SEPINF.
 
-Top-right, databases, deliberately minimal. PostgreSQL, which the project already runs, plays two roles: source of truth for all structured data, and the LangGraph checkpointer, so the agent's state is snapshotted and a run can resume if interrupted. In the same PostgreSQL we enable the pgvector extension, which stores the experience memory as vectors for retrieval. We deliberately did not add a second database technology, one Postgres does both jobs.
+Top-right, storage, and this is the part worth dwelling on because it is two memories living inside one PostgreSQL. Postgres plays three roles. It is the source of truth for all structured data. It is the LangGraph checkpointer, so the agent's state is snapshotted after every node and a run can resume by its thread id. And, with the pgvector extension enabled in the very same database, it holds the vector memory, the experience table. The design rule is strict: exact, factual data, the Caldera engine, the lab topology, the resource limits, the validated inventory, stays in normal structured tables and JSON; associative, similarity-retrieved knowledge, what worked and what failed across campaigns, lives in the vector store. We did not add a second database technology; one Postgres does all three jobs.
 
-Bottom row. Memory has two tiers: short-term is the live run state held by the checkpointer; long-term is the cross-campaign experience retrieved via RAG from pgvector. Learning involves no model fine-tuning: the agent improves within a campaign through the loop, and across campaigns by retrieving what worked or failed before. The loop is always bounded by a maximum-iteration guard so it can never run forever or run up cost.
+Bottom row. Memory has two tiers: short-term is the live run state held by the checkpointer; long-term is the cross-campaign experience retrieved via RAG from pgvector. Learning involves no model fine-tuning: the agent improves within a campaign through the loop, and across campaigns by retrieving what worked or failed before. The loop is always bounded by a maximum-iteration guard, the AI_MAX_ITERATIONS setting, default three, so it can never run forever or run up cost.
 
 The safety card never changes: the agents plug into the existing origin seams, stamping artifacts as AI-generated, and every proposal still passes the unchanged containment, isolation, preview, and audit gates. The bottom strip captures the last principle, the tool layer wraps our existing backend services, so the agent acts only through deterministic, tested tools, never free-form commands. That is the whole infrastructure on one slide.
+-->
+
+---
+layout: default
+---
+
+# Storage, embeddings &amp; RAG: what is vectorized, and where AI runs
+
+<div class="grad-rule"></div>
+
+<div class="two-col" style="grid-template-columns:1.05fr .95fr;gap:1.1rem;align-items:start;">
+
+<div class="tight">
+
+<div class="card edge-blue" style="padding:.6rem .8rem;">
+<h3>Two "sectoral" memories, one PostgreSQL</h3>
+<ul style="margin:0;">
+<li><strong>Structured (exact facts):</strong> normal tables / JSON / config — the agent-run bookkeeping (<code>agent_runs</code> → <code>agent_iterations</code> → <code>agent_stage_outputs</code> → <code>agent_evaluations</code>), the Caldera engine, the fixed lab topology, resource limits, the validated inventory.</li>
+<li><strong>Vector (associative):</strong> the <code>experience_memory</code> table (pgvector) — "what worked / failed" across campaigns, command↔tool affinities.</li>
+<li><strong>Rule:</strong> exact facts <em>never</em> go in the vector store; associative knowledge <em>never</em> goes in rigid tables.</li>
+</ul>
+</div>
+
+<div class="card edge-purple" style="padding:.6rem .8rem;">
+<h3>What gets vectorized, and how</h3>
+<ul style="margin:0;">
+<li><strong>Not</strong> raw STIX/ART documents. We embed one <strong>curation-outcome snippet per run outcome</strong>: the evaluator's rationale, or a compact summary (technique, command, node, params).</li>
+<li>That snippet is the "chunk": a short, self-contained unit of text — one row, one vector — <strong>not</strong> a document split into many fragments.</li>
+<li><strong>Embedder:</strong> Ollama <code>nomic-embed-text</code> → a <strong>768-dim</strong> vector stored in <code>experience_memory.embedding</code> (<code>VECTOR(768)</code>), alongside <code>content</code>, <code>stage</code>, <code>outcome</code> and filtering <code>metadata</code>.</li>
+</ul>
+</div>
+
+</div>
+
+<div class="tight">
+
+<div class="card edge-red" style="padding:.6rem .8rem;">
+<h3>Retrieval (RAG)</h3>
+<ul style="margin:0;">
+<li>Top-k <strong>cosine similarity</strong> over pgvector (<code>embedding &lt;=&gt; query</code>), <code>k</code> from <code>AI_RETRIEVAL_K</code> (default 5).</li>
+<li><strong>Cross-campaign only:</strong> the running campaign's own rows are excluded, so the agent learns from <em>other</em> campaigns.</li>
+<li><strong>Fail-open:</strong> if the vector store is unreachable the run continues with an empty experience set.</li>
+</ul>
+</div>
+
+<div class="card edge-grad" style="padding:.6rem .8rem;">
+<h3>Where the AI actually runs</h3>
+<ul style="margin:0;">
+<li><strong>Reasoning LLM (SEPINF):</strong> the DAG, operationalization, environment and evaluator nodes.</li>
+<li><strong>Embeddings (Ollama):</strong> write a snippet on each outcome; embed the query on retrieval.</li>
+<li><strong>No AI</strong> in Stages 1, 2 and 6 execution: those reuse the deterministic pipeline + safety gates unchanged.</li>
+</ul>
+</div>
+
+</div>
+
+</div>
+
+<div class="pill blue" style="margin-top:.5rem;">The vector store holds <em>experience</em>, not the knowledge base. STIX/ATT&amp;CK and Atomic Red Team are read live through deterministic tools, not retrieved from embeddings.</div>
+
+<!--
+This slide answers the three questions I always get about the AI system: where is the data stored, what exactly gets turned into vectors, and where does the AI actually run. Let me be precise, because the design here is deliberate.
+
+First, storage. There is one PostgreSQL, but it holds two logically separate memories, and the project treats them almost like two sectors with a strict rule about what goes where. The structured sector is ordinary relational data: the agent-run bookkeeping, which is a chain of four tables, a run has many iterations, an iteration has many per-stage outputs and at most one evaluation, plus the exact facts of the world, the Caldera engine, the fixed lab topology, the resource limits, the validated inventory of what works. All of that is exact and factual, so it lives in normal tables and JSON. The vector sector is a single table, experience_memory, backed by the pgvector extension, and it holds associative knowledge, the kind of thing you retrieve by similarity rather than by key: what worked and what failed on past campaigns, affinities between an Atomic Red Team command and the tool it needs. The rule is explicit in the code: exact facts never go into the vector store, and associative experience never goes into rigid tables.
+
+Second, what gets vectorized, because this is the most common misconception. We do not embed the raw STIX bundle or the Atomic Red Team library. What we embed is one snippet per curation outcome: after an iteration executes and the evaluator judges it, we take the evaluator's rationale, or a compact summary carrying the technique, the command, the node and the parameters, and we embed that one short text. So when people ask "what are the chunks," the honest answer is that each chunk here is one self-contained outcome snippet, one row and one vector, not a long document that we chopped into many pieces. The embedder is the local Ollama model, nomic-embed-text, which produces a seven-hundred-sixty-eight-dimensional vector, and that vector is stored in the embedding column of experience_memory, next to the human-readable content, the stage, the outcome, success or failure, and some metadata we use to filter.
+
+Third, retrieval. When a new run starts, the orchestrator embeds a short query describing the current campaign and asks pgvector for the top-k most cosine-similar past snippets, k defaults to five, and crucially it excludes the current campaign's own rows so the agent is always learning from other campaigns' experience, never just parroting itself. And it is fail-open: if the vector store is down, retrieval returns an empty set and the run still proceeds, just without the priming.
+
+Finally, where the AI actually runs, so there is no ambiguity. The reasoning LLM, SEPINF, is called in four places: the DAG agent, the operationalization agent, the environment agent, and the evaluator. The embedding model is called in two places: writing an outcome snippet, and embedding the retrieval query. And there is deliberately no AI in stages one and two, nor in the stage-six execution itself, those run the deterministic pipeline and the safety gates exactly as the curated path does. The last line is the one to remember: the vector store holds experience, not the knowledge base. ATT&CK and Atomic Red Team are always read live through deterministic tools; they are never fetched from embeddings.
 -->
 
 ---
@@ -1055,13 +1126,12 @@ The safety card never changes: the agents plug into the existing origin seams, s
 </div>
 
 <div class="card edge-purple">
-<h3>Candidate LLMs &amp; wiring in STICKS</h3>
+<h3>LLM wiring in STICKS</h3>
 <ul>
-<li>GLM-5.3-Flash</li>
-<li>Qwen-35B</li>
-<li>Qwen3.8-Flash-Next</li>
+<li>SEPINF OpenAI-compatible endpoint, model picked by <code>SEPINF_MODEL_ID</code>.</li>
+<li>One LangChain <code>ChatOpenAI</code> client (<code>base_url</code> + <code>api_key</code> + <code>model</code>), built lazily.</li>
 </ul>
-<p style="margin-top:.35rem;">Behind one <code>LlmClient</code> port, pick via <code>.env</code> (<code>LLM_PROVIDER</code>, <code>LLM_MODEL</code>, <code>LLM_API_KEY</code>). <strong>Swapping models is config, not code.</strong></p>
+<p style="margin-top:.35rem;">Configured via <code>.env</code> (<code>SEPINF_BASE_URL</code>, <code>SEPINF_MODEL_ID</code>, <code>SEPINF_API_KEY</code>). <strong>Swapping the model is config, not code</strong>; the key is never hardcoded.</p>
 </div>
 </div>
 
@@ -1076,7 +1146,7 @@ How does it work in practice, for a single campaign? Follow the loop on the left
 
 On the right, why have a central planner at all, why not four independent generators? Because the stages are deeply interdependent. The command you choose in stage four constrains what the environment in stage five must provide. A failure in stage six might actually be a stage-three structural problem, not a stage-four command problem. A central planner is exactly what lets the agent reason across those stage boundaries, rather than treating each stage as an isolated, context-free call.
 
-The second card on the right answers the obvious practical question, which model do I actually use? The orchestrator is model-agnostic, and for this work I have access to three at my institution: GLM-5.3-Flash, Qwen-35B, and Qwen3.8-Flash-Next. In STICKS the wiring is deliberately simple: everything sits behind a single LlmClient port, and you select the provider and model through environment variables, LLM_PROVIDER, LLM_MODEL, and an API key. Swapping models is a config change, not a code change, which also means we can run the same evaluation across the three models and compare them directly.
+The second card on the right answers the obvious practical question, which model do I actually use? The reasoning LLM is served by SEPINF, my institution's OpenAI-compatible endpoint, and the specific model is chosen by the SEPINF_MODEL_ID environment variable. In STICKS the wiring is deliberately simple: everything goes through a single LangChain ChatOpenAI client, built lazily, that reads the base URL, the model id, and the API key from the environment file. The key is never hardcoded. Swapping the model is a config change, not a code change, which also means we can run the same evaluation across different models and compare them directly.
 
 And the boundary card at the bottom restates the safety stance at the level of the planner specifically: the planner proposes and orchestrates, but it has no privileged access of its own. Every concrete action it triggers still flows through the same deterministic tools and the same safety gates that human curation uses. The intelligence is centralized; the authority is not.
 -->
@@ -1455,12 +1525,13 @@ layout: default
 </ul>
 </div>
 <div class="card edge-purple">
-<h3>▸ Phase 2, AI curation agent <span class="pill purple">my work</span></h3>
+<h3>▸ Phase 2, AI curation agent <span class="pill purple">in progress</span></h3>
 <ul>
-<li>DAG agent (Stage 3)</li>
-<li>Operationalization agent (Stage 4)</li>
-<li>Environment agent (Stage 5)</li>
-<li>Measurement feedback loop</li>
+<li>DAG agent (Stage 3) — built behind the seam</li>
+<li>Operationalization agent (Stage 4) — built</li>
+<li>Environment agent (Stage 5) — built</li>
+<li>Evaluator + LangGraph loop + run service — built</li>
+<li>Next: end-to-end runs against SEPINF + pgvector</li>
 </ul>
 </div>
 <div class="card edge-red">
@@ -1474,7 +1545,7 @@ layout: default
 </div>
 
 <div class="cards c2" style="margin-top:1rem;gap:1rem;">
-<div class="card flat edge-blue"><p><strong>Immediate next steps:</strong> reproduce 1–2 more campaigns in the real lab; begin Phase 2 behind the <code>ai_generated</code> origin seam.</p></div>
+<div class="card flat edge-blue"><p><strong>Immediate next steps:</strong> run the agent loop end to end against the live SEPINF endpoint + PostgreSQL/pgvector; reproduce 1–2 more campaigns in the real lab; then Phase 3 evaluation.</p></div>
 <div class="card flat edge-grad"><p><strong>Research contribution:</strong> an empirical, repeatable way to <strong>measure the procedural semantics gap</strong>, and the first automated attempt to close it.</p></div>
 </div>
 
@@ -1483,13 +1554,296 @@ Here is the roadmap, which places my proposal in the arc of the whole project an
 
 Phase one, on the left, is the foundation, and it is done. That is the Pipeline UI, the backend, the containment core, the six stages working end to end, and the real ShadowRay emulation we just looked at. This is the shared groundwork, and it is complete and proven. Everything on the previous slide belongs to phase one.
 
-Phase two, in the middle, is the AI curation agent, and this is my work, the individual contribution this talk has been about. It breaks into the four components I detailed: the DAG agent for stage three, the operationalization agent for stage four, the environment agent for stage five, and the measurement feedback loop over stage six. Each slots into the origin seam the foundation already prepared. The deliberate sequencing here matters: we built and proved the foundation first, specifically so that when the agent arrives, it plugs into a stable, well-understood, measurable pipeline rather than a moving target. That is also why we spent the effort understanding each stage's input, processing, and output so carefully, that understanding is the specification the agent must meet.
+Phase two, in the middle, is the AI curation agent, and this is my work, the individual contribution this talk has been about. It is already in progress, not a plan on paper. The four components I detailed are built in the code behind their existing seams: the DAG agent for stage three, the operationalization agent for stage four, the environment agent for stage five, and the evaluator plus the LangGraph loop and the run service that close the feedback over stage six. Each slots into the origin seam the foundation already prepared. The deliberate sequencing here matters: we built and proved the deterministic foundation first, specifically so the agent plugs into a stable, well-understood, measurable pipeline rather than a moving target. That is also why we spent the effort understanding each stage's input, processing, and output so carefully, that understanding is the specification the agent must meet. What remains is running the whole loop end to end against the live SEPINF endpoint and a real PostgreSQL with pgvector, which is where the agent actually talks to the model and the vector memory.
 
 Phase three, on the right, is evaluation, which is what turns this from an engineering exercise into research. We run the AI-generated curation on all eight campaigns, measure procedural sufficiency on each using the existing stage-six machinery, and compare directly against the human-curated baseline. That AI-versus-human comparison, on an identical measurable pipeline, is the headline result the project is driving toward.
 
-The bottom cards give the practical and the scientific framing. On the left, the immediate next steps: reproduce one or two more campaigns in the real lab to broaden the proof beyond ShadowRay, and then begin phase two, implementing the agents behind the ai_generated origin seam. On the right, the research contribution stated cleanly: STICKS provides an empirical, repeatable way to measure the procedural semantics gap in ATT&CK-in-STIX, and my agent is the first automated attempt to close it, with the measurement itself as the arbiter of success.
+The bottom cards give the practical and the scientific framing. On the left, the immediate next steps: run the agent loop end to end against the live SEPINF endpoint and the real PostgreSQL plus pgvector, reproduce one or two more campaigns in the real lab to broaden the proof beyond ShadowRay, and then move to the phase-three evaluation. On the right, the research contribution stated cleanly: STICKS provides an empirical, repeatable way to measure the procedural semantics gap in ATT&CK-in-STIX, and my agent is the first automated attempt to close it, with the measurement itself as the arbiter of success.
 
 So to summarize the whole talk in one breath: structured threat intelligence tells us which techniques a campaign used but not how to reproduce it; STICKS makes that gap measurable through a contained six-stage pipeline; and my contribution is an AI agent that automatically generates both the executable commands and the emulation environment, evaluated head-to-head against human experts. With that, I would love to take your questions.
+-->
+
+---
+layout: default
+class: section-divider
+---
+
+<div class="section" style="position:absolute;inset:0;"></div>
+
+<div class="absolute top-8 left-14">
+  <img src="/sticks-logomarca-modo-claro.png" class="h-10 opacity-90" alt="STICKS" />
+</div>
+
+<div class="absolute left-14 right-14" style="top:40%;">
+  <div class="kicker">Appendix</div>
+  <h1 style="font-size:3rem;">The <span class="grad-text">Agentic Phase Model</span></h1>
+  <div class="grad-rule" style="width:140px;height:6px;"></div>
+  <div style="font-size:1.1rem;color:var(--ink-soft);max-width:54rem;">
+    Semantic, number-free phases. <code>input</code> is <strong>not</strong> an agent phase, the loop is
+    <code>dag → operationalization → environment → execution → evaluation</code>.
+    <div style="margin-top:.3rem;">One slide per phase , Operations · Inputs · Persistence.</div>
+  </div>
+</div>
+
+<!--
+This appendix presents the system the way the refactored model actually describes it, and it is the framing I use in the doctoral write-up. The six numbered stages you saw earlier were an artifact of the original curated pipeline, where picking a STIX base and a campaign were counted as "stage one" and "stage two." That numbering conflated a human choice with an agent phase, so the model was corrected.
+
+The correct model is agentic-centric and has no numbers. The human choice of STIX base and campaign is the input, it is not a phase of the agent; the agent only starts afterward. From there the agent runs a loop of five semantically named phases: dag, operationalization, environment, execution, and evaluation. Evaluation can route a refinement back to an earlier phase until the campaign succeeds or an iteration guard stops the loop.
+
+Two literature-grounded decisions drive this. First, the agentic literature describes a cycle of plan, act, and evaluate, not a numbered pipeline, so the phases carry semantic names and the count is not fixed by any single source. Second, execution and evaluation are separate phases: evaluation is a distinct critic step that observes the real result of execution and feeds the refinement loop. Every one of these decisions is traceable to the references recorded in the project's literature document, and any external source cited here was paraphrased and attributed, not quoted, to respect licensing limits. In the next six slides I give each phase one slide, using a consistent Operations, Inputs, and Persistence structure.
+-->
+
+---
+layout: default
+---
+
+# Input , the researcher picks the target (not an agent phase)
+
+<div class="grad-rule"></div>
+
+<div class="ipo">
+<div class="box in">
+<div class="lbl">Inputs</div>
+<ul>
+<li>A requested <strong>ATT&amp;CK / STIX base</strong> version</li>
+<li>A <strong>campaign</strong> chosen from that base</li>
+</ul>
+</div>
+<div class="box pr">
+<div class="lbl">Operations</div>
+<ul>
+<li>List the base's campaigns; on selection, <strong>extract attributes</strong> (techniques, relationships, indicators, infrastructure, malware)</li>
+<li>Read <strong>from the ingested databases</strong> , no disk, no network at request time</li>
+</ul>
+</div>
+<div class="box out">
+<div class="lbl">Persistence</div>
+<ul>
+<li>Nothing new is ingested here , <strong>Input reads</strong> what Ingestion already persisted</li>
+<li>Emits the <strong>initial context</strong> (identity + techniques) for the <code>dag</code> phase</li>
+</ul>
+</div>
+</div>
+
+<div class="cards c2" style="margin-top:.9rem;gap:1rem;">
+<div class="card flat edge-blue"><p><strong>Input is the human choosing the target.</strong> It precedes the agent loop and is <strong>not counted or numbered</strong> as an agent phase , correcting the old "stage 1 / stage 2" framing.</p></div>
+<div class="card flat edge-purple"><p><strong>Ingestion ≠ Input.</strong> Ingestion is the offline, idempotent setup that fills the databases (STIX, Atomic Red Team, Docker catalog); Input runs per campaign and reads from them.</p></div>
+</div>
+
+<!--
+This first slide is the input, and the single most important thing to take from it is in the title: input is not a phase of the agent. It is the researcher choosing the target. They pick a STIX base version and then a campaign from it, and that is the entire human decision in the loop.
+
+Using the same operations, inputs, persistence frame I will keep for every phase: the inputs are a requested base version and a chosen campaign. The operations list the campaigns in that base and, on selection, extract the campaign's attributes, its techniques, relationships, indicators, infrastructure, and malware, entirely by reading from the databases that ingestion already populated. There is no disk access and no network call at request time. And for persistence, input does not ingest anything new; it reads what ingestion persisted and emits the initial context, campaign identity plus techniques, which becomes the input to the dag phase.
+
+The two cards underline the distinctions that the refactor exists to enforce. On the left: input is the human choosing the target, it comes before the agent loop, and it is deliberately not numbered as a phase, which corrects the old stage-one, stage-two framing. On the right: ingestion and input are different things. Ingestion is the offline, idempotent setup that fills the databases from STIX, Atomic Red Team, and the Docker catalog; input runs once per campaign and simply reads from them. Three concepts, not two, and this slide is the boundary between the human's part and the agent's part.
+-->
+
+---
+layout: default
+---
+
+# Phase , dag , plan the campaign structure
+
+<div class="grad-rule"></div>
+
+<div class="ipo">
+<div class="box in">
+<div class="lbl">Inputs</div>
+<ul>
+<li>Campaign <strong>identity + techniques</strong> (from <code>input</code>)</li>
+</ul>
+</div>
+<div class="box pr">
+<div class="lbl">Operations</div>
+<ul>
+<li>Build the <strong>directed acyclic graph</strong> of techniques , <strong>ordering</strong> and <strong>dependencies</strong></li>
+<li>This is the <strong>planning</strong> step of the agentic cycle</li>
+</ul>
+</div>
+<div class="box out">
+<div class="lbl">Persistence</div>
+<ul>
+<li><strong>DAG nodes + edges</strong> (relational)</li>
+<li>Per-phase <strong>audit trace</strong>; context in the Vector store</li>
+</ul>
+</div>
+</div>
+
+<div class="card flat edge-red" style="margin-top:.9rem;"><p><strong>Why the DAG comes first.</strong> Atomic Red Team gives a command <em>per technique</em>, but the campaign's <strong>chaining</strong> , order and cross-step dependencies , comes from here. In the agentic literature this is the <strong>plan</strong> step of the plan → act → evaluate cycle. <span class="pill purple">source: literature doc [F1][F3]</span></p></div>
+
+<!--
+The dag phase is the first phase the agent actually performs, and it corresponds to the planning step in the agentic cycle described by the literature.
+
+Its input is the campaign identity and techniques handed over by the input phase. The operation is to build a directed acyclic graph of those techniques: the nodes are techniques, and the edges encode the order they run in and the dependencies between them. Directed and acyclic means the campaign flows forward without loops. For persistence, the dag nodes and edges are stored relationally, and a per-phase audit trace plus the planning context go to the stores, so every agent contribution is auditable.
+
+The card at the bottom answers the question people always ask: why plan the structure before choosing commands? Because Atomic Red Team gives you a command per technique in isolation; it does not tell you the campaign-level chaining. That ordering and those cross-step dependencies are exactly what the DAG provides. And this maps cleanly onto the literature: it is the plan step of the plan, act, evaluate cycle. I have attributed that framing to the project's literature document rather than quoting any source directly, in line with the citation limits.
+-->
+
+---
+layout: default
+---
+
+# Phase , operationalization , techniques become commands
+
+<div class="grad-rule"></div>
+
+<div class="ipo">
+<div class="box in">
+<div class="lbl">Inputs</div>
+<ul>
+<li>The <strong>campaign DAG</strong> (from <code>dag</code>)</li>
+</ul>
+</div>
+<div class="box pr">
+<div class="lbl">Operations</div>
+<ul>
+<li>Resolve <strong>concrete, ordered Abilities</strong> per technique</li>
+<li>From the <strong>Atomic Red Team index</strong>: relational match first, then semantic RAG , <strong>never invented</strong></li>
+<li>Derive the <strong>environment parameters</strong> the commands require</li>
+</ul>
+</div>
+<div class="box out">
+<div class="lbl">Persistence</div>
+<ul>
+<li><strong>Ordered Abilities + Adversary</strong> (relational)</li>
+<li>Audit trace per technique/iteration</li>
+</ul>
+</div>
+</div>
+
+<div class="card flat edge-purple" style="margin-top:.9rem;"><p><strong>This is the command-semantics gap.</strong> Selecting, parametrizing, and sequencing the right command per technique , the "act via tools" step of the agentic cycle. The command dictates the environment: its dependencies and arguments <em>are</em> the parameters the <code>environment</code> phase consumes. <span class="pill purple">source: literature doc [F1][F2][F3]</span></p></div>
+
+<!--
+Operationalization is where abstract techniques finally become runnable commands, and in the agentic cycle this is part of the act-via-tools step.
+
+The input is the campaign DAG from the previous phase. The operations are threefold. First, for each node we resolve a concrete, ordered ability, the actual command. These come from the Atomic Red Team index: we try a relational, exact match first, and fall back to semantic retrieval only when needed, and crucially the agent never invents a command. Second, we also derive the environment parameters those commands require, the target hosts, services, and network context. For persistence, the ordered abilities and the adversary profile are stored relationally, with an audit trace per technique and iteration.
+
+The card frames why this phase matters: it is the command-semantics gap, selecting, parametrizing, and sequencing the right command for each technique, which is the act-via-tools step in the literature's cycle. And note the coupling it exposes: the command dictates the environment. A command's dependencies and arguments are exactly the parameters the next phase, environment, has to satisfy. As before, the agentic-cycle framing is attributed to the literature document, paraphrased rather than quoted.
+-->
+
+---
+layout: default
+---
+
+# Phase , environment , provision with egress open
+
+<div class="grad-rule"></div>
+
+<div class="ipo">
+<div class="box in">
+<div class="lbl">Inputs</div>
+<ul>
+<li><strong>Environment parameters</strong> (from <code>operationalization</code>)</li>
+</ul>
+</div>
+<div class="box pr">
+<div class="lbl">Operations</div>
+<ul>
+<li>Provision the contained lab (containers, services, networks)</li>
+<li>Resolve images <strong>catalog-first</strong>: the vectorized <strong>Docker image catalog</strong>, then Docker Hub online only as fallback</li>
+<li><strong>External egress is allowed here, automatically</strong>, to pull images , before any attack command</li>
+</ul>
+</div>
+<div class="box out">
+<div class="lbl">Persistence</div>
+<ul>
+<li><strong>Provisioning map</strong> + environment state (relational)</li>
+<li>Audit trace</li>
+</ul>
+</div>
+</div>
+
+<div class="card flat edge-blue" style="margin-top:.9rem;"><p><strong>Egress is open only here.</strong> Provisioning may need the internet to pull images, so it runs <strong>before</strong> isolation. The Docker image catalog , ingested at setup, text-only , lets most images resolve offline, shrinking how often this phase must reach the internet.</p></div>
+
+<!--
+The environment phase stands up the battlefield, and it is the one phase where reaching the internet is deliberately allowed.
+
+Its input is the set of environment parameters derived in operationalization. The operations provision the contained lab, the containers, their services, and the internal networks, and resolve a container image for each target. Image resolution is catalog-first: we query the vectorized Docker image catalog that ingestion built, and only fall back to pulling from Docker Hub online when the catalog has no adequate candidate. And here is the key property: external egress is allowed in this phase, automatically, specifically so we can pull images. That happens before any attack command exists. For persistence, the provisioning map and environment state are stored relationally with an audit trace.
+
+The card makes the safety logic explicit. Egress is open only here, because provisioning legitimately needs the internet to fetch images, and it runs strictly before isolation. The Docker image catalog matters precisely because it is ingested ahead of time as text-only descriptions and vectorized, so most images resolve offline and this phase reaches the internet far less often. That sets up the single most sensitive transition in the system, which is the next slide.
+-->
+
+---
+layout: default
+---
+
+# Phase , execution , isolate, then attack on the internal network
+
+<div class="grad-rule"></div>
+
+<div class="ipo">
+<div class="box in">
+<div class="lbl">Inputs</div>
+<ul>
+<li>The provisioned, <strong>isolated</strong> lab + ordered Abilities</li>
+</ul>
+</div>
+<div class="box pr">
+<div class="lbl">Operations</div>
+<ul>
+<li><strong>Isolation gate</strong> cuts <strong>external egress</strong> (auditable) before execution starts</li>
+<li>Caldera (C2) runs the offensive commands against targets over the <strong>internal</strong> network</li>
+<li>Every destination validated by <code>is_internal_ip</code></li>
+</ul>
+</div>
+<div class="box out">
+<div class="lbl">Persistence</div>
+<ul>
+<li><strong>Run results</strong> + 1:1 audit trail</li>
+<li><strong>Isolation proof</strong> / egress-state events</li>
+</ul>
+</div>
+</div>
+
+<div class="card flat edge-red" style="margin-top:.9rem;"><p><strong>Isolation = cutting external egress, NOT cutting the network.</strong> The internal lab network stays alive so Caldera can reach the targets; only egress to the internet is severed. No valid isolation proof → <code>execution</code> is <strong>blocked</strong>. <span class="pill purple">source: literature doc [F6][F7]</span></p></div>
+
+<!--
+Execution is the heart of the safety model, and the title captures the two-step move: isolate first, then attack, but only on the internal network.
+
+The input is the provisioned lab, now isolated, together with the ordered abilities. The operations begin with the isolation gate, which cuts external egress in an auditable way before any offensive command runs. Then Caldera, the command-and-control server, executes the attack commands against the targets over the lab's internal network, and every single command destination is validated by the is-internal-ip check. For persistence we record the run results with a strict one-to-one audit trail, plus the isolation proof and the egress-state events.
+
+The card states the invariant that the whole project is built around, and it is a subtle one that people often get wrong. Isolation is cutting external egress, it is not cutting the network. The internal lab network has to stay alive, because Caldera needs it to reach the targets; what we sever is the route to the internet. And the gate is fail-closed: if there is no valid isolation proof, execution is blocked outright, no command runs. The reason the network cannot simply be cut entirely is grounded in how adversary emulation works, a C2 launches the adversary profile across a network, and I have attributed that to the MITRE adversary-emulation and Caldera sources in the literature document, paraphrased for compliance rather than quoted.
+-->
+
+---
+layout: default
+---
+
+# Phase , evaluation , judge the real result, then finish or refine
+
+<div class="grad-rule"></div>
+
+<div class="ipo">
+<div class="box in">
+<div class="lbl">Inputs</div>
+<ul>
+<li>The <strong>real execution result</strong> , runner verdict, containment / isolation state</li>
+</ul>
+</div>
+<div class="box pr">
+<div class="lbl">Operations</div>
+<ul>
+<li>Measure <strong>procedural sufficiency</strong>; decide <strong>finish</strong> (success) or <strong>refine</strong></li>
+<li>Route refinement back to <code>dag</code>, <code>operationalization</code>, or <code>environment</code> , bounded by the <strong>max-iterations guard</strong></li>
+</ul>
+</div>
+<div class="box out">
+<div class="lbl">Persistence</div>
+<ul>
+<li><strong>Verdict</strong> + per-iteration evaluation (relational)</li>
+<li><strong>Experience</strong> (success / failure) in the Vector store</li>
+</ul>
+</div>
+</div>
+
+<div class="card flat edge-grad" style="margin-top:.9rem;"><p><strong>A separate phase, not a suffix of execution.</strong> The critic observes the <em>real</em> execution result and feeds the refinement loop , the "evaluate" step of plan → act → evaluate. Promoting it to its own phase enables end-to-end evaluation and a clean loop. <span class="pill purple">source: literature doc [F1][F2][F4][F5]</span></p></div>
+
+<!--
+The final phase is evaluation, and the design decision it embodies is that evaluation is its own phase, not a verdict bolted onto execution.
+
+Its input is the real execution result: the runner's verdict together with the containment and isolation state, the actual outcome of what just ran, not a guess. The operations measure procedural sufficiency and then decide between two paths: finish, if the campaign succeeded, or refine, routing a correction back to an earlier phase, the dag, operationalization, or environment, whichever is responsible. That refinement loop is bounded by a max-iterations guard so it always terminates. For persistence, the verdict and the per-iteration evaluation are stored relationally, and the experience, whether the run succeeded or failed, is written to the vector store so future campaigns can learn from it.
+
+The card captures the rationale. Evaluation is a separate phase, not a suffix of execution, because the critic has to observe the real result of execution and feed the refinement loop, which is precisely the evaluate step in the plan, act, evaluate cycle. Promoting it to its own phase is what makes end-to-end evaluation possible and keeps the loop clean. This separation is the one most strongly supported by the literature, the agent surveys, Reflexion's separate critic, and AgentVerse's distinct evaluation stage, and again I have attributed those to the literature document and paraphrased them rather than reproducing any passage verbatim.
 -->
 
 ---

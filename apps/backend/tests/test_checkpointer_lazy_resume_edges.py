@@ -6,10 +6,16 @@ behaviour that sits directly on top of the LangGraph ``PostgresSaver`` API,
 asserting the Requirement 4 guarantees that are achievable at the checkpointer
 level today:
 
-* **Req 4.4 — no connection at import / deferred connect.** Importing the
-  module opens no socket, and :func:`get_checkpointer` builds its psycopg
-  connection pool with ``open=False`` so the pool stays *closed / not opened*
-  (no connection established) until the first checkpoint read or write.
+* **Req 4.4 — no connection at import.** Importing the module opens no
+  socket and pulls in no database driver: the psycopg / LangGraph stack is
+  imported lazily inside :func:`get_checkpointer`, and the cached factory
+  only runs on the first real use (a probe, a run), never at import time.
+  The factory builds the pool with ``open=False`` (no connect in the
+  constructor) and then explicitly ``pool.open(wait=True)`` + ``saver.setup()``
+  before handing out the saver — a deliberate change from the earlier
+  "pool stays closed until first use" contract, made because current
+  ``psycopg_pool`` raises ``PoolClosed`` on an unopened pool, which used to
+  surface as a spurious "checkpointer unavailable" (503) on every AI run.
 * **Req 4.5 — resuming an unknown ``thread_id``.** When a run is resumed with a
   ``thread_id`` that has no persisted checkpoint, the resume path reports "no
   checkpoint exists" for that ``thread_id`` and starts no new run under that
@@ -50,7 +56,7 @@ from app.services.ai.checkpointer import (
 # resume/persist contract reports this exact string when a persist fails so the
 # assertions pin the observable status without importing run-service internals
 # that do not exist yet (task 15).
-_FAILED = "falhou"
+_FAILED = "failed"
 
 
 # ---------------------------------------------------------------------------
@@ -205,49 +211,102 @@ def test_get_checkpointer_defers_heavy_imports_to_body() -> None:
     )
 
 
-def test_get_checkpointer_builds_pool_closed_until_first_use() -> None:
-    """The factory builds a pool that is not opened (no connection) yet.
+def _patch_pool_and_saver(monkeypatch, *, open_raises: Exception | None = None):
+    """Monkeypatch the deferred ``ConnectionPool`` / ``PostgresSaver`` imports.
 
-    A pool created with ``open=False`` reports ``closed is True`` and
-    ``_opened is False`` — it has established no connection. Building the
-    checkpointer must leave the pool in that deferred state so the first
-    connection waits for the first checkpoint read/write (Req 4.4).
+    ``get_checkpointer`` imports ``psycopg_pool.ConnectionPool`` and
+    ``langgraph.checkpoint.postgres.PostgresSaver`` lazily inside its body, so we
+    patch them on their source modules. The fakes record the construction and the
+    open/setup calls, letting the contract be asserted without a live PostgreSQL.
     """
+    import langgraph.checkpoint.postgres as lcp
+    import psycopg_pool
+
+    events: list[str] = []
+
+    class _FakePool:
+        def __init__(self, *, conninfo, open, kwargs):  # noqa: A002
+            events.append(f"pool_ctor(open={open})")
+            self.conninfo = conninfo
+            self.kwargs = kwargs
+            self.closed = True
+
+        def open(self, *, wait, timeout=None):
+            events.append(f"pool_open(wait={wait})")
+            if open_raises is not None:
+                raise open_raises
+            self.closed = False
+
+    class _FakeSaver:
+        def __init__(self, pool):
+            events.append("saver_ctor")
+            self.conn = pool
+
+        def setup(self):
+            events.append("saver_setup")
+
+    monkeypatch.setattr(psycopg_pool, "ConnectionPool", _FakePool, raising=True)
+    monkeypatch.setattr(lcp, "PostgresSaver", _FakeSaver, raising=True)
+    return events, _FakePool, _FakeSaver
+
+
+def test_get_checkpointer_opens_pool_and_runs_setup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The factory builds the pool closed, then opens it and runs ``setup()``.
+
+    Contract (deliberately changed from the earlier "closed until first use"):
+    ``get_checkpointer`` constructs the pool with ``open=False`` (no connect in
+    the constructor), then explicitly ``pool.open(wait=True)`` and
+    ``saver.setup()`` before returning the saver. This is lazy only w.r.t. module
+    import (the cached factory runs on first real use), and it avoids the
+    ``PoolClosed`` 503 that an unopened pool would raise on first checkpoint I/O.
+    """
+    events, _FakePool, _FakeSaver = _patch_pool_and_saver(monkeypatch)
+
     get_checkpointer.cache_clear()
     try:
         saver = get_checkpointer()
-        pool = saver.conn  # PostgresSaver stores its ConnectionPool on .conn
 
-        # Not opened yet => no connection established at build time.
-        assert pool.closed is True
-        assert getattr(pool, "_opened") is False
+        # Built closed, then explicitly opened (wait=True) and set up, in order.
+        assert events == [
+            "pool_ctor(open=False)",
+            "pool_open(wait=True)",
+            "saver_ctor",
+            "saver_setup",
+        ]
+        assert isinstance(saver, _FakeSaver)
+        # The pool handed to the saver was actually opened.
+        assert saver.conn.closed is False
     finally:
-        # Drop the cached instance so no half-built pool leaks to other tests.
         get_checkpointer.cache_clear()
 
 
-def test_get_checkpointer_build_opens_no_socket(
+def test_get_checkpointer_propagates_pool_open_failure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Calling the factory establishes no connection (no ``socket.connect``).
+    """An unreachable database fails loudly at build via ``pool.open(wait=True)``.
 
-    Guards ``socket.socket.connect`` / ``socket.create_connection`` for the
-    duration of the build; because the pool is created with ``open=False`` the
-    factory must not touch the network, so neither guard fires (Req 4.4).
+    Opening eagerly with ``wait=True`` is what turns a genuinely unreachable
+    PostgreSQL into a clear, caller-visible error (which the availability probe
+    maps to a real "dependency unavailable") instead of the misleading
+    ``PoolClosed`` that a deferred-open pool raised on first use. The factory must
+    therefore propagate the open failure rather than hand back a half-built saver.
     """
-    import socket
-
-    def _forbid(*_a, **_k):  # noqa: ANN002, ANN003
-        raise AssertionError("building the checkpointer opened a connection")
-
-    monkeypatch.setattr(socket.socket, "connect", _forbid, raising=True)
-    monkeypatch.setattr(socket, "create_connection", _forbid, raising=True)
+    boom = RuntimeError("could not connect to server")
+    events, _FakePool, _FakeSaver = _patch_pool_and_saver(
+        monkeypatch, open_raises=boom
+    )
 
     get_checkpointer.cache_clear()
     try:
-        saver = get_checkpointer()
-        assert saver is not None
+        with pytest.raises(RuntimeError, match="could not connect to server"):
+            get_checkpointer()
+
+        # It failed at open: the saver was never constructed and setup never ran.
+        assert events == ["pool_ctor(open=False)", "pool_open(wait=True)"]
     finally:
+        # A raising factory must not leave a cached (half-built) instance behind.
         get_checkpointer.cache_clear()
 
 

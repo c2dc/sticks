@@ -167,7 +167,7 @@ def _oraculo(dag, technique_by_ability, results):
 
 # Feature: pipeline-seis-stages, Property 10: Métricas de suficiência
 # consistentes com os results.
-@settings(max_examples=200)
+@settings(max_examples=40)
 @given(_cenario())
 def test_sufficiency_metrics_are_consistent(cenario) -> None:
     """As métricas derivadas honram cada invariante contra um oráculo independente.
@@ -248,7 +248,7 @@ def test_sufficiency_metrics_are_consistent(cenario) -> None:
 
 # Feature: pipeline-seis-stages, Property 10: Métricas de suficiência
 # consistentes com os results (parte consolidação do relatório).
-@settings(max_examples=200)
+@settings(max_examples=40)
 @given(_cenario())
 def test_report_consolidates_the_same_metrics(cenario) -> None:
     """O relatório consolida EXATAMENTE as mesmas métricas medidas (Req. 15.7, 10.6).

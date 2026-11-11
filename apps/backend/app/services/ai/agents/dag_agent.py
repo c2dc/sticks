@@ -38,7 +38,7 @@ import json
 import logging
 from typing import TYPE_CHECKING, Any, Callable, Optional
 
-from app.models.enums import DagOrigin
+from app.models.enums import AgentStage, DagOrigin
 from app.services.dag.generator import ProducedDag, StructuralModeling
 
 if TYPE_CHECKING:  # pragma: no cover - typing only, no runtime import
@@ -110,12 +110,30 @@ class AiDagGenerator:
         chat: Any = None,
         memory: "Optional[ExperienceMemory]" = None,
         attack_reader: Optional[Callable[..., dict]] = None,
+        command_lookup: Optional[Callable[[str], bool]] = None,
         retrieval_k: int = _DEFAULT_RETRIEVAL_K,
+        trace_sink: "Optional[list[dict]]" = None,
     ) -> None:
         self._chat = chat
         self._memory = memory
         self._attack = attack_reader
+        # Command_Base gap probe: a ``technique_id -> bool`` callable backed by
+        # ``CommandBase.has_command_for`` (task 14.2, Req. 11.4). A node technique
+        # for which this returns ``False`` has no backing command in the
+        # Command_Base (neither an exact ``technique_commands`` mapping nor a
+        # similarity suggestion) and becomes a gap on ``ProducedDag.gaps`` instead
+        # of the agent inventing an unsupported command. When ``None`` (no session
+        # was threaded in, or a direct caller/test injected nothing) the gap probe
+        # is skipped and no gaps are recorded — behaviour degrades cleanly.
+        self._command_lookup = command_lookup
         self._retrieval_k = retrieval_k
+        # Optional Audit_Trace sink injected by the LangGraph ``node`` wrapper. It
+        # is carried as an instance attribute — NOT a ``generate`` parameter — so
+        # the ``@runtime_checkable`` ``DagGenerator`` seam signature
+        # (``generate(campaign, modeling)``) is byte-for-byte unchanged (design
+        # §A). When ``None`` (curation fallback / direct seam callers) no trace is
+        # captured and behavior is exactly as before.
+        self._trace_sink = trace_sink
 
     # ----- seam ---------------------------------------------------------------
 
@@ -140,6 +158,20 @@ class AiDagGenerator:
         invalid after that single repair, a :class:`DagGenerationError` is raised
         naming the failing node (``"dag"``) and the parse-failure cause, and no
         (invalid) ``ProducedDag`` is returned.
+
+        Audit_Trace capture (Requirements 1.2, 1.3, 2.2, 2.3): when the node
+        wrapper injected an ``trace_sink`` (a ``list[dict]``) into the constructor,
+        the agent appends a single :class:`~app.services.ai.state.AgentTrace` dict
+        at its LLM call site — ``agent_input`` carrying the modeling, retrieved
+        experience, attack context and (absent) prior artifacts; ``processing``
+        carrying the built ``llm_prompt``, the raw ``llm_response``, the
+        ``reasoning``, the ``tools_invoked``, the ``repair_attempts`` count and the
+        ``repair_hints`` fed into the repair pass. The sink is an injected instance
+        attribute (NOT a ``generate`` parameter) so the ``@runtime_checkable``
+        ``DagGenerator`` seam signature is byte-for-byte unchanged (curation and
+        direct callers inject nothing and behave exactly as before). Genuinely-
+        absent processing elements are recorded with an explicit ``None`` sentinel
+        the serialization layer maps to "not available".
         """
         if self._chat is None:
             raise DagGenerationError(
@@ -157,52 +189,97 @@ class AiDagGenerator:
         # parse-failure cause into the node error if the repair also fails.
         last_cause: Optional[str] = None
         repair_hint: Optional[str] = None
-        for attempt in range(_MAX_REPAIR_ATTEMPTS + 1):
-            messages = self._build_messages(
-                campaign,
-                modeling,
-                experience,
-                attack_context,
-                repair_hint=repair_hint,
-            )
-            raw = self._invoke_chat(messages)
-            try:
-                graph = self._parse_graph(raw)
-                content = self._assemble_content(graph, modeling)
-                self._validate_content(content)
-            except _DagParseError as exc:
-                last_cause = str(exc)
-                # Feed the parse error back into the single repair pass so the
-                # model can correct the malformed structure (Requirement 14.3).
-                repair_hint = str(exc)
-                logger.warning(
-                    "AiDagGenerator parse/validation failed for campaign %s on "
-                    "attempt %d/%d (%s).",
+        # Trace accumulators (appended to the sink at the end of the call, so the
+        # single AgentTrace reflects every LLM pass incl. the repair).
+        last_messages: Optional[list[dict[str, str]]] = None
+        last_raw: Optional[str] = None
+        repair_hints: list[str] = []
+        repair_attempts = 0
+        tools_invoked: list[str] = ["experience_memory.retrieve"]
+        if attack_context is not None:
+            tools_invoked.append("tool_read_attack")
+        try:
+            for attempt in range(_MAX_REPAIR_ATTEMPTS + 1):
+                messages = self._build_messages(
                     campaign,
-                    attempt + 1,
-                    _MAX_REPAIR_ATTEMPTS + 1,
-                    exc,
+                    modeling,
+                    experience,
+                    attack_context,
+                    repair_hint=repair_hint,
                 )
-                continue
+                last_messages = messages
+                raw = self._invoke_chat(messages)
+                last_raw = raw
+                try:
+                    graph = self._parse_graph(raw)
+                    content = self._assemble_content(graph, modeling)
+                    self._validate_content(content)
+                except _DagParseError as exc:
+                    last_cause = str(exc)
+                    repair_attempts += 1
+                    # Feed the parse error back into the single repair pass so the
+                    # model can correct the malformed structure (Requirement 14.3).
+                    repair_hint = str(exc)
+                    repair_hints.append(str(exc))
+                    logger.warning(
+                        "AiDagGenerator parse/validation failed for campaign %s on "
+                        "attempt %d/%d (%s).",
+                        campaign,
+                        attempt + 1,
+                        _MAX_REPAIR_ATTEMPTS + 1,
+                        exc,
+                    )
+                    continue
 
-            label = self._resolve_label(graph, attack_context)
-            return [
-                ProducedDag(
-                    origin=DagOrigin.AI_GENERATED,
-                    identifier=campaign,
-                    label=label,
-                    content=content,
+                label = self._resolve_label(graph, attack_context)
+                # Flag the campaign techniques whose nodes made it into the
+                # graph but have NO backing command in the Command_Base: they
+                # become gaps rather than an invented, unsupported command
+                # (Req. 11.4). Skipped (empty) when no command probe was injected.
+                gaps = self._collect_gaps(content)
+                return [
+                    ProducedDag(
+                        origin=DagOrigin.AI_GENERATED,
+                        identifier=campaign,
+                        label=label,
+                        content=content,
+                        gaps=gaps,
+                    )
+                ]
+
+            # Still malformed after the one permitted repair: record a node error
+            # and do NOT return an invalid ProducedDag (Requirement 14.4).
+            raise DagGenerationError(
+                f"AiDagGenerator could not parse a valid DAG for campaign {campaign} "
+                f"after one repair attempt.",
+                node="dag",
+                cause=last_cause,
+            )
+        finally:
+            # Append the AgentTrace capturing the input + processing, whether the
+            # call returned a DAG or raised — so ``_fail_run`` finds the partial
+            # trace captured up to the failure (design §A "Failure capture").
+            if self._trace_sink is not None:
+                self._trace_sink.append(
+                    {
+                        "stage": AgentStage.DAG.value,
+                        "iteration": None,
+                        "agent_input": {
+                            "modeling": modeling.model_dump(mode="json"),
+                            "retrieved_experience": experience,
+                            "attack_context": attack_context,
+                            "prior_artifacts": None,
+                        },
+                        "processing": {
+                            "llm_prompt": last_messages,
+                            "llm_response": last_raw,
+                            "reasoning": None,
+                            "tools_invoked": tools_invoked,
+                            "repair_attempts": repair_attempts,
+                            "repair_hints": repair_hints or None,
+                        },
+                    }
                 )
-            ]
-
-        # Still malformed after the one permitted repair: record a node error and
-        # do NOT return an invalid ProducedDag (Requirement 14.4).
-        raise DagGenerationError(
-            f"AiDagGenerator could not parse a valid DAG for campaign {campaign} "
-            f"after one repair attempt.",
-            node="dag",
-            cause=last_cause,
-        )
 
     # ----- collaborators ------------------------------------------------------
 
@@ -497,6 +574,49 @@ class AiDagGenerator:
         if not content.get("structural_nodes"):
             raise _DagParseError("the produced DAG has no structural nodes")
 
+    def _collect_gaps(self, content: dict) -> list[str]:
+        """Return the node techniques with no backing command in the Command_Base.
+
+        Walks the assembled ``structural_nodes`` and, for each node carrying a
+        ``technique_id``, consults the injected ``has_command_for`` probe
+        (:meth:`app.services.command_base.CommandBase.has_command_for`). A
+        technique the Command_Base cannot back — no exact ``technique_commands``
+        mapping and no similarity suggestion — is recorded as a gap so the DAG
+        agent surfaces the lacuna instead of inventing an unsupported command
+        (Req. 11.4). Each gap technique is listed once, in first-seen node order.
+
+        When no probe was injected (no session threaded in, or a direct caller/
+        test), the gap check is skipped and an empty list is returned so the
+        agent degrades cleanly without a Command_Base.
+        """
+        if self._command_lookup is None:
+            return []
+
+        gaps: list[str] = []
+        seen: set[str] = set()
+        for node in content.get("structural_nodes", []):
+            technique_id = node.get("technique_id")
+            if not isinstance(technique_id, str) or not technique_id.strip():
+                continue
+            technique_id = technique_id.strip()
+            if technique_id in seen:
+                continue
+            seen.add(technique_id)
+            try:
+                backed = self._command_lookup(technique_id)
+            except Exception as exc:  # noqa: BLE001 - never let the probe break generation
+                logger.warning(
+                    "AiDagGenerator Command_Base gap probe failed for technique "
+                    "%s (%s: %s); treating it as backed to avoid a false gap.",
+                    technique_id,
+                    type(exc).__name__,
+                    exc,
+                )
+                continue
+            if not backed:
+                gaps.append(technique_id)
+        return gaps
+
     @staticmethod
     def _resolve_label(graph: dict[str, Any], attack_context: Optional[dict]) -> Optional[str]:
         """Best-effort readable label for the produced DAG (optional field)."""
@@ -567,7 +687,60 @@ def _modeling_from_state(state: "AgentState") -> StructuralModeling:
     return StructuralModeling()
 
 
-def node(state: "AgentState") -> dict:
+def _attack_reader_for_session(
+    session: Any,
+) -> Optional[Callable[..., dict]]:
+    """Build the DB-sourced ATT&CK base-context reader bound to ``session``.
+
+    The DAG agent's Agent_Input base context (identity/techniques/actors) comes
+    from the ``Campaign_Overview`` in the DATABASE, never from disk (Req. 5.1,
+    5.2, 5.4). Given the request-scoped ``Session`` the Run_Service threaded onto
+    the node, this returns a thin reader that calls
+    :func:`app.services.ai.tools.tool_read_attack` bound to that session (and the
+    curated base version). With no session it returns ``None`` so
+    :meth:`AiDagGenerator._read_attack_context` degrades to an empty base context
+    WITHOUT reading disk.
+    """
+    if session is None:
+        return None
+
+    from app.services.ai.tools import tool_read_attack
+
+    def _reader(campaign: str) -> dict:
+        return tool_read_attack(campaign, session=session)
+
+    return _reader
+
+
+def _command_lookup_for_session(
+    session: Any,
+) -> Optional[Callable[[str], bool]]:
+    """Build the Command_Base gap probe (``has_command_for``) bound to ``session``.
+
+    The DAG agent flags a campaign technique as a gap when the Command_Base can
+    back it with no concrete command (Req. 11.4). Given the request-scoped
+    ``Session`` the Run_Service threaded onto the node, this returns a thin
+    ``technique_id -> bool`` callable delegating to
+    :meth:`app.services.command_base.CommandBase.has_command_for` — the same
+    DB-sourced Command_Base the operationalization agent resolves commands from
+    (``technique_commands`` relational mapping + pgvector similarity fallback),
+    never disk (Req. 11.2, 12.1, 12.3). With no session it returns ``None`` so the
+    gap probe is skipped and no gaps are recorded (no disk read).
+    """
+    if session is None:
+        return None
+
+    from app.services.command_base import CommandBase
+
+    command_base = CommandBase(session)
+
+    def _probe(technique_id: str) -> bool:
+        return command_base.has_command_for(technique_id)
+
+    return _probe
+
+
+def node(state: "AgentState", *, session: Any = None) -> dict:
     """LangGraph Stage 3 node: produce the AI DAG and write ``artifacts.dag``.
 
     Builds an :class:`AiDagGenerator` with a lazily-resolved SEPINF chat model
@@ -593,17 +766,76 @@ def node(state: "AgentState") -> dict:
     from app.services.ai.llm import make_chat_model
 
     chat = make_chat_model()
+
+    # Resolve the request-scoped session the Run_Service threaded into this node
+    # (bound kwarg via ``build_graph``), honouring a legacy ``state["_session"]``
+    # channel for direct callers/tests.
+    resolved_session = session if session is not None else state.get("_session")
+
+    # The RAG memory primes the Agent_Input with items retrieved by similarity
+    # (Req. 5.3). Prefer an explicit ``state["memory"]``; otherwise build one over
+    # the resolved session so similarity retrieval engages in a real run. With no
+    # memory and no session the agent proceeds with an empty experience set.
     memory = state.get("memory")
-    generator = AiDagGenerator(chat=chat, memory=memory)
+    if memory is None and resolved_session is not None:
+        try:
+            from app.services.ai.memory import ExperienceMemory
+
+            memory = ExperienceMemory(resolved_session)
+        except Exception as exc:  # noqa: BLE001 - never let RAG setup break the run
+            logger.warning(
+                "DAG node could not build the experience memory (%s: %s); "
+                "continuing with an empty experience set.",
+                type(exc).__name__,
+                exc,
+            )
+            memory = None
+
+    # Build the DB-sourced ATT&CK base-context reader bound to the request-scoped
+    # session the Run_Service threaded into this node (task 14.1). The reader
+    # resolves the campaign's identity/techniques/actors from the Campaign_Overview
+    # (database) for ANY of the 52 campaigns — curated or not — and NEVER reads
+    # packages/cli/data on disk (Req. 5.1, 5.2, 5.4). With no session the base
+    # context degrades to empty (no disk read).
+    attack_reader = _attack_reader_for_session(resolved_session)
+
+    # Build the Command_Base gap probe bound to the request-scoped session the
+    # Run_Service threaded into this node (task 14.2). For each node technique the
+    # generator consults ``CommandBase.has_command_for`` to decide whether the
+    # technique is backed by a concrete command (exact ``technique_commands``
+    # mapping or similarity suggestion) or must be recorded as a gap on
+    # ``ProducedDag.gaps`` instead of inventing a command (Req. 11.4). With no
+    # session the probe is left unset and no gaps are recorded (no disk read).
+    command_lookup = _command_lookup_for_session(resolved_session)
+
+    # Local trace sink injected into the generator: the agent appends its
+    # AgentTrace at the LLM call site; we stamp the current iteration and return it
+    # under the append-only ``traces`` channel (design §A). The
+    # ``Annotated[list[dict], add]`` reducer merges it. The sink is passed through
+    # the constructor (not ``generate``) so the seam signature is unchanged.
+    sink: list[dict] = []
+    generator = AiDagGenerator(
+        chat=chat,
+        memory=memory,
+        attack_reader=attack_reader,
+        command_lookup=command_lookup,
+        trace_sink=sink,
+    )
 
     modeling = _modeling_from_state(state)
     produced = generator.generate(state["campaign_id"], modeling)
+
+    iteration = state.get("iteration", 0)
+    for trace in sink:
+        if trace.get("iteration") is None:
+            trace["iteration"] = iteration
 
     return {
         "artifacts": {
             **state.get("artifacts", {}),
             "dag": produced[0].model_dump() if produced else None,
-        }
+        },
+        "traces": sink,
     }
 
 
@@ -613,6 +845,7 @@ def persist_dag_stage_output(
     iteration_id: int,
     campaign_id: str,
     produced: ProducedDag,
+    trace: "Optional[dict]" = None,
 ) -> "AgentStageOutput":
     """Persist a produced AI DAG as an ``agent_stage_outputs`` row (Requirement 11.5).
 
@@ -641,6 +874,14 @@ def persist_dag_stage_output(
     committed — the transaction boundary belongs to the Run_Service, which commits
     the whole iteration atomically. Returns the persisted
     :class:`~app.models.domain.AgentStageOutput`.
+
+    Audit_Trace (Req. 2.1, 2.5): when ``trace`` is supplied — the matching
+    :class:`~app.services.ai.state.AgentTrace` dict the Run_Service looked up from
+    ``final_state["traces"]`` by ``(stage, iteration)`` — one 1:1
+    ``agent_stage_traces`` row is written for the just-flushed stage output in the
+    SAME flush (via :func:`app.services.ai.agents._trace.persist_stage_trace`),
+    inside the Run_Service's existing SAVEPOINT. Absent processing elements are
+    carried with the explicit ``None`` sentinel.
     """
     # Lazy imports keep module import free of ORM/model/service import cost and
     # any circular-import risk (Requirement 1.7).
@@ -688,4 +929,10 @@ def persist_dag_stage_output(
     )
     session.add(row)
     session.flush()
+
+    # Write the 1:1 Audit_Trace row for this stage output in the same flush, so
+    # it lands inside the Run_Service's per-iteration SAVEPOINT (Req. 2.1, 2.5).
+    from app.services.ai.agents._trace import persist_stage_trace
+
+    persist_stage_trace(session, row, trace)
     return row

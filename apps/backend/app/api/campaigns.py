@@ -11,8 +11,8 @@ The stages follow the six-stage scheme (design `pipeline-six-stages`):
 ====  ===============================  ======================================
 Nº    Stage                            Service / seam
 ====  ===============================  ======================================
-1     STIX base selection              ``StageService.read_stage1`` /
-                                       ``run_stage1``
+1     STIX base selection              ``StageService.read_stage2_selection`` /
+                                       ``run_stage2_selection``
 2     Campaign selection               ``Stage2Service`` (list + extraction)
 3     DAG generation                   ``DagService`` (``/dags``,
                                        ``/dags/{id}``, ``choose-dag``;
@@ -199,6 +199,7 @@ from app.services.stix.stage2_service import (
     CampaignSelectionResult,
 )
 from app.services.stix.stix_service import (
+    CURATED_VERSION,
     StixFileError,
 )
 
@@ -514,12 +515,86 @@ class ChooseDagRequest(BaseModel):
 
 
 def _known_slug_or_404(slug: str, case_service: CaseService) -> None:
-    """Raise 404 when ``slug`` is not one of the 8 curated cases."""
+    """Raise 404 when ``slug`` is not one of the 8 curated cases.
+
+    Legacy guard kept as a reversible fallback while the call sites migrate to
+    :func:`_known_campaign_or_404`. It validates against the 8 curated slugs
+    (``CaseService.list_cases``) and is no longer wired into the stage endpoints.
+    """
     if slug not in case_service.list_cases():
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Caso desconhecido: {slug!r}.",
         )
+
+
+def _known_campaign_or_404(
+    campaign_key: str, session: Session, version: str
+) -> None:
+    """Raise 404 when ``campaign_key`` is not persisted in ``stix_campaigns``.
+
+    Validates the campaign against the 52 persisted STIX campaigns of ``version``
+    (``stix_campaigns``) instead of the 8 curated slugs
+    (``CaseService.list_cases``), so any persisted campaign — curated or not — is
+    accepted, while a truly-absent id still gets a 404 (Req. 2.2, 2.3, 4.4). The
+    match uses the same ``Campaign_Key`` rule the listing exposes
+    (``curated_slug`` when present, else ``stix_id`` — Req. 4.5), so a curated
+    campaign keeps passing exactly as before (its row is present in
+    ``stix_campaigns`` with ``curated=True``).
+
+    A version with no persisted package yields the same 404: there is no
+    persisted campaign to accept, so the request is refused rather than leaking a
+    different error (keeps the guard's contract uniform — Req. 2.3, 4.4).
+    """
+    from app.services.stix.stix_package_read_service import (
+        StixPackageNotPersistedError,
+        StixPackageReadService,
+    )
+
+    read_service = StixPackageReadService(session)
+    try:
+        campaigns = read_service.list_campaigns(version)
+    except StixPackageNotPersistedError:
+        campaigns = []
+    known_keys = {summary.campaign_key for summary in campaigns}
+    if campaign_key not in known_keys:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Campanha desconhecida: {campaign_key!r}.",
+        )
+
+
+def _annotate_container_emulability(
+    session: Session, campaigns: list["ListedCampaign"]
+) -> None:
+    """Populate each listed campaign's Container_Emulability marking (Req. 6.4, 6.5).
+
+    Reads the already-derived ``container_emulability`` rows for exactly the
+    listed campaigns (a single batch read via
+    :meth:`ContainerEmulabilityService.read_many`) and copies the marking onto
+    each :class:`ListedCampaign`, keyed by the same ``Campaign_Key`` the listing
+    exposes (``curated_slug`` when present, else ``stix_id``). A campaign with a
+    derived row gets ``container_emulable`` (``True``/``False``) and its
+    ``blocking_techniques``; a campaign with no derived row keeps the default
+    ``container_emulable = None`` (not derived yet) and is still listed — the UI
+    shows the icon only on the emulable ones and an accessible reason otherwise
+    (Req. 6.5). The read is side-effect-free (no derivation, no writes).
+    """
+    from app.services.container_emulability_service import (
+        ContainerEmulabilityService,
+    )
+
+    def _campaign_key(listed: "ListedCampaign") -> str:
+        return listed.curated_slug or listed.stix_id
+
+    keys = [_campaign_key(listed) for listed in campaigns]
+    markings = ContainerEmulabilityService(session).read_many(keys)
+    for listed in campaigns:
+        marking = markings.get(_campaign_key(listed))
+        if marking is None:
+            continue
+        listed.container_emulable = marking.container_emulable
+        listed.blocking_techniques = list(marking.blocking_techniques)
 
 
 def _auto_complete_curated(db: Session, case_service: CaseService, campaign: str) -> None:
@@ -664,26 +739,21 @@ def list_campaigns_endpoint(db: Session = Depends(get_db)) -> CampaignsResponse:
     case_service = CaseService()
     stage_service = StageService(db, case_service=case_service)
 
-    catalog = case_service.load_all_cases_safe()
+    # The curated registry is an in-memory map (no disk access); the per-campaign
+    # content now lives in the database (curated ingest, sub-step 2.1), so the
+    # listing resolves purely from the DB and never reads ``packages/cli/data``
+    # (Req. 1.1, 4.1, 4.2).
     display_names = case_service.list_cases()
 
     campaigns: list[CaseListItem] = []
     for slug, name in display_names.items():
-        if slug in catalog.errors:
-            campaigns.append(
-                CaseListItem(id=slug, name=name, error=catalog.errors[slug])
-            )
-            continue
-        case = catalog.cases.get(slug)
         # Auto-completion of the curated Stages 2 and 4 (idempotent, respects the gate).
         _auto_complete_curated(db, case_service, slug)
         campaigns.append(
             CaseListItem(
                 id=slug,
                 name=name,
-                translation_source=(
-                    case.translation_source if case else TranslationSource.HUMAN_CURATION
-                ),
+                translation_source=TranslationSource.HUMAN_CURATION,
                 states=stage_service.get_stage_states(slug),
             )
         )
@@ -709,22 +779,22 @@ def detail_campaign(
     It triggers the auto-completion of the curated Stages 2 and 4 before reading
     the state, so the returned ``states`` reflects the curated pre-fill
     (Req. 9.1–9.4) — idempotent and respecting the sequential gate.
+
+    Database-only sourcing (Req. 1.1, 4.1): the Abilities, Adversary and ordering
+    are resolved from the ``abilities``/``adversaries`` rows (persisted by the
+    curated ingest of sub-step 2.1), never read from disk (Req. 4.2). An unknown
+    slug is a 404 (``_known_campaign_or_404`` against ``stix_campaigns``).
     """
     case_service = CaseService()
-    _known_slug_or_404(campaign, case_service)
+    _known_campaign_or_404(campaign, db, CURATED_VERSION)
 
-    result = case_service.try_load_case(campaign)
-    if not result.ok or result.case is None:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=(result.error.detail if result.error else f"Falha ao ler {campaign!r}."),
-        )
+    stage_service = StageService(db, case_service=case_service)
+    case = stage_service.build_case_from_db(campaign)
 
-    case = result.case
     # Auto-completion of the curated Stages 2 and 4 before re-reading the per-
     # stage state, so the UI sees the curated pre-fill (Req. 9.1–9.4).
     _auto_complete_curated(db, case_service, campaign)
-    states = StageService(db, case_service=case_service).get_stage_states(campaign)
+    states = stage_service.get_stage_states(campaign)
     return CaseDetailResponse(
         id=case.id,
         name=case.name,
@@ -791,13 +861,21 @@ def get_stage1(
     against the 8 curated campaigns (404 for an unknown slug), keeping consistency
     with the other routes of ``campaigns.py``.
     """
-    from app.services.stix.stix_service import CURATED_VERSION
+    from app.services.stix.stix_service import CURATED_VERSION, StixService
+    from app.services.stix.stix_package_read_service import StixPackageReadService
 
     case_service = CaseService()
-    _known_slug_or_404(campaign, case_service)
+    _known_campaign_or_404(campaign, db, CURATED_VERSION)
 
     effective_version = version if version is not None else CURATED_VERSION
-    return Stage1Service().complete(effective_version)
+    # The database is the source of truth for completion/availability (Req. 3.4,
+    # 3.5): inject a ``StixPackageReadService`` bound to the request Session so
+    # ``complete`` derives the verdict from ``is_persisted`` and reads the
+    # dashboard/campaigns of a persisted version from the DB (the on-disk bundle
+    # is deleted after a successful commit).
+    return Stage1Service(
+        StixService(), StixPackageReadService(db)
+    ).complete(effective_version)
 
 
 @router.post(
@@ -812,7 +890,7 @@ def execute_stage1(
     ),
     db: Session = Depends(get_db),
 ) -> Stage1Result:
-    """Trigger the structural modeling (:meth:`StageService.run_stage1`).
+    """Trigger the structural modeling (:meth:`StageService.run_stage2_selection`).
 
     **Transitional.** In the six-stage scheme, the Structural Modeling stops being
     Stage 1 (now "STIX base selection", above) and starts serving the Campaign
@@ -822,7 +900,7 @@ def execute_stage1(
     the tests). Until then, the modeling execution stays accessible here so the
     Modeling is not left orphaned.
 
-    It delegates to :meth:`StageService.run_stage1`, which persists the extracted
+    It delegates to :meth:`StageService.run_stage2_selection`, which persists the extracted
     elements and marks the stage ``completed`` on success (or ``erro`` with the
     failure step — reported in the typed result, not as an HTTP error). The
     optional ``version`` query param selects the STIX base used to fill the
@@ -831,8 +909,10 @@ def execute_stage1(
     (Req. 5.2, 5.4, 3.2).
     """
     case_service = CaseService()
-    _known_slug_or_404(campaign, case_service)
-    return StageService(db, case_service=case_service).run_stage1(campaign, version=version)
+    _known_campaign_or_404(campaign, db, CURATED_VERSION)
+    return StageService(db, case_service=case_service).run_stage2_selection(
+        campaign, version=version
+    )
 
 
 @router.get(
@@ -879,7 +959,7 @@ def get_stage2(
     from app.services.stix.stix_service import CURATED_VERSION
 
     case_service = CaseService()
-    _known_slug_or_404(campaign, case_service)
+    _known_campaign_or_404(campaign, db, CURATED_VERSION)
 
     effective_version = version if version is not None else CURATED_VERSION
     stage2 = Stage2Service(StageService(db, case_service=case_service))
@@ -891,6 +971,16 @@ def get_stage2(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail={"motivo": "bundle_invalido", "mensagem": exc.detail},
         ) from exc
+
+    # Surface the per-campaign Container_Emulability marking so the campaign list
+    # can show the container icon only on emulable campaigns and an accessible
+    # reason on the others (Req. 6.4, 6.5). The read is side-effect-free: it only
+    # reads the already-derived ``container_emulability`` rows (the derivation is
+    # the setup-time ``ContainerEmulabilityService.derive``), keyed by the same
+    # Campaign_Key the listing exposes (``curated_slug`` when present, else
+    # ``stix_id``). Campaigns with no derived row keep ``container_emulable=None``
+    # (still listed — Req. 6.5).
+    _annotate_container_emulability(db, campaigns)
 
     # Read-only view of the current selection (never executes/persists): the
     # curated Campaign slug is the curated campaign slug (Req. 6.3, 6.4).
@@ -932,7 +1022,7 @@ def select_campaign(
     from app.services.stix.stix_service import CURATED_VERSION
 
     case_service = CaseService()
-    _known_slug_or_404(campaign, case_service)
+    _known_campaign_or_404(campaign, db, CURATED_VERSION)
 
     effective_version = body.version if body.version is not None else CURATED_VERSION
     stage2 = Stage2Service(StageService(db, case_service=case_service))
@@ -972,13 +1062,15 @@ def get_stage3(
     (nodes + edges) and the Mermaid diagram.
 
     This view is **read-only** and has no execution side effect: it delegates to
-    :meth:`DagService.get_dag`, which reads ``data/dag/{slug}_dag.json`` via
-    ``CaseService`` — **with no network and no AI** on any path (Req. 7.4, 11.1).
+    :meth:`DagService.get_dag`, which resolves the DAG from the ``dags`` table
+    (sub-step 2.4 removed the request-time disk read) — **with no disk, no network
+    and no AI** on any path (Req. 1.1, 4.1, 7.4, 11.1).
     Before building the view, it triggers the idempotent Stage 3 auto-completion
     (:meth:`DagService.auto_complete_stage2`, whose name is historical but operates
-    over ``STAGE_DAG_GENERATION``): it respects the sequential gate, does the
-    curated backfill and completes Stage 3 only when there is a derivable DAG,
-    without duplicating state on repeated reads (Req. 7.4, 11.3, 11.4).
+    over ``STAGE_DAG_GENERATION``): it respects the sequential gate, reads the
+    persisted DAGs from the ``dags`` table and completes Stage 3 only when there is
+    a persisted DAG, without duplicating state on repeated reads (Req. 7.4, 11.3,
+    11.4).
 
     An unknown Campaign slug is a 404, consistent with the other routes of
     ``campaigns.py``. A curated Campaign whose DAG is missing/malformed is **not**
@@ -989,7 +1081,7 @@ def get_stage3(
     Mermaid), kept/reused below.
     """
     case_service = CaseService()
-    _known_slug_or_404(campaign, case_service)
+    _known_campaign_or_404(campaign, db, CURATED_VERSION)
     # Idempotent Stage 3 auto-completion (curated DAG): respects the gate, runs
     # the curated backfill and completes only when a derivable DAG exists.
     DagService(session=db, case_service=case_service).auto_complete_stage2(campaign)
@@ -1028,7 +1120,7 @@ def get_stage4(
     responds 200 with ``abilities=None`` and ``both_produced=False`` (Req. 8.1).
     """
     case_service = CaseService()
-    _known_slug_or_404(campaign, case_service)
+    _known_campaign_or_404(campaign, db, CURATED_VERSION)
 
     produced = _operationalize(db, case_service, campaign)
     states = StageService(db, case_service=case_service).get_stage_states(campaign)
@@ -1084,7 +1176,7 @@ def complete_stage4(
     from app.models.enums import StageState  # local import: avoids a cycle at the top
 
     case_service = CaseService()
-    _known_slug_or_404(campaign, case_service)
+    _known_campaign_or_404(campaign, db, CURATED_VERSION)
 
     stage_service = StageService(db, case_service=case_service)
     states = stage_service.get_stage_states(campaign)
@@ -1205,7 +1297,7 @@ def get_stage5_environment(
       no provisioning recorded for the Campaign.
     """
     case_service = CaseService()
-    _known_slug_or_404(campaign, case_service)
+    _known_campaign_or_404(campaign, db, CURATED_VERSION)
 
     # READ-ONLY view (Req. 5.6, 9.6): opening the Stage 5 screen NEVER provisions
     # synchronously — that would block this request until the whole lab was
@@ -1362,7 +1454,7 @@ def provision_stage5(
     from app.models.enums import StageState  # local import: avoids a cycle at the top
 
     case_service = CaseService()
-    _known_slug_or_404(campaign, case_service)
+    _known_campaign_or_404(campaign, db, CURATED_VERSION)
 
     stage_service = StageService(db, case_service=case_service)
 
@@ -1452,7 +1544,7 @@ def get_stage5_logs(
     with the other routes of ``campaigns.py``.
     """
     case_service = CaseService()
-    _known_slug_or_404(campaign, case_service)
+    _known_campaign_or_404(campaign, db, CURATED_VERSION)
     return Stage5LogsResponse(campaign_id=campaign, logs=log_buffer.read(campaign))
 
 
@@ -1478,7 +1570,7 @@ def get_stage6(
     scheme, Stage 5 became the Environment creation and 6 the Execution.
     """
     case_service = CaseService()
-    _known_slug_or_404(campaign, case_service)
+    _known_campaign_or_404(campaign, db, CURATED_VERSION)
 
     stage_service = StageService(db, case_service=case_service)
     input = stage_service.assemble_stage3(campaign)
@@ -1720,7 +1812,7 @@ def execute_stage6(
     yet created (Req. 10.9).
     """
     case_service = CaseService()
-    _known_slug_or_404(campaign, case_service)
+    _known_campaign_or_404(campaign, db, CURATED_VERSION)
 
     # (1) Stage 4 parameters + provisioning/verification of the curated environment.
     # The same provisioner (injectable via get_provisioner) is reused for the
@@ -2065,7 +2157,7 @@ def execute_stage6_autostart(
     Stage 6 handlers).
     """
     case_service = CaseService()
-    _known_slug_or_404(campaign, case_service)
+    _known_campaign_or_404(campaign, db, CURATED_VERSION)
 
     adapter = _AutostartRunnerAdapter(runner_factory(db), campaign)
     service = AutostartExecutionStageService(
@@ -2155,20 +2247,11 @@ def get_report(
     the report screen always receives a reportable result.
     """
     case_service = CaseService()
-    _known_slug_or_404(campaign, case_service)
+    _known_campaign_or_404(campaign, db, CURATED_VERSION)
 
-    # Missing/malformed Campaign → 422 (consistent with the other routes).
-    campaign_result = case_service.try_load_case(campaign)
-    if not campaign_result.ok or campaign_result.case is None:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=(
-                campaign_result.error.detail
-                if campaign_result.error
-                else f"Falha ao ler o Caso {campaign!r}."
-            ),
-        )
-    case = campaign_result.case
+    # Database-only sourcing (Req. 1.1, 4.1): resolve the campaign's curated
+    # content (DAG + Abilities) from the DB instead of reading disk (Req. 4.2).
+    case = StageService(db, case_service=case_service).build_case_from_db(campaign)
 
     operations = SessionStateService(db).get_operation_results(campaign)
     ability_results: list[AbilityMeasurementResult] = []
@@ -2243,7 +2326,7 @@ def get_operation(
     Delegates to :meth:`SessionStateService.get_operation_results`.
     """
     case_service = CaseService()
-    _known_slug_or_404(campaign, case_service)
+    _known_campaign_or_404(campaign, db, CURATED_VERSION)
     operations = SessionStateService(db).get_operation_results(campaign)
     return OperationResponse(campaign_id=campaign, operations=operations)
 
@@ -2265,12 +2348,11 @@ def get_dag(
     anything, performs no Docker/network access and invokes **no AI service** on
     any path (Req. 9.1, 9.2).
 
-    An unknown slug is a 404, consistent with every other ``campaigns.py`` route
-    (:func:`_known_slug_or_404` checks the 8 curated cases from
-    ``CaseService.list_cases``). The pass-through non-curated stub in
-    :meth:`DagService.get_dag` is intended for future STIX campaigns that are not
-    among the curated 8; this endpoint is keyed by a curated-case ``{campaign}``
-    slug, so a slug outside the 8 is unknown here.
+    An unknown campaign is a 404, consistent with every other ``campaigns.py``
+    route (:func:`_known_campaign_or_404` checks the persisted STIX campaigns in
+    ``stix_campaigns``). The pass-through non-curated stub in
+    :meth:`DagService.get_dag` serves persisted campaigns that are not among the
+    curated 8; a campaign absent from ``stix_campaigns`` is unknown here.
 
     A curated case whose DAG is merely missing/malformed is NOT a 404: the
     :class:`DagView` itself carries ``curado=True``/``pode_avancar=False``/``erro``
@@ -2280,8 +2362,8 @@ def get_dag(
     directly; no translation to the ``{"detail": ...}`` shape is needed.
     """
     case_service = CaseService()
-    _known_slug_or_404(campaign, case_service)
-    return DagService(case_service=case_service).get_dag(campaign)
+    _known_campaign_or_404(campaign, db, CURATED_VERSION)
+    return DagService(session=db, case_service=case_service).get_dag(campaign)
 
 
 # ---------------------------------------------------------------------------
@@ -2307,21 +2389,16 @@ def list_dags(
 ) -> DagListResponse:
     """List the persisted DAGs of a Campaign (Req. 4.8, 6.1).
 
-    It precedes the listing with an idempotent backfill of the curated DAGs
-    (:meth:`DagService.sync_curated_dags`), which reads ``data/dag/{slug}_dag.json``
-    via ``CaseService`` — **with no network and no AI** (Req. 5.5, 9.1) — and
-    persists 1 ``curadoria_humana`` DAG per curated Campaign if it does not exist
-    yet. Running the backfill lazily on listing guarantees that a curated Campaign
-    always shows at least its DAG, without requiring an explicit synchronization
-    step, and, being idempotent, it does not duplicate on repeated accesses.
-    ``sync_curated_dags`` already returns the resulting listing
-    (:class:`DagSummary`), so the handler only passes it through.
+    Database-only sourcing (Req. 1.1, 4.1): the DAGs are read from the ``dags``
+    table via :meth:`DagService.list_dags`. The curated DAG is persisted by the
+    one-shot curated ingest (``CuratedIngestService``, sub-step 2.1), so the
+    listing no longer runs the disk backfill (``sync_curated_dags``, which read
+    ``data/dag/{slug}_dag.json``) at request time — the runtime never touches
+    ``packages/cli/data`` (Req. 4.2).
     """
     case_service = CaseService()
-    _known_slug_or_404(campaign, case_service)
-    dags = DagService(session=db, case_service=case_service).sync_curated_dags(
-        campaign
-    )
+    _known_campaign_or_404(campaign, db, CURATED_VERSION)
+    dags = DagService(session=db, case_service=case_service).list_dags(campaign)
     return DagListResponse(campaign_id=campaign, dags=dags)
 
 
@@ -2350,7 +2427,7 @@ def get_persisted_dag(
     absence to 404.
     """
     case_service = CaseService()
-    _known_slug_or_404(campaign, case_service)
+    _known_campaign_or_404(campaign, db, CURATED_VERSION)
 
     detail = DagService(session=db, case_service=case_service).get_persisted_dag(
         campaign, dag_id
@@ -2410,7 +2487,7 @@ def choose_dag(
     The result's message is propagated in the error's ``detail``.
     """
     case_service = CaseService()
-    _known_slug_or_404(campaign, case_service)
+    _known_campaign_or_404(campaign, db, CURATED_VERSION)
 
     dag_service = DagService(session=db, case_service=case_service)
     result = dag_service.choose_dag(campaign, body.dag_id)
@@ -2470,7 +2547,7 @@ def complete_stage3(
     from app.models.enums import StageState  # local import: avoids a cycle at the top
 
     case_service = CaseService()
-    _known_slug_or_404(campaign, case_service)
+    _known_campaign_or_404(campaign, db, CURATED_VERSION)
 
     stage_service = StageService(db, case_service=case_service)
     states = stage_service.get_stage_states(campaign)
@@ -2528,7 +2605,7 @@ def reset_campaign(
     )
 
     case_service = CaseService()
-    _known_slug_or_404(campaign, case_service)
+    _known_campaign_or_404(campaign, db, CURATED_VERSION)
 
     # The campaign's operation ids, to clear the dependent results/audit.
     op_ids = [

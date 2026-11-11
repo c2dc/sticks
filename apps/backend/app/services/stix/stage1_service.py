@@ -49,6 +49,11 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
+from app.services.stix.stix_package_read_service import (
+    StixPackageNotPersistedError,
+    StixPackageOverview,
+    StixPackageReadService,
+)
 from app.services.stix.stix_service import (
     BaseStixInfo,
     CampaignStix,
@@ -56,6 +61,7 @@ from app.services.stix.stix_service import (
     StixDownloadError,
     StixFileError,
     StixService,
+    TypeCount,
     version_is_curated,
 )
 
@@ -86,11 +92,17 @@ class Stage1ResultStix(BaseModel):
     Carries the stage's completion verdict and its Output (Req. 5.8, 5.10):
 
     * ``version`` — the chosen STIX package version (the Stage 1 Input, Req. 5.1).
-    * ``completed`` — ``True`` **only when** the version's bundle is on disk
-      **and** the dashboard was assembled successfully (Req. 5.10); ``False`` on
-      any failure (download/read), keeping the stage not completed (Req. 5.9).
-    * ``bundle_on_disk`` — whether the file ``enterprise-attack-{version}.json``
-      is present on disk (the first half of the stage Output, Req. 5.8).
+    * ``completed`` — with a database source of truth (a ``read_service`` is
+      injected), ``True`` **only when** the version is persisted in the database
+      (``is_persisted``) **and** the dashboard could be assembled from the
+      database (Req. 3.4, 3.5); without a ``read_service`` it falls back to the
+      legacy rule (bundle on disk **and** dashboard assembled, Req. 5.10).
+      ``False`` on any failure, keeping the stage not completed (Req. 5.9).
+    * ``bundle_on_disk`` — the field name is **kept** for contract stability but
+      its value now reflects ``is_persisted`` (the database source of truth,
+      Req. 3.4) when a ``read_service`` is injected; without one it keeps the
+      legacy meaning (whether ``enterprise-attack-{version}.json`` is on disk,
+      Req. 5.8).
     * ``dashboard`` — the bundle dashboard (per-type counts), the second half of
       the stage Output (Req. 5.7, 5.8); ``None`` when the stage did not complete.
     * ``campaigns`` — the campaigns contained in the bundle (Stage 2 Input,
@@ -129,46 +141,101 @@ class Stage1Service:
     A custom ``StixService`` can be injected (e.g. tests, with an isolated
     ``data_dir`` and a fake ``http_client``), so the only network egress
     (``download_base``) stays mockable and no real file is touched in tests.
+
+    An optional :class:`StixPackageReadService` may also be injected so the
+    "available / selectable" state is derived from the database
+    (``is_persisted`` — the single source of truth) instead of the on-disk
+    bundle presence (Req. 3.1, 3.2, 3.3). When no ``read_service`` is provided
+    (e.g. out-of-request usage without a Session), the legacy disk-based
+    behaviour is kept as a defensive fallback.
     """
 
-    def __init__(self, stix_service: Optional[StixService] = None) -> None:
+    def __init__(
+        self,
+        stix_service: Optional[StixService] = None,
+        read_service: Optional[StixPackageReadService] = None,
+    ) -> None:
         self._stix: StixService = (
             stix_service if stix_service is not None else StixService()
         )
+        self._read_service: Optional[StixPackageReadService] = read_service
 
     @property
     def stix_service(self) -> StixService:
         """The :class:`StixService` reused for all disk/network operations."""
         return self._stix
 
+    @property
+    def read_service(self) -> Optional[StixPackageReadService]:
+        """The optional :class:`StixPackageReadService` used to read DB state."""
+        return self._read_service
+
     # ---- list --------------------------------------------------------------
 
     def list_bases(self) -> list[BaseStixListada]:
         """List known versions with ``downloaded``/``selectable`` and ``curated``.
 
-        Delegates to ``StixService.list_bases`` (newest→oldest ordering,
-        live-checked disk presence, no version downloaded by default — Req. 5.4)
-        and projects the curated-version flag into each entry via
-        :func:`~app.services.stix.stix_service.version_is_curated` (Req. 5.5,
-        5.6). No network egress.
+        Delegates to ``StixService.list_bases`` (newest→oldest ordering) for the
+        set of known versions and projects the curated-version flag into each
+        entry via :func:`~app.services.stix.stix_service.version_is_curated`
+        (Req. 5.5, 5.6). No network egress.
+
+        The ``downloaded``/``selectable`` state is the **database** persistence
+        state, not the on-disk bundle presence (Req. 3.1, 3.2, 3.3): when a
+        :class:`StixPackageReadService` is injected, each version is marked
+        ``downloaded``/``selectable`` exactly when ``is_persisted(version)`` is
+        true, and ``file`` is ``None`` for persisted versions (the on-disk bundle
+        is deleted after a successful commit, so the path is no longer a useful
+        signal). When no ``read_service`` is available (out-of-request usage),
+        the legacy disk-based values from ``StixService.list_bases`` are kept as
+        a defensive fallback.
         """
-        return [
-            BaseStixListada(
-                version=base.version,
-                name=base.name,
-                downloaded=base.downloaded,
-                selectable=base.selectable,
-                file=base.file,
-                curated=version_is_curated(base.version),
-            )
-            for base in self._stix.list_bases()
-        ]
+        bases: list[BaseStixListada] = []
+        for base in self._stix.list_bases():
+            if self._read_service is not None:
+                persisted = self._read_service.is_persisted(base.version)
+                bases.append(
+                    BaseStixListada(
+                        version=base.version,
+                        name=base.name,
+                        downloaded=persisted,
+                        selectable=persisted,
+                        file=None,
+                        curated=version_is_curated(base.version),
+                    )
+                )
+            else:
+                bases.append(
+                    BaseStixListada(
+                        version=base.version,
+                        name=base.name,
+                        downloaded=base.downloaded,
+                        selectable=base.selectable,
+                        file=base.file,
+                        curated=version_is_curated(base.version),
+                    )
+                )
+        return bases
 
     # ---- download ----------------------------------------------------------
 
     def _bundle_on_disk(self, version: str) -> bool:
         """Whether the ``version`` bundle is already present on disk (no network)."""
         return self._stix.base_path(version).exists()
+
+    def _is_available(self, version: str) -> bool:
+        """Whether ``version`` is available as the completion source of truth.
+
+        The database persistence state (``is_persisted`` — the single source of
+        truth) decides whether a version is complete/available (Req. 3.4, 3.5):
+        when a :class:`StixPackageReadService` is injected, availability is
+        ``read_service.is_persisted(version)``. When no ``read_service`` is
+        provided (out-of-request usage without a Session), the legacy on-disk
+        bundle presence is kept as a defensive fallback.
+        """
+        if self._read_service is not None:
+            return self._read_service.is_persisted(version)
+        return self._bundle_on_disk(version)
 
     def download_base(self, version: str) -> BaseStixInfo:
         """Ensure the ``version`` bundle is on disk, downloading it **only if absent**.
@@ -215,6 +282,32 @@ class Stage1Service:
         """
         return self._stix.dashboard(version)
 
+    @staticmethod
+    def _overview_to_dashboard(overview: StixPackageOverview) -> DashboardStix:
+        """Map a DB-read :class:`StixPackageOverview` onto a :class:`DashboardStix`.
+
+        The on-disk bundle is deleted after a successful commit, so for persisted
+        versions the dashboard (per-type counts) is read from the database via
+        :meth:`StixPackageReadService.package_overview` instead of reprocessing
+        the deleted file (Req. 3.4, 3.5). The ``counts`` carry the same shape as
+        the disk-derived dashboard (``label``/``stix_type``/``count``/
+        ``description``), so the :class:`DashboardStix` contract is unchanged.
+        """
+        counts = [
+            TypeCount(
+                label=count.label,
+                stix_type=count.stix_type,
+                count=count.count,
+                description=count.description,
+            )
+            for count in overview.counts
+        ]
+        return DashboardStix(
+            version=overview.version,
+            name=overview.name,
+            counts=counts,
+        )
+
     def campaigns(self, version: str) -> list[CampaignStix]:
         """The campaigns contained in the ``version`` bundle (Stage 2 Input).
 
@@ -223,6 +316,29 @@ class Stage1Service:
         for the completion verdict to handle it.
         """
         return self._stix.list_campaigns(version)
+
+    def _campaigns_from_db(self, version: str) -> list[CampaignStix]:
+        """The campaigns of a persisted ``version`` read from the database.
+
+        For persisted versions the on-disk bundle is deleted after commit, so the
+        campaigns (the Stage 2 Input, Req. 2.2) are read from the database via
+        :meth:`StixPackageReadService.list_campaigns` instead of reprocessing the
+        deleted file (Req. 3.4, 3.5). The DB summaries are mapped onto the
+        :class:`CampaignStix` contract (``stix_id``/``name``/``curated``/
+        ``curated_slug``); ``description`` is not part of the campaign summary and
+        stays ``None`` in the listing.
+        """
+        assert self._read_service is not None  # guarded by the caller
+        return [
+            CampaignStix(
+                stix_id=summary.stix_id,
+                name=summary.name,
+                description=None,
+                curated=summary.curated,
+                curated_slug=summary.curated_slug,
+            )
+            for summary in self._read_service.list_campaigns(version)
+        ]
 
     # ---- complete ----------------------------------------------------------
 
@@ -246,6 +362,88 @@ class Stage1Service:
         Never raises: every failure is caught and reflected in ``completed=False``
         with ``error_message`` filled, so the stage screen always receives a
         reportable result (Req. 5.9).
+
+        Database as the source of truth (Req. 3.4, 3.5)
+        -----------------------------------------------
+        When a :class:`StixPackageReadService` is injected, the completion verdict
+        is derived from ``is_persisted`` instead of the on-disk bundle presence,
+        and the dashboard/campaigns of a persisted version are read **from the
+        database** (``package_overview`` / ``list_campaigns``) rather than
+        reprocessing the file — which is deleted after a successful commit. The
+        ``bundle_on_disk`` field of the DTO keeps its name (contract cost) but now
+        carries ``is_persisted``. When no ``read_service`` is available the legacy
+        disk-based flow (download if absent, read the bundle from disk) is kept as
+        a defensive fallback.
+        """
+        if self._read_service is not None:
+            return self._complete_from_db(version)
+        return self._complete_from_disk(version)
+
+    def _complete_from_db(self, version: str) -> Stage1ResultStix:
+        """Derive the Stage 1 verdict from the database (Req. 3.4, 3.5).
+
+        ``completed`` and the (name-preserving) ``bundle_on_disk`` field reflect
+        ``is_persisted``. For a persisted version the dashboard/campaigns are
+        read from the database via :class:`StixPackageReadService`
+        (``package_overview`` / ``list_campaigns``) — never from the on-disk
+        bundle, which is deleted after commit. A non-persisted version is not
+        completed (its content must be made available via the download endpoint,
+        Req. 5.3). Never raises.
+        """
+        assert self._read_service is not None
+        curated = version_is_curated(version)
+
+        if not self._read_service.is_persisted(version):
+            # Not persisted → not available → stage not completed (Req. 3.4,
+            # 3.5). The content is made available by the download endpoint.
+            return Stage1ResultStix(
+                version=version,
+                completed=False,
+                bundle_on_disk=False,
+                dashboard=None,
+                campaigns=[],
+                curated=curated,
+                error_message=None,
+            )
+
+        # Persisted → read the dashboard/campaigns from the database (the file is
+        # deleted after commit), and complete only when the dashboard could be
+        # assembled from the DB (Req. 3.5).
+        try:
+            overview = self._read_service.package_overview(version)
+            dashboard = self._overview_to_dashboard(overview)
+            campaigns = self._campaigns_from_db(version)
+        except StixPackageNotPersistedError as exc:
+            # Lost the persistence race between is_persisted and the read: treat
+            # as not available, with the reported cause (Req. 3.5).
+            return Stage1ResultStix(
+                version=version,
+                completed=False,
+                bundle_on_disk=False,
+                dashboard=None,
+                campaigns=[],
+                curated=curated,
+                error_message=str(exc),
+            )
+
+        return Stage1ResultStix(
+            version=version,
+            completed=True,
+            bundle_on_disk=True,
+            dashboard=dashboard,
+            campaigns=campaigns,
+            curated=curated,
+            error_message=None,
+        )
+
+    def _complete_from_disk(self, version: str) -> Stage1ResultStix:
+        """Legacy disk-based Stage 1 verdict (defensive fallback, no DB).
+
+        Kept for out-of-request usage without a Session/``read_service``: ensures
+        the bundle on disk (download only if absent — the single network egress),
+        reads the dashboard/campaigns from the file and completes only when the
+        bundle is on disk and the dashboard was assembled (Req. 5.9, 5.10). Never
+        raises.
         """
         curated = version_is_curated(version)
 

@@ -62,7 +62,7 @@ class SepinfSettings(BaseSettings):
     # Loop + memory knobs (overridable via env). ``max_iterations`` defaults to 3
     # per Requirement 3.6.
     max_iterations: int = Field(default=3, alias="AI_MAX_ITERATIONS")
-    embedding_dim: int = Field(default=1024, alias="AI_EMBEDDING_DIM")
+    embedding_dim: int = Field(default=768, alias="AI_EMBEDDING_DIM")
     retrieval_k: int = Field(default=5, alias="AI_RETRIEVAL_K")
 
     def __repr__(self) -> str:  # pragma: no cover - defensive, avoids key leak

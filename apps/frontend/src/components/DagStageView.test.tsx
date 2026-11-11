@@ -150,7 +150,7 @@ describe("DagStageView (Stage 2 — DAG generation, Req. 3.3–3.5, 3.7)", () =>
     await screen.findByText("Não foi possível carregar o DAG deste caso.")
   })
 
-  it("renders the origin label (stix.dag.origem.*) for each DAG resumo (Req. 3.7)", async () => {
+  it("renders the origin label (stix.dag.source.*) for each DAG summary (Req. 3.7)", async () => {
     // One curated and one AI-generated DAG so both origin labels are exercised.
     const curado = makeSummary()
     const geradoIa: DagSummary = {

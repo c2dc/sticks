@@ -68,6 +68,8 @@ from app.core.config import Settings
 from app.db.base import Base, import_models
 from app.db.session import create_db_engine, get_db
 from app.main import create_app
+from _stix_seed import ensure_stix_campaigns
+from app.services.stix.stix_persistence_service import StixPersistenceService
 from app.services.stix.stix_service import (
     SLUG_TO_STIX,
     KNOWN_VERSIONS,
@@ -121,6 +123,12 @@ def session_factory() -> Iterator[sessionmaker[Session]]:
 
 def _make_client(session_factory: sessionmaker[Session]) -> TestClient:
     """Build a TestClient with the DB wired to the ephemeral SQLite factory."""
+    # The stage endpoints guard validates the campaign against the persisted
+    # STIX campaigns (``_known_campaign_or_404`` over ``stix_campaigns`` for the
+    # curated version — Req. 2.2, 2.3, 4.4). Seed the curated slug so the guard
+    # accepts it; each test's own version-specific completion / campaign-missing
+    # logic is unaffected (it runs on the version the request carries).
+    ensure_stix_campaigns(session_factory, [_SLUG])
     app = create_app()
 
     def _get_db_override() -> Iterator[Session]:
@@ -140,6 +148,33 @@ def _write_bundle(path: Path, objects: list[dict]) -> None:
     path.write_text(
         json.dumps({"type": "bundle", "objects": objects}), encoding="utf-8"
     )
+
+
+def _seed_persisted(
+    session_factory: sessionmaker[Session],
+    data_dir: Path,
+    version: str,
+    objects: list[dict],
+) -> None:
+    """Persist ``version`` into the database from a bundle written on disk.
+
+    The STIX-base completion/availability is now derived from the database
+    persistence state (``StixPackageReadService.is_persisted``), not the on-disk
+    bundle (Req. 3.4, 3.5). This seeds that state the way production does: write
+    the bundle under the (temp) ``data_dir`` and persist its derived content
+    through :class:`StixPersistenceService`, which commits the six STIX tables
+    and deletes the on-disk bundle afterwards — leaving the database as the
+    single source of truth. The ``GET .../stage/1`` handler then reads the
+    dashboard/campaigns from the database.
+    """
+    _write_bundle(StixService(data_dir=data_dir).base_path(version), objects)
+    session = session_factory()
+    try:
+        StixPersistenceService(
+            session, StixService(data_dir=data_dir)
+        ).persist_from_disk(version)
+    finally:
+        session.close()
 
 
 @pytest.fixture()
@@ -220,13 +255,12 @@ def _assert_sem_artefato_caldera(input: dict) -> None:
 def test_get_stage1_valid_version_dashboard_completed(
     session_factory: sessionmaker[Session], stage1_data_dir: Path
 ) -> None:
-    """``GET .../stage/1?version=`` com o bundle em disco → HTTP 200 e o
-    Stage 1 result (STIX base Selection) ``completed=True`` with the
-    bundle dashboard and the campaigns (six stages, Req. 5.7, 5.8, 5.10)."""
+    """``GET .../stage/1?version=`` with the version persisted in the database →
+    HTTP 200 and the Stage 1 result (STIX base Selection) ``completed=True`` with
+    the bundle dashboard and the campaigns read from the database (six stages,
+    Req. 3.4, 3.5)."""
     campaign = _campaign_found()
-    _write_bundle(
-        StixService(data_dir=stage1_data_dir).base_path(_VERSION), [campaign]
-    )
+    _seed_persisted(session_factory, stage1_data_dir, _VERSION, [campaign])
 
     client = _make_client(session_factory)
     resp = client.get(f"/api/campaigns/{_SLUG}/stage/1", params={"version": _VERSION})
@@ -281,13 +315,13 @@ def test_get_stage1_without_version_uses_curated_version(
 ) -> None:
     """``GET .../stage/1`` without ``version`` → HTTP 200 and Stage 1 starts from the
     curated version (``CURATED_VERSION``) as the stream default (six stages, Req.
-    5.5, 5.6). With the curated bundle on disk, it concludes with no network egress."""
+    5.5, 5.6). With the curated version persisted in the database, it concludes
+    reading the dashboard/campaigns from the database (Req. 3.4, 3.5)."""
     from app.services.stix.stix_service import CURATED_VERSION
 
-    # Curated bundle on disk → no download (no network); concludes Stage 1.
-    _write_bundle(
-        StixService(data_dir=stage1_data_dir).base_path(CURATED_VERSION),
-        [_campaign_found()],
+    # Curated version persisted in the database → concludes Stage 1 from the DB.
+    _seed_persisted(
+        session_factory, stage1_data_dir, CURATED_VERSION, [_campaign_found()]
     )
 
     client = _make_client(session_factory)
@@ -322,29 +356,28 @@ def test_post_stage1_execute_without_version_fallback_version_missing(
 # ===========================================================================
 
 
-def test_get_stage1_unknown_version_does_not_complete_with_cause(
+def test_get_stage1_not_persisted_version_does_not_complete(
     session_factory: sessionmaker[Session], stage1_data_dir: Path
 ) -> None:
-    """``GET .../stage/1?version=`` with an unknown version → HTTP 200 and
-    Stage 1 **not completed** with the reported cause, with no network egress
-    (``version`` is validated against ``KNOWN_VERSIONS`` before touching network —
-    six stages, Req. 5.9). The service never raises: it returns the typed
-    reportable result."""
-    unknown_version = "999.0"
+    """``GET .../stage/1?version=`` with a version that is not persisted in the
+    database → HTTP 200 and Stage 1 **not completed**, with no network egress
+    (six stages, Req. 3.4, 3.5). A non-persisted version is simply not available:
+    the service never raises, returning the typed reportable result; its content
+    is made available by the download endpoint."""
+    not_persisted_version = "999.0"
 
     client = _make_client(session_factory)
     resp = client.get(
-        f"/api/campaigns/{_SLUG}/stage/1", params={"version": unknown_version}
+        f"/api/campaigns/{_SLUG}/stage/1", params={"version": not_persisted_version}
     )
 
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    assert body["version"] == unknown_version
+    assert body["version"] == not_persisted_version
     assert body["completed"] is False
     assert body["bundle_on_disk"] is False
     assert body["dashboard"] is None
     assert body["campaigns"] == []
-    assert body["error_message"]  # a causa reportada ao Pesquisador
 
 
 def test_post_stage1_execute_valid_version_campaign_missing(

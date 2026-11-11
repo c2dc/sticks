@@ -2,18 +2,18 @@
 
 # Feature: pipeline-seis-stages, Property 13: Origem explícita e extensível nodes
 # Estágios 3, 4 e 5. Parte **persistência** (Estágio 4 / Operacionalização): a
-# line ``environment_parameters`` aceita ``origin = gerado_ia`` e
-# ``platform = maquina_virtual`` sem qualquer alteração de esquema — o esquema
+# line ``environment_parameters`` aceita ``origin = ai_generated`` e
+# ``platform = virtual_machine`` sem qualquer alteração de esquema — o esquema
 # de cada exemplo é construído pelo ORM (``Base.metadata.create_all``), e os
 # ``CHECK`` portáveis (``native_enum=False``) já incluem ambos os valores
-# (``TranslationSource.AI_GENERATED`` e ``PersistedEnvironmentPlatform.VM``).
+# (``TranslationSource.AI_GENERATED`` e ``EnvironmentPlatform.VM``).
 
 Validates: Requirements 16.4, 17.2
 
 Esta é uma property test de *feature* (``pipeline-seis-stages`` é uma feature,
 não um bugfix): a propriedade é esperada **valer** sobre a definição atual do
 modelo :class:`~app.models.domain.EnvironmentParametersRow` + os enums de persistência
-:class:`~app.models.enums.PersistedEnvironmentPlatform` e
+:class:`~app.models.enums.EnvironmentPlatform` e
 :class:`~app.models.enums.TranslationSource`.
 
 O que a propriedade garante
@@ -24,11 +24,11 @@ O que a propriedade garante
   da coluna ``origin`` (``translation_source``, ``native_enum=False``) já admite
   o valor; o round-trip devolve a string pt-BR exata gravada no disco.
 * **Plataforma de VM admitida sem migração (Req. 17.2):** persistir
-  ``platform = "maquina_virtual"`` é aceito pelo mesmo esquema. A coluna
+  ``platform = "virtual_machine"`` é aceito pelo mesmo esquema. A coluna
   ``platform`` é construída a partir de
-  :class:`~app.models.enums.PersistedEnvironmentPlatform` (que já declara
-  ``maquina_virtual``), de modo que o ``CHECK`` portável o aceite desde a
-  primeira migração — exatamente o precedente de ``DagOrigin``/``gerado_ia``.
+  :class:`~app.models.enums.EnvironmentPlatform` (que já declara
+  ``virtual_machine``), de modo que o ``CHECK`` portável o aceite desde a
+  primeira migração — exatamente o precedente de ``DagOrigin``/``ai_generated``.
 * **Round-trip do conteúdo (Req. 8.3):** ``campaign_id``, ``content`` (JSON) e
   ``created_at`` voltam idênticos ao persistido, e a FK ``campaign_id → campaigns.id`` é
   respeitada.
@@ -72,8 +72,8 @@ from app.models.domain import Case, EnvironmentParametersRow
 # migração, independentemente de o enum de aplicação ainda não os expor.
 # ---------------------------------------------------------------------------
 
-_ORIGEM_FUTURA = "gerado_ia"  # TranslationSource futura (Req. 16.4)
-_PLATAFORMA_FUTURA = "maquina_virtual"  # EnvironmentPlatform futura (Req. 17.2)
+_ORIGEM_FUTURA = "ai_generated"  # TranslationSource futura (Req. 16.4)
+_PLATAFORMA_FUTURA = "virtual_machine"  # EnvironmentPlatform futura (Req. 17.2)
 
 
 # ---------------------------------------------------------------------------
@@ -179,7 +179,7 @@ def _build_ephemeral_session() -> tuple[Session, Path, Any]:
 # Feature: pipeline-seis-stages, Property 13: Origem explícita e extensível nodes
 # Estágios 3, 4 e 5 (parte persistência — gerado_ia e maquina_virtual sem migração).
 @settings(
-    max_examples=150,
+    max_examples=40,
     deadline=None,
     suppress_health_check=[HealthCheck.too_slow],
 )

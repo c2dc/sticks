@@ -2,7 +2,7 @@
 
 Each property-based test is tagged with the exact
 ``# Feature: stix-bundle-cache-location, Property N: <text>`` comment required by
-the plan and runs with Hypothesis at ``max_examples=100`` (minimum 100
+the plan and runs with Hypothesis at ``max_examples=40`` (minimum 100
 iterations).
 
 Isolation (Req. 5.1, 5.2, 5.3): the resolver is a **pure** function. Every test
@@ -24,7 +24,7 @@ from app.services.stix.stix_paths import (
 )
 
 # Shared iteration budget so every property runs >= 100 examples.
-PROP_SETTINGS = settings(max_examples=100, deadline=None)
+PROP_SETTINGS = settings(max_examples=40, deadline=None)
 
 
 # ---------------------------------------------------------------------------

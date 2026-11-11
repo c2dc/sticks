@@ -13,15 +13,15 @@ export default defineConfig({
   server: {
     // Standard web port family (80xx), aligned with the container's published
     // host port so the dev server and the compose preview use the same URL.
-    port: 8080,
+    port: 8000,
     proxy: {
       // Proxy REST + WebSocket to the FastAPI backend during dev.
       "/api": {
-        target: "http://localhost:9080",
+        target: "http://localhost:8010",
         changeOrigin: true,
       },
       "/ws": {
-        target: "ws://localhost:9080",
+        target: "ws://localhost:8010",
         ws: true,
         changeOrigin: true,
       },

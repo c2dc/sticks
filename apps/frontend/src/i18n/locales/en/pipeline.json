@@ -67,34 +67,58 @@
     "back": "Back to overview"
   },
   "baseStix": {
-    "titulo": "STIX base selection",
-    "descricao": "Pick the STIX package version. The base is downloaded from the official MITRE source when no on-disk copy exists; the bundle dashboard is then shown.",
-    "selecionada": "Selected base: v{{versao}}",
-    "trocarBase": "Change base",
-    "pronto": "Bundle on disk and dashboard shown — Stage 1 can be completed.",
-    "aguardando": "Select a base and view the dashboard to complete Stage 1.",
-    "verificando": "Checking the bundle availability…",
-    "erro": "The STIX base selection could not be completed."
+    "title": "STIX base selection",
+    "description": "Pick the STIX package version. The base is downloaded from the official MITRE source when no on-disk copy exists.",
+    "selected": "Selected base: v{{versao}}",
+    "changeBase": "Change base",
+    "ready": "Download complete.",
+    "waiting": "Select a STIX base to continue.",
+    "verifying": "Downloading…",
+    "error": "The STIX base selection could not be completed.",
+    "overview": {
+      "title": "Package overview",
+      "loading": "Loading the package overview…",
+      "error": "The package overview could not be loaded.",
+      "campaigns": "Campaigns",
+      "actors": "Actors",
+      "techniques": "Techniques",
+      "tactics": "Tactics",
+      "malware": "Malware",
+      "relationships": "Relationships",
+      "curated": "Curated / total",
+      "syncedAt": "Synced at {{datetime}}"
+    },
+    "analytics": {
+      "title": "Package analytics",
+      "loading": "Loading the package analytics…",
+      "error": "The package analytics could not be loaded.",
+      "techniquesPerCampaign": "Techniques per campaign",
+      "techniquesPerCampaignEmpty": "No campaigns to rank.",
+      "campaignsPerTechnique": "Campaigns per technique",
+      "campaignsPerTechniqueEmpty": "No techniques to rank.",
+      "campaignsUnit": "campaigns",
+      "techniquesUnit": "techniques"
+    }
   },
   "stage1": {
-    "entrada": {
+    "input": {
       "stix": "STIX reference",
-      "campanhaStix": "STIX campaign",
-      "nome": "Name",
+      "campaignStix": "STIX campaign",
+      "name": "Name",
       "stixId": "STIX ID",
       "externalId": "External ID",
-      "descricao": "Description",
+      "description": "Description",
       "aliases": "Aliases",
       "firstSeen": "First seen",
       "lastSeen": "Last seen",
-      "versaoBase": "STIX base version",
-      "naoEncontrada": "Campaign not found in this STIX base."
+      "baseVersion": "STIX base version",
+      "notFound": "Campaign not found in this STIX base."
     },
-    "processamento": {
+    "processing": {
       "description": "Automated structural modeling of the STIX dataset.",
       "failedStep": "Failed step: {{step}}"
     },
-    "saida": {
+    "output": {
       "notRun": "Modeling has not run yet. Click “Run modeling” to generate the output.",
       "empty": "No structural elements were extracted for this case.",
       "techniques_one": "{{count}} ATT&CK technique",
@@ -107,41 +131,49 @@
       "metadata": "Campaign metadata"
     }
   },
-  "campanha": {
-    "titulo": "Bundle campaigns",
-    "descricao": "Select a campaign from the STIX bundle to extract its attributes (identity, aliases and techniques).",
-    "listaLabel": "Bundle campaigns",
-    "selecionar": "Select campaign",
-    "selecionando": "Selecting…",
-    "selecionada": "Campaign selected",
-    "semCampanhas": "No campaigns available in this bundle.",
-    "atributos": "Extracted attributes",
-    "tecnicas": "ATT&CK techniques",
-    "tecnicas_one": "{{count}} ATT&CK technique",
-    "tecnicas_other": "{{count}} ATT&CK techniques",
-    "semTecnicas": "No techniques extracted.",
-    "naoExtraido": "Select a campaign to extract and show its attributes.",
-    "concluido": "Attributes extracted — Stage 2 completed.",
-    "falha": "Could not extract the attributes of the selected campaign.",
-    "falhaEtapa": "Failed step: {{step}}",
-    "buscarPlaceholder": "Search campaign by name...",
-    "buscarLabel": "Search campaign",
-    "semResultados": "No campaign matches your search.",
-    "contagem_one": "{{count}} campaign",
-    "contagem_other": "{{count}} campaigns"
+  "campaign": {
+    "title": "Bundle campaigns",
+    "description": "Select a campaign from the STIX bundle to extract its attributes (identity, aliases and techniques).",
+    "listLabel": "Bundle campaigns",
+    "select": "Select campaign",
+    "selecting": "Selecting…",
+    "selected": "Campaign selected",
+    "noCampaigns": "No campaigns available in this bundle.",
+    "attributes": "Extracted attributes",
+    "techniques": "ATT&CK techniques",
+    "techniques_one": "{{count}} ATT&CK technique",
+    "techniques_other": "{{count}} ATT&CK techniques",
+    "noTechniques": "No techniques extracted.",
+    "actors_one": "{{count}} actor",
+    "actors_other": "{{count}} actors",
+    "noActors": "No actors attributed.",
+    "notExtracted": "Select a campaign to extract and show its attributes.",
+    "completed": "Attributes extracted — Stage 2 completed.",
+    "failure": "Could not extract the attributes of the selected campaign.",
+    "failedStep": "Failed step: {{step}}",
+    "searchPlaceholder": "Search campaign by name...",
+    "searchLabel": "Search campaign",
+    "noResults": "No campaign matches your search.",
+    "count_one": "{{count}} campaign",
+    "count_other": "{{count}} campaigns",
+    "containerEmulability": {
+      "emulable": "Fully container-emulable — runnable end-to-end",
+      "notEmulable": "Not fully container-emulable — some techniques cannot run in a container",
+      "notEmulableWithTechniques": "Not fully container-emulable — blocking techniques: {{techniques}}"
+    }
   },
   "stage2": {
-    "entrada": {
+    "input": {
       "noInput": "Stage 1 produced no techniques; there is no Stage 2 input."
     },
-    "processamento": {
+    "processing": {
       "description": "Translation of abstract behaviors into executable steps."
     },
     "translationSource": {
       "label": "Translation source",
       "curadoria_humana": "Human curation"
     },
-    "saida": {
+    "output": {
       "suppressed": "No Stage 1 input; Stage 2 output is suppressed.",
       "noAbilities": "This case has no curated Abilities.",
       "noAdversary": "There is no Adversary grouping of Abilities for this case.",
@@ -155,26 +187,26 @@
     }
   },
   "stage3": {
-    "entrada": {
+    "input": {
       "adversary": "Adversary",
       "noAdversary": "This case has no Adversary to emulate.",
       "abilities_one": "{{count}} Ability",
       "abilities_other": "{{count}} Abilities",
       "requestEmulation": "Request emulation"
     },
-    "processamento": {
+    "processing": {
       "noOperation": "No Operation is running for this case.",
       "pending": "Waiting for Ability status…"
     },
-    "ambiente": {
-      "titulo": "Target environment (contained)",
-      "descricao": "The emulation creates/uses this isolated environment in your Docker. Today the topology is provisioned by the lab's docker-compose.",
-      "isolado": "Isolated — the attack-plane networks are internal (no route to the host or the internet). The attack does not leave the controlled environment.",
-      "diagrama": "Network topology",
-      "redes": "Internal networks",
+    "environment": {
+      "title": "Target environment (contained)",
+      "description": "The emulation creates/uses this isolated environment in your Docker. Today the topology is provisioned by the lab's docker-compose.",
+      "isolated": "Isolated — the attack-plane networks are internal (no route to the host or the internet). The attack does not leave the controlled environment.",
+      "diagram": "Network topology",
+      "networks": "Internal networks",
       "composeFile": "Environment file (docker-compose)",
-      "atacante": "Attacker",
-      "alvo": "Target"
+      "attacker": "Attacker",
+      "target": "Target"
     },
     "status": {
       "pendente": "Pending",
@@ -182,7 +214,7 @@
       "sucesso": "Success",
       "falha": "Failure"
     },
-    "saida": {
+    "output": {
       "noResults": "No Operation results yet.",
       "success": "{{count}} succeeded",
       "failure": "{{count}} failed"
@@ -222,36 +254,36 @@
     }
   },
   "stage4": {
-    "topologia": {
-      "titulo": "Contained environment topology",
-      "descricao": "Isolated lab provisioned in your Docker: internal hosts and networks the campaign is emulated against.",
-      "diagrama": "Network diagram",
-      "redes": "Internal networks",
-      "semRedes": "No internal networks provisioned.",
+    "topology": {
+      "title": "Contained environment topology",
+      "description": "Isolated lab provisioned in your Docker: internal hosts and networks the campaign is emulated against.",
+      "diagram": "Network diagram",
+      "networks": "Internal networks",
+      "noNetworks": "No internal networks provisioned.",
       "hosts": "Hosts",
-      "semHosts": "No hosts provisioned.",
+      "noHosts": "No hosts provisioned.",
       "composeFile": "Environment file (docker-compose)",
-      "papel": {
+      "role": {
         "attacker": "Attacker",
         "target": "Target"
       }
     },
-    "isolamento": {
-      "titulo": "Isolation state",
-      "isolado": "Isolated environment — ready for Stage 5",
-      "isoladoDescricao": "The attack-plane networks are internal (no route to the host or the internet). Stage 4 auto-completed and Campaign Execution is unlocked.",
-      "naoIsolado": "Environment not isolated — Stage 5 blocked",
-      "indisponivel": "Isolation not verifiable — Stage 5 blocked",
-      "indisponivelDescricao": "Isolation could not be verified (Docker daemon unavailable). For safety (fail-closed), Stage 4 does not complete and Campaign Execution stays blocked. The topology is still shown.",
-      "bloqueado": "Stage 5 (Campaign Execution) stays blocked until isolation is confirmed."
+    "isolation": {
+      "title": "Isolation state",
+      "isolated": "Isolated environment — ready for Stage 5",
+      "isolatedDescription": "The attack-plane networks are internal (no route to the host or the internet). Stage 4 auto-completed and Campaign Execution is unlocked.",
+      "notIsolated": "Environment not isolated — Stage 5 blocked",
+      "unavailable": "Isolation not verifiable — Stage 5 blocked",
+      "unavailableDescription": "Isolation could not be verified (Docker daemon unavailable). For safety (fail-closed), Stage 4 does not complete and Campaign Execution stays blocked. The topology is still shown.",
+      "blocked": "Stage 5 (Campaign Execution) stays blocked until isolation is confirmed."
     }
   },
   "stage5": {
-    "provisionamento": {
+    "provisioning": {
       "console": {
-        "titulo": "Provisioning console",
-        "vazio": "Waiting for provisioning to start…",
-        "etapas": {
+        "title": "Provisioning console",
+        "empty": "Waiting for provisioning to start…",
+        "steps": {
           "subir_conteineres": "Bring up containers",
           "aguardar_saude": "Wait for health",
           "build_online": "Build (online)",
@@ -264,114 +296,114 @@
           "desprovisionar": "Tear down",
           "concluir": "Finish"
         },
-        "subetapas": {
+        "substeps": {
           "s51": "5.1 Build/online",
           "s52": "5.2 Runtime/isolated"
         },
-        "fluxo": {
-          "comando": "Command",
+        "flow": {
+          "command": "Command",
           "stdout": "stdout",
           "stderr": "stderr",
           "info": "Info"
         }
       },
-      "prerequisitos": {
-        "titulo": "Execution prerequisites",
-        "conteineresSaudaveis": "Healthy containers",
-        "prerequisitosOnline": "Online prerequisites obtained",
-        "egressoPerdido": "Egress lost (verified)",
-        "abilitiesCarregadas": "Abilities loaded in Caldera",
-        "isolamentoAprovado": "Isolation approved",
+      "prerequisites": {
+        "title": "Execution prerequisites",
+        "healthyContainers": "Healthy containers",
+        "onlinePrerequisites": "Online prerequisites obtained",
+        "egressLost": "Egress lost (verified)",
+        "abilitiesLoaded": "Abilities loaded in Caldera",
+        "isolationApproved": "Isolation approved",
         "pendente": "Pending",
         "ok": "OK",
         "falha": "Failed",
-        "pronto": "Environment ready — all prerequisites verified."
+        "ready": "Environment ready — all prerequisites verified."
       },
-      "falha": {
-        "titulo": "Provisioning failed",
-        "estagio6Bloqueado": "Stage 6 (Campaign Execution) stays blocked until provisioning completes."
+      "failure": {
+        "title": "Provisioning failed",
+        "stage6Blocked": "Stage 6 (Campaign Execution) stays blocked until provisioning completes."
       }
     }
   },
-  "parametrosAmbiente": {
-    "titulo": "Environment parameters",
-    "descricao": "Artifact derived from the curated DAG nodes; defines the emulation environment for Stage 5.",
-    "plataforma": {
+  "environmentParameters": {
+    "title": "Environment parameters",
+    "description": "Artifact derived from the curated DAG nodes; defines the emulation environment for Stage 5.",
+    "platform": {
       "label": "Platform",
       "conteiner": "Container",
       "maquina_virtual": "Virtual machine"
     },
     "hosts": {
-      "titulo": "Target hosts",
-      "vazio": "No target host derived for this case.",
-      "rotulo": "Label",
-      "endereco": "Address",
+      "title": "Target hosts",
+      "empty": "No target host derived for this case.",
+      "label": "Label",
+      "address": "Address",
       "container": "Container",
       "hostType": "Host type",
-      "vulnerabilidades": "Vulnerabilities",
-      "semVulnerabilidades": "No vulnerabilities recorded."
+      "vulnerabilities": "Vulnerabilities",
+      "noVulnerabilities": "No vulnerabilities recorded."
     },
-    "servicos": {
-      "titulo": "Required services",
-      "vazio": "No required service derived.",
-      "descricao": "Description",
-      "tecnicaOrigem": "Source technique"
+    "services": {
+      "title": "Required services",
+      "empty": "No required service derived.",
+      "description": "Description",
+      "sourceTechnique": "Source technique"
     },
     "networkContext": {
-      "titulo": "Network context",
-      "vazio": "No network note derived."
+      "title": "Network context",
+      "empty": "No network note derived."
     },
-    "origem": {
+    "source": {
       "label": "Source",
       "curadoria_humana": "Human curation",
       "gerado_ia": "AI-generated"
     }
   },
-  "relatorio": {
-    "titulo": "Execution report",
-    "descricao": "Consolidation of execution results, sufficiency measurement and Stage 6 verdict.",
+  "report": {
+    "title": "Execution report",
+    "description": "Consolidation of execution results, sufficiency measurement and Stage 6 verdict.",
     "notRun": "Execution has not completed yet; the report will be available at the end of Stage 6.",
-    "geradoEm": "Generated at",
-    "veredito": {
+    "generatedAt": "Generated at",
+    "verdict": {
       "label": "Verdict",
-      "sucesso": "Success",
-      "falha": "Failure"
+      "success": "Success",
+      "failure": "Failure"
     },
-    "ambiente": {
-      "desprovisionado": "Environment deprovisioned",
-      "naoDesprovisionado": "Environment not deprovisioned",
-      "recursosRemanescentes": "Remaining resources: {{recursos}}"
+    "environment": {
+      "deprovisioned": "Environment deprovisioned",
+      "notDeprovisioned": "Environment not deprovisioned",
+      "remainingResources": "Remaining resources: {{recursos}}"
     },
-    "resultados": {
-      "titulo": "Results by Ability",
-      "vazio": "No execution result recorded.",
+    "results": {
+      "title": "Results by Ability",
+      "empty": "No execution result recorded.",
       "ability": "Ability",
       "status": "Status",
-      "tecnica": "Technique"
+      "technique": "Technique"
     },
-    "telemetria": {
-      "titulo": "Telemetry by technique",
-      "vazio": "No telemetry recorded."
+    "telemetry": {
+      "title": "Telemetry by technique",
+      "empty": "No telemetry recorded."
     }
   },
-  "metricas": {
-    "titulo": "Procedural sufficiency metrics",
-    "nota": "Initial measurement proposal, to be refined.",
-    "totalTecnicasDag": "Techniques in the DAG",
-    "tecnicasSucesso": "Techniques succeeded",
-    "taxaSucesso": "Success rate",
-    "coberturaProcedural": "Procedural coverage",
-    "tempoTotal": "Total time",
-    "tempoTecnica": "Time per technique",
-    "no": "Node",
-    "etapaFalha": "Failed step",
-    "telemetria": "Telemetry",
-    "nosFalhos": {
-      "titulo": "Failed nodes",
-      "vazio": "No node failed."
+  "metrics": {
+    "title": "Procedural sufficiency metrics",
+    "note": "Initial measurement proposal, to be refined.",
+    "totalDagTechniques": "Techniques in the DAG",
+    "successfulTechniques": "Techniques succeeded",
+    "successRate": "Success rate",
+    "proceduralCoverage": "Procedural coverage",
+    "totalTime": "Total time",
+    "timePerTechnique": "Time per technique",
+    "node": "Node",
+    "failedStep": "Failed step",
+    "telemetry": "Telemetry",
+    "failedNodes": {
+      "title": "Failed nodes",
+      "empty": "No node failed."
     },
-    "porcentagem": "{{value}}%",
-    "segundos": "{{value}} s"
+    "percentage": "{{value}}%",
+    "seconds": "{{value}} s"
   },
   "emulation": {
     "title": "Confirm adversary emulation",
@@ -427,54 +459,230 @@
     "stage1ErrorHint": "Modeling failed. Fix the issue to advance.",
     "openWizard": "Start guided run",
     "nextAria": "Advance to the next stage",
-    "preConcluidoNota": "This stage was already prepared by curation: the result existed before you acted.",
+    "preCompletedNote": "This stage was already prepared by curation: the result existed before you acted.",
     "selectCampaignFirst": "Select a campaign in Stage 2 to enable this stage."
   },
+  "setup": {
+    "title": "Setup",
+    "description": "Pick the STIX base and the campaign before starting the AI run.",
+    "heroTitle": "Let's set up your emulation",
+    "heroDescription": "First pick the STIX package version, then the campaign you want to run. Both choices live here, on the same screen.",
+    "progress": "Setup — step {{atual}} of {{total}}",
+    "advanceHint": "Select a campaign to advance to the guided run.",
+    "card": {
+      "packageTitle": "STIX package version",
+      "packageDescription": "Choose which STIX package version to use. The base is downloaded from the official MITRE source when no copy is on disk yet.",
+      "packageReady": "v{{versao}} ready",
+      "campaignTitle": "Package campaign",
+      "campaignDescription": "Select the campaign from the package you want to run in the guided AI emulation.",
+      "campaignBlocked": "Pick a STIX package version above to unlock campaign selection."
+    },
+    "step": {
+      "base": "STIX base",
+      "campaign": "Campaign"
+    },
+    "back": "Back",
+    "advance": "Continue",
+    "advanceAria": "Continue to campaign selection",
+    "advanceBlocked": "Select a STIX base to continue.",
+    "next": "Next",
+    "nextHint": "Select a campaign to review it, then continue.",
+    "run": {
+      "title": "Guided AI run",
+      "changeCampaign": "Change campaign",
+      "campaign": "Campaign: {{campanha}}"
+    }
+  },
+  "guided": {
+    "greeting": "Hi! I'm the orchestrator. I'll coordinate several AI agents to emulate this campaign and walk you through each step. Whenever you're ready, just start.",
+    "thinking": "Preparing the agents…",
+    "start": "Start the emulation",
+    "preparing": "Preparing…",
+    "working": "I'm working on it…",
+    "stillWorking": "I'm still refining in the background — you can go ahead.",
+    "generatingDag": "Analyzing the campaign and building the acyclic graph (DAG) of techniques…",
+    "proceedQuestion": "Shall I proceed with this?",
+    "proceed": "Go ahead",
+    "finalSummary": "I closed the emulation after {{iteracoes}} iteration(s).",
+    "executionReport": "The offensive emulation ran against the targets and the real result was recorded.",
+    "evaluationRationale": "Evaluator rationale",
+    "speech": {
+      "dag": "I generated the acyclic graph (DAG) of this campaign's techniques. Take a look: shall I proceed with this graph?",
+      "operationalization": "Great. I've now operationalized the graph into the concrete commands below. They look right to me — shall I proceed?",
+      "environment": "Nice. I designed the isolated environment where the campaign will be emulated safely. Shall I proceed?",
+      "execution": "I ran the offensive emulation against the targets and recorded the real result.",
+      "evaluation": "I evaluated the execution result. Here is the evaluator's verdict."
+    }
+  },
   "aiRun": {
-    "titulo": "AI curation run",
-    "descricao": "Start an AI run and watch each iteration and the evaluator verdict.",
-    "iniciar": "Start AI run",
-    "iniciando": "Starting…",
+    "title": "AI campaign emulation",
+    "description": "Start the AI campaign emulation and watch each iteration and the evaluator verdict.",
+    "start": "Start AI run",
+    "starting": "Starting…",
     "startError": "Could not start the AI run.",
     "loadError": "Could not load the AI run.",
-    "semExecucao": "No AI run started yet.",
+    "noRun": "No AI run started yet.",
     "run": {
-      "titulo": "Run",
+      "title": "Run",
       "status": "Status",
-      "iteracoesUsadas": "Iterations used",
-      "maxIteracoes": "Max iterations",
-      "veredito": "Final verdict"
+      "iterationsUsed": "Iterations used",
+      "maxIterations": "Max iterations",
+      "verdict": "Final verdict"
     },
     "status": {
-      "pendente": "Pending",
-      "em_execucao": "Running",
-      "concluido": "Completed",
-      "falhou": "Failed",
-      "abortado": "Aborted"
+      "pending": "Pending",
+      "running": "Running",
+      "completed": "Completed",
+      "failed": "Failed",
+      "aborted": "Aborted"
     },
-    "veredito": {
-      "sucesso": "Passed",
-      "falha": "Failed",
-      "pendente": "Awaiting verdict"
+    "verdict": {
+      "approved": "Passed",
+      "rejected": "Failed",
+      "pending": "Awaiting verdict"
     },
-    "iteracoes": {
-      "titulo": "Iterations",
-      "vazio": "No iterations available yet.",
-      "indice": "Iteration {{indice}}",
-      "estagioRefinado": "Refined stage",
-      "semEstagioRefinado": "First pass"
+    "iterations": {
+      "title": "Iterations",
+      "empty": "No iterations available yet.",
+      "index": "Iteration {{indice}}",
+      "refinedStage": "Refined stage",
+      "noRefinedStage": "First pass",
+      "navigation": "Iteration {{atual}} of {{total}}",
+      "previous": "Previous iteration",
+      "next": "Next iteration",
+      "failedAgent": "Failing agent: {{agente}}"
     },
-    "avaliacao": {
-      "titulo": "Evaluator verdict",
-      "decisao": "Decision",
-      "taxaSucesso": "Success rate",
-      "coberturaProcedural": "Procedural coverage",
-      "justificativa": "Rationale",
-      "ausente": "Evaluator verdict not available yet."
+    "stageName": {
+      "dag": "DAG generation agent",
+      "operationalization": "Operationalization agent",
+      "environment": "Environment agent",
+      "execution": "Execution",
+      "evaluation": "Evaluation"
     },
-    "decisao": {
-      "refinar": "Refine",
-      "finalizar": "Finish"
-    }
+    "trace": {
+      "input": "Input",
+      "processing": "Processing",
+      "output": "Output",
+      "empty": "No agent step available for this iteration.",
+      "showDetails": "Show details",
+      "notAvailable": "not available",
+      "origin": {
+        "ai_generated": "AI-generated",
+        "human_curated": "Human curation"
+      },
+      "field": {
+        "modeling": "Modeling",
+        "retrieved_experience": "Retrieved experience",
+        "attack_context": "ATT&CK/STIX context",
+        "prior_artifacts": "Prior artifacts",
+        "reasoning": "Reasoning",
+        "tools_invoked": "Tools invoked",
+        "repair_attempts": "Repair attempts",
+        "repair_hints": "Repair hints",
+        "fixed_infrastructure": "Fixed infrastructure",
+        "agent_decided": "Agent-decided",
+        "gates": "Gates",
+        "substages": "Substages"
+      },
+      "raw": {
+        "llm_prompt": "LLM prompt",
+        "llm_response": "LLM response"
+      }
+    },
+    "environment": {
+      "title": "Environment specifics",
+      "fixed": {
+        "title": "Fixed infrastructure (system-imposed)",
+        "description": "The part of the environment the system fixes — not the agent's to decide.",
+        "executionEngine": "Execution engine",
+        "networkStructure": "Isolable network structure",
+        "platform": "Platform",
+        "internal": "Internal (no route to host or internet)",
+        "networkContext": "Network context",
+        "noNetworkContext": "No network notes.",
+        "limits": "Resource limits",
+        "maxContainers": "Max containers",
+        "maxRam": "Max RAM (GB)"
+      },
+      "agent": {
+        "title": "Agent-decided",
+        "description": "The target scenario the agent designs within the fixed isolable structure.",
+        "attackerNode": "Attacker node",
+        "targets": "Targets",
+        "noTargets": "No targets decided.",
+        "system": "System",
+        "vulnerabilities": "Vulnerabilities",
+        "noVulnerabilities": "No vulnerabilities."
+      },
+      "gates": {
+        "title": "Gate verdicts",
+        "approved": "Approved",
+        "rejected": "Rejected",
+        "resourceGate": {
+          "title": "ResourceGate (host resources)",
+          "reasons": "Reasons",
+          "noReasons": "No reasons — plan within limits."
+        },
+        "isolation": {
+          "title": "Isolation (fail-closed)",
+          "noVerdicts": "No container verdicts — gate not reached.",
+          "container": "Container",
+          "isolated": "Isolated",
+          "notIsolated": "Not isolated",
+          "reasons": "Reasons",
+          "externalNetworks": "External networks",
+          "externalDns": "External DNS"
+        }
+      },
+      "substages": {
+        "title": "Provisioner sub-phases",
+        "buildOnline": "Build online obtained",
+        "egressClosed": "Egress closed",
+        "egressLostVerified": "Egress lost (verified)",
+        "offlineApplied": "Offline setup applied",
+        "yes": "Yes",
+        "no": "No",
+        "egressVerdicts": "Per-host egress verdicts",
+        "noEgressVerdicts": "No egress verdicts recorded.",
+        "egressLost": "Egress lost",
+        "conclusive": "Conclusive",
+        "reason": "Reason"
+      }
+    },
+    "audit": {
+      "title": "Consolidated audit",
+      "description": "The whole Audit_Trace grouped by iteration → agent step.",
+      "iterationsTab": "By iteration",
+      "auditTab": "Audit",
+      "empty": "No audit trace available yet.",
+      "iteration": "Iteration {{indice}}",
+      "noSteps": "No agent step in this iteration."
+    },
+    "evaluation": {
+      "title": "Evaluator verdict",
+      "decision": "Decision",
+      "successRate": "Success rate",
+      "proceduralCoverage": "Procedural coverage",
+      "rationale": "Rationale",
+      "absent": "Evaluator verdict not available yet."
+    },
+    "decision": {
+      "refine": "Refine",
+      "finish": "Finish"
+    },
+    "comparison": {
+      "action": "Compare with curation",
+      "comparing": "Comparing…",
+      "error": "Could not compare with the curation.",
+      "matched": "Matched",
+      "missing": "Missing",
+      "extra": "Extra",
+      "stage": {
+        "dag": "DAG generation",
+        "operationalization": "Operationalization"
+      }
+    },
+    "open": "Run with AI",
+    "backToFlow": "Back to flow"
   }
 }

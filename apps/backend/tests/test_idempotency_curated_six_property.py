@@ -198,7 +198,16 @@ def _persisted_tuples(session: Session, campaign: str) -> list[tuple]:
 
 # Feature: pipeline-seis-stages, Property 5: Idempotência da leitura dos
 # artefatos curados (foco no DAG do Estágio 3).
-@settings(max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture])
+# ``deadline=None``: cada exemplo faz I/O real de disco (escreve o fixture
+# ``{slug}_dag.json``) e de banco SQLite efemero, cujo custo de wall-clock
+# varia com a maquina/FS. O deadline por-exemplo do Hypothesis (200ms) e
+# inadequado aqui e produzia ``DeadlineExceeded`` flaky; desabilita-lo mede
+# a propriedade, nao a latencia de I/O.
+@settings(
+    max_examples=40,
+    deadline=None,
+    suppress_health_check=[HealthCheck.function_scoped_fixture],
+)
 @given(structural_nodes=_acyclic_dag(), n=st.integers(min_value=1, max_value=6))
 def test_property5_curated_dag_read_is_idempotent(
     structural_nodes: list[dict], n: int

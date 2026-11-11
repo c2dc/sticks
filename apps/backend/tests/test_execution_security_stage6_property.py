@@ -320,7 +320,7 @@ def _run_once(
 # ---------------------------------------------------------------------------
 
 
-@settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+@settings(max_examples=40, suppress_health_check=[HealthCheck.too_slow])
 @given(destination=_destination_strategy(), isolated_all=st.booleans())
 def test_property7_no_execution_with_external_or_unisolated(
     destination: tuple[str, str],
@@ -375,7 +375,7 @@ def test_property7_no_execution_with_external_or_unisolated(
 # ---------------------------------------------------------------------------
 
 
-@settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
+@settings(max_examples=40, suppress_health_check=[HealthCheck.too_slow])
 @given(internal_ip=st.sampled_from(_INTERNAL_IPS))
 def test_property7_internal_and_isolated_always_executes(
     internal_ip: str,

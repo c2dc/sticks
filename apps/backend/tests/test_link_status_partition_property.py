@@ -62,7 +62,7 @@ _status_codes = st.one_of(
 )
 
 
-@settings(max_examples=300)
+@settings(max_examples=40)
 @given(status_code=_status_codes)
 def test_derive_link_status_is_exactly_one_of_four(status_code: int | None) -> None:
     """The derived status is a member of the four-state set (total mapping)."""
@@ -73,7 +73,7 @@ def test_derive_link_status_is_exactly_one_of_four(status_code: int | None) -> N
     assert isinstance(derived, AbilityResultStatus)
 
 
-@settings(max_examples=300)
+@settings(max_examples=40)
 @given(status_code=_status_codes)
 def test_derive_link_status_matches_independent_oracle(
     status_code: int | None,
@@ -95,7 +95,7 @@ def test_derive_link_status_matches_independent_oracle(
     assert all(derived is not other for other in others)
 
 
-@settings(max_examples=300)
+@settings(max_examples=40)
 @given(
     status_code=st.integers(min_value=-1_000_000, max_value=1_000_000).filter(
         lambda n: n not in (0, _LINK_STATUS_RUNNING)

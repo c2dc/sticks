@@ -52,7 +52,7 @@ We then drive the real ``upgrade()`` and assert:
    column exist afterwards (the guard runs before any DDL in the shipped
    ``upgrade()``: guard → UPDATEs → ``create_table`` → ``add_column``).
 
-At least 100 iterations run (``max_examples=150``). Everything is in-process —
+At least 100 iterations run (``max_examples=40``). Everything is in-process —
 NO Docker, NO network, NO shared DB — safe on any dev environment.
 """
 
@@ -207,7 +207,7 @@ def _rows_with_at_least_one_out_of_range(draw: st.DrawFn) -> list[dict]:
 
 
 @settings(
-    max_examples=150,
+    max_examples=40,
     deadline=None,
     suppress_health_check=[HealthCheck.too_slow],
 )

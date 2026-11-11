@@ -42,6 +42,17 @@ from app.services.environment.operationalization import (
     RequiredService,
     TargetHost,
 )
+from app.services.environment.resource_gate import (
+    DockerSdkHostResourceInspector,
+    HostResourceInspector,
+    HostResources,
+    ProposedTarget,
+    ResourceGate,
+    ResourceGateVerdict,
+    ResourceLimits,
+    ResourcePlan,
+    build_resource_plan,
+)
 from app.services.environment.operationalizer import (
     CurationOperationalizer,
     OperationalizerByOrigin,
@@ -128,6 +139,16 @@ __all__ = [
     "ExecutionAbilityResult",
     "ExecutionResult",
     "ExecutionStageService",
+    # resource_gate (deterministic host-resource authority — Axis 3, task 5.1)
+    "ResourceLimits",
+    "ResourcePlan",
+    "ResourceGateVerdict",
+    "ResourceGate",
+    "ProposedTarget",
+    "HostResources",
+    "HostResourceInspector",
+    "DockerSdkHostResourceInspector",
+    "build_resource_plan",
     # provisioner (seam + Stage 5 DTOs + curation)
     "CalderaLoader",
     "EnvironmentProvisioner",

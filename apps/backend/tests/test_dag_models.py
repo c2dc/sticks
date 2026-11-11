@@ -94,16 +94,16 @@ def test_origin_dag_covers_exactly_two_members() -> None:
     """``DagOrigin`` cobre exatamente curadoria_humana e gerado_ia.
     _Requirements: 4.6, 9.4_"""
     assert {member.value for member in DagOrigin} == {
-        "curadoria_humana",
-        "gerado_ia",
+        "human_curation",
+        "ai_generated",
     }
 
 
 def test_origin_dag_member_values() -> None:
     """Os valores dos membros são as strings pt-BR corretas (``str`` Enum).
     _Requirements: 4.3, 4.6_"""
-    assert DagOrigin.HUMAN_CURATION.value == "curadoria_humana"
-    assert DagOrigin.AI_GENERATED.value == "gerado_ia"
+    assert DagOrigin.HUMAN_CURATION.value == "human_curation"
+    assert DagOrigin.AI_GENERATED.value == "ai_generated"
     # str Enum: cada membro é instância de str.
     assert isinstance(DagOrigin.HUMAN_CURATION, str)
     assert isinstance(DagOrigin.AI_GENERATED, str)
@@ -170,7 +170,7 @@ def test_dag_origin_defaults_to_human_curation(db_session: Session) -> None:
     db_session.refresh(dag)
 
     assert dag.origin is DagOrigin.HUMAN_CURATION
-    assert dag.origin.value == "curadoria_humana"
+    assert dag.origin.value == "human_curation"
 
 
 def test_dag_rotulo_is_nullable(db_session: Session) -> None:
@@ -229,7 +229,7 @@ def test_dag_persists_ai_generated_without_new_migration(
             text("SELECT origin FROM dags WHERE id = :id"),
             {"id": dag_id},
         ).scalar_one()
-    assert stored == "gerado_ia"
+    assert stored == "ai_generated"
 
 
 # ---------------------------------------------------------------------------

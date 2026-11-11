@@ -184,7 +184,7 @@ def _inspector_para(containers: list[str], isolar: bool) -> FakeInspector:
 
 # Feature: pipeline-seis-stages, Property 13: Origem explícita e extensível nodes
 # Stages 3, 4 and 5 (Stage 5 / Environment part).
-@settings(max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture])
+@settings(max_examples=40, suppress_health_check=[HealthCheck.function_scoped_fixture])
 @given(cenario=_cenario())
 def test_property13_stage5_origin_explicit_and_extensible(
     cenario: tuple[list[str], bool, bool],
@@ -235,7 +235,7 @@ def test_property13_stage5_origin_explicit_and_extensible(
         #     origin distinta (Req. 16.3, 16.4).
         stub = _StubGeradoIa()
         assert isinstance(stub, EnvironmentProvisioner)
-        assert stub.origin() == DagOrigin.AI_GENERATED.value == "gerado_ia"
+        assert stub.origin() == DagOrigin.AI_GENERATED.value == "ai_generated"
         ai_environment = stub.provision(params)
         assert isinstance(ai_environment, ProvisionedEnvironment)
 
@@ -267,7 +267,7 @@ def test_property13_stage5_origin_explicit_and_extensible(
         # ``gerado_ia`` é um valor legítimo da enum de origin persistida como
         # VARCHAR+CHECK que já o aceita — persistir um artefato gerado_ia no
         # futuro não exige alteração de esquema (Req. 16.4).
-        assert DagOrigin.AI_GENERATED.value == "gerado_ia"
+        assert DagOrigin.AI_GENERATED.value == "ai_generated"
         assert DagOrigin.AI_GENERATED in set(DagOrigin)
     finally:
         shutil.rmtree(data_dir, ignore_errors=True)

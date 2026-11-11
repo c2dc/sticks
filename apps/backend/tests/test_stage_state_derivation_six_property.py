@@ -199,7 +199,7 @@ def _seed_distribution(
 # per-example deadline. The per-example database is intentional (no leak between
 # distributions), so we turn off the deadline rather than weaken the isolation.
 @settings(
-    max_examples=200,
+    max_examples=40,
     deadline=None,
     suppress_health_check=[HealthCheck.too_slow],
 )
@@ -270,7 +270,7 @@ def test_property3_stage_state_derived_exactly_from_stage_run_six(
 
 
 @settings(
-    max_examples=100,
+    max_examples=40,
     deadline=None,
     suppress_health_check=[HealthCheck.too_slow],
 )

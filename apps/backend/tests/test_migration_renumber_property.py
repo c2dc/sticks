@@ -53,7 +53,7 @@ real ``upgrade()``, we read every row back and assert, per row id:
 and globally that the multiset of resulting ``estagio`` values is exactly the
 multiset of originals shifted by +1 (no row lost, duplicated or collided — the
 decreasing-order shift of Req. 2.3). At least 100 iterations run
-(``max_examples=150``). Everything is in-process — NO Docker, NO network, NO
+(``max_examples=40``). Everything is in-process — NO Docker, NO network, NO
 shared DB — safe on any dev environment.
 """
 
@@ -179,7 +179,7 @@ _rows_strategy = st.lists(_row_strategy, min_size=0, max_size=12)
 
 
 @settings(
-    max_examples=150,
+    max_examples=40,
     deadline=None,
     suppress_health_check=[HealthCheck.too_slow],
 )

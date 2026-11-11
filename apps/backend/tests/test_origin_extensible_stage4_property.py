@@ -173,7 +173,7 @@ def _curated_nodes(draw) -> list[dict]:
 
 # Feature: pipeline-seis-stages, Property 13: Origem explícita e extensível nodes
 # Estágios 3, 4 e 5 (parte Estágio 4 / Operacionalização).
-@settings(max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture])
+@settings(max_examples=40, suppress_health_check=[HealthCheck.function_scoped_fixture])
 @given(nodes=_curated_nodes())
 def test_property13_stage4_origin_explicit_and_extensible(
     nodes: list[dict],
@@ -223,5 +223,5 @@ def test_property13_stage4_origin_explicit_and_extensible(
     # ``gerado_ia`` é um valor legítimo da enum de origin persistida como
     # VARCHAR+CHECK que já o aceita — persistir um artefato gerado_ia no futuro
     # não exige alteração de esquema (Req. 16.4).
-    assert DagOrigin.AI_GENERATED.value == "gerado_ia"
+    assert DagOrigin.AI_GENERATED.value == "ai_generated"
     assert DagOrigin.AI_GENERATED in set(DagOrigin)

@@ -25,7 +25,7 @@ import { api } from "@/lib/api"
 import type { CaseStageStates, StageState } from "@/lib/campaigns"
 import type { DagView } from "@/lib/dag"
 import type { EmulationPreview, EmulationAbilityResult } from "@/lib/emulation"
-import type { BaseStixInfo, CampaignStix, DashboardStix } from "@/lib/stix"
+import type { BaseStixInfo, CampaignStix, StixPackageOverview } from "@/lib/stix"
 import { connectWs, type WsConnection } from "@/lib/ws"
 
 // ---------------------------------------------------------------------------
@@ -701,7 +701,7 @@ export interface Stage1ResultStix {
   version: string
   completed: boolean
   bundle_on_disk: boolean
-  dashboard: DashboardStix | null
+  dashboard: StixPackageOverview | null
   campaigns: CampaignStix[]
   curated: boolean
   error_message?: string | null
@@ -748,6 +748,21 @@ export function getStageBaseStix(
 export interface ListedCampaign extends CampaignStix {
   /** `true` iff the campaign is selectable (curated, with artifacts on disk). */
   selectable: boolean
+  /**
+   * Per-campaign Container_Emulability marking (backend `container_emulable`,
+   * Req. 6.4, 6.5): `true` when every technique of the campaign is
+   * container-emulable or dispensable — the only campaigns that show the
+   * container icon; `false` when at least one technique blocks it; `null`/
+   * `undefined` when the marking has not been derived yet. A non-emulable
+   * campaign is still listed, with an accessible reason instead of the icon.
+   */
+  container_emulable?: boolean | null
+  /**
+   * Technique ids that block container emulation (backend `blocking_techniques`,
+   * Req. 6.5): the source for the accessible reason the list shows on a
+   * non-emulable campaign. Empty when the campaign is container-emulable.
+   */
+  blocking_techniques?: string[]
 }
 
 /**

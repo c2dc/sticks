@@ -93,25 +93,25 @@ export function ReportView({
       {/* Procedural-sufficiency metrics (Req. 15.1, 15.3, 15.5). */}
       <StageSection
         data-section="metricas"
-        label={t("metricas.titulo")}
+        label={t("metrics.title")}
         kind="purple"
       >
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <MetricCard
-            label={t("metricas.taxaSucesso")}
+            label={t("metrics.successRate")}
             value={formatPercent(metrics.success_rate)}
             detail={`${metrics.successful_techniques} / ${metrics.total_dag_techniques}`}
           />
           <MetricCard
-            label={t("metricas.coberturaProcedural")}
+            label={t("metrics.proceduralCoverage")}
             value={formatPercent(metrics.procedural_coverage)}
           />
           <MetricCard
-            label={t("metricas.tempoTotal")}
+            label={t("metrics.totalTime")}
             value={formatTime(metrics.total_time_s)}
           />
           <MetricCard
-            label={t("metricas.nosFalhos.titulo")}
+            label={t("metrics.failedNodes.title")}
             value={String(metrics.failed_nodes.length)}
           />
         </div>
@@ -145,17 +145,17 @@ function DeprovisioningSection({
   return (
     <StageSection
       data-section="desprovisionamento"
-      label={t("relatorio.titulo")}
+      label={t("report.title")}
       kind={deprovisioned ? "blue" : "red"}
     >
       <span className="text-sm font-medium">
         {deprovisioned
-          ? t("relatorio.ambiente.desprovisionado")
-          : t("relatorio.ambiente.naoDesprovisionado")}
+          ? t("report.environment.deprovisioned")
+          : t("report.environment.notDeprovisioned")}
       </span>
       {!deprovisioned && remaining.length > 0 ? (
         <span className="text-xs text-muted-foreground">
-          {t("relatorio.ambiente.recursosRemanescentes", {
+          {t("report.environment.remainingResources", {
             recursos: remaining.join(", "),
           })}
         </span>

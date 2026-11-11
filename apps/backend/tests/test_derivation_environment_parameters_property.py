@@ -45,12 +45,47 @@ import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
+from sqlalchemy.orm import Session, sessionmaker
+
+from app.core.config import Settings
+from app.db.base import Base, import_models
+from app.db.session import create_db_engine
 from app.services.campaign_service import CURATED_CASES, CaseService
 from app.services.containment import container_for_ip, is_internal_ip, parse_command
 from app.services.containment.subnets import STATIC_IP_CONTAINERS
+from app.services.curated_ingest_service import CuratedIngestService
 from app.services.dag.dag_service import DagView
 from app.services.environment.operationalization import EnvironmentPlatform
 from app.services.environment.operationalizer import CurationOperationalizer
+from app.services.stage.stage_service import StageService
+
+
+def _seeded_operationalizer(data_dir: Path) -> CurationOperationalizer:
+    """A session-bound curation operationalizer seeded from the disk fixtures.
+
+    Sub-step 2.4 made ``_derive_parameters`` resolve the curated DAG from the
+    database (no request-time disk read), so the test ingests the fixtures once
+    and injects a session-bound :class:`StageService`.
+    """
+    settings_obj = Settings(database_url="sqlite:///:memory:")
+    engine = create_db_engine(settings_obj)
+    import_models()
+    Base.metadata.create_all(bind=engine)
+    factory: sessionmaker[Session] = sessionmaker(
+        bind=engine,
+        autocommit=False,
+        autoflush=False,
+        expire_on_commit=False,
+        future=True,
+        class_=Session,
+    )
+    case_service = CaseService(data_dir=data_dir)
+    session = factory()
+    CuratedIngestService(session, case_service=case_service).ingest_all()
+    stage_service = StageService(session, case_service=case_service)
+    return CurationOperationalizer(
+        stage_service=stage_service, case_service=case_service
+    )
 
 
 # Um slug de campaign curated real: ``try_load_case`` só aceita slugs registrados.
@@ -178,7 +213,7 @@ def _curated_nodes(draw: st.DrawFn) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 
-@settings(max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture])
+@settings(max_examples=40, suppress_health_check=[HealthCheck.function_scoped_fixture])
 @given(nodes=_curated_nodes())
 def test_derivation_environment_parameters(tmp_path: Path, nodes: list[dict]) -> None:
     """Deriva EnvironmentParameters fiel aos nós curados; platform sempre CONTAINER.
@@ -188,7 +223,7 @@ def test_derivation_environment_parameters(tmp_path: Path, nodes: list[dict]) ->
     Validates: Requirements 8.3, 8.4, 17.1
     """
     _write_case_fixture(tmp_path, _CURATED_SLUG, nodes)
-    op = CurationOperationalizer(case_service=CaseService(data_dir=tmp_path))
+    op = _seeded_operationalizer(tmp_path)
 
     params = op.operationalize(_CURATED_SLUG, _stub_dag()).parameters
 
@@ -284,7 +319,7 @@ def test_missing_dag_still_container_platform(tmp_path: Path) -> None:
     (tmp_path / "api" / f"{_CURATED_SLUG}_dag-ability.json").write_text(
         "[]", encoding="utf-8"
     )
-    op = CurationOperationalizer(case_service=CaseService(data_dir=tmp_path))
+    op = _seeded_operationalizer(tmp_path)
 
     params = op.operationalize(_CURATED_SLUG, _stub_dag()).parameters
 

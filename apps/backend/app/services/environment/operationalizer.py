@@ -47,7 +47,7 @@ from typing import Optional, Protocol, runtime_checkable
 from pydantic import BaseModel, Field
 
 from app.models.enums import TranslationSource
-from app.services.campaign_service import CaseData, CaseService, DagNode
+from app.services.campaign_service import CaseService, DagNode
 from app.services.containment import container_for_ip, is_internal_ip, parse_command
 from app.services.dag.dag_service import DagView
 from app.services.environment.operationalization import (
@@ -59,8 +59,6 @@ from app.services.environment.operationalization import (
 from app.services.stage.stage_service import (
     Stage2Output,
     StageService,
-    _ability_view,
-    _adversary_view,
 )
 
 
@@ -202,8 +200,8 @@ class CurationOperationalizer:
        ``translation_source=curadoria_humana``), the single source of the curated
        operationalization (Req. 8.2, 8.5, 8.6).
     2. **``EnvironmentParameters``** — **derives** them from the curated DAG nodes
-       read via :class:`~app.services.campaign_service.CaseService`
-       (``try_load_case``, defensive and network-free): for each node,
+       read from the database (the ``dags`` row via ``DagService``, Req. 1.1,
+       4.1 — no disk): for each node,
        ``attacker_commands`` → :func:`~app.services.containment.parse_command` →
        **internal** destinations → :func:`~app.services.containment.container_for_ip`
        resolves ``address``/``container``; ``target_vuln_host_a``/``_b`` →
@@ -234,13 +232,12 @@ class CurationOperationalizer:
                 :meth:`~app.services.stage.stage_service.StageService.assemble_stage2`
                 (which persists the upstream Stage 1 ``StageRun``). The API layer,
                 which already has the ``Session``, can inject it to reuse the
-                canonical assembly. When omitted, the ordered Abilities are
-                assembled **purely** straight from the ``CaseService`` (same data
-                source that ``assemble_stage2`` reads — ``load_case`` → abilities/
-                adversary), **without** persistence — useful for the testable
-                derivation without a database and for parameters-only calls.
-            case_service: :class:`CaseService` to read the curated Campaign/DAG
-                from disk. Default: a production instance (reused from the
+                canonical assembly (DB-sourced — Req. 1.1, 4.1). When omitted (the
+                AI-fallback/pure construction, which has no database handle) the
+                ordered Abilities resolve to ``None`` rather than reading the
+                curated files from disk (Req. 4.2).
+            case_service: :class:`CaseService` used only for its in-memory curated
+                registry (no disk). Default: a production instance (reused from the
                 ``stage_service`` when it is passed, to share the same catalog).
         """
         self._case_service: CaseService = (
@@ -256,13 +253,32 @@ class CurationOperationalizer:
 
     @property
     def case_service(self) -> CaseService:
-        """The :class:`CaseService` used to read the curated Campaign/DAG from disk."""
+        """The :class:`CaseService` used only for the in-memory curated registry."""
         return self._case_service
 
     @property
     def stage_service(self) -> Optional[StageService]:
         """The injected :class:`StageService` (or ``None`` in pure mode)."""
         return self._stage_service
+
+    def _resolve_dag_from_db(self, campaign: str):
+        """Resolve the campaign's curated DAG from the database, or ``None``.
+
+        Uses the ``Session`` of the injected :class:`StageService` to read the
+        ``dags`` row via
+        :meth:`~app.services.dag.dag_service.DagService.resolve_dag_data_from_db`
+        (Req. 1.1, 4.1). Returns ``None`` when no session is available (the
+        AI-fallback construction) or the campaign has no persisted DAG, so the
+        derivation degrades to empty parameters without ever reading disk.
+        """
+        session = getattr(self._stage_service, "_session", None)
+        if session is None:
+            return None
+        from app.services.dag.dag_service import DagService
+
+        return DagService(
+            session=session, case_service=self._case_service
+        ).resolve_dag_data_from_db(campaign)
 
     def origin(self) -> TranslationSource:
         """Stamp ``curadoria_humana`` on the Stage 4 output (Req. 8.6, 16.2)."""
@@ -339,13 +355,17 @@ class CurationOperationalizer:
     def _derive_parameters(self, campaign: str) -> EnvironmentParameters:
         """Derive the :class:`EnvironmentParameters` from the curated DAG nodes (Req. 8.3).
 
-        Reads the curated Campaign via :meth:`CaseService.try_load_case`
-        (defensive, network-free) and walks the ``structural_nodes`` accumulating
-        hosts (with resolved ``address``/``container``, ``host_type`` and
-        vulnerabilities), services inferred from the commands and the
-        ``network_context`` notes. The platform is always ``CONTAINER`` (Req.
-        17.1) and the origin ``curadoria_humana`` (Req. 16.2). A Campaign with no
-        curated DAG results in empty parameters (without raising).
+        Reads the curated DAG from the database (the ``dags`` row keyed by
+        ``campaign_id``, persisted by the curated ingest of sub-step 2.1 —
+        Req. 1.1, 4.1) via :meth:`_resolve_dag_from_db` and walks the
+        ``structural_nodes`` accumulating hosts (with resolved
+        ``address``/``container``, ``host_type`` and vulnerabilities), services
+        inferred from the commands and the ``network_context`` notes. The per-node
+        fields are preserved in the persisted content, so the derivation is
+        equivalent to the former disk read (Req. 1.4, 3.6). The platform is always
+        ``CONTAINER`` (Req. 17.1) and the origin ``curadoria_humana`` (Req. 16.2).
+        A Campaign with no persisted DAG results in empty parameters (without
+        raising). No disk, no network, no AI (Req. 11.3, 11.4).
         """
         hosts: list[TargetHost] = []
         services: list[RequiredService] = []
@@ -353,12 +373,7 @@ class CurationOperationalizer:
         seen_services: set[tuple[str, Optional[str]]] = set()
         hosts_by_container: dict[Optional[str], TargetHost] = {}
 
-        result = self._case_service.try_load_case(campaign)
-        dag = (
-            result.case.dag
-            if result.ok and result.case is not None
-            else None
-        )
+        dag = self._resolve_dag_from_db(campaign)
         nodes: list[DagNode] = list(dag.structural_nodes) if dag is not None else []
 
         for node in nodes:
@@ -406,65 +421,20 @@ class CurationOperationalizer:
 
     # -- Montagem das Abilities ordenadas (1º artefato) ---------------------
 
-    @staticmethod
-    def _build_abilities_pure(case: Optional[CaseData]) -> Optional[Stage2Output]:
-        """Assemble the :class:`Stage2Output` **purely** from the curated Campaign.
-
-        Mirrors the output of :meth:`StageService.assemble_stage2` — Abilities
-        (command per executor), order (the Adversary's ``atomic_ordering``, with a
-        *fallback* to the natural order), Adversary and ``translation_source`` —
-        but **without** running/persisting the Modeling (Stage 1), so as not to
-        require a ``Session`` (Req. 8.2, 8.5, 8.6). It reuses the same pure mappers
-        ``_ability_view``/``_adversary_view`` of the ``stage_service``.
-
-        Returns ``None`` when there is no Campaign/Abilities (operationalization
-        suppressed — Req. 8.1), mirroring the ``suppressed`` of ``assemble_stage2``.
-        """
-        if case is None:
-            return None
-        abilities = list(case.abilities)
-        if not abilities:
-            return None
-
-        adversary = case.adversary
-        ability_views = [_ability_view(a) for a in abilities]
-        if adversary is not None:
-            ordering = list(adversary.atomic_ordering)
-            adversary_view = _adversary_view(adversary)
-            adversary_note = None
-        else:
-            ordering = [a.ability_id for a in abilities]
-            adversary_view = None
-            adversary_note = (
-                "Este campaign não possui Adversary associado; não há agrupamento "
-                "de Abilities em Adversary."
-            )
-
-        return Stage2Output(
-            abilities=ability_views,
-            ordering=ordering,
-            adversary=adversary_view,
-            translation_source=TranslationSource.HUMAN_CURATION,
-            human_curation=True,
-            has_abilities=True,
-            has_adversary=adversary is not None,
-            adversary_note=adversary_note,
-        )
-
     def _build_abilities(self, campaign: str) -> Optional[Stage2Output]:
-        """Assemble the ordered Abilities, reusing ``assemble_stage2`` when possible.
+        """Assemble the ordered Abilities, reusing ``assemble_stage2`` (DB-only).
 
         With a *session-bound* :class:`StageService` injected, it delegates to
-        :meth:`StageService.assemble_stage2` (the canonical assembly, Req. 8.2).
-        Without it (pure mode), it assembles straight from the ``CaseService`` via
-        :meth:`_build_abilities_pure` — same data source, no persistence.
+        :meth:`StageService.assemble_stage2` (the canonical assembly, which reads
+        the ``abilities``/``adversaries`` rows from the database — Req. 1.1, 4.1,
+        8.2). Without a stage service (the AI-fallback/pure construction, which
+        has no database handle) there is no source to read, so it returns ``None``
+        rather than reading the curated files from disk (Req. 4.2).
         """
         if self._stage_service is not None:
             return self._stage_service.assemble_stage2(campaign).output
 
-        result = self._case_service.try_load_case(campaign)
-        case = result.case if result.ok else None
-        return self._build_abilities_pure(case)
+        return None
 
     def operationalize(self, campaign: str, dag: DagView) -> ProducedOperationalization:
         """Produce the two Stage 4 artifacts for the *slug* ``campaign`` (Req. 8.4, 8.7).

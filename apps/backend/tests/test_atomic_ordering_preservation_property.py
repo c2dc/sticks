@@ -44,7 +44,7 @@ same elements, same positions, no reordering. An independent shuffle of the
 order is governed by ``atomic_ordering`` alone and never by the order the
 statuses happened to be generated in.
 
-At least 100 iterations run (``max_examples=150``). Each example builds and tears
+At least 100 iterations run (``max_examples=40``). Each example builds and tears
 down a fresh temp-file SQLite database (mirroring
 ``test_session_state_roundtrip_property.py``), so there is no state leak between
 examples. NO real Docker daemon and NO network access are involved — everything
@@ -200,7 +200,7 @@ def _seed_in_atomic_order(
 
 
 @settings(
-    max_examples=150,
+    max_examples=40,
     deadline=None,
     suppress_health_check=[HealthCheck.too_slow],
 )

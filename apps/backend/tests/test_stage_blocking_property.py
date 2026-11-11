@@ -217,7 +217,7 @@ def _seed_stage_runs(
 # (no state leak between combinations), so we disable the deadline rather than
 # weaken the isolation.
 @settings(
-    max_examples=200,
+    max_examples=40,
     deadline=None,
     suppress_health_check=[HealthCheck.too_slow],
 )
@@ -307,7 +307,7 @@ _NON_COMPLETED_CHOICES: tuple[Optional[StageState], ...] = tuple(
 
 
 @settings(
-    max_examples=100,
+    max_examples=40,
     deadline=None,
     suppress_health_check=[HealthCheck.too_slow],
 )

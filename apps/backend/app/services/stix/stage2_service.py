@@ -24,22 +24,21 @@ The Stage 2 orchestration (thin, new service) is:
    attribute extraction depends on curated artifacts on disk (Req. 6.5). The
    Input is the bundle selected in Stage 1 (Req. 6.1).
 2. **Select / extract attributes** — :meth:`Stage2Service.select` extracts the
-   attributes of the selected campaign (Req. 6.3): the **identity** and the
-   **aliases** come from ``StageService._build_campaign_stix(slug, version)``
-   (defensive, no network on curated paths — the bundle read is local), and the
-   **techniques** come from the curated structural extraction of the DAG via
-   ``StageService.run_stage1(slug, version)`` (reuse of the historical ``Stage1*``
-   DTO which, after renumbering, serves Stage 2). The Output is the extracted
-   attributes (``CampaignStixInput`` + techniques), which feed Stage 3 (Req. 6.4,
-   2.3).
+   attributes of the selected campaign (Req. 6.3) from the **database** for
+   ANY campaign (curated or not): identity/aliases and the ATT&CK techniques
+   are read via :meth:`StixPackageReadService.campaign_overview`. There is no
+   disk read and no curated-artifact dependency — the curated/non-curated
+   distinction is no longer a selection gate (it is just an attribute in the
+   persisted STIX). The Output (``CampaignStixInput`` + techniques) feeds
+   Stage 3 (Req. 6.4, 2.3).
 3. **Complete** — :meth:`Stage2Service.select` completes the stage
-   (``completed = True``) **only when** the extraction succeeded (Req. 6.6). An
-   extraction failure (nonexistent slug, absent/unreadable DAG) keeps the stage
-   **not completed** with the reported cause (Req. 6.7), without raising.
+   (``completed = True``) when the campaign is persisted and its overview was
+   assembled from the database. A non-persisted version or a missing campaign
+   keeps the stage **not completed** with the reported cause (Req. 6.7),
+   without raising.
 
-This service only **reads** disk on the curated paths; no network is touched when
-listing/selecting a curated campaign and no AI is invoked on any path (the
-curated artifacts are read locally).
+This service reads **only from the database** (no disk, no network) and no AI
+is invoked on any path.
 
 _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7, 2.3_
 """
@@ -57,6 +56,11 @@ from app.services.stage.stage_service import (
     StageService,
     TechniqueElement,
 )
+from app.services.stix.stix_package_read_service import (
+    CampaignNotFoundError,
+    StixPackageNotPersistedError,
+    StixPackageReadService,
+)
 from app.services.stix.stix_service import (
     CampaignStix,
     StixService,
@@ -73,13 +77,24 @@ class ListedCampaign(CampaignStix):
 
     Extends :class:`~app.services.stix.stix_service.CampaignStix` (``stix_id``,
     ``name``, ``description``, ``curated``, ``curated_slug``) with the
-    ``selectable`` field: it is only ``True`` when the campaign is curated
-    (``curated`` with ``curated_slug`` filled), since the attribute extraction
-    depends on curated artifacts on disk. For version 18 (curated) the 8 curated
-    campaigns are selectable (Req. 6.2, 6.5).
+    ``selectable`` field. The curated-campaign gate is removed (Req. 4.1, 4.2,
+    4.5): EVERY listed campaign is selectable — curated or not — so a non-curated
+    campaign's STIX/ATT&CK context can flow through the AI stages as the agent
+    ``agent_input`` without requiring human-curated artifacts on disk.
+
+    It also surfaces the per-campaign Container_Emulability marking (Req. 6.4,
+    6.5): ``container_emulable`` is ``True`` when every technique of the campaign
+    is container-emulable or dispensable (so the campaign list can show the
+    container icon), ``False`` when at least one technique blocks it, and
+    ``None`` when the marking has not been derived yet (the campaign is still
+    listed either way — Req. 6.5). ``blocking_techniques`` carries the technique
+    ids that block container emulation, the source for the accessible reason the
+    UI shows on a non-emulable campaign (``None``/empty when emulable).
     """
 
-    selectable: bool = False
+    selectable: bool = True
+    container_emulable: Optional[bool] = None
+    blocking_techniques: list[str] = Field(default_factory=list)
 
 
 class CampaignSelectionResult(BaseModel):
@@ -127,7 +142,7 @@ class Stage2Service:
     extraction — it delegates listing to the
     :class:`~app.services.stix.stix_service.StixService` and extraction to the
     :class:`~app.services.stage.stage_service.StageService` (``_build_campaign_stix``
-    for identity/aliases and ``run_stage1`` for the techniques), only
+    for identity/aliases and ``run_stage2_selection`` for the techniques), only
     orchestrating the Stage 2 sequence and deriving the completion verdict
     (Req. 6.1–6.7, 2.3).
 
@@ -165,142 +180,182 @@ class Stage2Service:
     # ---- list --------------------------------------------------------------
 
     def list_campaigns(self, version: str) -> list[ListedCampaign]:
-        """List the campaigns of the ``version`` bundle, marking the selectable one.
+        """List the campaigns of the ``version`` package, marking each selectable.
 
-        Delegates to ``StixService.list_campaigns`` (which already resolves
-        ``curated``/``curated_slug`` via ``SLUG_TO_STIX``, preserving the bundle
-        order) and projects ``selectable`` into each entry: it is only ``True``
-        for curated campaigns (with ``curated_slug``), since the attribute
-        extraction depends on curated artifacts on disk. For version 18 (curated)
-        the 8 curated campaigns are selectable (Req. 6.2, 6.5).
+        Reads the campaigns **from the database** (the single source of truth)
+        via :meth:`StixPackageReadService.list_campaigns`, which resolves
+        ``curated``/``curated_slug`` from the persisted ``stix_campaigns`` rows.
+        The on-disk bundle is deleted after a successful persistence
+        (``stix-base-persisted-state-and-file-cleanup``), so this must never
+        reopen the bundle from disk — doing so raised a spurious
+        ``bundle_invalido`` (422) once the version was persisted and its file
+        cleaned up.
 
-        The typed :class:`~app.services.stix.stix_service.StixFileError` is
-        **not** caught here — it propagates for the endpoint to map it to the
-        invalid-bundle contract (Stage 1 precedent).
+        Every listed campaign is ``selectable`` (the curated-campaign gate is
+        removed — Req. 4.1, 4.2, 4.5): any campaign, curated or not, can run
+        through the AI stages, since ``select`` extracts identity/aliases/
+        techniques defensively from the database with no curated-artifact
+        dependency.
 
-        Raises:
-            StixFileError: when the bundle is absent/malformed/invalid.
+        A version with no persisted package yields an empty list (there is
+        nothing to list yet), mirroring the defensive, never-raising contract of
+        the DB-backed ``select``.
         """
+        try:
+            summaries = self._read_service().list_campaigns(version)
+        except StixPackageNotPersistedError:
+            return []
         return [
             ListedCampaign(
-                stix_id=campaign.stix_id,
-                name=campaign.name,
-                description=campaign.description,
-                curated=campaign.curated,
-                curated_slug=campaign.curated_slug,
-                selectable=campaign.curated and campaign.curated_slug is not None,
+                stix_id=summary.stix_id,
+                name=summary.name,
+                description=None,
+                curated=summary.curated,
+                curated_slug=summary.curated_slug,
+                selectable=True,
             )
-            for campaign in self._stix.list_campaigns(version)
+            for summary in summaries
         ]
+
+    # ---- db-backed extraction (all campaigns, curated or not) ----------
+
+    def _read_service(self) -> StixPackageReadService:
+        """A :class:`StixPackageReadService` over the StageService session."""
+        return StixPackageReadService(self._stage._session)  # noqa: SLF001
+
+    def _selection_from_db(
+        self, campaign_key: str, version: Optional[str]
+    ) -> CampaignSelectionResult:
+        """Assemble the Stage 2 selection result from the persisted STIX (DB).
+
+        Reads the campaign overview of ANY campaign (curated or not) from the
+        database via :meth:`StixPackageReadService.campaign_overview` and maps
+        it onto the Stage 2 result: identity/aliases from the campaign row and
+        the techniques from ``stix_campaign_techniques``. No disk, no network,
+        no curated-artifact dependency. Never raises: a non-persisted version
+        or a missing campaign is reflected as ``completed=False`` with a clear
+        cause, mirroring the defensive contract of the former disk path.
+        """
+        if not version:
+            # Without a base version there is nothing to read from the DB.
+            return CampaignSelectionResult(
+                campaign_id=campaign_key,
+                version=version,
+                completed=False,
+                identity=CampaignStixInput(
+                    found=False, unavailable_reason="versao_ausente"
+                ),
+                techniques=[],
+                error_message=None,
+                failed_step=None,
+            )
+        try:
+            overview = self._read_service().campaign_overview(version, campaign_key)
+        except StixPackageNotPersistedError as exc:
+            return CampaignSelectionResult(
+                campaign_id=campaign_key,
+                version=version,
+                completed=False,
+                identity=CampaignStixInput(
+                    found=False,
+                    base_version=version,
+                    unavailable_reason="bundle_indisponivel",
+                ),
+                techniques=[],
+                error_message=str(exc),
+                failed_step="leitura_do_pacote",
+            )
+        except CampaignNotFoundError as exc:
+            return CampaignSelectionResult(
+                campaign_id=campaign_key,
+                version=version,
+                completed=False,
+                identity=CampaignStixInput(
+                    found=False,
+                    base_version=version,
+                    unavailable_reason="campanha_nao_encontrada",
+                ),
+                techniques=[],
+                error_message=str(exc),
+                failed_step="selecao_da_campanha",
+            )
+
+        identity = CampaignStixInput(
+            found=True,
+            base_version=version,
+            stix_id=overview.stix_id,
+            name=overview.name,
+            external_id=overview.external_id,
+            description=overview.description,
+            aliases=list(overview.aliases),
+        )
+        techniques = [
+            TechniqueElement(
+                technique_id=t.technique_id,
+                technique_name=t.technique_name,
+                tactic=t.tactic,
+                description=t.description,
+            )
+            for t in overview.techniques
+        ]
+        return CampaignSelectionResult(
+            campaign_id=campaign_key,
+            version=version,
+            completed=True,
+            identity=identity,
+            techniques=techniques,
+            error_message=None,
+            failed_step=None,
+        )
 
     # ---- select ------------------------------------------------------------
 
-    def select(self, slug: str, version: Optional[str]) -> CampaignSelectionResult:
-        """Select the ``slug`` campaign and extract its attributes (Req. 6.3–6.7).
+    def select(
+        self, campaign_key: str, version: Optional[str]
+    ) -> CampaignSelectionResult:
+        """Select ``campaign_key`` and extract its attributes from the DB (Req. 6.3-6.7).
 
-        Flow:
-
-        1. **Identity/aliases** — assembles the :class:`CampaignStixInput` block
-           via ``StageService._build_campaign_stix(slug, version)`` (defensive,
-           no network on curated paths; never raises). For a curated campaign of
-           the curated version it loads the rich fields of the ``campaign`` object
-           (identity, external_id, description, aliases, dates).
-        2. **Techniques** — extracts the associated techniques from the curated
-           DAG via ``StageService.run_stage1(slug, version)``. ``run_stage1``
-           reuses the historical ``Stage1*`` DTO (which, after renumbering, serves
-           Stage 2) and does **not** raise for a campaign with an absent/unreadable
-           DAG — it reports the failure in the result (``state = error``,
-           ``failed_step``).
-        3. **Verdict** — completes the stage (``completed = True``) **only when**
-           the extraction succeeded (``state`` completed). An extraction failure
-           keeps the stage not completed with the reported cause (nonexistent
-           slug, absent/unreadable DAG) — Req. 6.6, 6.7.
-
-        Never raises for an invalid campaign: the failure is reflected in
-        ``completed=False`` with ``error_message``/``failed_step`` filled. A
-        genuinely unknown slug (programming error) still propagates the
-        ``KeyError`` from ``CaseService`` through ``run_stage1``, consistent with
-        the Stage 1 precedent.
-
-        Args:
-            slug: The curated slug of the selected campaign (e.g. ``"shadowray"``).
-            version: The STIX bundle version selected in Stage 1 (e.g. ``"18.0"``).
-                Optional; when omitted, the identity falls back to
-                ``versao_ausente`` without error, but the technique extraction
-                (from the curated DAG) stays possible.
-
-        Returns:
-            A :class:`CampaignSelectionResult` with the identity, the techniques
-            and the completion verdict.
+        ``campaign_key`` is the stable key the listing exposes: the curated
+        slug when the campaign is curated, otherwise the STIX id. Works for
+        EVERY campaign of the persisted package (curated or not): identity,
+        aliases and techniques are read from the database
+        (:meth:`StixPackageReadService.campaign_overview`), never from disk and
+        with no curated-artifact dependency. Never raises; a non-persisted
+        version or a missing campaign is reflected as ``completed=False`` with
+        the reported cause.
         """
-        # 1) Identity/aliases — defensive, never raises (Property 1).
-        identity = self._stage._build_campaign_stix(slug, version)  # noqa: SLF001
-
-        # 2) Techniques — structural extraction of the curated DAG (reuse Stage1*).
-        #    Does not raise for a campaign with an absent/unreadable DAG: reports
-        #    in the result.
-        result = self._stage.run_stage1(slug, version=version)
-
-        completed = result.state == StageState.COMPLETED
-        techniques = (
-            list(result.output.techniques)
-            if completed and result.output is not None
-            else []
-        )
-
-        return CampaignSelectionResult(
-            campaign_id=slug,
-            version=version,
-            completed=completed,
-            identity=identity,
-            techniques=techniques,
-            error_message=None if completed else result.error_message,
-            failed_step=None if completed else result.failed_step,
-        )
+        return self._selection_from_db(campaign_key, version)
 
     # ---- read (read-only view) ---------------------------------------------
 
-    def read(self, slug: str, version: Optional[str]) -> CampaignSelectionResult:
+    def read(
+        self, campaign_key: str, version: Optional[str]
+    ) -> CampaignSelectionResult:
         """Read-only view of Stage 2 — NEVER runs nor persists.
 
-        Reflects the stage's persisted state without running the extraction: it
-        assembles the identity (always derivable, no write) and, when the stage
-        has already completed, derives the techniques from the curated DAG purely
-        via ``StageService.read_stage1`` (the same extractors as ``run_stage1``,
-        without persisting). While the stage has not completed, ``techniques`` is
-        empty and ``completed=False`` — opening the screen never fabricates a
-        completed state.
-
-        Mirrors the Stage 1 precedent (``read_stage1`` vs ``run_stage1``): the
-        ``GET .../stage/2`` uses this view; the effective selection uses
-        :meth:`select`.
+        Reflects the persisted selection without completing it. The identity
+        and techniques are read from the database (same source as
+        :meth:`select`, via :meth:`StixPackageReadService.campaign_overview`),
+        but the ``completed`` verdict is taken from the Stage 2 ``StageRun``
+        state of THIS session, so opening the screen never fabricates a
+        selection: until a real selection completed, ``techniques`` is empty
+        and ``completed=False``.
         """
-        identity = self._stage._build_campaign_stix(slug, version)  # noqa: SLF001
-
-        # Completion of Stage 2 (Campaign selection) is derived from the Stage 2
-        # ``StageRun`` state of THIS session - never from the mere presence of
-        # curated artifacts on disk. Reusing the Stage 1 (structural modeling)
-        # state here made the screen open pre-selected for any slug whose
-        # modeling had ever completed (e.g. the probe campaign), so a freshly
-        # opened Stage 2 showed attributes nobody selected. Opening the screen is
-        # side-effect free: it reflects the persisted selection, never fabricates one.
-        stage2_state = self._stage.get_stage_state(slug, STAGE_CAMPAIGN_SELECTION).state
+        stage2_state = self._stage.get_stage_state(
+            campaign_key, STAGE_CAMPAIGN_SELECTION
+        ).state
         completed = stage2_state == StageState.COMPLETED
 
-        # Only when Stage 2 has actually completed in this session do we derive
-        # the extracted techniques (purely, via the read-only Stage 1 extractors
-        # over the curated DAG). Until then the panel stays empty.
-        result = (
-            self._stage.read_stage1(slug, version=version) if completed else None
-        )
-        techniques = (
-            list(result.output.techniques)
-            if result is not None and result.output is not None
-            else []
-        )
+        # Identity is always derivable from the DB (informative, no write).
+        db_result = self._selection_from_db(campaign_key, version)
+        identity = db_result.identity
+
+        # Only reflect techniques once Stage 2 actually completed in this
+        # session; otherwise the panel stays empty (no auto-selection).
+        techniques = db_result.techniques if completed else []
 
         return CampaignSelectionResult(
-            campaign_id=slug,
+            campaign_id=campaign_key,
             version=version,
             completed=completed,
             identity=identity,

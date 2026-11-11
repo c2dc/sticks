@@ -106,7 +106,7 @@ def test_user_preferences_theme_defaults_to_light(db_session: Session) -> None:
     db_session.refresh(prefs)
 
     assert prefs.theme is Theme.LIGHT
-    assert prefs.theme.value == "claro"
+    assert prefs.theme.value == "light"
 
 
 def test_user_preferences_language_defaults_to_pt_br(db_session: Session) -> None:
@@ -128,7 +128,7 @@ def test_case_translation_origin_defaults_to_human_curation(db_session: Session)
     db_session.refresh(case)
 
     assert case.translation_source is TranslationSource.HUMAN_CURATION
-    assert case.translation_source.value == "curadoria_humana"
+    assert case.translation_source.value == "human_curation"
 
 
 def test_ability_translation_origin_defaults_to_human_curation(
@@ -141,7 +141,7 @@ def test_ability_translation_origin_defaults_to_human_curation(
     db_session.refresh(ability)
 
     assert ability.translation_source is TranslationSource.HUMAN_CURATION
-    assert ability.translation_source.value == "curadoria_humana"
+    assert ability.translation_source.value == "human_curation"
 
 
 def test_adversary_translation_origin_defaults_to_human_curation(
@@ -154,7 +154,7 @@ def test_adversary_translation_origin_defaults_to_human_curation(
     db_session.refresh(adversary)
 
     assert adversary.translation_source is TranslationSource.HUMAN_CURATION
-    assert adversary.translation_source.value == "curadoria_humana"
+    assert adversary.translation_source.value == "human_curation"
 
 
 # ---------------------------------------------------------------------------
@@ -215,7 +215,7 @@ def test_theme_and_language_persist_as_portuguese_strings(
     """UserPreferences enum columns store the Portuguese *values* on disk.
 
     We read the raw columns back with a plain SQL query (bypassing the ORM's
-    enum coercion) to confirm the stored text is ``"escuro"``/``"en"`` — the
+    enum coercion) to confirm the stored text is ``"dark"``/``"en"`` — the
     member *values*, not the member names (``DARK``/``EN``).
     _Requirements: 7.6, 8.6_
     """
@@ -230,7 +230,7 @@ def test_theme_and_language_persist_as_portuguese_strings(
             {"id": prefs.id},
         ).one()
 
-    assert row.theme == "escuro"
+    assert row.theme == "dark"
     assert row.language == "en"
 
 
@@ -253,7 +253,7 @@ def test_translation_source_persists_as_portuguese_string(
             {"id": "apt41_dust"},
         ).scalar_one()
 
-    assert stored == "curadoria_humana"
+    assert stored == "human_curation"
 
 
 def test_enum_value_roundtrips_back_to_member(db_session: Session) -> None:

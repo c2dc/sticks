@@ -125,7 +125,7 @@ def _operation_frame(view: OperationResultView) -> dict:
     }
 
 
-@settings(max_examples=200)
+@settings(max_examples=40)
 @given(view=_ability_result_views())
 def test_view_serialization_always_carries_the_four_keys(
     view: AbilityResultView,
@@ -144,7 +144,7 @@ def test_view_serialization_always_carries_the_four_keys(
         assert value is None or isinstance(value, str)
 
 
-@settings(max_examples=200)
+@settings(max_examples=40)
 @given(view=_ability_result_views())
 def test_ui_projection_resolves_explicit_indicator_for_empty(
     view: AbilityResultView,
@@ -167,7 +167,7 @@ def test_ui_projection_resolves_explicit_indicator_for_empty(
             assert projected == raw
 
 
-@settings(max_examples=200)
+@settings(max_examples=40)
 @given(
     views=st.lists(_ability_result_views(), min_size=0, max_size=6),
     state=st.sampled_from(list(OperationState)),

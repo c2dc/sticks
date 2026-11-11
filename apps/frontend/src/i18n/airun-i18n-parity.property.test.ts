@@ -18,12 +18,12 @@ import type { AgentRunStatus, EvaluatorDecision } from "@/lib/ai"
  * locales declare exactly the same key tree with no empty value. It also asserts
  * that every dynamic enum key the view resolves at runtime — the five
  * `AgentRunStatus` members under `aiRun.status.*` and the two `EvaluatorDecision`
- * members under `aiRun.decisao.*` — exists in BOTH locales, since those keys are
+ * members under `aiRun.decision.*` — exists in BOTH locales, since those keys are
  * built from the backend enum values rather than written literally in the view.
  *
  * This test does NOT add or modify any i18n keys; it only reads the locale JSON.
  *
- * Feature: ai-curation-agents, Property: paridade de chaves pt-BR/en (aiRun)
+ * Feature: ai-curation-agents, Property: pt-BR/en key parity (aiRun)
  * Validates: Requirements 13.5, 13.6
  */
 
@@ -68,24 +68,24 @@ const allAiRunPaths = Array.from(new Set([...ptAiRunPaths, ...enAiRunPaths]))
 
 /**
  * The dynamic enum keys the view builds at runtime from backend enum values
- * (`t("aiRun.status.${status}")` and `t("aiRun.decisao.${decision}")`). These
+ * (`t("aiRun.status.${status}")` and `t("aiRun.decision.${decision}")`). These
  * must exist in both locales so no verdict/status ever falls back to the raw
  * enum token (Req. 13.5, 13.6).
  */
 const STATUS_KEYS: AgentRunStatus[] = [
-  "pendente",
-  "em_execucao",
-  "concluido",
-  "falhou",
-  "abortado",
+  "pending",
+  "running",
+  "completed",
+  "failed",
+  "aborted",
 ]
-const DECISION_KEYS: EvaluatorDecision[] = ["refinar", "finalizar"]
+const DECISION_KEYS: EvaluatorDecision[] = ["refine", "finish"]
 
 describe("aiRun i18n parity (property, ai-curation-agents)", () => {
   // Property: for any leaf key present in EITHER locale under `aiRun`, it is
   // present in BOTH, both are non-empty strings, and the two locales declare the
   // exact same key tree (set equality).
-  it("Property: paridade de chaves pt-BR/en em aiRun.* (Req. 13.5, 13.6)", () => {
+  it("Property: pt-BR/en key parity across aiRun.* (Req. 13.5, 13.6)", () => {
     // Sanity guard: there is a non-trivial aiRun key tree to exercise.
     expect(allAiRunPaths.length).toBeGreaterThan(20)
     // Set equality: neither locale has a missing or extra key.
@@ -98,8 +98,8 @@ describe("aiRun i18n parity (property, ai-curation-agents)", () => {
         const enValue = getByPath(enPipeline as JsonValue, full)
 
         // Key parity: the path exists in both locales.
-        expect(ptValue, `${full} ausente em pt-BR`).toBeDefined()
-        expect(enValue, `${full} ausente em en`).toBeDefined()
+        expect(ptValue, `${full} missing in pt-BR`).toBeDefined()
+        expect(enValue, `${full} missing in en`).toBeDefined()
 
         // The aiRun namespace is string-valued.
         expect(typeof ptValue).toBe("string")
@@ -113,11 +113,11 @@ describe("aiRun i18n parity (property, ai-curation-agents)", () => {
     )
   })
 
-  // Property: every dynamic status/decisao enum key resolves in BOTH locales.
-  it("Property: todas as chaves de enum status/decisao existem em ambos os locales (Req. 13.5, 13.6)", () => {
+  // Property: every dynamic status/decision enum key resolves in BOTH locales.
+  it("Property: all status/decision enum keys exist in both locales (Req. 13.5, 13.6)", () => {
     const enumKeys = [
       ...STATUS_KEYS.map((s) => `aiRun.status.${s}`),
-      ...DECISION_KEYS.map((d) => `aiRun.decisao.${d}`),
+      ...DECISION_KEYS.map((d) => `aiRun.decision.${d}`),
     ]
 
     fc.assert(
@@ -125,8 +125,8 @@ describe("aiRun i18n parity (property, ai-curation-agents)", () => {
         const ptValue = getByPath(ptPipeline as JsonValue, key)
         const enValue = getByPath(enPipeline as JsonValue, key)
 
-        expect(typeof ptValue, `${key} ausente em pt-BR`).toBe("string")
-        expect(typeof enValue, `${key} ausente em en`).toBe("string")
+        expect(typeof ptValue, `${key} missing in pt-BR`).toBe("string")
+        expect(typeof enValue, `${key} missing in en`).toBe("string")
         expect((ptValue as string).length).toBeGreaterThan(0)
         expect((enValue as string).length).toBeGreaterThan(0)
       }),

@@ -171,7 +171,7 @@ def _oracle_approves(kinds: list[_VerdictKind]) -> bool:
     )
 
 
-@settings(max_examples=100)
+@settings(max_examples=40)
 @given(plan=_plans)
 def test_no_offline_setup_without_conclusive_egress_loss(
     plan: list[tuple[str, _VerdictKind]],

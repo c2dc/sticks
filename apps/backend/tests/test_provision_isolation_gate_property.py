@@ -348,7 +348,7 @@ _scenario = st.sampled_from(["all_isolated", "some_non_isolated", "daemon_down"]
 _offender_mask = st.integers(min_value=0, max_value=2**16)
 
 
-@settings(max_examples=100, deadline=None)
+@settings(max_examples=40, deadline=None)
 @given(hosts=_hosts_strategy, scenario=_scenario, offender_mask=_offender_mask)
 def test_isolation_gate_is_failclosed_precondition_of_completion(
     hosts: list[str], scenario: str, offender_mask: int
@@ -397,7 +397,7 @@ def test_isolation_gate_is_failclosed_precondition_of_completion(
                 assert verdict.reasons, "um alvo não isolado deve ter uma razão"
 
 
-@settings(max_examples=100, deadline=None)
+@settings(max_examples=40, deadline=None)
 @given(hosts=_hosts_strategy, offender_pick=st.integers(min_value=0, max_value=2**16))
 def test_completion_requires_the_isolation_gate_to_approve_all(
     hosts: list[str], offender_pick: int

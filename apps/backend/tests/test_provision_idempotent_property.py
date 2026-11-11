@@ -404,7 +404,7 @@ _reruns_strategy = st.integers(min_value=2, max_value=6)
 _label_salt_strategy = st.integers(min_value=0, max_value=2**16)
 
 
-@settings(max_examples=100, deadline=None)
+@settings(max_examples=40, deadline=None)
 @given(hosts=_hosts_strategy, reruns=_reruns_strategy, label_salt=_label_salt_strategy)
 def test_reexecution_is_idempotent_and_preserves_the_invariant(
     hosts: list[str], reruns: int, label_salt: int

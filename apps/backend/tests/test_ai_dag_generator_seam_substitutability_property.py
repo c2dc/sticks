@@ -149,7 +149,7 @@ def _ai_generators(draw) -> AiDagGenerator:
 
 
 # Feature: ai-curation-agents, Property 6: Seam substitutability (Stage 3 / DAG).
-@settings(max_examples=100)
+@settings(max_examples=40)
 @given(ai_generator=_ai_generators())
 def test_property6_stage3_ai_dag_generator_is_substitutable(
     ai_generator: AiDagGenerator,

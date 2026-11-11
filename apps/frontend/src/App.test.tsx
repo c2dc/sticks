@@ -95,12 +95,16 @@ describe("App flow integration (landing → wizard routing)", () => {
     expect(cta).toBeInTheDocument()
     expect(screen.queryByTestId("execution-wizard")).toBeNull()
 
-    // START via the CTA switches the view landing → wizard, straight into
-    // Stage 1 (STIX base selection) — no standalone bases/dashboard screens.
+    // START via the CTA switches the view landing → wizard, straight into the
+    // unified Setup screen (package + campaign on one screen).
     await user.click(cta)
 
     expect(await screen.findByTestId("execution-wizard")).toBeInTheDocument()
-    expect(await screen.findByText("Passo 1 de 6")).toBeInTheDocument()
+    // The flow enters at the unified Setup screen (two-layer shell), not the
+    // old 1..6 ruler.
+    expect(
+      await screen.findByText(/Vamos preparar sua emulação/),
+    ).toBeInTheDocument()
     // The Landing CTA is gone once we entered the wizard.
     expect(
       screen.queryByRole("button", { name: "Iniciar campanha" }),

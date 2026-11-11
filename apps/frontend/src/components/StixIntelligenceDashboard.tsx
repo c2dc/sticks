@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/card"
 import { EmptyNote } from "@/components/StageSection"
 import { ApiError } from "@/lib/api"
-import { getDashboard, type DashboardStix } from "@/lib/stix"
+import { getPackageOverview, type StixPackageOverview } from "@/lib/stix"
 
 export interface StixIntelligenceDashboardProps {
   /** Downloaded base version whose intelligence dashboard is shown (Req. 3.1). */
@@ -29,7 +29,7 @@ export interface StixIntelligenceDashboardProps {
 /**
  * Intelligence dashboard of a selected (downloaded) STIX base (Req. 3.1–3.3,
  * 3.5, 3.6). On mount — and whenever `version` changes — it loads
- * `getDashboard(version)` and renders:
+ * `getPackageOverview(version)` and renders:
  *
  * - the base identification with its version (Req. 3.1);
  * - a grid of per-type count cards, each showing the count, the pt-BR label and
@@ -52,7 +52,7 @@ export function StixIntelligenceDashboard({
 }: StixIntelligenceDashboardProps) {
   const { t } = useTranslation("stix")
 
-  const [dashboard, setDashboard] = useState<DashboardStix | null>(null)
+  const [dashboard, setDashboard] = useState<StixPackageOverview | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -64,7 +64,7 @@ export function StixIntelligenceDashboard({
     // malformed base can't surface partial data as if it were complete.
     setDashboard(null)
 
-    getDashboard(version)
+    getPackageOverview(version)
       .then((data) => {
         if (!active) return
         setDashboard(data)
@@ -78,7 +78,7 @@ export function StixIntelligenceDashboard({
           typeof err.body.detail.mensagem === "string"
             ? err.body.detail.mensagem
             : null
-        setError(message ?? t("dashboard.erro"))
+        setError(message ?? t("dashboard.error"))
         setDashboard(null)
       })
       .finally(() => {
@@ -93,7 +93,7 @@ export function StixIntelligenceDashboard({
   if (loading) {
     return (
       <section className="flex flex-col gap-6">
-        <p className="text-sm text-muted-foreground">{t("dashboard.carregando")}</p>
+        <p className="text-sm text-muted-foreground">{t("dashboard.loading")}</p>
       </section>
     )
   }
@@ -105,7 +105,7 @@ export function StixIntelligenceDashboard({
       <section className="flex flex-col gap-6">
         <Card className="border-team-red/50 bg-team-red/10">
           <CardContent className="pt-6 text-sm text-team-red">
-            {error ?? t("dashboard.erro")}
+            {error ?? t("dashboard.error")}
           </CardContent>
         </Card>
       </section>
@@ -117,7 +117,7 @@ export function StixIntelligenceDashboard({
       <div className="flex flex-col gap-3">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div className="flex flex-col gap-1">
-            <h2 className="text-xl font-semibold">{t("dashboard.titulo")}</h2>
+            <h2 className="text-xl font-semibold">{t("dashboard.title")}</h2>
             {/* Base identification with its version (Req. 3.1). */}
             <p className="text-sm text-muted-foreground">
               {t("dashboard.base", {
@@ -130,7 +130,7 @@ export function StixIntelligenceDashboard({
               Hidden when embedded in the wizard (navigation is the wizard's). */}
           {!hideCta && onGoToSelection ? (
             <Button size="lg" onClick={onGoToSelection}>
-              {t("dashboard.irParaSelecao")}
+              {t("dashboard.goToSelection")}
             </Button>
           ) : null}
         </div>
@@ -139,7 +139,7 @@ export function StixIntelligenceDashboard({
       {/* One count card per TypeCount (Req. 3.2, 3.3). The six types come from
           the backend counts. */}
       {dashboard.counts.length === 0 ? (
-        <EmptyNote>{t("dashboard.semContagens")}</EmptyNote>
+        <EmptyNote>{t("dashboard.noCounts")}</EmptyNote>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {dashboard.counts.map((typeCount) => (

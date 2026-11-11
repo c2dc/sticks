@@ -88,9 +88,15 @@ def execute_node(
             ``SessionLocal`` and closed before returning.
 
     Returns:
-        A state delta ``{"report": <serialized Stage 6 report>}`` following the
-        design (``return {"report": report.model_dump()}``), where the report is
-        the runner's result serialized to a plain dict.
+        A state delta ``{"report": <serialized Stage 6 report>, "execution_result":
+        <structured execution result>}``. ``report`` is the runner's result
+        serialized to a plain dict (as the design sketches,
+        ``report.model_dump()``); ``execution_result`` is the explicit,
+        decoupled view the ``evaluation`` phase receives — the runner verdict and
+        the real containment/isolation state read off the LIVE result object
+        before it is flattened (task 4.1, Req. 2.1, 2.2). Keeping the two
+        separate makes ``execution`` produce the result and ``evaluation`` (not
+        the execute step) render the verdict from it.
     """
     artifacts = state.get("artifacts") or {}
     campaign_id = state.get("campaign_id")
@@ -101,6 +107,11 @@ def execute_node(
     # Build (or reuse) the UNCHANGED Stage 6 runner and invoke it. Everything is
     # resolved lazily so importing this module does no I/O (Req. 1.7).
     if runner is not None:
+        # Materialize the AI-generated abilities into ``abilities`` before the
+        # runner inserts any ``AbilityResult`` so the parent rows exist in the
+        # SAME session, satisfying ``resultados_ability_ability_id_fkey``
+        # (Req. 2.1, 2.2). No-op/idempotent for already-present rows (Req. 3.1).
+        _materialize_ai_abilities(session, campaign_id, abilities)
         result = runner.run(
             campaign_id=campaign_id,
             abilities=abilities,
@@ -108,7 +119,10 @@ def execute_node(
             confirmed=True,
             adversary_payload=adversary_payload,
         )
-        return {"report": _report_to_dict(result)}
+        return {
+            "report": _report_to_dict(result),
+            "execution_result": _execution_result(result),
+        }
 
     owns_session = session is None
     if owns_session:
@@ -127,6 +141,10 @@ def execute_node(
                 caldera=caldera,
                 audit_logger=AuditLogger(session),
             )
+            # Upsert the AI-generated abilities on the SAME session the runner
+            # uses, before any ``AbilityResult`` insert, so the FK is satisfied
+            # (Req. 2.1, 2.2); idempotent for already-present rows (Req. 3.1).
+            _materialize_ai_abilities(session, campaign_id, abilities)
             result = built.run(
                 campaign_id=campaign_id,
                 abilities=abilities,
@@ -142,7 +160,10 @@ def execute_node(
         if owns_session:
             session.close()
 
-    return {"report": _report_to_dict(result)}
+    return {
+        "report": _report_to_dict(result),
+        "execution_result": _execution_result(result),
+    }
 
 
 # -- execute node helpers (task 13.1) -----------------------------------------
@@ -186,6 +207,90 @@ class _RunnerAbility:
             for executor in executors
             if isinstance(executor, dict)
         )
+
+
+def _materialize_ai_abilities(
+    session: Any,
+    campaign_id: Any,
+    abilities: list["_RunnerAbility"],
+) -> None:
+    """Upsert the AI-generated abilities into ``abilities`` before Stage 6 writes.
+
+    Mirrors the curated upsert in
+    :meth:`app.services.stage.stage_service.StageService._persist` (~lines
+    2037-2045): for each runner-facing ability, fetch the existing
+    :class:`Ability` row by ``ability_id`` or create one, then set the metadata
+    the AI artifact already carries (``campaign_id``, ``name``, ``tactic``,
+    ``technique_name``, ``technique_id``, ``description``, ``executors``) and
+    stamp ``translation_source = AI_GENERATED``. The upsert runs in the SAME
+    session the Stage 6 :class:`OperationRunner` uses, so the parent rows are
+    visible before the runner's ``AbilityResult`` insert, satisfying
+    ``resultados_ability_ability_id_fkey`` (Req. 2.1, 2.2).
+
+    The upsert is idempotent (keyed by ``ability_id`` via ``session.get``): a
+    MISSING row is created with its full AI metadata and stamped
+    ``AI_GENERATED``, while an ALREADY-PRESENT row is left untouched — metadata
+    and ``translation_source`` are set ONLY on creation. This preserves the
+    provenance (and identity) of a row that already exists, so a curated
+    (``HUMAN_CURATION``) row flowing through the same seam keeps its provenance
+    and a re-run of an AI iteration is a no-op rather than a stomp (Req. 3.1).
+    Abilities with no ``ability_id`` are skipped, mirroring the runner's own
+    guard. The ORM models are imported lazily so importing this module performs
+    no I/O (Req. 1.7).
+
+    The campaign (``campaigns.id``) parent is guaranteed to exist before this
+    runs: the ``POST /api/campaigns/{campaign}/ai/run`` handler materializes the
+    ``campaigns`` row via
+    :meth:`~app.services.campaign_materializer.CampaignMaterializer.materialize`
+    (an idempotent upsert from the STIX) right after the guard and BEFORE the run
+    starts, for ANY of the 52 campaigns — curated or not. This node therefore
+    RELIES on the parent row already existing and does not create it, so setting
+    ``campaign_id`` here never violates the ``abilities.campaign_id ->
+    campaigns.id`` FK (Req. 2.4, 2.5, 2.6). The session is flushed so the parent
+    ``abilities`` rows are written before the child result insert, mirroring the
+    curated path's explicit ``session.flush()`` ordering.
+    """
+    if session is None or not abilities:
+        return
+
+    from app.models.domain import Ability as AbilityModel
+    from app.models.enums import TranslationSource
+
+    materialized = False
+    for ability in abilities:
+        ability_id = getattr(ability, "ability_id", None)
+        if not ability_id:
+            continue  # mirror the runner's own guard: skip entries with no id
+
+        db_ability = session.get(AbilityModel, ability_id)
+        if db_ability is not None:
+            # Already-present row: leave it as-is. Overwriting metadata or
+            # ``translation_source`` here would stomp the provenance of a row
+            # another path owns (e.g. a curated ``HUMAN_CURATION`` row) and
+            # break the idempotent-no-op preservation guarantee (Req. 3.1).
+            continue
+
+        # Missing row: materialize the AI-generated ability with full metadata
+        # so the parent exists before the runner's ``AbilityResult`` insert.
+        db_ability = AbilityModel(ability_id=ability_id)
+        session.add(db_ability)
+        db_ability.campaign_id = campaign_id
+        db_ability.name = ability.name
+        db_ability.tactic = ability.tactic
+        db_ability.technique_name = ability.technique_name
+        db_ability.technique_id = ability.technique_id
+        db_ability.description = ability.description
+        # ``_RunnerAbility.executors`` already carries plain, JSON-serialisable
+        # dicts, so no ``model_dump`` is needed as on the curated path.
+        db_ability.executors = list(ability.executors)
+        db_ability.translation_source = TranslationSource.AI_GENERATED
+        materialized = True
+
+    # Flush so the parent ``abilities`` rows are visible before the runner's
+    # ``AbilityResult`` insert checks the foreign key, within the same unit of
+    # work (mirrors the curated path's explicit ``session.flush()`` ordering).
+    if materialized:
+        session.flush()
 
 
 def _runner_inputs(
@@ -273,6 +378,87 @@ def _report_to_dict(result: Any) -> dict[str, Any]:
         return _normalize(result)
 
     return _normalize(vars(result)) if hasattr(result, "__dict__") else {"report": result}
+
+
+def _execution_result(result: Any) -> dict[str, Any]:
+    """Build the structured execution result the ``evaluation`` phase receives.
+
+    This is the decoupling seam of task 4.1 (Req. 2.1, 2.2): the ``execution``
+    phase reads the LIVE Stage 6 runner result and hands the ``evaluation`` phase
+    the real outcome — the runner ``verdict`` (its ``RunOutcome`` value), whether
+    the Operation actually executed, and the real containment/isolation
+    verdicts — instead of coupling the verdict to the execute step or forcing the
+    evaluator to re-derive it from the raw runner internals.
+
+    The containment/isolation booleans are read HERE, from the live result,
+    because they are ``@property`` aggregates (``OperationContainmentReport.allowed``
+    / ``IsolationResult.passed``) that ``dataclasses.asdict`` drops when the report
+    is flattened for the checkpoint — so the execution phase is the one place they
+    are still available to record for the evaluator (Req. 2.2). A fake/injected
+    result that already carries plain-dict containment/isolation (tests) is
+    honoured as-is.
+
+    The returned dict is JSON-friendly (enums reduced to their values) so it is
+    checkpoint-serialisable like the report.
+
+    Args:
+        result: The Stage 6 runner result (a real ``OperationRunResult`` or an
+            injected fake exposing ``outcome`` / ``started`` / ``containment`` /
+            ``isolation`` / ``total_success`` / ``total_failure`` / ``message``).
+
+    Returns:
+        A plain dict following :class:`~app.services.ai.state.ExecutionResult`.
+    """
+    verdict = _enum_value(getattr(result, "outcome", None))
+    total_success = _to_int(getattr(result, "total_success", 0))
+    total_failure = _to_int(getattr(result, "total_failure", 0))
+
+    # "concluida" (COMPLETED) with at least one success and no failure is the
+    # single passing verdict — the same rule the evaluator applies to the report
+    # when no explicit flag is present, kept in sync here so the two agree.
+    executed = bool(getattr(result, "started", False))
+    verdict_success = verdict == "concluida" and total_success > 0 and total_failure == 0
+
+    return {
+        "verdict": verdict,
+        "verdict_success": verdict_success,
+        "executed": executed,
+        "containment_passed": _verdict_flag(getattr(result, "containment", None), "allowed"),
+        "isolation_passed": _verdict_flag(getattr(result, "isolation", None), "passed"),
+        "total_success": total_success,
+        "total_failure": total_failure,
+        "message": str(getattr(result, "message", "") or ""),
+    }
+
+
+def _verdict_flag(verdict: Any, attribute: str) -> Optional[bool]:
+    """Read a containment/isolation pass flag off the live verdict (or a fake).
+
+    Prefers the verdict object's ``@property`` aggregate (``allowed`` for
+    containment, ``passed`` for isolation); falls back to the same key on a
+    plain-dict verdict (an injected fake). Returns ``None`` when no pre-flight
+    verdict is present, so the evaluator can tell "not evaluated" from
+    "evaluated and failed".
+    """
+    if verdict is None:
+        return None
+    value = getattr(verdict, attribute, None)
+    if value is None and isinstance(verdict, dict):
+        value = verdict.get(attribute)
+    return None if value is None else bool(value)
+
+
+def _enum_value(value: Any) -> Any:
+    """Reduce an enum member to its ``.value``; pass other values through."""
+    return getattr(value, "value", value)
+
+
+def _to_int(value: Any) -> int:
+    """Best-effort coercion to ``int`` (0 on failure)."""
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
 
 
 def _normalize(value: Any) -> Any:
@@ -554,10 +740,18 @@ def route_after_eval(state: "AgentState") -> str:
       ``Run_Service`` (task 15) from the final evaluation. The ``+ 1`` counts the
       iteration just evaluated so the loop runs exactly ``1..max_iterations``
       times (``max_iterations`` defaults to 3 per task 14.1 / Req. 3.6).
-    * **Refine (Req. 3.3):** otherwise route back to the evaluator's chosen
-      refine target, ``state["refine_stage"]`` — one of ``"dag"`` /
-      ``"operationalize"`` / ``"environment"`` — defaulting to
-      ``"operationalize"`` when the evaluator left it unset.
+    * **Refine (Req. 3.3, 15.2-15.5):** otherwise route back to the evaluator's
+      chosen refine target, ``state["refine_stage"]``, normalized to one of the
+      three short edge keys ``"dag"`` / ``"operationalize"`` / ``"environment"``
+      so the conditional edge re-enters the matching stage agent (``"dag"`` ->
+      Dag_Generation_Agent, ``"operationalize"`` -> Operationalization_Agent,
+      ``"environment"`` -> Environment_Generation). The evaluator writes its
+      choice as an :class:`~app.models.enums.AgentStage` *value* — the semantic,
+      number-free phase names (``dag`` / ``operationalization`` /
+      ``environment``) — which is mapped here to its short edge key; a short key
+      is already canonical and passes through unchanged. When the evaluator left
+      the target unset the router defaults to ``"operationalize"`` (the
+      command-semantics core, the most common refine target).
 
     Args:
         state: The shared :class:`~app.services.ai.state.AgentState`; reads
@@ -573,7 +767,40 @@ def route_after_eval(state: "AgentState") -> str:
     if state.get("iteration", 0) + 1 >= state.get("max_iterations", _DEFAULT_MAX_ITERATIONS):
         return "finish"  # guard: abort the loop (Req. 3.4, 3.5)
 
-    return state.get("refine_stage") or "operationalize"
+    return _refine_edge_key(state.get("refine_stage"))
+
+
+# Map the evaluator's refine target — an ``AgentStage`` value OR an already-short
+# edge key — onto the short conditional-edge key ``build_graph`` registered, so
+# exactly one of the three stage agents is re-entered per refining iteration
+# (Req. 15.2-15.5). Kept as literals so this module needs no enum import at
+# call time (Req. 1.7); the values mirror ``app.models.enums.AgentStage``'s
+# semantic, number-free phase values (``dag`` / ``operationalization`` /
+# ``environment``).
+_REFINE_STAGE_EDGE_KEYS = {
+    # Evaluator-written AgentStage values (semantic, number-free).
+    "dag": "dag",
+    "operationalization": "operationalize",
+    "environment": "environment",
+    # Already-canonical short edge keys (idempotent pass-through).
+    "operationalize": "operationalize",
+}
+
+
+def _refine_edge_key(refine_stage: Any) -> str:
+    """Normalize ``refine_stage`` to a short conditional-edge key (Req. 15.2-15.5).
+
+    The evaluator's ``_diagnose_failing_stage`` chooses exactly one refine target
+    and writes it onto ``state["refine_stage"]`` as an
+    :class:`~app.models.enums.AgentStage` *value*; this maps that value (or an
+    already-short key, for robustness) onto the single short edge key the
+    conditional edge registered, so the loop re-enters the right stage agent —
+    ``"dag"`` -> Dag_Generation_Agent (15.3), ``"operationalize"`` ->
+    Operationalization_Agent (15.4), ``"environment"`` -> Environment_Generation
+    (15.5). An unset/unrecognised target defaults to ``"operationalize"``.
+    """
+    key = _REFINE_STAGE_EDGE_KEYS.get(refine_stage) if refine_stage else None
+    return key or "operationalize"
 
 
 def _route_after_eval(state):
@@ -593,7 +820,7 @@ def _route_after_eval(state):
     return globals()["route_after_eval"](state)
 
 
-def build_graph(*, checkpointer):
+def build_graph(*, checkpointer, session: Any = None):
     """Assemble and compile the AI-curation agent ``StateGraph`` (Req. 3.1-3.3).
 
     Wires the six nodes of the improvement loop and their edges, following the
@@ -616,10 +843,21 @@ def build_graph(*, checkpointer):
         checkpointer: The LangGraph checkpointer (e.g. the PostgreSQL saver from
             :mod:`app.services.ai.checkpointer`) used to persist the ``AgentState``
             after every node so a run is resumable.
+        session: The request-scoped SQLAlchemy ``Session`` the Run_Service owns.
+            It is bound into the stage nodes (as a keyword argument via
+            :func:`functools.partial`) so the agents assemble their Agent_Input
+            from the DATABASE — ``Campaign_Overview`` and the pgvector RAG — and
+            NEVER from ``packages/cli/data`` on disk (task 14.1, Req. 5.1, 5.2,
+            5.4). Binding it here (rather than carrying it on the ``AgentState``)
+            keeps the live, non-serializable ``Session`` out of the checkpointed
+            state while still reaching every node. When ``None`` the nodes resolve
+            no session and the DB-sourced context degrades to empty (no disk read).
 
     Returns:
         The compiled LangGraph application (``g.compile(checkpointer=checkpointer)``).
     """
+    from functools import partial
+
     from langgraph.graph import END, START, StateGraph
 
     from app.services.ai.agents import dag_agent, env_agent, evaluator, op_agent
@@ -627,11 +865,22 @@ def build_graph(*, checkpointer):
 
     g = StateGraph(AgentState)
 
-    g.add_node("orchestrate", orchestrate_node)  # seeds state + RAG retrieval
-    g.add_node("dag", dag_agent.node)            # Stage 3 agent
-    g.add_node("operationalize", op_agent.node)  # Stage 4 agent
+    # Bind the request-scoped Session into the nodes that assemble the Agent_Input
+    # from the database (task 14.1). ``functools.partial`` carries it as a bound
+    # kwarg so it never lands on the checkpointed ``AgentState`` (a live Session
+    # is not serializable), while still reaching the DAG/op agents and the
+    # orchestrator/evaluator that build the DB-sourced context and RAG.
+    g.add_node(
+        "orchestrate", partial(orchestrate_node, session=session)
+    )  # seeds state + RAG retrieval (DB)
+    g.add_node("dag", partial(dag_agent.node, session=session))  # Stage 3 agent (DB)
+    g.add_node(
+        "operationalize", partial(op_agent.node, session=session)
+    )  # Stage 4 agent (DB)
     g.add_node("environment", env_agent.node)    # Stage 5 agent
-    g.add_node("execute", execute_node)          # Stage 6 via existing OperationRunner
+    g.add_node(
+        "execute", partial(execute_node, session=session)
+    )  # Stage 6 via existing OperationRunner
     g.add_node("evaluate", evaluator.node)       # reads report, writes decision
 
     # Linear edges: each stage has exactly one outgoing edge in sequence.

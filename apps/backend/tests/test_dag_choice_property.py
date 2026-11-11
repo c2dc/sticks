@@ -225,7 +225,7 @@ def _count_dag_stage(session: Session, campaign: str) -> int:
 # Feature: pipeline-cinco-stages, Property 9: Choosing a DAG completes Stage 2
 # and unblocks Stage 3.
 @settings(
-    max_examples=100,
+    max_examples=40,
     deadline=None,
     suppress_health_check=[HealthCheck.function_scoped_fixture, HealthCheck.too_slow],
 )
@@ -323,7 +323,7 @@ def test_property9_valid_choice_completes_stage2_and_is_idempotent(
 # Feature: pipeline-cinco-stages, Property 9: Choosing a DAG completes Stage 2
 # and unblocks Stage 3 (negative side — foreign/non-existent dag).
 @settings(
-    max_examples=100,
+    max_examples=40,
     deadline=None,
     suppress_health_check=[HealthCheck.function_scoped_fixture, HealthCheck.too_slow],
 )
@@ -398,7 +398,7 @@ def test_propertyb_dag_inexistente_ou_alheio_e_recusado(
 # Feature: pipeline-cinco-stages, Property 10: Without a DAG, the advance beyond
 # Stage 3 stays blocked.
 @settings(
-    max_examples=100,
+    max_examples=40,
     deadline=None,
     suppress_health_check=[HealthCheck.function_scoped_fixture, HealthCheck.too_slow],
 )

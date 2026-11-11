@@ -11,6 +11,35 @@ new proposals are primed by retrieving the most cosine-similar past curations of
 *other* campaigns. Learning happens only through the loop + RAG; model weights
 are never modified (Requirement 5.6).
 
+The two-memory rule (design §F) — both directions
+--------------------------------------------------
+STICKS has two distinct memories and a strict rule about what goes where:
+
+* **(a) Vector memory — this module.** The pgvector ``ExperienceMemory`` holds
+  *associative / similarity-retrieved* knowledge: Atomic Red Team command ↔ tool
+  affinities, what the curated campaigns teach about targets/images/vulnerability
+  patterns that worked, and past-run experiences. Retrieval is **top-k cosine,
+  excluding the running campaign** (see :meth:`ExperienceMemory.retrieve`). The
+  curated campaigns feed this knowledge; they never process a Run.
+* **(b) Structured memory — NOT this module.** Exact/factual data lives in normal
+  tables / JSON / config, never in the vector store: the **fixed infrastructure**
+  (the Caldera engine, the static lab / isolable network structure), the
+  **resource limits** (:class:`app.services.environment.resource_gate.ResourceLimits`),
+  and the validated inventory of what works.
+
+So: do **not** put factual/exact facts (Caldera, resource limits, validated
+inventory) in this vector store, and do **not** put associative knowledge
+(command↔tool affinities, "what worked" experiences) into rigid tables — they
+belong here.
+
+Embedder transport
+------------------
+The injected :class:`Embedder` embeds over Ollama (``nomic-embed-text``, 768d)
+with ``OLLAMA_BASE_URL`` defaulting to the IPv4 literal
+``http://127.0.0.1:11434`` — deliberately **not** ``localhost``, because IPv6
+name resolution on Windows made the embedding HTTP client hang. The default is
+set in the repository-root ``.env``; keep it as the IPv4 literal.
+
 Importing this module performs no I/O: the ORM models, the settings and the
 embedder are all resolved lazily inside the methods, so there is no network or
 database access at import and no circular import with :mod:`app.models`
@@ -26,6 +55,7 @@ degrades to an empty experience set when the memory is unreachable (Requirement
 
 from __future__ import annotations
 
+import hashlib
 import logging
 from typing import Any, Optional, Protocol, runtime_checkable
 
@@ -42,6 +72,29 @@ _MAX_K = 100
 # How many times storing an outcome is attempted before the operation is
 # reported as failed (Requirement 5.2): one initial try plus retries, 3 total.
 _STORE_MAX_ATTEMPTS = 3
+
+# The kinds of associative knowledge stored by :meth:`ExperienceMemory.store_affinity`
+# (carried on ``metadata.kind``): command↔tool affinities (Atomic Red Team /
+# threat intel), environment affinities ("what worked" for a target), past run
+# outcomes, and per-campaign STIX version context (identity / description /
+# techniques of a persisted ``Stix_Package_Version``, indexed so an agent can
+# retrieve STIX context by similarity). Bounded here so the Memory_Rule routing
+# stays explicit (Req. 6.4, 7.3, 8.3, 10.3, 13.4).
+AFFINITY_KINDS = (
+    "command_affinity",
+    "environment_affinity",
+    "run_outcome",
+    "stix_context",
+)
+
+# Sentinel campaign id anchoring the campaign-agnostic affinities stored by
+# :meth:`ExperienceMemory.store_affinity`. ``retrieve`` excludes the *running*
+# campaign from its results; a running campaign is never this sentinel, so every
+# stored affinity stays eligible for the similarity fallback. It mirrors the
+# ``_AFFINITY_CAMPAIGN_ID`` used by
+# :mod:`app.services.atomic_red_team_ingest_service` and the ``_NO_CAMPAIGN``
+# sentinel in :mod:`app.services.command_base`.
+_AFFINITY_CAMPAIGN_ID = "__command_base_no_campaign__"
 
 
 class RetrievalParameterError(ValueError):
@@ -260,6 +313,150 @@ class ExperienceMemory:
         self._session.add(row)
         self._session.flush()
 
+    # ----- associative affinities (the (a) direction of the Memory_Rule) -----
+
+    def store_affinity(
+        self,
+        *,
+        kind: str,
+        content: str,
+        metadata: Optional[dict[str, Any]] = None,
+        campaign_id: Optional[str] = None,
+        stage: Any = None,
+        outcome: str = "success",
+        dedup_key: Optional[str] = None,
+    ) -> bool:
+        """Store one associative-knowledge row in ``experience_memory`` (idempotent).
+
+        This is the canonical storage primitive for the *associative* half of the
+        Memory_Rule (design §F, Req. 6.4): command↔tool affinities, environment
+        affinities and past-run outcomes. It encapsulates exactly what the Atomic
+        Red Team ingest (task 11.1) did inline — ensure the sentinel campaign
+        anchor, embed the ``content`` with the injected embedder
+        (``nomic-embed-text`` in production), and insert a row carrying
+        ``metadata.kind`` and a deterministic ``metadata.dedup_key`` — so both the
+        ingest and the :class:`ExperienceMemoryBootstrap` share one path.
+
+        Idempotency (Req. 6.2, 7.6): the ``dedup_key`` defaults to the SHA-256 of
+        ``content`` and is checked before insert. If a row with that
+        ``metadata.dedup_key`` already exists this is a no-op and returns
+        ``False``; a new row returns ``True``. Every stored row has an embedding.
+
+        ``kind`` must be one of :data:`AFFINITY_KINDS`. ``campaign_id`` defaults
+        to the campaign-agnostic sentinel anchor; ``stage`` defaults to the
+        operationalization stage; ``outcome`` is bounded to ``sucesso | falha`` by
+        the table CHECK. Any extra ``metadata`` is merged into the stored
+        ``metadata`` alongside ``kind`` and ``dedup_key``.
+        """
+        if kind not in AFFINITY_KINDS:
+            raise ValueError(
+                f"store_affinity kind={kind!r} is not one of {AFFINITY_KINDS}."
+            )
+
+        resolved_key = dedup_key or self.content_dedup_key(content)
+
+        # Check-before-insert on the deterministic dedup key so a re-run never
+        # duplicates an equivalent affinity (Req. 6.2).
+        if self._affinity_exists(resolved_key):
+            return False
+
+        from app.models.domain import ExperienceMemory as ExperienceMemoryRow
+
+        resolved_campaign = campaign_id or _AFFINITY_CAMPAIGN_ID
+        self._ensure_affinity_campaign(resolved_campaign)
+
+        resolved_stage = self._resolve_affinity_stage(stage)
+
+        meta: dict[str, Any] = dict(metadata or {})
+        meta["kind"] = kind
+        meta["dedup_key"] = resolved_key
+
+        embedding = self._resolve_embedder().embed(content)
+        self._session.add(
+            ExperienceMemoryRow(
+                campaign_id=resolved_campaign,
+                stage=resolved_stage,
+                outcome=outcome,
+                content=content,
+                embedding=embedding,
+                meta=meta,
+            )
+        )
+        self._session.flush()
+        return True
+
+    @staticmethod
+    def content_dedup_key(content: str) -> str:
+        """Deterministic SHA-256 of ``content`` — the default affinity dedup key.
+
+        A stable hash of the stored snippet so two equivalent affinities collapse
+        to one row regardless of insertion order (Req. 6.2).
+        """
+        return hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+    def _affinity_exists(self, dedup_key: str) -> bool:
+        """True if an affinity row with ``metadata.dedup_key`` is already stored.
+
+        Uses SQLAlchemy's portable JSON element access
+        (``meta["dedup_key"].as_string()``), which renders to the right operator
+        on both PostgreSQL (the product database) and the SQLite used by the unit
+        tests, so the dedup check is dialect-agnostic — matching
+        :meth:`AtomicRedTeamIngestService._affinity_exists`.
+        """
+        from app.models.domain import ExperienceMemory as ExperienceMemoryRow
+
+        row = self._session.execute(
+            select(ExperienceMemoryRow.id).where(
+                ExperienceMemoryRow.meta["dedup_key"].as_string() == dedup_key
+            )
+        ).first()
+        return row is not None
+
+    def _ensure_affinity_campaign(self, campaign_id: str) -> None:
+        """Ensure the anchor campaign row exists to satisfy the non-null FK.
+
+        Affinities are campaign-agnostic, but ``experience_memory`` carries a
+        non-null FK to ``campaigns.id``. A single sentinel campaign row anchors
+        every campaign-agnostic affinity; retrieval excludes the *running*
+        campaign, which is never this sentinel, so the affinities stay eligible
+        for the similarity fallback. Mirrors
+        :meth:`AtomicRedTeamIngestService._ensure_affinity_campaign`. When a real
+        ``campaign_id`` is passed it is assumed to already exist (its row is not
+        created here).
+        """
+        from app.models.domain import Case as CampaignRow
+
+        if campaign_id != _AFFINITY_CAMPAIGN_ID:
+            return
+        existing = self._session.get(CampaignRow, campaign_id)
+        if existing is not None:
+            return
+        self._session.add(
+            CampaignRow(
+                id=campaign_id,
+                name="Command_Base affinities (synthetic anchor)",
+            )
+        )
+        self._session.flush()
+
+    @staticmethod
+    def _resolve_affinity_stage(stage: Any) -> Any:
+        """Coerce an affinity ``stage`` to an :class:`AgentStage`, defaulting it.
+
+        Accepts an :class:`AgentStage`, its string value, or ``None`` (defaulting
+        to the operationalization stage), mirroring :meth:`_resolve_stage`.
+        """
+        from app.models.enums import AgentStage
+
+        if isinstance(stage, AgentStage):
+            return stage
+        if isinstance(stage, str):
+            try:
+                return AgentStage(stage)
+            except ValueError:
+                pass
+        return AgentStage.OPERATIONALIZATION
+
     # ----- helpers -----------------------------------------------------------
 
     @staticmethod
@@ -289,8 +486,12 @@ class ExperienceMemory:
     def _resolve_outcome(report: dict[str, Any]) -> str:
         """Map the report's success verdict to the stored outcome value.
 
-        The ``experience_memory`` table constrains ``outcome`` to exactly
-        ``sucesso | falha`` (matching ``AbilityResultStatus`` values).
+        The ``experience_memory`` table constrains ``outcome`` to exactly the
+        two terminal ``AbilityResultStatus`` values (``success | failure``),
+        enforced by ``ck_experience_memory_outcome`` (English, matching
+        migration ``b2c3d4e5f6a7``). A passing verdict stores ``success``,
+        anything else ``failure`` — the finalized curation outcome (success OR
+        failure) is always persisted so future runs learn from it (Req. 5.1).
         """
         from app.models.enums import AbilityResultStatus
 

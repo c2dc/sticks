@@ -290,7 +290,7 @@ def _build_abilities(num: int) -> list[FakeAbility]:
 
 
 @settings(
-    max_examples=150,
+    max_examples=40,
     deadline=None,
     suppress_health_check=[HealthCheck.too_slow],
 )

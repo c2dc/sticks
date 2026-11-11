@@ -30,8 +30,14 @@ from pathlib import Path
 
 import pytest
 
+from sqlalchemy.orm import Session, sessionmaker
+
+from app.core.config import Settings
+from app.db.base import Base, import_models
+from app.db.session import create_db_engine
 from app.models.enums import TranslationSource
 from app.services.campaign_service import CaseService
+from app.services.curated_ingest_service import CuratedIngestService
 from app.services.dag.dag_service import DagView
 from app.services.environment.operationalization import (
     EnvironmentParameters,
@@ -42,6 +48,7 @@ from app.services.environment.operationalizer import (
     ProducedOperationalization,
     OperationalizerByOrigin,
 )
+from app.services.stage.stage_service import StageService
 
 _SLUG = "shadowray"  # a registered curated slug (CURATED_CASES)
 
@@ -134,12 +141,53 @@ def data_dir() -> Iterator[Path]:
 
 
 def _stub_dag(campaign: str = _SLUG) -> DagView:
-    """A minimal curated ``DagView`` (operationalize reads nodes from disk)."""
+    """A minimal curated ``DagView`` (operationalize reads nodes from the DB)."""
     return DagView(campaign_id=campaign, name="Seed", curated=True, can_advance=True)
 
 
+def _db_session(data_dir: Path) -> Session:
+    """Ephemeral SQLite seeded from the disk fixtures via the one-shot ingest.
+
+    Sub-step 2.4 made the operationalizer resolve the curated DAG + Abilities
+    from the database, so the test ingests the seeded curated case (``data_dir``)
+    into an ephemeral DB and returns a live :class:`Session` bound to it.
+    """
+    db_path = data_dir / "op_stage4.db"
+    settings_obj = Settings(database_url=f"sqlite:///{db_path.as_posix()}")
+    engine = create_db_engine(settings_obj)
+    import_models()
+    Base.metadata.create_all(bind=engine)
+    factory: sessionmaker[Session] = sessionmaker(
+        bind=engine,
+        autocommit=False,
+        autoflush=False,
+        expire_on_commit=False,
+        future=True,
+        class_=Session,
+    )
+    case_service = CaseService(data_dir=data_dir)
+    seed_session = factory()
+    try:
+        CuratedIngestService(seed_session, case_service=case_service).ingest_all()
+    finally:
+        seed_session.close()
+    return factory()
+
+
 def _operationalizer(data_dir: Path) -> CurationOperationalizer:
-    return CurationOperationalizer(case_service=CaseService(data_dir=data_dir))
+    """A session-bound curation operationalizer (DB-only sourcing — Req. 1.1, 4.1).
+
+    The injected :class:`StageService` carries the ephemeral session seeded from
+    the disk fixtures, so the ordered Abilities (``assemble_stage2``) and the
+    derived ``EnvironmentParameters`` (the curated DAG nodes) both resolve from
+    the database, never from disk.
+    """
+    session = _db_session(data_dir)
+    case_service = CaseService(data_dir=data_dir)
+    stage_service = StageService(session, case_service=case_service)
+    return CurationOperationalizer(
+        stage_service=stage_service, case_service=case_service
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -307,10 +355,17 @@ def test_delegates_abilities_to_injected_stage_service(data_dir: Path) -> None:
     sentinel = Stage2Output(ordering=["sentinel-id"], has_abilities=True)
     calls: list[str] = []
 
+    _seed_case(data_dir, _SLUG)
+    # A live session seeded from the disk fixtures: the derivation reads the
+    # curated DAG from the DB (sub-step 2.4), so the fake stage service exposes
+    # the ``_session`` the operationalizer uses for ``_resolve_dag_from_db``.
+    session = _db_session(data_dir)
+
     class FakeStageService:
-        """Minimal session-less stand-in exposing the surface used by the seam."""
+        """Minimal stand-in exposing the surface used by the seam (incl. ``_session``)."""
 
         _case_service = CaseService(data_dir=data_dir)
+        _session = session
 
         def assemble_stage2(self, slug: str) -> Stage2Result:
             calls.append(slug)
@@ -322,7 +377,6 @@ def test_delegates_abilities_to_injected_stage_service(data_dir: Path) -> None:
                 output=sentinel,
             )
 
-    _seed_case(data_dir, _SLUG)
     op = CurationOperationalizer(stage_service=FakeStageService())  # type: ignore[arg-type]
 
     produced = op.operationalize(_SLUG, _stub_dag())
@@ -330,7 +384,7 @@ def test_delegates_abilities_to_injected_stage_service(data_dir: Path) -> None:
     # The Abilities artifact is exactly what the injected service returned.
     assert produced.abilities is sentinel
     assert calls == [_SLUG]
-    # Parameters are still derived from the (shared) curated DAG on disk.
+    # Parameters are still derived from the (shared) curated DAG, now DB-sourced.
     assert produced.parameters.hosts and produced.parameters.hosts[0].container == _INTERNAL_CONTAINER
 
 

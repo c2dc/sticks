@@ -90,11 +90,19 @@ def node(
     *,
     memory: "ExperienceMemory | None" = None,
 ) -> dict:
-    """LangGraph node: read the Stage 6 report, decide REFINE vs FINISH.
+    """LangGraph node: receive the execution result, decide REFINE vs FINISH.
 
-    Reads ``state["report"]`` (the serialized Stage 6 result), extracts the
-    procedural-sufficiency metric and ``verdict_success`` **unchanged**
-    (Req. 10.1), decides :attr:`EvaluatorDecision.FINISH` on a passing verdict
+    This is the ``evaluation`` phase — a distinct, ordered step that runs AFTER
+    the ``execution`` phase and receives the real execution result as its input
+    (task 4.1, Req. 2.1, 2.2). It reads ``state["execution_result"]`` — the
+    runner verdict and the real containment/isolation state the ``execution``
+    phase produced — and renders the verdict from it, decoupled from the execute
+    step. For the procedural-sufficiency score it still reads ``state["report"]``
+    (the serialized Stage 6 result) **unchanged** (Req. 10.1). When no execution
+    result was carried (an older checkpoint, or a report-only caller/test) the
+    verdict is derived from the report, keeping the contract backward-compatible.
+
+    Decides :attr:`EvaluatorDecision.FINISH` on a passing verdict
     else :attr:`EvaluatorDecision.REFINE` (Req. 10.2, 10.3), diagnoses the
     refine-target stage, persists the rationale (≤10,000 chars) and stores the
     outcome back into the RAG memory (design §Evaluator node). The max-iteration
@@ -109,9 +117,12 @@ def node(
     ``refine_stage`` and ``error``).
 
     Args:
-        state: The shared :class:`~app.services.ai.state.AgentState`; the Stage 6
-            report is read from ``state["report"]`` and the retrieved
-            cross-campaign experience from ``state["retrieved_experience"]``.
+        state: The shared :class:`~app.services.ai.state.AgentState`; the
+            structured execution result is read from ``state["execution_result"]``
+            (the ``execution`` phase's verdict + containment/isolation state), the
+            Stage 6 report from ``state["report"]`` (for the unchanged metric),
+            and the retrieved cross-campaign experience from
+            ``state["retrieved_experience"]``.
         memory: Optional :class:`~app.services.ai.memory.ExperienceMemory` used to
             store the finalized outcome for cross-campaign RAG learning. Injected
             by tests/callers; when ``None`` it is built lazily from a
@@ -134,6 +145,14 @@ def node(
     report = state.get("report")
     experience = state.get("retrieved_experience") or []
 
+    # The structured execution result the ``execution`` phase produced (task
+    # 4.1, Req. 2.1, 2.2): the runner verdict and the real containment/isolation
+    # state, decoupled from the execute step. ``evaluation`` receives it as its
+    # input and renders the verdict from it; when it is absent (an older
+    # checkpoint, or a report-only test) the evaluator falls back to reading the
+    # report directly, so the contract stays backward-compatible.
+    execution_result = state.get("execution_result")
+
     # --- failed / blocked iteration paths (Req. 1.6, 8.6, 10.6) -------------
     #
     # Either the report is absent/unreadable, or the safety machinery rejected
@@ -150,7 +169,10 @@ def node(
             memory=memory,
         )
 
-    gate_cause = _gate_rejection_cause(report)
+    # Prefer the execution phase's own verdict (task 4.1): a gate rejection /
+    # non-executed outcome is identified from the structured execution result
+    # when present, else derived from the report (backward-compatible).
+    gate_cause = _gate_rejection_cause_from(execution_result, report)
     if gate_cause is not None:
         return _refine_without_score(
             state,
@@ -161,7 +183,9 @@ def node(
         )
 
     # --- executed iteration: score it unchanged and decide (Req. 10.1-10.5) --
-    verdict_success = _read_verdict_success(report)
+    # The verdict is the one the ``execution`` phase reported (Req. 2.2); it
+    # falls back to reading the report when no execution result was carried.
+    verdict_success = _verdict_success_from(execution_result, report)
 
     # Record the procedural-sufficiency metric UNCHANGED as the iteration's
     # score (Req. 10.1, 10.5): read the Stage 6 numbers, never recompute them.
@@ -276,6 +300,45 @@ def _gate_rejection_cause(report: dict[str, Any]) -> Optional[str]:
     return None
 
 
+def _gate_rejection_cause_from(
+    execution_result: Optional[dict[str, Any]], report: dict[str, Any]
+) -> Optional[str]:
+    """Identify a gate rejection from the execution result, else the report (task 4.1).
+
+    When the ``execution`` phase handed the evaluator a structured execution
+    result (Req. 2.2), its ``verdict`` is the authoritative runner outcome: a
+    gate-rejection / non-executed verdict is read straight from it. Otherwise the
+    evaluator falls back to reading the serialized report (backward-compatible).
+    The human-readable cause is still built from the report so it carries the
+    runner's message when present.
+    """
+    if isinstance(execution_result, dict) and execution_result:
+        verdict = execution_result.get("verdict")
+        if verdict in _GATE_REJECTION_OUTCOMES:
+            return _gate_cause_message(verdict, report)
+        # An executed verdict from the execution phase overrides any stale
+        # report outcome: the Operation ran, so there is no gate rejection.
+        if verdict is not None:
+            return None
+    return _gate_rejection_cause(report)
+
+
+def _verdict_success_from(
+    execution_result: Optional[dict[str, Any]], report: dict[str, Any]
+) -> bool:
+    """Read the passing verdict from the execution result, else the report (task 4.1).
+
+    The ``execution`` phase computes ``verdict_success`` from the live runner
+    result (Req. 2.2), so the ``evaluation`` phase consumes it directly when
+    present. When no execution result was carried (older checkpoint, report-only
+    test) the verdict is derived from the report unchanged, preserving the prior
+    behaviour.
+    """
+    if isinstance(execution_result, dict) and "verdict_success" in execution_result:
+        return bool(execution_result["verdict_success"])
+    return _read_verdict_success(report)
+
+
 def _gate_cause_message(outcome_value: str, report: dict[str, Any]) -> str:
     """Map a gate-rejection outcome to a human-readable cause for the evaluation."""
     mapping = {
@@ -388,7 +451,8 @@ def _read_failed_nodes(report: dict[str, Any]) -> list[str]:
 
     Prefers an explicit ``failed_nodes`` (top-level or in ``metrics``); otherwise
     scans the serialized ``ability_results`` and collects the id/name of every
-    ability whose status is ``falha`` (failure). The list drives the refine-target
+    ability whose status is ``failure`` (the terminal
+    ``AbilityResultStatus.FAILURE`` value). The list drives the refine-target
     diagnosis.
     """
     metrics = _metrics(report)
@@ -396,12 +460,15 @@ def _read_failed_nodes(report: dict[str, Any]) -> list[str]:
         if "failed_nodes" in source and isinstance(source["failed_nodes"], list):
             return [str(node) for node in source["failed_nodes"]]
 
+    # Imported lazily so importing this module needs no enum dep (Req. 1.7).
+    from app.models.enums import AbilityResultStatus
+
     failed: list[str] = []
     for result in report.get("ability_results") or []:
         if not isinstance(result, dict):
             continue
         status = getattr(result.get("status"), "value", result.get("status"))
-        if status == "falha":
+        if status == AbilityResultStatus.FAILURE.value:
             identifier = (
                 result.get("ability_id")
                 or result.get("node_id")

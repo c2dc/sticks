@@ -88,7 +88,6 @@ from app.models.domain import (
 )
 from app.models.enums import DagOrigin, StageState
 from app.services.campaign_service import (
-    CaseLoadErrorType,
     CaseService,
     DagData,
 )
@@ -421,7 +420,7 @@ class DagService:
             case_service if case_service is not None else CaseService()
         )
         # StageService over the SAME Session, to obtain the Stage 1 Modeling
-        # (``read_stage1``/``run_stage1``) and read the Stages' state in the
+        # (``read_stage2_selection``/``run_stage2_selection``) and read the Stages' state in the
         # auto-completion gate. Built lazily (only when there is a Session),
         # reusing ``case_service`` to point at the same fixtures.
         self._stage_service: Optional[StageService] = stage_service
@@ -480,9 +479,9 @@ class DagService:
         In the five-stage scheme the DAG (Stage 2) is derived from the Modeling
         (Stage 1 — Req. 3.1, 10.1), so the ``DagGenerator.generate`` seam receives
         this Modeling. The Stage 1 output (techniques + relationships) is read via
-        :meth:`StageService.read_stage1` when Stage 1 is already ``completed``
+        :meth:`StageService.read_stage2_selection` when Stage 1 is already ``completed``
         (side-effect-free path) and, otherwise, materialized by
-        :meth:`StageService.run_stage1` (the Modeling must exist for the DAG to be
+        :meth:`StageService.run_stage2_selection` (the Modeling must exist for the DAG to be
         derived from it). The ``techniques`` / ``relationships`` elements of
         ``Stage1Output`` are mapped 1:1 to
         :class:`~app.services.dag.generator.StructuralModeling` (the same
@@ -502,11 +501,11 @@ class DagService:
         states = stage_service._stage_states_map(campaign)
         if states.get(STAGE_MODELING) is StageState.COMPLETED:
             # Stage 1 already completed: pure read, no re-run/persist.
-            result = stage_service.read_stage1(campaign)
+            result = stage_service.read_stage2_selection(campaign)
         else:
             # Materialize the Modeling (run + persist Stage 1), so the Stage 2
             # DAG is actually derived from it.
-            result = stage_service.run_stage1(campaign)
+            result = stage_service.run_stage2_selection(campaign)
 
         output = result.output
         if output is None:
@@ -645,9 +644,7 @@ class DagService:
         # ``structural_nodes`` (with node_id/technique_*/relations) and
         # ``edges``; the nodes preserve ``child_nodes``, so ``_derive_edges``
         # reproduces exactly the persisted edges.
-        content = dag.content if isinstance(dag.content, dict) else {}
-        nodes_raw = content.get("structural_nodes") or []
-        dag_data = DagData.model_validate({"structural_nodes": nodes_raw})
+        dag_data = self._dag_data_from_content(dag.content)
 
         nodes = [
             DagNodeView(
@@ -817,11 +814,13 @@ class DagService:
         2. **Idempotency.** If Stage 2 is already ``completed``, it returns
            ``completed=True`` without re-persisting (the state is already the
            desired one).
-        3. **Curated backfill (Req. 9.1, 9.4).** Runs :meth:`sync_curated_dags`
-           (which now passes the Stage 1 Modeling to the generator — **no network
-           and no AI**). If **no** derivable DAG was persisted for the campaign,
-           it returns ``no_dag=True`` without completing — the UI shows "Generate
-           DAG" disabled and the advance stays blocked (Req. 9.4).
+        3. **DB DAG lookup (Req. 1.1, 4.1, 9.4).** Reads the campaign's persisted
+           DAGs from the ``dags`` table (:meth:`list_dags`) — the curated DAG is
+           persisted by the one-shot curated ingest (sub-step 2.1), so the
+           request-time auto-completion no longer re-runs the disk backfill. If
+           **no** DAG is persisted for the campaign, it returns ``no_dag=True``
+           without completing — the UI shows "Generate DAG" disabled and the
+           advance stays blocked (Req. 9.4).
         4. **Completion.** With at least one persisted DAG ⇒ upsert of the
            ``(campaign, 2)`` ``StageRun`` to ``completed``/100 in a single
            transaction. A ``commit`` failure ⇒ ``rollback`` +
@@ -860,9 +859,13 @@ class DagService:
                 stage_run_id=(row.id if row is not None else None),
             )
 
-        # (3) Curated backfill (passes the Modeling to the generator). With no
-        # derivable DAG, Stage 2 does not complete (Req. 9.4).
-        dags = self.sync_curated_dags(campaign)
+        # (3) Resolve the campaign's DAGs from the database (Req. 1.1, 4.1). The
+        # curated DAG is persisted by the one-shot curated ingest (sub-step 2.1),
+        # so the request-time auto-completion reads the ``dags`` table instead of
+        # re-running the curation backfill from disk (which read
+        # ``data/dag/{slug}_dag.json``). With no persisted DAG, Stage 2 does not
+        # complete (Req. 9.4).
+        dags = self.list_dags(campaign)
         if not dags:
             return DagAutoGenerationResult(
                 campaign_id=campaign,
@@ -1036,11 +1039,72 @@ class DagService:
 
         return "\n".join(lines)
 
+    def resolve_dag_data_from_db(self, campaign: str) -> Optional[DagData]:
+        """Resolve a campaign's persisted DAG as a :class:`DagData`, or ``None``.
+
+        Database-first sourcing for Stage 1/3 (Req. 3.1, 4.1): when a
+        :class:`Session` is injected, read the ``dags`` rows for
+        ``campaign_id == campaign`` and rebuild a full :class:`DagData` from the
+        persisted ``content``. The ``CuratedIngestService`` persists each node as
+        a complete ``model_dump()`` plus the campaign metadata (``campaign_name``,
+        ``campaign_file``, ``generated_at``, ``metadata``, ``capability_flow``),
+        so the reconstruction is equivalent to the DAG that used to be read from
+        disk (Req. 1.4, 3.6) — including the per-node ``attacker_commands`` /
+        ``provides`` / ``target_vuln_host_*`` the structural modeling (Stage 1)
+        and the operationalization (Stage 4) derive from. When several DAGs exist
+        for the campaign, the human-curation DAG is preferred (and, within an
+        origin, the earliest by ``id`` for a stable result).
+
+        Returns ``None`` when no :class:`Session` was injected or the campaign has
+        no persisted DAG. The runtime no longer falls back to disk for an absent
+        row (sub-step 2.4, Req. 4.1, 4.2): the database is the single source of
+        truth.
+
+        Pure read over the database: no network access and no AI invocation.
+        """
+        if self._session is None:
+            return None
+
+        session = self._session
+        stmt = (
+            select(DagModel)
+            .where(DagModel.campaign_id == campaign)
+            # Prefer the human-curation DAG; within an origin, the earliest id
+            # for a deterministic, stable choice.
+            .order_by(
+                (DagModel.origin == DagOrigin.HUMAN_CURATION).desc(),
+                DagModel.id.asc(),
+            )
+        )
+        dag = session.execute(stmt).scalars().first()
+        if dag is None:
+            return None
+
+        return self._dag_data_from_content(dag.content)
+
+    @staticmethod
+    def _dag_data_from_content(content: Any) -> DagData:
+        """Rebuild a full :class:`DagData` from a persisted ``dags.content`` JSON.
+
+        The persisted content mirrors ``data/dag/{slug}_dag.json``: the complete
+        node dumps under ``structural_nodes`` plus the campaign metadata
+        (``campaign_name``/``campaign_file``/``generated_at``/``metadata``/
+        ``capability_flow``). Validating the whole payload — not just the
+        ``structural_nodes`` — preserves every field the structural modeling and
+        the operationalization derive from, so the DB-sourced DAG is equivalent
+        to the disk-sourced one (Req. 1.4, 3.6). Extra keys (e.g. ``edges``) are
+        ignored by the model.
+
+        Pure: deterministic, no I/O and no network.
+        """
+        payload = content if isinstance(content, dict) else {}
+        return DagData.model_validate(payload)
+
     def get_dag(self, campaign: str) -> DagView:
         """Resolve the DAG view for a case slug (curated / stub / error).
 
-        * Curated slug (in ``CaseService.CURATED_CASES``) with a valid
-          ``{slug}_dag.json``: ``curated=True``, ``can_advance=True``, with
+        * Curated slug (in ``CaseService.CURATED_CASES``) with a persisted or
+          valid on-disk DAG: ``curated=True``, ``can_advance=True``, with
           ``nodes``/``edges`` and the assembled ``mermaid``.
         * Non-curated slug: "pass-through" (``curated=False``,
           ``can_advance=False``, ``unavailable=True``, ``message``) — **no AI
@@ -1049,9 +1113,24 @@ class DagService:
           ``can_advance=False``, ``error``) distinguishing missing from
           malformed.
 
-        Pure read: this method only reads ``{slug}_dag.json`` through
-        ``CaseService`` and performs **no network access** and **no AI call** on
-        any path (there is no AI client on this path — Req. 9.1, 9.2).
+        Database-only sourcing (Req. 1.1, 4.1, 4.2)
+        -------------------------------------------
+        The curated DAG is resolved exclusively from the ``dags`` table by
+        ``campaign_id`` (via :meth:`resolve_dag_data_from_db`) and the view is
+        built from the persisted content. The runtime no longer reads
+        ``{slug}_dag.json`` from disk: after the curated ingest (sub-step 2.1),
+        the database is the single source of truth, so a curated slug with no
+        persisted DAG surfaces the typed "missing DAG" error (Req. 5.3, 6.4)
+        instead of falling back to disk.
+
+        Curated-ness is still determined from :data:`CURATED_CASES` (an in-memory
+        registry — no disk access), so the display name and the
+        curated/non-curated distinction are preserved without touching
+        ``packages/cli/data``.
+
+        Pure read: this method reads the persisted ``dags`` (via the injected
+        session) and performs **no disk access**, **no network access** and **no
+        AI call** on any path (Req. 1.1, 4.2, 9.1, 9.2).
         """
         curated_cases = self._case_service.list_cases()
 
@@ -1073,58 +1152,38 @@ class DagService:
 
         name = curated_cases[campaign]
 
-        # --- Curated slug: load the case, capturing file/parse problems as a
-        # typed value (never a raised exception) via try_load_case (Req. 5.3,
-        # 6.4). ``load_case`` would instead fail fast.
-        result = self._case_service.try_load_case(campaign)
+        # --- Database-only (Req. 1.1, 4.1): resolve the curated DAG from the
+        # ``dags`` table by ``campaign_id``. On a hit, build the view from the
+        # persisted content (equivalent to the former on-disk DAG — Req. 1.4,
+        # 3.6).
+        db_dag = self.resolve_dag_data_from_db(campaign)
+        if db_dag is not None:
+            return self._build_dag_view(campaign, name, db_dag)
 
-        if not result.ok or result.case is None:
-            error = result.error
-            # Distinguish a missing DAG file from a malformed/invalid one in a
-            # descriptive pt-BR message (Req. 5.3, 6.4).
-            if error is not None and error.error_type is CaseLoadErrorType.MISSING_FILE:
-                message = (
-                    f"O DAG de '{campaign}' não foi encontrado (arquivo ausente)."
-                )
-            elif error is not None and (
-                error.error_type is CaseLoadErrorType.MALFORMED_JSON
-            ):
-                message = (
-                    f"O DAG de '{campaign}' está malformado (JSON inválido)."
-                )
-            elif error is not None and (
-                error.error_type is CaseLoadErrorType.INVALID_STRUCTURE
-            ):
-                message = (
-                    f"O DAG de '{campaign}' está malformado (estrutura inválida)."
-                )
-            else:
-                message = (
-                    f"O DAG de '{campaign}' não pôde ser lido ou está malformado."
-                )
-            return DagView(
-                campaign_id=campaign,
-                name=name,
-                curated=True,
-                can_advance=False,
-                error=message,
-            )
+        # --- Curated slug with no persisted DAG: typed "missing DAG" error. The
+        # curated ingest (sub-step 2.1) is expected to have persisted it; the
+        # runtime no longer reads the curated file from disk (Req. 4.1, 4.2).
+        return DagView(
+            campaign_id=campaign,
+            name=name,
+            curated=True,
+            can_advance=False,
+            error=f"O DAG de '{campaign}' não foi encontrado (arquivo ausente).",
+        )
 
-        dag = result.case.dag
-        if dag is None:
-            # The case loaded, but carries no DAG payload (null/absent): treat as
-            # a missing DAG for the curated case (Req. 5.3, 6.4).
-            return DagView(
-                campaign_id=campaign,
-                name=name,
-                curated=True,
-                can_advance=False,
-                error=f"O DAG de '{campaign}' não foi encontrado (arquivo ausente).",
-            )
+    @staticmethod
+    def _build_dag_view(campaign: str, name: str, dag: DagData) -> DagView:
+        """Build the valid, advanceable curated :class:`DagView` from a DagData.
 
-        # --- Curated slug with a valid DAG: build nodes, edges and Mermaid.
-        # Edges are derived EXACTLY like build_mermaid (shared helper), so the
-        # ``edges`` always match the Mermaid edges (Req. 5.2, 6.1, 6.3).
+        Shared by the database-first path and the on-disk fallback of
+        :meth:`get_dag`, so a DB-sourced DAG and a disk-sourced DAG produce the
+        exact same ``nodes``/``edges``/``mermaid`` for an equivalent graph
+        (Req. 3.6). Edges are derived EXACTLY like :meth:`build_mermaid` via the
+        shared :meth:`_derive_edges`, so the ``edges`` always match the Mermaid
+        edges (Req. 5.2, 6.1, 6.3).
+
+        Pure: deterministic, no I/O and no network.
+        """
         nodes = [
             DagNodeView(
                 node_id=node.node_id,

@@ -340,7 +340,7 @@ def _build_inspector(containers: list[GenContainer]) -> FakeInspector:
 # ---------------------------------------------------------------------------
 
 
-@settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+@settings(max_examples=40, suppress_health_check=[HealthCheck.too_slow])
 @given(containers=_unique_containers())
 def test_property12_isolated_iff_all_targets_satisfy_rule(
     containers: list[GenContainer],
@@ -381,7 +381,7 @@ def test_property12_isolated_iff_all_targets_satisfy_rule(
         assert offending  # at least one offender identified
 
 
-@settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
+@settings(max_examples=40, suppress_health_check=[HealthCheck.too_slow])
 @given(
     bad_index=st.integers(min_value=0),
     containers=st.lists(

@@ -1,6 +1,6 @@
 """Integration test for the real Stage 1 (Modelagem Estrutural) — task 8.6.
 
-This exercises :meth:`StageService.run_stage1` end-to-end against the **real
+This exercises :meth:`StageService.run_stage2_selection` end-to-end against the **real
 curated data files** shipped in the repository under ``sticks/data`` — the same
 files the production pipeline reads:
 
@@ -158,9 +158,17 @@ def test_real_stage1_extracts_and_persists_non_empty(
     # Point the service at the REAL local data dir (read-only). No Caldera, no
     # Docker, no network — this is only the structural modeling (Stage 1).
     case_service = CaseService(data_dir=data_dir)
+
+    # One-shot curated ingest (sub-step 2.1): sub-step 2.4 made the structural
+    # modeling resolve the DAG + Abilities/Adversary from the database instead of
+    # reading disk at request time, so the curated content is persisted first.
+    from app.services.curated_ingest_service import CuratedIngestService
+
+    CuratedIngestService(session, case_service=case_service).ingest_all()
+
     service = StageService(session, case_service=case_service)
 
-    result = service.run_stage1(slug)
+    result = service.run_stage2_selection(slug)
 
     # --- Stage completed (Req. 2.2, 2.4) ----------------------------------
     assert result.state is StageState.COMPLETED, result.error_message
@@ -171,8 +179,10 @@ def test_real_stage1_extracts_and_persists_non_empty(
     assert result.stage_run_id is not None
 
     # --- Entrada references the real source dataset (Req. 2.1) ------------
+    # The DB-sourced DAG preserves the campaign metadata (``campaign_name`` /
+    # ``campaign_file`` -> ``stix_reference``); the ``dag_file`` disk-path field
+    # was dropped with the request-time disk read (sub-step 2.4).
     assert result.input.campaign_id == slug
-    assert result.input.dag_file is not None
     assert result.input.campaign_name
 
     # --- Saída is a NON-EMPTY structural extraction (Req. 2.3) ------------

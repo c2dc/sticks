@@ -46,7 +46,26 @@ Each test asserts the three properties the task requires:
    ``procedural_coverage`` absent), and diagnoses a concrete refine-target stage
    (Req. 8.6, 10.6).
 
-_Requirements: 8.1, 8.2, 8.3, 8.4, 8.6, 8.7, 8.8, 9.3, 9.4, 9.5_
+Separate ``execution`` / ``evaluation`` phases (task 4.2, Req. 2.1, 2.2)
+------------------------------------------------------------------------
+
+The same end-to-end harness is extended to pin the phase separation the design
+promotes (``evaluation`` is its own ordered step AFTER ``execution`` and reads
+the real execution result as its input):
+
+* ``test_evaluation_consumes_the_execution_result_not_the_report`` — the
+  ``evaluation`` phase renders its verdict from the structured
+  ``execution_result`` the ``execution`` phase produced, NOT from the report.
+  Proven by handing the evaluator an ``execution_result`` whose verdict
+  *disagrees* with what the report alone would yield and asserting the evaluator
+  follows the execution result (Req. 2.2).
+* ``test_evaluation_is_a_distinct_ordered_step_after_execution`` — ``evaluation``
+  is a distinct step ordered strictly after ``execution``: it only has an
+  ``execution_result`` to read because ``execution`` ran first and produced it,
+  and feeding the evaluator the ``execution`` phase's own output drives the
+  verdict (Req. 2.1).
+
+_Requirements: 2.1, 2.2, 8.1, 8.2, 8.3, 8.4, 8.6, 8.7, 8.8, 9.3, 9.4, 9.5_
 """
 
 from __future__ import annotations
@@ -159,6 +178,23 @@ def _caldera_unavailable() -> OperationRunResult:
     )
 
 
+def _completed_success() -> OperationRunResult:
+    """The Operation ran to completion and passed → the single passing verdict.
+
+    ``execution`` serializes this into an ``execution_result`` with
+    ``verdict="concluida"`` / ``verdict_success=True`` (``total_success > 0`` and
+    no failure), which the ``evaluation`` phase reads to decide FINISH (Req. 2.2).
+    """
+    return OperationRunResult(
+        outcome=RunOutcome.COMPLETED,
+        state=OperationState.FINISHED,
+        operation_id=42,
+        total_success=1,
+        total_failure=0,
+        message="Emulação concluída: todos os comandos executaram com sucesso.",
+    )
+
+
 # ---------------------------------------------------------------------------
 # Seed state helper
 # ---------------------------------------------------------------------------
@@ -178,9 +214,9 @@ def _seed_state() -> dict:
         "max_iterations": 3,
         "retrieved_experience": [{"snippet": "prior outcome"}],
         "artifacts": {
-            "dag": {"origin": "gerado_ia", "nodes": ["T1059"]},
+            "dag": {"origin": "ai_generated", "nodes": ["T1059"]},
             "operationalization": {
-                "origin": "gerado_ia",
+                "origin": "ai_generated",
                 "abilities": {
                     "abilities": [
                         {
@@ -202,7 +238,7 @@ def _seed_state() -> dict:
                     },
                 },
             },
-            "environment": {"origin": "gerado_ia"},
+            "environment": {"origin": "ai_generated"},
         },
     }
 
@@ -270,13 +306,16 @@ def _run_pipeline(result: OperationRunResult) -> tuple[dict, dict, dict, _Record
     assert runner.calls[0]["campaign_id"] == "campaign-under-test"
 
     # ``execute_node`` must not mutate the input state: the seed is unchanged and
-    # the delta carries ONLY the report (Req. 8.2, 8.3).
+    # the delta carries the report plus the structured execution result the
+    # ``evaluation`` phase receives (task 4.1 decoupling; Req. 2.1, 2.2, 8.2, 8.3).
     assert seed == seed_before
-    assert set(execute_delta.keys()) == {"report"}
+    assert set(execute_delta.keys()) == {"report", "execution_result"}
 
-    # Feed the report to the evaluator exactly as the graph would.
+    # Feed the report AND the execution result to the evaluator exactly as the
+    # graph would hand them from the ``execution`` phase to the ``evaluation`` one.
     eval_state = dict(seed)
     eval_state["report"] = execute_delta["report"]
+    eval_state["execution_result"] = execute_delta["execution_result"]
     eval_before = copy.deepcopy(eval_state)
 
     memory = _RecordingMemory()
@@ -311,7 +350,7 @@ def test_containment_rejection_surfaced_as_refinable_with_no_execution() -> None
     assert "contenção" in eval_delta["error"].lower()
 
     # Prior stored state unchanged (the seed deep copy matches the pre-run seed).
-    assert seed_before["artifacts"]["operationalization"]["origin"] == "gerado_ia"
+    assert seed_before["artifacts"]["operationalization"]["origin"] == "ai_generated"
 
 
 def test_isolation_rejection_surfaced_as_refinable_with_no_execution() -> None:
@@ -395,3 +434,132 @@ def test_every_gate_rejection_stores_a_failed_outcome_into_rag() -> None:
         assert stored_campaign == "campaign-under-test"
         assert stored_eval["decision"] == EvaluatorDecision.REFINE.value
         assert "success_rate" not in stored_eval
+
+
+# ---------------------------------------------------------------------------
+# Separate execution / evaluation phases (task 4.2, Req. 2.1, 2.2)
+# ---------------------------------------------------------------------------
+#
+# These two tests extend the same end-to-end harness to pin the phase
+# separation: the ``execution`` phase produces the real outcome
+# (``execution_result``) and the ``evaluation`` phase — a distinct step ordered
+# strictly AFTER execution — reads THAT result as its input rather than being
+# coupled to the execute step or re-deriving the verdict itself.
+
+
+def test_evaluation_consumes_the_execution_result_not_the_report() -> None:
+    """``evaluation`` renders the verdict from ``execution_result``, not the report.
+
+    This proves the ``evaluation`` phase RECEIVES the execution result as its
+    input (Req. 2.2): we hand the evaluator an ``execution_result`` whose verdict
+    DISAGREES with what the report alone would yield, and assert the evaluation
+    follows the execution result.
+
+    The seed carries a report that, read on its own, derives a *failing* verdict
+    (it is ``COMPLETED`` but with a failed ability, so the report-only rule
+    ``success > 0 and failure == 0`` is false → REFINE). The structured
+    ``execution_result`` the ``execution`` phase produced instead reports a
+    *passing* verdict (``verdict_success=True``). Because the ``evaluation`` phase
+    consumes the execution result, it must decide FINISH — if it (incorrectly)
+    read the report, it would REFINE. The disagreement is what makes the source
+    of the verdict observable.
+    """
+    seed = _seed_state()
+
+    # A report that, derived on its own, yields a FAILING verdict: COMPLETED but
+    # with a failure present, so the report-only rule is false.
+    report_only_failing = {
+        "outcome": RunOutcome.COMPLETED.value,
+        "state": OperationState.FINISHED.value,
+        "operation_id": 7,
+        "total_success": 1,
+        "total_failure": 1,  # a failure → report-only verdict_success is False
+        "ability_results": [],
+    }
+    # The execution phase's own structured result reports a PASSING verdict,
+    # disagreeing with the report-only derivation above.
+    execution_result_passing = {
+        "verdict": RunOutcome.COMPLETED.value,
+        "verdict_success": True,
+        "executed": True,
+        "containment_passed": True,
+        "isolation_passed": True,
+        "total_success": 1,
+        "total_failure": 0,
+        "message": "ok",
+    }
+
+    eval_state = dict(seed)
+    eval_state["report"] = report_only_failing
+    eval_state["execution_result"] = execution_result_passing
+
+    eval_delta = evaluator.node(eval_state, memory=_RecordingMemory())
+
+    # The evaluation followed the EXECUTION RESULT (passing → FINISH), not the
+    # report (which alone would have driven REFINE) — so it received and used the
+    # execution result as its input (Req. 2.2).
+    assert eval_delta["evaluation"]["verdict_success"] is True
+    assert eval_delta["evaluation"]["decision"] == EvaluatorDecision.FINISH.value
+    assert eval_delta["refine_stage"] is None
+
+    # Control: strip the execution result and the SAME report now drives REFINE,
+    # confirming the FINISH above came from the execution result, not the report.
+    report_only_state = dict(seed)
+    report_only_state["report"] = dict(report_only_failing)
+    control_delta = evaluator.node(report_only_state, memory=_RecordingMemory())
+    assert control_delta["evaluation"]["verdict_success"] is False
+    assert control_delta["evaluation"]["decision"] == EvaluatorDecision.REFINE.value
+
+
+def test_evaluation_is_a_distinct_ordered_step_after_execution() -> None:
+    """``evaluation`` is a distinct step ordered AFTER ``execution`` (Req. 2.1).
+
+    The ordering is observable through the data dependency: the ``evaluation``
+    phase only has an ``execution_result`` to read because the ``execution``
+    phase ran first and produced it. Here we run the real ``execution`` phase
+    over a passing runner result, then hand its OWN output to the real
+    ``evaluation`` phase, and assert evaluation rendered a FINISH verdict from the
+    execution phase's result — the two are separate, sequential steps.
+    """
+    seed = _seed_state()
+    seed_before = copy.deepcopy(seed)
+
+    # --- execution phase: run first, produce the real result -----------------
+    runner = _RecordingRunner(_completed_success())
+    execute_delta = execute_node(seed, runner=runner)
+
+    # execution produced BOTH the report and the structured execution_result it
+    # hands downstream to evaluation; it did not mutate the input state.
+    assert seed == seed_before
+    assert set(execute_delta.keys()) == {"report", "execution_result"}
+    execution_result = execute_delta["execution_result"]
+    assert execution_result["verdict"] == RunOutcome.COMPLETED.value
+    assert execution_result["verdict_success"] is True
+    assert execution_result["executed"] is True
+
+    # --- evaluation phase: a SEPARATE step consuming execution's output ------
+    eval_state = dict(seed)
+    eval_state["report"] = execute_delta["report"]
+    eval_state["execution_result"] = execution_result
+    eval_before = copy.deepcopy(eval_state)
+
+    eval_delta = evaluator.node(eval_state, memory=_RecordingMemory())
+
+    # evaluation is its own step: it reads the execution result and renders the
+    # verdict, returning a small delta without mutating the state it was handed.
+    assert eval_state == eval_before
+    assert eval_delta["evaluation"]["verdict_success"] is True
+    assert eval_delta["evaluation"]["decision"] == EvaluatorDecision.FINISH.value
+    assert eval_delta["refine_stage"] is None
+
+    # The ordering is real, not incidental: strip the execution phase's output
+    # and the evaluation phase has no executed result to read — it degrades to a
+    # "report absent" blocked iteration rather than rendering a verdict. This is
+    # only possible because evaluation runs AFTER, and depends on, execution.
+    no_execution_state = dict(seed)
+    no_execution_delta = evaluator.node(
+        no_execution_state, memory=_RecordingMemory()
+    )
+    assert no_execution_delta["evaluation"]["decision"] == EvaluatorDecision.REFINE.value
+    assert isinstance(no_execution_delta.get("error"), str)
+    assert no_execution_delta["error"].strip()

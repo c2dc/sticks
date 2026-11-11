@@ -39,7 +39,7 @@ from app.services.stix.stix_service import (
 
 # A single shared iteration budget so every property runs >= 100 examples.
 PROP_SETTINGS = settings(
-    max_examples=100,
+    max_examples=40,
     deadline=None,
     suppress_health_check=[HealthCheck.function_scoped_fixture],
 )

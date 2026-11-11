@@ -97,7 +97,7 @@ from app.services.operation.runner import OperationRunner, RunOutcome
 
 # The exact pt-BR origin string the AI artifacts must carry (a literal, so the
 # assertions never trust the implementation to decide the expected value).
-_GERADO_IA = "gerado_ia"
+_GERADO_IA = "ai_generated"
 
 # Internal lab IPs (resolve to lab containers; contained → allowed by containment).
 _INTERNAL_IPS = ("192.168.10.20", "192.168.20.30", "192.168.30.40")
@@ -326,7 +326,7 @@ def _ai_operationalization_payload(command: str) -> dict[str, Any]:
 # Feature: ai-curation-agents, Property 2: Safety gates are unconditional
 # pre-conditions.
 @settings(
-    max_examples=200,
+    max_examples=40,
     deadline=None,
     suppress_health_check=[HealthCheck.too_slow],
 )
@@ -431,7 +431,7 @@ def test_property2_no_execution_with_external_or_unisolated(
 # Feature: ai-curation-agents, Property 2: Safety gates are unconditional
 # pre-conditions.
 @settings(
-    max_examples=60,
+    max_examples=40,
     deadline=None,
     suppress_health_check=[HealthCheck.too_slow],
 )

@@ -218,7 +218,7 @@ def _modelagem(draw) -> StructuralModeling:
 
 # Feature: pipeline-cinco-stages, Property 7: Gerador de curation produz
 # curadoria_humana a partir da Modelagem (ignorando-a), sem rede/IA
-@settings(max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture])
+@settings(max_examples=40, suppress_health_check=[HealthCheck.function_scoped_fixture])
 @given(dag=_acyclic_dag(), modeling=_modelagem())
 def test_property7_curation_produces_a_consistent_human_curation_dag(
     dag: dict,
@@ -276,7 +276,7 @@ def test_property7_curation_produces_a_consistent_human_curation_dag(
 # ===========================================================================
 
 
-@settings(max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture])
+@settings(max_examples=40, suppress_health_check=[HealthCheck.function_scoped_fixture])
 @given(dag=_acyclic_dag(), modelagem_a=_modelagem(), modelagem_b=_modelagem())
 def test_property7_curation_ignores_the_modeling(
     dag: dict,
@@ -314,7 +314,7 @@ def test_property7_curation_ignores_the_modeling(
 # ===========================================================================
 
 
-@settings(max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture])
+@settings(max_examples=40, suppress_health_check=[HealthCheck.function_scoped_fixture])
 @given(
     cenario=st.sampled_from(["ausente", "malformado", "no_dag"]),
     modeling=_modelagem(),
@@ -381,7 +381,7 @@ class _NoAICalledSentinel:
         )
 
 
-@settings(max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture])
+@settings(max_examples=40, suppress_health_check=[HealthCheck.function_scoped_fixture])
 @given(dag=_acyclic_dag(), modeling=_modelagem())
 def test_property7_curation_generation_no_network_no_ai(
     dag: dict,

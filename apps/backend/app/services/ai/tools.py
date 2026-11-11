@@ -1,80 +1,118 @@
 """Tool wrappers over existing backend services (lazy, argv-style, no shell).
 
-Will host thin wrappers used by the agents (e.g. ``tool_read_attack``,
+Hosts thin wrappers used by the agents (e.g. ``tool_read_attack``,
 ``tool_atomic_lookup``, ``tool_parse_command``, ``tool_compose``,
-``tool_caldera_load``) over ``StixService``/``CaseService``, the containment
-parser, ``ComposeExecutor`` and ``CalderaClient`` (tasks 7.1, 10.1, 11.1).
+``tool_caldera_load``) over the database read services (``StixPackageReadService``,
+``CommandBase``), the containment parser, ``ComposeExecutor`` and
+``CalderaClient`` (tasks 7.1, 10.1, 11.1, 14.1).
 
 Each wrapper imports and instantiates its underlying service lazily, uses argv
 lists (never a shell), and performs no I/O at import time (Requirement 1.7).
+
+Database-sourced Agent_Input (task 14.1): the dag/operationalization context
+readers (``tool_read_attack``/``tool_atomic_lookup``) resolve their context from the
+**database** — ``StixPackageReadService.campaign_overview`` for the STIX/ATT&CK
+base context and ``CommandBase.commands_for_technique`` for the Atomic Red Team
+command pool — never from ``packages/cli/data`` on disk (Req. 5.1, 5.2, 5.4).
+Both take a request-scoped SQLAlchemy ``Session`` so the read shares the run's
+unit of work; without a session they degrade to an empty context rather than
+falling back to disk, preserving the no-disk guarantee.
 """
-# --- Stage 3 (DAG) tool wrappers (task 10.1) ---
+
+from typing import TYPE_CHECKING, Any, Callable, Optional
+
+if TYPE_CHECKING:  # pragma: no cover - typing only, no import-time cost
+    from sqlalchemy.orm import Session
+
+# --- dag-phase tool wrappers (task 10.1, 14.1) ---
+
+# The ATT&CK Enterprise base version the AI pipeline resolves campaigns against
+# (the curated version, the only base carrying the 8 curated campaigns). Mirrors
+# ``app.services.stix.stix_service.CURATED_VERSION`` without importing it at
+# module import time (Req. 1.7).
+_DEFAULT_VERSION = "18.0"
 
 
 def tool_read_attack(
     campaign: str,
     *,
-    version: str = "18.0",
+    version: str = _DEFAULT_VERSION,
+    session: "Optional[Session]" = None,
 ) -> dict:
-    """STIX/ATT&CK + curated context reader (wraps ``StixService``/``CaseService``).
+    """STIX/ATT&CK base-context reader from the DATABASE (no disk — Req. 5.1, 5.2, 5.4).
 
-    Thin, lazy, **read-only** tool used by the Stage 3 ``AiDagGenerator`` to
-    gather the ATT&CK/STIX view of a curated campaign together with its curated
-    case context (the structural DAG input, abilities and adversary). It is the
-    agent's single read seam over the project's existing services: it never
-    reimplements STIX parsing or case loading, and it performs no network egress
-    and no writes (Requirement 2.1).
+    Thin, lazy, **read-only** tool used by the dag-phase ``AiDagGenerator`` to
+    gather the ATT&CK/STIX base context of a campaign — its identity, techniques
+    and actors — from the persisted STIX, for ANY of the 52 campaigns (curated or
+    not). It reads from the ``Campaign_Overview`` served by
+    :meth:`~app.services.stix.stix_package_read_service.StixPackageReadService.campaign_overview`
+    and never opens ``packages/cli/data`` on disk: the Agent_Input base context is
+    DB-sourced (Req. 5.1, 5.2, 5.4).
 
-    Laziness (Requirement 1.7): both services are imported and instantiated
+    Laziness (Requirement 1.7): the read service is imported and instantiated
     *inside* this function, so importing :mod:`app.services.ai.tools` performs no
-    I/O and pulls in no heavy dependency. The underlying reads
-    (:meth:`StixService.get_campaign_by_slug`, :meth:`CaseService.load_case`)
-    only ever read from ``sticks/`` — this wrapper adds no side effects.
+    I/O and pulls in no heavy dependency. This wrapper performs no network egress
+    and no writes.
 
     Args:
-        campaign: The curated campaign slug (e.g. ``"shadowray"``), matching a
-            registered :data:`CaseService.CURATED_CASES` slug.
-        version: The ATT&CK Enterprise base version to resolve the STIX campaign
-            against; defaults to the curated version (``"18.0"``), the only base
-            carrying the 8 curated campaigns.
+        campaign: The campaign key (``curated_slug`` when present, else
+            ``stix_id``) addressing the campaign in the persisted STIX package.
+        version: The ATT&CK Enterprise base version to resolve the campaign
+            against; defaults to the curated version (``"18.0"``).
+        session: The request-scoped SQLAlchemy ``Session`` the read runs on. When
+            ``None`` the tool returns an empty context (``attack=None``) rather
+            than falling back to disk, preserving the no-disk guarantee (Req. 5.2).
 
     Returns:
         A plain ``dict`` with:
 
-        * ``campaign`` — the requested slug (echoed for traceability);
+        * ``campaign`` — the requested campaign key (echoed for traceability);
         * ``version`` — the resolved ATT&CK base version;
-        * ``attack`` — the STIX campaign detail
-          (:meth:`StixService.get_campaign_by_slug` serialized), or ``None`` when
-          no campaign in the base resolves to the slug;
-        * ``curated`` — the curated case context
-          (:meth:`CaseService.load_case` serialized: DAG input, abilities and
-          adversary), or ``None`` when the slug is not a curated case or its
-          files are missing/unreadable.
+        * ``attack`` — the campaign base context from the database
+          (:class:`~app.services.stix.stix_package_read_service.StixCampaignOverview`
+          serialized: identity, aliases, description, techniques and actors), or
+          ``None`` when no session is available or the campaign is not persisted;
+        * ``curated`` — retained for shape compatibility with the trace
+          serialization and downstream consumers; it mirrors the campaign's
+          ``curated`` flag (``{"curated": bool}``) rather than a disk-read curated
+          case, or ``None`` when the base context is unavailable.
 
-        Both sides are optional so a partial read (STIX present but no curated
-        case, or vice versa) still yields a usable, serializable context instead
-        of raising.
+        The two keys are preserved so the Audit_Trace ``agent_input`` shape is
+        unchanged; the base context is sourced entirely from the database.
     """
     # Lazy imports: no I/O and no heavy deps at module import time (Req. 1.7).
-    from app.services.campaign_service import CaseFileError, CaseService
-    from app.services.stix.stix_service import StixFileError, StixService
+    if session is None:
+        # No session to read the DB with. Do NOT fall back to disk — the
+        # Agent_Input path must never read packages/cli/data (Req. 5.2). An empty
+        # base context lets generation proceed (and degrade) without a disk read.
+        return {
+            "campaign": campaign,
+            "version": version,
+            "attack": None,
+            "curated": None,
+        }
 
-    # ATT&CK/STIX side — tolerant: a missing/unreadable base yields attack=None
-    # rather than breaking the agent's read.
+    from app.services.stix.stix_package_read_service import (
+        CampaignNotFoundError,
+        StixPackageNotPersistedError,
+        StixPackageReadService,
+    )
+
     attack: dict | None = None
-    try:
-        detail = StixService().get_campaign_by_slug(version, campaign)
-        if detail is not None:
-            attack = detail.model_dump()
-    except StixFileError:
-        attack = None
-
-    # Curated-case side — tolerant: unknown slug or missing/malformed case files
-    # yield curated=None instead of raising.
     curated: dict | None = None
     try:
-        curated = CaseService().load_case(campaign).model_dump()
-    except (KeyError, CaseFileError):
+        overview = StixPackageReadService(session).campaign_overview(
+            version, campaign
+        )
+        attack = overview.model_dump()
+        # Preserve the legacy ``curated`` key shape without a disk read: carry the
+        # campaign's curated flag so trace consumers keep a stable shape (Req. 5.2).
+        curated = {"curated": overview.curated}
+    except (CampaignNotFoundError, StixPackageNotPersistedError):
+        # Not persisted for this version: degrade to an empty base context rather
+        # than raising, so generation can still proceed (and fail cleanly if the
+        # model returns nothing usable).
+        attack = None
         curated = None
 
     return {
@@ -84,16 +122,16 @@ def tool_read_attack(
         "curated": curated,
     }
 
-# --- Stage 4 (operationalization) tool wrappers (task 7.1) ---
+# --- operationalization-phase tool wrappers (task 7.1, 14.1) ---
 #
-# Two thin wrappers used by the ``AiOperationalizer`` (Stage 4):
+# Two thin wrappers used by the ``AiOperationalizer`` (operationalization phase):
 #
 #   * ``tool_atomic_lookup`` — the Atomic Red Team command source: the pool of
 #     concrete executor commands the agent may select/parametrize for a given
-#     ATT&CK technique. The project's curated cases ARE that source (each curated
-#     ``Ability`` carries a ``technique_id`` and its Atomic Red Team ``executors``
-#     commands), so this wraps ``CaseService`` rather than reimplementing a
-#     catalogue. Read-only.
+#     ATT&CK technique. The source is the DATABASE ``Command_Base`` (the
+#     ``technique_commands`` relational mapping plus the pgvector similarity
+#     fallback), queried via :class:`app.services.command_base.CommandBase`, NOT
+#     the curated cases on disk (Req. 12.1, 12.3). Read-only.
 #   * ``tool_parse_command`` — wraps ``services.containment.parse_command`` so the
 #     agent can self-check a proposed command's destinations (and their
 #     internal/external classification) BEFORE the unchanged downstream
@@ -101,34 +139,43 @@ def tool_read_attack(
 #
 # Both are lazy (all imports happen inside the function bodies), perform no I/O at
 # import time (Requirement 1.7), and never build or run a shell string: the atomic
-# lookup only reads curated JSON and the parser is pure Python. Commands are kept
-# as argv-friendly data (plain strings the caller turns into argv lists); nothing
-# here spawns a subprocess or touches the network (Requirements 2.2, 8.1, 9.2).
+# lookup reads the DB-backed Command_Base and the parser is pure Python. Commands
+# are kept as argv-friendly data (plain strings the caller turns into argv lists);
+# nothing here spawns a subprocess or touches the network (Requirements 2.2, 8.1,
+# 9.2) and nothing reads ``packages/cli/data`` from disk (Req. 5.2).
 
 
-def tool_atomic_lookup(technique_id: str) -> list[dict]:
-    """Return the Atomic Red Team command pool for an ATT&CK technique.
+def tool_atomic_lookup(
+    technique_id: str,
+    *,
+    session: "Optional[Session]" = None,
+) -> list[dict]:
+    """Return the Atomic Red Team command pool for a technique from the DATABASE.
 
-    The Stage 4 operationalization agent calls this to discover the concrete
+    The operationalization-phase agent calls this to discover the concrete
     commands it may select and parametrize for a DAG node. The command source is
-    the project's single source of truth — the curated cases — where each
-    ``Ability`` carries a ``technique_id`` and its Atomic Red Team ``executors``.
-    This wrapper is a thin, read-only, lazy adapter over
-    :class:`app.services.campaign_service.CaseService`; it never reimplements a
-    catalogue, opens a socket, or spawns a subprocess.
+    the DB-backed ``Command_Base`` — the ``technique_commands`` relational mapping
+    first, then the pgvector similarity fallback — resolved via
+    :meth:`app.services.command_base.CommandBase.commands_for_technique`, NOT the
+    curated cases on disk (Req. 12.1, 12.3). This wrapper is a thin, read-only,
+    lazy adapter; it never reimplements a catalogue, opens a socket, spawns a
+    subprocess, or reads ``packages/cli/data`` (Req. 5.2).
 
     Args:
         technique_id: The ATT&CK technique id to look up (e.g. ``"T1190"``).
-            Matching is case-insensitive and tolerant of surrounding whitespace;
-            a blank/``None`` id yields an empty pool rather than an error.
+            Matching is tolerant of surrounding whitespace; a blank/``None`` id
+            yields an empty pool rather than an error.
+        session: The request-scoped SQLAlchemy ``Session`` the Command_Base reads
+            on. When ``None`` the tool returns an empty pool rather than falling
+            back to disk, preserving the no-disk guarantee (Req. 5.2).
 
     Returns:
-        One dict per matching curated executor, in curated order, each shaped as::
+        One dict per command backing the technique, each shaped as::
 
             {
-                "technique_id": str,        # the ability's technique id
+                "technique_id": str,        # the technique id
                 "technique_name": str | None,
-                "ability_id": str,          # source ability
+                "ability_id": str,          # synthetic source id (technique+index)
                 "ability_name": str | None,
                 "tactic": str | None,
                 "name": str | None,         # executor name
@@ -136,42 +183,43 @@ def tool_atomic_lookup(technique_id: str) -> list[dict]:
                 "command": str,             # concrete command (argv-friendly)
             }
 
-        Executors without a concrete command are skipped. An unknown technique (or
-        one absent from every curated case) returns an empty list.
+        The dict shape is preserved for byte-compatibility with the consuming
+        ``AiOperationalizer`` and the existing fakes. A technique with no backing
+        command (exact or by similarity) returns an empty list.
     """
-    normalized = (technique_id or "").strip().casefold()
+    normalized = (technique_id or "").strip()
     if not normalized:
         return []
+    if session is None:
+        # No session to read the DB with. Do NOT fall back to disk — the
+        # Agent_Input/command-pool path must never read packages/cli/data
+        # (Req. 5.2). An empty pool lets the agent degrade cleanly.
+        return []
 
-    # Lazy import: no service construction or file access happens at module import.
-    from app.services.campaign_service import CaseService
+    # Lazy import: no service construction or DB access happens at module import.
+    from app.services.command_base import CommandBase
 
-    service = CaseService()
+    suggestions = CommandBase(session).commands_for_technique(normalized)
     pool: list[dict] = []
-    # ``load_all_cases_safe`` never raises on a single malformed case; it returns a
-    # catalogue of the cases that parsed, which is what a best-effort command pool
-    # wants (one bad curated file must not blind the whole lookup).
-    catalog = service.load_all_cases_safe()
-    for case in catalog.cases.values():
-        for ability in case.abilities:
-            if (ability.technique_id or "").strip().casefold() != normalized:
-                continue
-            for executor in ability.executors:
-                command = (executor.command or "").strip()
-                if not command:
-                    continue
-                pool.append(
-                    {
-                        "technique_id": ability.technique_id,
-                        "technique_name": ability.technique_name,
-                        "ability_id": ability.ability_id,
-                        "ability_name": ability.name,
-                        "tactic": ability.tactic,
-                        "name": executor.name,
-                        "platform": executor.platform,
-                        "command": command,
-                    }
-                )
+    for index, suggestion in enumerate(suggestions):
+        command = (suggestion.command or "").strip()
+        if not command:
+            continue
+        pool.append(
+            {
+                "technique_id": suggestion.technique_id,
+                "technique_name": None,
+                # The Command_Base is keyed by technique, not by ability; derive a
+                # stable synthetic ability id so the consumer can group commands
+                # and keep a reproducible ordering.
+                "ability_id": f"{suggestion.technique_id}-cmd-{index}",
+                "ability_name": None,
+                "tactic": None,
+                "name": suggestion.executor or None,
+                "platform": suggestion.platform or None,
+                "command": command,
+            }
+        )
     return pool
 
 
@@ -181,7 +229,7 @@ def tool_parse_command(command: str) -> dict:
     Thin, lazy wrapper over :func:`app.services.containment.parse_command` (the
     project's single command-parsing source of truth) plus
     :func:`app.services.containment.is_internal_ip` for the internal/external
-    verdict. The Stage 4 agent uses this to **self-check** a proposed command
+    verdict. The operationalization-phase agent uses this to **self-check** a proposed command
     before the unchanged downstream containment gate would reject it — it only
     inspects the command string, never executes it, and does no I/O.
 
@@ -230,7 +278,7 @@ def tool_parse_command(command: str) -> dict:
         "has_external": has_external,
     }
 
-# --- Stage 5 (environment) tool wrappers (task 11.1) ---
+# --- environment-phase tool wrappers (task 11.1) ---
 #
 # Thin, lazy wrappers that give the Environment_Agent lab control without
 # reimplementing it: ``tool_compose`` dispatches to the ``ComposeExecutor`` seam
@@ -240,8 +288,6 @@ def tool_parse_command(command: str) -> dict:
 # through the existing, unchanged containment/isolation machinery (Req. 9.3), and
 # — for compose — pass commands as argv **lists**, never a shell string, so the
 # injection surface stays closed (Req. 2.3 seam compliance, security steering).
-
-from typing import TYPE_CHECKING, Any, Callable
 
 if TYPE_CHECKING:  # pragma: no cover - typing only, no import-time cost
     from app.services.environment.compose_executor import (

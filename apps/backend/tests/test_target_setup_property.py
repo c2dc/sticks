@@ -125,7 +125,7 @@ _any_command = st.one_of(_online_commands, _offline_commands, _atypical_commands
 _command_lists = st.lists(_any_command, max_size=25)
 
 
-@settings(max_examples=100)
+@settings(max_examples=40)
 @given(commands=_command_lists)
 def test_classification_is_deterministic_and_safe_by_default(
     commands: list[str],

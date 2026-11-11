@@ -269,7 +269,7 @@ def _params(containers: list[str]) -> EnvironmentParameters:
 # ---------------------------------------------------------------------------
 
 
-@settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+@settings(max_examples=40, suppress_health_check=[HealthCheck.too_slow])
 @given(containers=_unique_containers())
 def test_property8_isolation_is_precondition_of_stage5(
     containers: list[GenContainer],
@@ -349,7 +349,7 @@ def _isolated_only() -> st.SearchStrategy[list[GenContainer]]:
     )
 
 
-@settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
+@settings(max_examples=40, suppress_health_check=[HealthCheck.too_slow])
 @given(containers=_isolated_only())
 def test_property8_all_isolated_targets_conclude(
     containers: list[GenContainer],

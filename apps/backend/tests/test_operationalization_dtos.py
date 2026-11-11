@@ -35,14 +35,16 @@ def test_environment_platform_is_str_enum() -> None:
 
 
 def test_platform_container_value() -> None:
-    assert EnvironmentPlatform.CONTAINER.value == "conteiner"
+    assert EnvironmentPlatform.CONTAINER.value == "container"
 
 
-def test_platform_only_container_implemented() -> None:
-    # ``maquina_virtual`` é um placeholder comentado (Req. 17.2) e NÃO deve
-    # existir como membro do enum nesta spec.
-    assert [m.name for m in EnvironmentPlatform] == ["CONTAINER"]
-    assert not hasattr(EnvironmentPlatform, "VM")
+def test_platform_consolidated_declares_container_and_vm() -> None:
+    # The consolidated ``EnvironmentPlatform`` now declares BOTH members:
+    # ``CONTAINER`` is exercised this phase and ``VM`` (``virtual_machine``) is
+    # declared-but-not-exercised so the portable CHECK admits it without a
+    # schema migration (Req. 17.2).
+    assert [m.name for m in EnvironmentPlatform] == ["CONTAINER", "VM"]
+    assert EnvironmentPlatform.VM.value == "virtual_machine"
 
 
 def test_host_alvo_defaults() -> None:
@@ -84,7 +86,7 @@ def test_environment_parameters_defaults() -> None:
     assert params.origin is TranslationSource.HUMAN_CURATION
 
 
-def test_environment_parameters_serializes_pt_br() -> None:
+def test_environment_parameters_serializes_english() -> None:
     params = EnvironmentParameters(
         campaign_id="apt-x",
         hosts=[TargetHost(label="host_a", address="192.168.20.30")],
@@ -92,8 +94,8 @@ def test_environment_parameters_serializes_pt_br() -> None:
         network_context=["segmento interno 192.168.20.0/24"],
     )
     dumped = params.model_dump(mode="json")
-    assert dumped["platform"] == "conteiner"
-    assert dumped["origin"] == "curadoria_humana"
+    assert dumped["platform"] == "container"
+    assert dumped["origin"] == "human_curation"
     assert dumped["hosts"][0]["label"] == "host_a"
     assert dumped["services"][0]["origin_technique"] == "T1190"
     assert dumped["network_context"] == ["segmento interno 192.168.20.0/24"]

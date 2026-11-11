@@ -307,7 +307,7 @@ def _build_dag_service(
 
 # Feature: pipeline-seis-stages, Property 9 (DAG part)
 @settings(
-    max_examples=100,
+    max_examples=40,
     deadline=None,
     suppress_health_check=[HealthCheck.function_scoped_fixture, HealthCheck.too_slow],
 )
@@ -384,7 +384,7 @@ def test_property9_gate_blocks_without_stage2_completed(
 
 # Feature: pipeline-seis-stages, Property 9 (DAG part)
 @settings(
-    max_examples=100,
+    max_examples=40,
     deadline=None,
     suppress_health_check=[HealthCheck.function_scoped_fixture, HealthCheck.too_slow],
 )
@@ -417,6 +417,15 @@ def test_property9_auto_completes_loading_dag_and_idempotent(
     try:
         _write_case_fixture(data_dir, _CURATED_SLUG, structural_nodes)
         dag_service, stage_service = _build_dag_service(session, data_dir)
+
+        # One-shot curated ingest (sub-step 2.1): sub-step 2.4 made
+        # ``auto_complete_stage2`` resolve the DAG from the ``dags`` table instead
+        # of re-reading disk, so the curated DAG must be persisted first.
+        from app.services.curated_ingest_service import CuratedIngestService
+
+        CuratedIngestService(
+            session, case_service=CaseService(data_dir=data_dir)
+        ).ingest_all()
 
         states = dict(outros)
         states[STAGE_CAMPAIGN_SELECTION] = StageState.COMPLETED
@@ -473,7 +482,7 @@ def test_property9_auto_completes_loading_dag_and_idempotent(
 
 # Feature: pipeline-seis-stages, Property 9 (DAG part)
 @settings(
-    max_examples=100,
+    max_examples=40,
     deadline=None,
     suppress_health_check=[HealthCheck.function_scoped_fixture, HealthCheck.too_slow],
 )

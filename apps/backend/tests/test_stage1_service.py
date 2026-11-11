@@ -19,21 +19,78 @@ rede — não há HTTP real nesta suíte.
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
+from sqlalchemy.orm import Session, sessionmaker
 
+from app.core.config import Settings
+from app.db.base import Base, import_models
+from app.db.session import create_db_engine
 from app.services.stix.stage1_service import (
     BaseStixListada,
     Stage1Service,
     Stage1ResultStix,
 )
+from app.services.stix.stix_package_read_service import StixPackageReadService
+from app.services.stix.stix_persistence_service import StixPersistenceService
 from app.services.stix.stix_service import (
     CURATED_VERSION,
     KNOWN_VERSIONS,
     StixDownloadError,
     StixService,
 )
+
+
+# ---------------------------------------------------------------------------
+# Database session fixture + persisted-state seeding helper
+# ---------------------------------------------------------------------------
+#
+# The source of truth for "downloaded / selectable / completed" moved from the
+# on-disk bundle presence to the database persistence state
+# (``StixPackageReadService.is_persisted`` — Req. 3.1–3.5). These tests therefore
+# seed a **persisted** database state (via ``StixPersistenceService``, which
+# derives the content from a bundle written to an isolated temp dir and commits
+# it, deleting the on-disk file afterwards) and inject a
+# ``StixPackageReadService`` into ``Stage1Service`` so the verdict is derived
+# from the database rather than from disk.
+
+
+@pytest.fixture()
+def session_factory() -> Iterator[sessionmaker[Session]]:
+    """A fresh in-memory SQLite engine + schema, torn down afterward."""
+    settings_obj = Settings(database_url="sqlite:///:memory:")
+    engine = create_db_engine(settings_obj)
+    import_models()
+    Base.metadata.create_all(bind=engine)
+    factory: sessionmaker[Session] = sessionmaker(
+        bind=engine,
+        autocommit=False,
+        autoflush=False,
+        expire_on_commit=False,
+        future=True,
+        class_=Session,
+    )
+    try:
+        yield factory
+    finally:
+        engine.dispose()
+
+
+def _seed_persisted(
+    session: Session, stix: StixService, version: str, bundle: dict | None = None
+) -> None:
+    """Persist ``version`` into the database from a bundle written on disk.
+
+    Writes the bundle under the ``stix``'s isolated ``data_dir`` and persists its
+    derived content through :class:`StixPersistenceService`, so
+    :meth:`StixPackageReadService.is_persisted` becomes true for ``version``. The
+    persistence deletes the on-disk bundle after the commit (Req. 1.1), leaving
+    the database as the single source of truth — exactly the target state.
+    """
+    _escrever_bundle(stix.base_path(version), bundle)
+    StixPersistenceService(session, stix).persist_from_disk(version)
 
 
 # ---------------------------------------------------------------------------
@@ -110,17 +167,46 @@ def test_list_bases_projects_curated_flag_and_disk(tmp_path: Path) -> None:
     assert all(not b.downloaded and not b.selectable for b in bases)
 
 
-def test_list_bases_reflects_bundle_on_disk(tmp_path: Path) -> None:
-    """A materialised bundle flips ``downloaded``/``selectable`` for that version."""
+def test_list_bases_reflects_persisted_state(
+    tmp_path: Path, session_factory: sessionmaker[Session]
+) -> None:
+    """A persisted version flips ``downloaded``/``selectable`` from the database.
+
+    The source of truth is now the database (``is_persisted``), not the on-disk
+    bundle (Req. 3.1, 3.2, 3.3): once a version is persisted its listing entry is
+    ``downloaded``/``selectable`` and ``file`` is ``None`` (the on-disk bundle is
+    deleted after the commit).
+    """
+    session = session_factory()
     stix = StixService(data_dir=tmp_path)
-    _escrever_bundle(stix.base_path(CURATED_VERSION))
-    service = Stage1Service(stix)
+    _seed_persisted(session, stix, CURATED_VERSION)
+    service = Stage1Service(stix, StixPackageReadService(session))
 
     base = next(b for b in service.list_bases() if b.version == CURATED_VERSION)
 
     assert base.downloaded and base.selectable
-    assert base.file == str(stix.base_path(CURATED_VERSION))
+    assert base.file is None
     assert base.curated is True
+
+
+def test_list_bases_not_persisted_is_not_selectable(
+    tmp_path: Path, session_factory: sessionmaker[Session]
+) -> None:
+    """A version absent from the database is not ``downloaded``/``selectable``.
+
+    Even with the bundle materialised on disk, a version with no
+    ``stix_packages`` row is not selectable, because the database is the source
+    of truth (Req. 3.3).
+    """
+    session = session_factory()
+    stix = StixService(data_dir=tmp_path)
+    _escrever_bundle(stix.base_path(CURATED_VERSION))
+    service = Stage1Service(stix, StixPackageReadService(session))
+
+    base = next(b for b in service.list_bases() if b.version == CURATED_VERSION)
+
+    assert not base.downloaded and not base.selectable
+    assert base.file is None
 
 
 # ---------------------------------------------------------------------------
@@ -172,12 +258,16 @@ def test_download_base_unknown_version_refuses_no_disk(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_complete_success_builds_dashboard_and_campaigns(tmp_path: Path) -> None:
-    """Success: bundle on disk + dashboard assembled → completed; the Saída
-    (dashboard + campaigns) feeds Stage 2 (Req. 5.8, 5.10, 2.2)."""
-    cliente = _ClienteHttpFake(_RespostaFake(json.dumps(_bundle_curado())))
-    stix = StixService(data_dir=tmp_path, http_client=cliente)
-    service = Stage1Service(stix)
+def test_complete_persisted_builds_dashboard_and_campaigns(
+    tmp_path: Path, session_factory: sessionmaker[Session]
+) -> None:
+    """Success: a persisted version completes with the dashboard/campaigns read
+    from the database; the Saída (dashboard + campaigns) feeds Stage 2 (Req. 3.4,
+    3.5, 2.2)."""
+    session = session_factory()
+    stix = StixService(data_dir=tmp_path)
+    _seed_persisted(session, stix, CURATED_VERSION)
+    service = Stage1Service(stix, StixPackageReadService(session))
 
     result = service.complete(CURATED_VERSION)
 
@@ -187,7 +277,7 @@ def test_complete_success_builds_dashboard_and_campaigns(tmp_path: Path) -> None
     assert result.curated is True
     assert result.error_message is None
     assert result.dashboard is not None
-    # Dashboard carries the six required per-type counts.
+    # Dashboard carries the per-type counts read from the database.
     por_tipo = {c.stix_type: c.count for c in result.dashboard.counts}
     assert por_tipo["attack-pattern"] == 2
     assert por_tipo["campaign"] == 1
@@ -197,17 +287,22 @@ def test_complete_success_builds_dashboard_and_campaigns(tmp_path: Path) -> None
     assert result.campaigns[0].curated_slug == "shadowray"
 
 
-def test_complete_reuses_bundle_on_disk_no_network(tmp_path: Path) -> None:
-    """A pre-existing bundle concludes Stage 1 without any network egress."""
-    cliente = _ClienteHttpFake(_RespostaFake("nunca-usado"))
-    stix = StixService(data_dir=tmp_path, http_client=cliente)
+def test_complete_not_persisted_does_not_complete(
+    tmp_path: Path, session_factory: sessionmaker[Session]
+) -> None:
+    """A version absent from the database does not complete Stage 1, even with
+    the bundle on disk — the database is the source of truth (Req. 3.4, 3.5)."""
+    session = session_factory()
+    stix = StixService(data_dir=tmp_path)
     _escrever_bundle(stix.base_path(CURATED_VERSION))
-    service = Stage1Service(stix)
+    service = Stage1Service(stix, StixPackageReadService(session))
 
     result = service.complete(CURATED_VERSION)
 
-    assert result.completed is True
-    assert cliente.chamadas == []
+    assert result.completed is False
+    assert result.bundle_on_disk is False
+    assert result.dashboard is None
+    assert result.campaigns == []
 
 
 def test_complete_download_failure_does_not_complete_no_partial_file(tmp_path: Path) -> None:

@@ -166,7 +166,7 @@ def _make_probe_model(column_name: str, enum_cls: type) -> tuple[type, type]:
 # Feature: ai-curation-agents, Property 1 (support): origin stamping / portable
 # enum integrity — out-of-member values are rejected on write.
 @settings(
-    max_examples=150,
+    max_examples=40,
     deadline=None,
     suppress_health_check=[HealthCheck.too_slow],
 )

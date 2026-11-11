@@ -21,8 +21,9 @@ Structured CTI tells you **which** ATT&CK techniques a campaign used, but not th
 **procedure** — the concrete commands, their order, and their dependencies. STICKS
 makes that gap measurable:
 
-- It drives a curated campaign through a **six-stage pipeline** with explicit
-  Input / Processing / Output per stage and strict sequential gating.
+- It is **agentic-centric**: once the researcher picks a STIX base and campaign
+  (the **Input**), a multi-agent AI loop drives the emulation through semantic,
+  number-free **agentic phases**.
 - It executes the campaign against an **isolated Docker lab** through
   MITRE Caldera, tracking each technique live.
 - It measures **procedural sufficiency** and produces a consistent execution
@@ -34,28 +35,85 @@ networks, verified before and during every run.
 
 ---
 
-## The six-stage pipeline
+## Three distinct concepts: Ingestion, Input, and the Agentic phases
 
-| # | Stage | Role |
-|---|-------|------|
-| 1 | **STIX base selection** | Pick a STIX package version; download it from MITRE if absent; show a bundle dashboard. |
-| 2 | **Campaign selection** | List the bundle's campaigns; pick one; extract its attributes. |
-| 3 | **DAG generation** | Build the directed acyclic graph of techniques and their ordering/dependencies. |
-| 4 | **Operationalization** | Produce the executable Abilities (commands) in DAG order plus the environment parameters they require. |
-| 5 | **Environment provisioning** | Create and verify the isolated container lab (health, loaded Abilities, isolation gate). |
-| 6 | **Execution, measurement & report** | Auto-run the campaign in the isolated lab, track it live, measure sufficiency, generate the report, and deprovision. |
+STICKS has **three** separate concepts. They run at different times, for
+different consumers — do not treat them as synonyms. The phase names are
+**semantic and number-free**; the legacy `stage_N` numbering has been removed.
+Every phase decision (how many phases, their names, splitting execution from
+evaluation, and the network boundary) is traceable to the academic sources in
+[`docs/agentic-phases-literature.md`](docs/agentic-phases-literature.md).
 
-For the **8 human-curated campaigns**, stages 3-5 consume curated artifacts read
-directly from disk (no AI, no network in development). This is a transitional
-design: an `origin` extension point (`human_curation` today, `ai_generated`
-later) lets an AI agent replace the curation without a redesign.
+| Concept | When | Nature |
+|---------|------|--------|
+| **Ingestion** | System setup / maintenance | Administrative, offline, **idempotent** process that populates the databases from the knowledge sources. |
+| **Input** (`input`) | Per run | The researcher selects a STIX base + campaign. **Not an agent phase** — it precedes the agentic loop. |
+| **Agentic phases** | Per run | The agent loop: `dag → operationalization → environment → execution → evaluation`. |
+
+Relationship: **Ingestion fills the databases → Input reads from them** to build
+the initial context → the agentic phases run. Ingestion is a prerequisite for
+everything else.
+
+### Ingestion (setup) — operations, inputs, persistence
+
+A one-time, idempotent bootstrap (re-running the same sources does not duplicate
+rows or embeddings). It populates both stores:
+
+| Source | Operation | Persistence |
+|--------|-----------|-------------|
+| **STIX bundles** (ATT&CK-in-STIX, e.g. v18.0 / v19.0 / v19.1) | Parse and persist campaigns, techniques, relationships. | Relational `stix_*` tables + STIX-context embeddings. |
+| **Atomic Red Team** (`redcanaryco/atomic-red-team`) | Index per-technique commands. | Relational `technique_commands` + command affinities in the Vector store (`experience_memory`). |
+| **Docker image catalog** | Fetch **text-only** image descriptions via the public Docker Hub API (no image layers; caps ~10k images / ~10 MB). | Relational `image_catalog` keyed by `(image, target_os)` + best-effort description/services embeddings (a Vector-store failure never aborts the relational write). |
+
+Ingestion requires **no campaign run** and isolates per-source failures: a
+failure in one source preserves what the others already persisted, without
+corrupting the databases.
+
+### Input (`input`, per run) — operations, inputs, persistence
+
+The researcher picks a STIX base version and a campaign from it. The system
+extracts the campaign's attributes (techniques, relationships, indicators,
+infrastructure, malware) by **reading from the ingested databases** — no disk,
+no network at request time. `input` is the human choosing the target; it is
+**not counted or numbered as an agent phase**. Its output (campaign identity +
+techniques) is the initial context the agentic loop consumes.
+
+### Agentic phases — operations, inputs, persistence
+
+The agent loop runs five semantic phases. `evaluation` observes the **real**
+execution result and either finishes (success) or routes a refinement back to
+`dag`, `operationalization`, or `environment`, bounded by a max-iterations guard.
+
+| Phase | Operation | Input | Persistence |
+|-------|-----------|-------|-------------|
+| **`dag`** | Build the directed acyclic graph of techniques — ordering and dependencies. | Campaign identity + techniques (from `input`). | DAG nodes/edges; per-stage trace + experience in the Vector store. |
+| **`operationalization`** | Resolve concrete, ordered executable Abilities per technique (from the Atomic Red Team index; relational match, then semantic RAG — never invented). | The DAG. | Ordered Abilities + Adversary; audit trace. |
+| **`environment`** | Provision the contained lab. Resolve images **catalog-first** (Docker image catalog, then Docker Hub online only as fallback). **External egress is allowed here, automatically**, to pull images. | Environment parameters derived from operationalization. | Provisioning map; environment state + audit trace. |
+| **`execution`** | Run the offensive commands through Caldera against the targets over the **internal** lab network. Starts only after the **isolation gate** confirms external egress is cut; every command destination is validated by `is_internal_ip`. | The provisioned, **isolated** lab. | Run results, 1:1 audit trail, isolation proof/events. |
+| **`evaluation`** | Judge the real execution result (runner verdict, containment/isolation state); decide finish vs. refine; write the experience. | The execution result. | Verdict + experience (success/failure) in the Vector store. |
+
+**Network boundary (`environment` → `execution`).** Isolation is **cutting
+external egress, not cutting the network**. After provisioning, an auditable
+isolation gate severs external egress while **keeping the internal lab network
+alive** — Caldera (the C2) needs it to reach the targets during `execution`.
+`execution` cannot start without a valid isolation proof, and every command
+destination must be internal/contained (`is_internal_ip`). See the network
+boundary rationale and its sources in
+[`docs/agentic-phases-literature.md`](docs/agentic-phases-literature.md).
+
+For the **8 human-curated campaigns**, the `dag`, `operationalization`, and
+`environment` phases can consume curated artifacts (the AI-generated curation is
+compared against this ground truth). An `origin` extension point
+(`human_curation` / `ai_generated`) lets the AI agent produce the curation
+without a redesign.
 
 ### STIX base selection — where the bundle is stored
 
 The STIX bundle (`enterprise-attack-{version}.json`, ~50 MB) is a **runtime
 artifact**, not a versioned file. It is downloaded from the official MITRE source
-on demand during Stage 1, into a **persistent user cache** outside the repository
-tree, so the repository stays small and clean:
+on demand during STIX base selection (part of the `input` phase), into a
+**persistent user cache** outside the repository tree, so the repository stays
+small and clean:
 
 - **Windows:** `%LOCALAPPDATA%\sticks\stix`
 - **Linux / macOS:** `$XDG_CACHE_HOME/sticks/stix` when `XDG_CACHE_HOME` is set,
@@ -136,8 +194,8 @@ npm run setup
 npm run dev
 ```
 
-- **UI:** http://localhost:8080
-- **API:** http://localhost:9080 - health check: `GET /health` -> `{"status": "ok"}`
+- **UI:** http://localhost:8000
+- **API:** http://localhost:8010 - health check: `GET /health` -> `{"status": "ok"}`
 - **Caldera:** http://localhost:8888 (login `red` / `admin`)
 
 Database migrations can be applied on their own with `npm run db:migrate`.

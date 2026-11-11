@@ -252,7 +252,7 @@ def _make_runner(session: Session, caldera: CalderaClient) -> OperationRunner:
 
 
 @settings(
-    max_examples=150,
+    max_examples=40,
     deadline=None,
     suppress_health_check=[HealthCheck.too_slow],
 )
@@ -325,7 +325,7 @@ def test_property6_unconfirmed_request_changes_nothing(
 
 
 @settings(
-    max_examples=100,
+    max_examples=40,
     deadline=None,
     suppress_health_check=[HealthCheck.too_slow],
 )

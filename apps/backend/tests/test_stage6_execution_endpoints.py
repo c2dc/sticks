@@ -65,10 +65,13 @@ from app.services.containment.isolation import (
     IsolationResult,
     NetworkInfo,
 )
+from app.services.campaign_service import CURATED_CASES
 from app.services.environment.compose_executor import CommandResult
 from app.services.environment.provisioner import CurationEnvironmentProvisioner
 from app.services.environment.health import ContainerStateInfo
 from app.services.operation.runner import OperationRunner
+
+from _stix_seed import ensure_stix_campaigns
 
 
 _INTERNAL_NET = "caldera-internal-network"
@@ -210,6 +213,11 @@ def session_factory() -> Iterator[sessionmaker[Session]]:
         future=True,
         class_=Session,
     )
+    # The Stage 6 / report / operation endpoints guard validates the campaign
+    # against the persisted STIX campaigns (``_known_campaign_or_404`` over
+    # ``stix_campaigns`` — Req. 2.2, 2.3, 4.4). Seed the curated slugs this
+    # module exercises so the guard accepts them.
+    ensure_stix_campaigns(factory, CURATED_CASES.keys())
     try:
         yield factory
     finally:
@@ -327,7 +335,7 @@ def test_execution_not_confirmed_runs_nothing(
     body = resp.json()
     assert body["execution"]["started"] is False
     assert body["execution"]["result"] == "nao_confirmada"
-    assert body["execution"]["state"] == "nao_iniciada"
+    assert body["execution"]["state"] == "not_started"
     assert body["completed"] is False
     # The environment is torn down even when nothing ran (Req. 10.8, 12.1).
     assert body["deprovisioning"]["deprovisioned"] is True

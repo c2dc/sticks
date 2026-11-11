@@ -50,7 +50,7 @@ def test_metrica_tecnica_full_and_serialization() -> None:
     dumped = metric.model_dump(mode="json")
     assert dumped["technique_id"] == "T1059"
     assert dumped["node_id"] == "n1"
-    assert dumped["status"] == "falha"
+    assert dumped["status"] == "failure"
     assert dumped["failed_step"] == "execution"
     assert dumped["execution_time_s"] == 1.5
     assert dumped["telemetry"] == ["processo", "rede"]
@@ -88,8 +88,8 @@ def test_sufficiency_metrics_full_and_nested() -> None:
     assert dumped["success_rate"] == 0.75
     assert dumped["procedural_coverage"] == 0.9
     assert dumped["total_time_s"] == 12.0
-    assert dumped["per_technique"][0]["status"] == "sucesso"
-    assert dumped["per_technique"][1]["status"] == "falha"
+    assert dumped["per_technique"][0]["status"] == "success"
+    assert dumped["per_technique"][1]["status"] == "failure"
     assert dumped["failed_nodes"] == ["n2"]
     assert dumped["success_verdict"] is True
 
@@ -136,7 +136,7 @@ def test_execution_report_full_and_serialization() -> None:
     assert dumped["campaign_id"] == "apt-x"
     assert dumped["metrics"]["success_rate"] == 0.5
     assert dumped["results"][0]["ability_id"] == "a1"
-    assert dumped["results"][0]["status"] == "sucesso"
-    assert dumped["results"][1]["status"] == "falha"
+    assert dumped["results"][0]["status"] == "success"
+    assert dumped["results"][1]["status"] == "failure"
     assert dumped["environment_deprovisioned"] is True
     assert dumped["generated_at"].startswith("2024-01-02T03:04:05")

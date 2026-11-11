@@ -51,9 +51,12 @@ from app.services.containment.isolation import (
     IsolationResult,
     NetworkInfo,
 )
+from app.services.campaign_service import CURATED_CASES
 from app.services.environment.compose_executor import CommandResult
 from app.services.environment.provisioner import CurationEnvironmentProvisioner
 from app.services.environment.health import ContainerStateInfo
+
+from _stix_seed import ensure_stix_campaigns
 
 
 _INTERNAL_NET = "caldera-internal-network"
@@ -162,6 +165,11 @@ def session_factory() -> Iterator[sessionmaker[Session]]:
         future=True,
         class_=Session,
     )
+    # The stage endpoints guard validates the campaign against the persisted
+    # STIX campaigns (``_known_campaign_or_404`` over ``stix_campaigns`` — Req.
+    # 2.2, 2.3, 4.4). Seed the curated slugs this module exercises so the guard
+    # accepts them.
+    ensure_stix_campaigns(factory, CURATED_CASES.keys())
     try:
         yield factory
     finally:
@@ -224,12 +232,12 @@ def test_provision_isolated_and_loaded_concludes_stage5(
 
     environment = body["environment"]
     assert environment["campaign_id"] == _SLUG
-    assert environment["platform"] == "conteiner"
+    assert environment["platform"] == "container"
     assert environment["target_containers"], "target containers must be resolved"
     assert environment["loaded_abilities"] is True
     assert environment["isolation"]["approved"] is True
     assert environment["compose_file"]
-    assert environment["origin"] == "curadoria_humana"
+    assert environment["origin"] == "human_curation"
 
     # Isolated + loaded => Stage 5 concluded, no blocking reason.
     assert body["completed"] is True
@@ -237,7 +245,7 @@ def test_provision_isolated_and_loaded_concludes_stage5(
 
     # The per-stage state reflects the completion of Stage 5.
     stage5 = next(e for e in body["states"]["stages"] if e["stage"] == 5)
-    assert stage5["state"] == "concluido"
+    assert stage5["state"] == "completed"
 
 
 # ---------------------------------------------------------------------------

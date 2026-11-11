@@ -34,8 +34,8 @@ class TranslationSource(str, enum.Enum):
     _Requirements: 11.1, 11.2, 16.2, 16.4_
     """
 
-    HUMAN_CURATION = "curadoria_humana"  # value of the 8 existing curated translations
-    AI_GENERATED = "gerado_ia"  # produced by an AI agent (pluggable later, Req. 16)
+    HUMAN_CURATION = "human_curation"  # value of the 8 existing curated translations
+    AI_GENERATED = "ai_generated"  # produced by an AI agent (pluggable later, Req. 16)
 
 
 class DagOrigin(str, enum.Enum):
@@ -55,8 +55,8 @@ class DagOrigin(str, enum.Enum):
     _Requirements: 4.3, 4.6, 9.4_
     """
 
-    HUMAN_CURATION = "curadoria_humana"  # DAGs produced by human curation
-    AI_GENERATED = "gerado_ia"  # produced by an AI agent (pluggable later, Req. 9)
+    HUMAN_CURATION = "human_curation"  # DAGs produced by human curation
+    AI_GENERATED = "ai_generated"  # produced by an AI agent (pluggable later, Req. 9)
 
 
 class EnvironmentPlatform(str, enum.Enum):
@@ -70,72 +70,56 @@ class EnvironmentPlatform(str, enum.Enum):
     Subclasses ``str`` to serialize to its value in the API/DB, following the
     precedent of :class:`TranslationSource`/:class:`DagOrigin`.
 
-    In this spec only ``CONTAINER`` is implemented (Req. 17.1). ``maquina_virtual``
-    is **not** a member of the enum (Req. 17.2) — but the CHECK of the persisted
-    column already admits it via ``_portable_enum(..., extra_values=("maquina_virtual",))``,
-    exactly like ``DagOrigin``/``gerado_ia``: adding it later requires no schema
-    migration.
+    Both members are **declared** on this single enum: ``CONTAINER`` is
+    implemented and exercised this phase (Req. 17.1), while ``VM`` remains
+    declared-but-not-exercised (Req. 17.2). Because both live on one enum, the
+    portable column CHECK built via ``_portable_enum`` already admits
+    ``virtual_machine`` from this migration forward — exactly the precedent of
+    ``DagOrigin``/``ai_generated``: persisting a virtual-machine platform in the
+    future does **not** require a schema migration. This consolidation replaces
+    the former split between the public enum and a persistence-only
+    ``PersistedEnvironmentPlatform``.
 
     _Requirements: 17.1, 17.2_
     """
 
-    CONTAINER = "conteiner"
-    # VM = "maquina_virtual"  # future (Req. 17.2) — not implemented in this spec
-
-
-class PersistedEnvironmentPlatform(str, enum.Enum):
-    """**Persistence** enum for the platform — source of the column CHECK.
-
-    Exists only to build the column type of ``environment_parameters.plataforma``
-    via ``_portable_enum`` (VARCHAR + CHECK). Unlike :class:`EnvironmentPlatform`
-    (used by the application layer, with only ``CONTAINER`` implemented —
-    Req. 17.1), this enum already **declares** ``maquina_virtual`` so the
-    generated ``CHECK`` accepts it from the first migration — exactly the
-    precedent of ``DagOrigin``/``gerado_ia``: persisting a virtual-machine
-    platform in the future does **not** require a schema migration (Req. 17.2).
-    ``CONTAINER`` has the same value (``"conteiner"``) as the public enum, so
-    writing ``EnvironmentPlatform.CONTAINER`` stays compatible.
-
-    _Requirements: 17.1, 17.2_
-    """
-
-    CONTAINER = "conteiner"
-    VM = "maquina_virtual"  # admitted in the CHECK; not implemented in this spec (Req. 17.2)
+    CONTAINER = "container"
+    VM = "virtual_machine"  # declared for the CHECK; not exercised this spec (Req. 17.2)
 
 
 class StageState(str, enum.Enum):
     """State of a Stage (Req. 1.4, 5.3)."""
 
-    NOT_STARTED = "nao_iniciado"
-    IN_PROGRESS = "em_andamento"
-    COMPLETED = "concluido"
-    ERROR = "erro"
+    NOT_STARTED = "not_started"
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    ERROR = "error"
 
 
 class OperationState(str, enum.Enum):
     """State of an Operation in Caldera."""
 
-    NOT_STARTED = "nao_iniciada"
-    RUNNING = "em_execucao"
-    FINISHED = "finalizada"
-    ABORTED = "abortada"
-    INCOMPLETE_TIMEOUT = "incompleta_timeout"  # novo (Req. 3.2)
+    NOT_STARTED = "not_started"
+    RUNNING = "running"
+    FINISHED = "finished"
+    ABORTED = "aborted"
+    INCOMPLETE_TIMEOUT = "incomplete_timeout"  # novo (Req. 3.2)
 
 
 class AbilityResultStatus(str, enum.Enum):
     """Execution status of an Ability during an Operation (Req. 4.3)."""
 
-    PENDING = "pendente"
-    RUNNING = "em_execucao"
-    SUCCESS = "sucesso"
-    FAILURE = "falha"
+    PENDING = "pending"
+    RUNNING = "running"
+    SUCCESS = "success"
+    FAILURE = "failure"
 
 
 class Theme(str, enum.Enum):
     """Visual theme of the interface (Req. 7)."""
 
-    LIGHT = "claro"
-    DARK = "escuro"
+    LIGHT = "light"
+    DARK = "dark"
 
 
 class Language(str, enum.Enum):
@@ -161,28 +145,78 @@ class AgentRunStatus(str, enum.Enum):
     _Requirements: 2.4, 2.5, 11.2_
     """
 
-    PENDING = "pendente"
-    RUNNING = "em_execucao"
-    COMPLETED = "concluido"
-    FAILED = "falhou"
-    ABORTED = "abortado"  # hit the max-iteration guard without a passing verdict
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    ABORTED = "aborted"  # hit the max-iteration guard without a passing verdict
 
 
 class AgentStage(str, enum.Enum):
-    """Which curated stage an agent output belongs to (Req. 2.4, 11.2).
+    """Which agentic phase an agent output belongs to.
 
     Subclasses ``str`` so members serialize to their values, matching the
-    precedent of the other domain enums. The values mirror the six-stage
-    numbering used elsewhere in the schema: stage 3 (DAG), stage 4
-    (operationalization) and stage 5 (environment) are the stages an agent can
-    (re-)enter.
+    precedent of the other domain enums. The values are the **semantic,
+    number-free** phase names of the agentic-centric model
+    (``dag``, ``operationalization``, ``environment``, ``execution``,
+    ``evaluation``); the legacy ``stage_N_*`` numbering is removed. ``input``
+    (the STIX base + campaign selection) is a user Input_Phase, not an agent
+    phase, so it is intentionally absent here. ``execution`` and ``evaluation``
+    are distinct, ordered phases: ``evaluation`` observes the real execution
+    result and feeds the refinement loop.
 
-    _Requirements: 2.4, 11.2_
+    Because the backing columns persist with ``native_enum=False`` (VARCHAR +
+    CHECK), the CHECK is regenerated to this value set by a reversible
+    migration, which also converts legacy rows (``stage_3_dag → dag``, etc.).
+
+    _Requirements: 1.1, 1.2, 1.6, 2.1_
     """
 
-    DAG = "estagio_3_dag"
-    OPERATIONALIZATION = "estagio_4_operacionalizacao"
-    ENVIRONMENT = "estagio_5_ambiente"
+    DAG = "dag"
+    OPERATIONALIZATION = "operationalization"
+    ENVIRONMENT = "environment"
+    EXECUTION = "execution"  # explicit own phase (plan -> act)
+    EVALUATION = "evaluation"  # explicit own phase (evaluate; feeds refinement)
+
+
+# The Phase_Order: the single, ordered list the backend agentic loop walks,
+# ``dag → operationalization → environment → execution → evaluation`` (design
+# §Phase_Order; Req. 1.1, 2.1). ``input`` is intentionally absent — it is the
+# user Input_Phase, not an agent phase. Derived from the enum members so the
+# list and the enum value set can never drift (``execution`` follows
+# ``environment``; ``evaluation`` follows ``execution``). Consumers that need a
+# canonical ordering of the agentic phases reference this tuple rather than
+# hardcoding the sequence.
+PHASE_ORDER: tuple[str, ...] = tuple(member.value for member in AgentStage)
+
+
+class TechniqueEmulabilityKind(str, enum.Enum):
+    """Container-emulability classification of an ATT&CK technique (Req. 6.1).
+
+    Subclasses ``str`` so members serialize to their values — the strings
+    persisted in the database and exchanged over the REST/JSON API — following
+    the precedent of the other domain enums. The backing
+    ``technique_emulability.emulability`` column persists with
+    ``native_enum=False`` (VARCHAR + CHECK) via ``_portable_enum`` in
+    ``app/models/domain.py``, so the generated CHECK bounds the value set to
+    exactly these three members.
+
+    * ``CONTAINER`` — the technique is emulable inside a container.
+    * ``DISPENSABLE`` — the technique needs no emulation (e.g. social
+      engineering), so it does not block container emulation of a campaign.
+    * ``NOT_CONTAINER`` — the technique is not emulable in a container (requires
+      a VM, firmware, or a human), so it blocks container emulation.
+
+    A campaign is container-emulable if and only if every one of its techniques
+    is ``CONTAINER`` or ``DISPENSABLE`` (Req. 6.2); a single ``NOT_CONTAINER``
+    technique blocks it.
+
+    _Requirements: 6.1, 6.2_
+    """
+
+    CONTAINER = "container"
+    DISPENSABLE = "dispensable"
+    NOT_CONTAINER = "not_container"
 
 
 class EvaluatorDecision(str, enum.Enum):
@@ -195,5 +229,5 @@ class EvaluatorDecision(str, enum.Enum):
     _Requirements: 2.4, 2.5_
     """
 
-    REFINE = "refinar"
-    FINISH = "finalizar"
+    REFINE = "refine"
+    FINISH = "finish"
