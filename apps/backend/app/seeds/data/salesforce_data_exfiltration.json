@@ -562,6 +562,8 @@
     "description": "Salesforce Data Exfiltration",
     "id": "salesforce_data_exfiltration",
     "name": "Salesforce Data Exfiltration",
+    "stix_campaign_key": "C0059",
+    "stix_version": "18.0",
     "translation_source": "human_curation"
   }
 }

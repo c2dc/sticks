@@ -420,3 +420,18 @@ def test_orchestrate_defaults_and_warns_on_invalid_max_iterations(
 def test_orchestrate_default_matches_graph_module_constant() -> None:
     """The applied default is the module's documented guard default of 3 (Req. 3.6)."""
     assert graph_module._DEFAULT_MAX_ITERATIONS == 3
+
+
+# --- _context_query: supported keys only (task 32.2) ---
+
+
+def test_context_query_key_precedence_and_ignores_removed_campaign_context():
+    query = graph_module._context_query
+    assert query({"context_query": " a ", "campaign_summary": "b"}, "c1") == "a"
+    assert query({"campaign_summary": " b "}, "c1") == "b"
+    # The removed ``campaign_context`` key must no longer influence the query.
+    assert (
+        query({"campaign_context": "legacy"}, "c1")
+        == "AI curation context for campaign c1"
+    )
+    assert query({}, "") == "AI curation context"

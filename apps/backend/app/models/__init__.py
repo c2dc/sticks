@@ -31,7 +31,6 @@ from app.models.domain import (
     Operation,
     SessionState,
     StageRun,
-    StixVersion,
     TechniqueEmulability,
     UserPreferences,
 )
@@ -83,7 +82,6 @@ __all__ = [
     "AuditLogEntry",
     "SessionState",
     "UserPreferences",
-    "StixVersion",
     "EnvironmentParametersRow",
     "ExecutionReport",
     # AI curation agent bookkeeping (task 3.1)

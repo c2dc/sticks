@@ -707,6 +707,8 @@
     "description": null,
     "id": "apt41_dust",
     "name": "APT41-DUST",
+    "stix_campaign_key": "C0040",
+    "stix_version": "18.0",
     "translation_source": "human_curation"
   }
 }

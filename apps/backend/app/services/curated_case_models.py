@@ -99,6 +99,13 @@ class CaseData(BaseModel):
     name: str  # display name, e.g. "ShadowRay"
     translation_source: TranslationSource = TranslationSource.HUMAN_CURATION
 
+    # STIX binding declared by the seed (``campaign.stix_version`` and
+    # ``campaign.stix_campaign_key``). The database has no column for it, so a
+    # case rebuilt from the database leaves both ``None``; when set they are
+    # validated.
+    stix_version: Optional[str] = Field(default=None, pattern=r"^\d+(\.\d+)+$")
+    stix_campaign_key: Optional[str] = Field(default=None, pattern=r"^C\d{4}$")
+
     abilities: list[AbilityData] = Field(default_factory=list)
     adversary: Optional[AdversaryData] = None
     flow: Optional[FlowData] = None

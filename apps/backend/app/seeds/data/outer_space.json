@@ -272,6 +272,8 @@
     "description": "Outer Space",
     "id": "outer_space",
     "name": "Operation Outer Space",
+    "stix_campaign_key": "C0042",
+    "stix_version": "18.0",
     "translation_source": "human_curation"
   }
 }

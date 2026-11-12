@@ -56,6 +56,12 @@ exporting, each only when its precondition holds):
     and ``generated_at`` are removed.
 (d) The top-level ``environment_parameters``/``provisioning_map`` keys,
     ``campaign.curated`` and ``attack_flow.origin`` are not exported.
+(e) ``campaign.stix_version`` is the constant ``curated_stix_version`` ("18.0",
+    the version the cases were curated against); ``campaign.stix_campaign_key``
+    is the ``external_id`` (``C00xx``) of the ``stix_campaigns`` row whose
+    ``curated_slug`` is the campaign slug in that version's package (SELECT
+    only). The export fails if the row is missing, the id is not C + 4 digits or
+    it differs between persisted versions.
 
 Usage (from the repository root, with the backend virtualenv)::
 
@@ -70,6 +76,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -99,6 +106,11 @@ KNOWN_CORRECTIONS: dict[str, Any] = {
     ),
     # (c) the only flow content keys kept
     "flow_content_keys_kept": ("campaign_name", "edges", "structural_nodes"),
+    # (e) ATT&CK version the 8 cases were curated against (confirmed read-only
+    # against the database in task 33.1: all 8 exist in 18.0 with the same ids).
+    # Exported as ``campaign.stix_version``; the STIX campaign key
+    # (``campaign.stix_campaign_key``) is read from ``stix_campaigns`` at it.
+    "curated_stix_version": "18.0",
 }
 
 
@@ -183,6 +195,48 @@ def read_database() -> dict[str, Any]:
         engine.dispose()
 
 
+def _read_stix_keys(conn: Any, tables: set[str]) -> dict[str, dict[str, str]]:
+    """``{curated_slug: {stix version: external_id}}`` from the persisted STIX data.
+
+    Read-only SELECT over ``stix_campaigns`` joined to ``stix_packages``; only
+    rows marked with a ``curated_slug`` are used. Returns ``{}`` when the STIX
+    tables do not exist.
+    """
+    if not {"stix_campaigns", "stix_packages"} <= tables:
+        return {}
+    keys: dict[str, dict[str, str]] = {}
+    rows = _rows(
+        conn,
+        "SELECT p.version AS version, c.curated_slug AS slug, c.external_id AS external_id "
+        "FROM stix_campaigns c JOIN stix_packages p ON p.id = c.package_id "
+        "WHERE c.curated_slug IS NOT NULL ORDER BY c.curated_slug, p.version",
+    )
+    for row in rows:
+        if row["external_id"]:
+            keys.setdefault(row["slug"], {})[row["version"]] = row["external_id"]
+    return keys
+
+
+def _stix_key_for(slug: str, stix_keys: dict[str, dict[str, str]]) -> str:
+    """STIX campaign external id of ``slug`` at the curated version (checked).
+
+    The id must exist in the curated version's package, match ``^C\\d{4}$`` and be
+    the same in every other persisted version (the same campaign keeps its id).
+    """
+    version = KNOWN_CORRECTIONS["curated_stix_version"]
+    per_version = stix_keys.get(slug, {})
+    key = per_version.get(version)
+    if key is None:
+        raise SystemExit(
+            f"campaign {slug}: no stix_campaigns row with curated_slug in version {version}"
+        )
+    if not re.fullmatch(r"C\d{4}", key):
+        raise SystemExit(f"campaign {slug}: invalid STIX campaign key {key!r}")
+    if set(per_version.values()) != {key}:
+        raise SystemExit(f"campaign {slug}: STIX campaign key differs across versions")
+    return key
+
+
 def _collect(conn: Any) -> dict[str, Any]:
     tables = {
         r["table_name"]
@@ -241,6 +295,8 @@ def _collect(conn: Any) -> dict[str, Any]:
         if best is None or (row["created_at"], row["id"]) > (best["created_at"], best["id"]):
             latest[row["campaign_id"]] = row
 
+    stix_keys = _read_stix_keys(conn, tables)
+
     cases: list[dict[str, Any]] = []
     for c in campaigns:
         slug = c["id"]
@@ -266,6 +322,8 @@ def _collect(conn: Any) -> dict[str, Any]:
                     "name": c["name"],
                     "description": c["description"],
                     "translation_source": c["translation_source"],
+                    "stix_version": KNOWN_CORRECTIONS["curated_stix_version"],
+                    "stix_campaign_key": _stix_key_for(slug, stix_keys),
                 },
                 "abilities": c_abilities,
                 "adversary": c_adversaries[0],

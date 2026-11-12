@@ -672,7 +672,8 @@ def test_alembic_has_single_head_and_m1_is_chained_on_previous_head() -> None:
     assert script.get_revision("c5d6e7f8a9b0").down_revision == "b4c5d6e7f8a9"
     assert script.get_revision("d6e7f8a9b0c1").down_revision == "c5d6e7f8a9b0"
     assert script.get_revision("e7f8a9b0c1d2").down_revision == "d6e7f8a9b0c1"
-    assert heads == ["e7f8a9b0c1d2"]
+    assert script.get_revision("f8a9b0c1d2e3").down_revision == "e7f8a9b0c1d2"
+    assert heads == ["f8a9b0c1d2e3"]
 
 
 # ===========================================================================
@@ -1361,6 +1362,99 @@ def test_m7_upgrade_refuses_to_drop_a_non_empty_provisioned_environment() -> Non
             )
         with pytest.raises(RuntimeError, match="provisioned_environment"):
             _run_m7(engine, "upgrade")
+    finally:
+        engine.dispose()
+        try:
+            db_path.unlink()
+            db_path.parent.rmdir()
+        except OSError:
+            pass
+
+
+# ===========================================================================
+# Migration M8 ``f8a9b0c1d2e3`` (agentic-only-flow-redesign task 32.1).
+# Drops the dead ``stix_versions`` table; the downgrade re-creates it as it was
+# after M7 and re-inserts the seeded ``18.0`` row.
+# ===========================================================================
+
+_M8 = _load_migration(
+    "_migration_f8a9b0c1d2e3",
+    "20261104_0200-f8a9b0c1d2e3_drop_dead_stix_versions_table.py",
+)
+
+
+def _run_m8(engine: Engine, step: str) -> None:
+    with engine.connect() as conn:
+        with conn.begin():
+            ctx = MigrationContext.configure(connection=conn, opts={"render_as_batch": True})
+            original_op = _M8.op
+            _M8.op = Operations(ctx)
+            try:
+                getattr(_M8, step)()
+            finally:
+                _M8.op = original_op
+
+
+def _build_pre_m8_engine(db_path: Path) -> Engine:
+    engine = create_engine(f"sqlite:///{db_path.as_posix()}", future=True)
+    md = MetaData()
+    Table(
+        "stix_versions",
+        md,
+        Column("version", String, primary_key=True),
+        Column("curated", Boolean, nullable=False),
+    )
+    md.create_all(engine)
+    return engine
+
+
+def test_m8_roundtrip_drops_stix_versions_and_restores_it_with_the_seed_row() -> None:
+    from sqlalchemy import inspect, text
+
+    tmp_dir = tempfile.mkdtemp(prefix="drop_stix_versions_m8_")
+    db_path = Path(tmp_dir) / "drop_stix_versions_m8.db"
+    engine = _build_pre_m8_engine(db_path)
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("INSERT INTO stix_versions (version, curated) VALUES ('18.0', 1)"))
+
+        _run_m8(engine, "upgrade")
+        assert "stix_versions" not in inspect(engine).get_table_names()
+
+        _run_m8(engine, "downgrade")
+        insp = inspect(engine)
+        assert {c["name"]: c["nullable"] for c in insp.get_columns("stix_versions")} == {
+            "version": False, "curated": False,
+        }
+        assert insp.get_pk_constraint("stix_versions")["constrained_columns"] == ["version"]
+        with engine.connect() as conn:
+            assert [
+                tuple(r) for r in conn.execute(text("SELECT version, curated FROM stix_versions"))
+            ] == [("18.0", 1)]
+
+        _run_m8(engine, "upgrade")
+        assert "stix_versions" not in inspect(engine).get_table_names()
+    finally:
+        engine.dispose()
+        try:
+            db_path.unlink()
+            db_path.parent.rmdir()
+        except OSError:
+            pass
+
+
+def test_m8_upgrade_refuses_to_drop_a_table_with_unexpected_rows() -> None:
+    from sqlalchemy import inspect, text
+
+    tmp_dir = tempfile.mkdtemp(prefix="drop_stix_versions_m8_guard_")
+    db_path = Path(tmp_dir) / "drop_stix_versions_m8_guard.db"
+    engine = _build_pre_m8_engine(db_path)
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("INSERT INTO stix_versions (version, curated) VALUES ('17.0', 0)"))
+        with pytest.raises(RuntimeError, match="stix_versions"):
+            _run_m8(engine, "upgrade")
+        assert "stix_versions" in inspect(engine).get_table_names()
     finally:
         engine.dispose()
         try:

@@ -533,6 +533,8 @@
     "description": "Operation MidnightEclipse",
     "id": "operation_midnighteclipse",
     "name": "Operation MidnightEclipse",
+    "stix_campaign_key": "C0048",
+    "stix_version": "18.0",
     "translation_source": "human_curation"
   }
 }

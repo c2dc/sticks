@@ -4,8 +4,7 @@ Example (non property-based) tests that exercise
 :class:`app.services.stix.stix_service.StixService` directly, complementing
 ``test_stix_service_property.py``:
 
-* the curated-version flag :func:`version_is_curated` - true only for
-  :data:`CURATED_VERSION` (``"18.0"``) (Req. 5.5);
+* :data:`CURATED_VERSION` - derived from the seed manifest (``"18.0"``);
 * ``dashboard`` - deterministic per-type counts, and the campaign listing with the
   ``curated`` flag resolved (Req. 5.7).
 
@@ -14,13 +13,10 @@ Bundles are built in memory; nothing touches the disk or the network.
 
 from __future__ import annotations
 
-import pytest
-
 from app.services.stix.stix_service import (
     CURATED_VERSION,
     KNOWN_VERSIONS,
     StixService,
-    version_is_curated,
 )
 
 
@@ -55,41 +51,16 @@ def _bundle_curado() -> dict:
 
 
 # ---------------------------------------------------------------------------
-# version_is_curated — verdadeira só para a versão curated (Req. 5.5)
+# CURATED_VERSION — derivada do seed via manifest (única fonte de verdade)
 # ---------------------------------------------------------------------------
 
 
-def test_version_is_curated_true_for_18() -> None:
-    """A versão curated (``CURATED_VERSION == "18.0"``) é a única marcada como curated."""
-    assert CURATED_VERSION == "18.0"
-    assert version_is_curated("18.0") is True
-    assert version_is_curated(CURATED_VERSION) is True
+def test_curated_version_comes_from_the_seed_manifest() -> None:
+    """``CURATED_VERSION`` é a versão declarada pelo seed (18.0), sem literal solto."""
+    from app.seeds.manifest import CURATED_STIX_VERSION
 
-
-@pytest.mark.parametrize(
-    "version",
-    [
-        "19.1",
-        "19.0",
-        "17.1",
-        "17.0",
-        "9.0",
-        "18",  # sem o ".0" NÃO é a versão curated (fonte única é "18.0")
-        "18.1",
-        "",
-        "999.0",
-    ],
-)
-def test_version_is_curated_false_for_others(version: str) -> None:
-    """Qualquer versão diferente da curated (inclusive ``"18"`` sem o patch)
-    retorna ``False`` — a fonte única é exatamente ``"18.0"``."""
-    assert version_is_curated(version) is False
-
-
-def test_version_is_curated_unique_among_known() -> None:
-    """Exatamente uma das versões conhecidas é a curated."""
-    curadas = [v for v in KNOWN_VERSIONS if version_is_curated(v)]
-    assert curadas == [CURATED_VERSION]
+    assert CURATED_VERSION == CURATED_STIX_VERSION == "18.0"
+    assert CURATED_VERSION in KNOWN_VERSIONS
 
 
 # ---------------------------------------------------------------------------

@@ -680,12 +680,12 @@ def _resolve_max_iterations() -> tuple[int, Optional[str]]:
 def _context_query(state: "AgentState", campaign_id: str) -> str:
     """Build the RAG query that primes retrieval from the campaign context.
 
-    Prefers an explicit campaign context/summary seeded on the state, falling back
-    to a compact description built from the ``campaign_id`` so the query is never
-    empty. Kept deliberately simple: the orchestrator only needs a stable text
-    handle for the cross-campaign similarity search.
+    Prefers an explicit ``context_query`` / ``campaign_summary`` seeded on the
+    state, falling back to a compact description built from the ``campaign_id`` so
+    the query is never empty. Kept deliberately simple: the orchestrator only needs
+    a stable text handle for the cross-campaign similarity search.
     """
-    for key in ("context_query", "campaign_context", "campaign_summary"):
+    for key in ("context_query", "campaign_summary"):
         value = state.get(key)  # type: ignore[call-overload]
         if isinstance(value, str) and value.strip():
             return value.strip()
