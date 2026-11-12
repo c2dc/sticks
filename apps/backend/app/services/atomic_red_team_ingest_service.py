@@ -24,7 +24,7 @@ memory's ``metadata.dedup_key`` (a deterministic hash of the affinity content),
 consistent with how the planned ``ExperienceMemory.store_affinity`` of task 12.1
 will store them.
 
-Robustness mirrors ``CaseService.load_all_cases_safe``: a single malformed
+Robustness: a single malformed
 atomic YAML is isolated (logged and skipped), never aborting the rest of the
 ingest. A fetch failure raises :class:`AtomicFetchError` before any write is
 attempted, so the already-persisted Command_Base index is preserved unchanged
@@ -46,7 +46,7 @@ import tempfile
 import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -75,6 +75,18 @@ _TECHNIQUE_ID_RE = re.compile(r"^T\d{4}(?:\.\d{3})?$")
 # stays eligible for the Command_Base similarity fallback. It mirrors the
 # ``_NO_CAMPAIGN`` sentinel in :mod:`app.services.command_base`.
 _AFFINITY_CAMPAIGN_ID = "__command_base_no_campaign__"
+
+
+ProgressCallback = Callable[[int, int], None]
+
+
+def atomic_affinity_dedup_key(
+    technique_id: str, executor: str, platform: str, command: str
+) -> str:
+    """Deterministic ``metadata.dedup_key`` of one Atomic command affinity."""
+    return hashlib.sha256(
+        f"{_SOURCE}|{technique_id}|{executor}|{platform}|{command}".encode("utf-8")
+    ).hexdigest()
 
 
 class AtomicFetchError(RuntimeError):
@@ -248,7 +260,51 @@ class AtomicRedTeamIngestService:
 
     # ---- public API --------------------------------------------------------
 
-    def ingest(self, *, ref: str = "master") -> AtomicIngestSummary:
+    def vectorize_missing(self, progress: Optional[ProgressCallback] = None) -> int:
+        """Embed the stored commands that have no affinity yet (no network).
+
+        Used by the ingestion orchestrator when the relational rows are present
+        but some affinities are missing. Returns the number of affinities
+        inserted. Embedder failures propagate to the caller.
+        """
+        from app.models.domain import ExperienceMemory as ExperienceMemoryRow
+        from app.models.domain import TechniqueCommand
+
+        existing = {
+            key
+            for (key,) in self._session.execute(
+                select(ExperienceMemoryRow.meta["dedup_key"].as_string()).where(
+                    ExperienceMemoryRow.meta["source"].as_string() == _SOURCE
+                )
+            )
+            if key
+        }
+        rows = self._session.execute(
+            select(TechniqueCommand)
+            .where(TechniqueCommand.source == _SOURCE)
+            .order_by(TechniqueCommand.id)
+        ).scalars().all()
+
+        inserted = 0
+        for index, row in enumerate(rows, start=1):
+            item = _ParsedCommand(
+                technique_id=row.technique_id,
+                command=row.command,
+                executor=row.executor or "unknown",
+                platform=row.platform or "unknown",
+            )
+            key = atomic_affinity_dedup_key(
+                item.technique_id, item.executor, item.platform, item.command
+            )
+            if key not in existing and self._persist_affinity(item):
+                inserted += 1
+            if progress is not None and index % 50 == 0:
+                progress(index, 0)
+        return inserted
+
+    def ingest(
+        self, *, ref: str = "master", progress: Optional[ProgressCallback] = None
+    ) -> AtomicIngestSummary:
         """Fetch, parse and persist the Atomic Red Team Command_Base index.
 
         Clones/downloads ``redcanaryco/atomic-red-team`` at ``ref`` OUTSIDE the
@@ -266,11 +322,13 @@ class AtomicRedTeamIngestService:
         # directory that is removed when the context exits.
         with tempfile.TemporaryDirectory(prefix="atomic_red_team_") as tmp:
             atomics_dir = self._fetcher.fetch_atomics_dir(ref=ref, dest=Path(tmp))
-            return self._ingest_from_dir(atomics_dir)
+            return self._ingest_from_dir(atomics_dir, progress)
 
     # ---- orchestration -----------------------------------------------------
 
-    def _ingest_from_dir(self, atomics_dir: Path) -> AtomicIngestSummary:
+    def _ingest_from_dir(
+        self, atomics_dir: Path, progress: Optional[ProgressCallback] = None
+    ) -> AtomicIngestSummary:
         """Parse and persist every atomic under ``atomics_dir`` with isolation."""
         techniques = 0
         commands_parsed = 0
@@ -297,6 +355,8 @@ class AtomicRedTeamIngestService:
                     commands_inserted += 1
                 if self._persist_affinity(item):
                     affinities_inserted += 1
+            if progress is not None and techniques % 20 == 0:
+                progress(techniques, 0)
 
         return AtomicIngestSummary(
             techniques=techniques,
@@ -478,10 +538,9 @@ class AtomicRedTeamIngestService:
             f"technique {item.technique_id} executor {item.executor} "
             f"platform {item.platform}: {item.command}"
         )
-        dedup_key = hashlib.sha256(
-            f"{_SOURCE}|{item.technique_id}|{item.executor}|{item.platform}|"
-            f"{item.command}".encode("utf-8")
-        ).hexdigest()
+        dedup_key = atomic_affinity_dedup_key(
+            item.technique_id, item.executor, item.platform, item.command
+        )
 
         if self._affinity_exists(dedup_key):
             return False

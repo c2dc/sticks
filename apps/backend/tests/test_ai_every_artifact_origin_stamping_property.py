@@ -12,7 +12,7 @@ drives the real
 :class:`~app.services.ai.run_service.AgentRunService` persistence path end to end
 with **fakes only** — no SEPINF endpoint, no PostgreSQL, no real LangGraph. The
 compiled graph is replaced by a fake whose ``invoke`` returns a controlled final
-``AgentState`` carrying a Hypothesis-varied set of stage artifacts (DAG,
+``AgentState`` carrying a Hypothesis-varied set of stage artifacts (attack flow,
 operationalization, environment) across a Hypothesis-varied iteration count, the
 checkpointer / pgvector availability probe is patched to a no-op, and persistence
 lands in an **ephemeral per-test temp-file SQLite** built straight from the ORM
@@ -22,7 +22,7 @@ migration. This mirrors the conventions of
 
 What the property guarantees
 ----------------------------
-For ANY Run — ANY combination of present stage artifacts (DAG and/or
+For ANY Run — ANY combination of present stage artifacts (attack flow and/or
 operationalization and/or environment, in any mix including all three) and ANY
 iteration count within the guard — once the Run has persisted its completed
 iteration, EVERY row in ``agent_stage_outputs`` the Run wrote carries the raw
@@ -42,11 +42,11 @@ Hypothesis draws:
   terminates COMPLETED or ABORTED) — the persisted iteration is the last one
   regardless, and the origin invariant must hold on it.
 
-The DAG and operationalization artifacts are real artifacts: the
+The attack flow and operationalization artifacts are real artifacts: the
 operationalization is produced by the real deterministic
 :class:`~app.services.ai.agents.op_agent.AiOperationalizer` (no LLM, no network,
-a fake in-memory Atomic Red Team pool), and the DAG is a real
-:class:`~app.services.dag.generator.ProducedDag` stamped with the AI DAG origin.
+a fake in-memory Atomic Red Team pool), and the attack flow is a real
+:class:`~app.services.flow.generator.ProducedFlow` stamped with the AI attack flow origin.
 The environment artifact is an opaque JSON payload (the env persistence hook
 treats ``artifacts.environment`` as an opaque JSON dict). Every example builds and
 discards its own temp-file SQLite database — offline, with no network/Docker.
@@ -67,11 +67,11 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.core.config import Settings
 from app.db.base import Base, import_models
 from app.db.session import create_db_engine
-from app.models.enums import DagOrigin
+from app.models.enums import FlowOrigin
 from app.services.ai.agents.op_agent import AiOperationalizer
 from app.services.ai.run_service import AgentRunService
-from app.services.dag.dag_service import DagNodeView, DagView
-from app.services.dag.generator import ProducedDag
+from app.services.flow.flow_view import FlowNodeView, FlowView
+from app.services.flow.generator import ProducedFlow
 
 # The exact string the Origin must carry (Req. 3.2) — a literal, so the
 # assertion never trusts the implementation to decide the expected value.
@@ -148,7 +148,7 @@ def _install_fake_graph(
 
 
 # ---------------------------------------------------------------------------
-# Generators — a real DAG artifact, a real operationalization artifact and an
+# Generators — a real attack flow artifact, a real operationalization artifact and an
 # opaque environment artifact, in the serialized shape the final state carries.
 # ---------------------------------------------------------------------------
 
@@ -158,15 +158,15 @@ _slug_strategy = st.text(
 _technique_id_strategy = st.from_regex(r"T[0-9]{3,4}(\.[0-9]{3})?", fullmatch=True)
 
 
-def _produced_dag_payload(campaign: str) -> dict:
-    """A real AI-origin ``ProducedDag`` serialized for ``artifacts.dag``.
+def _produced_flow_payload(campaign: str) -> dict:
+    """A real AI-origin ``ProducedFlow`` serialized for ``artifacts.flow``.
 
-    ``run_service`` reconstructs this via ``ProducedDag.model_validate`` and
-    persists it via ``dag_agent.persist_dag_stage_output``, which stamps the
+    ``run_service`` reconstructs this via ``ProducedFlow.model_validate`` and
+    persists it via ``flow_agent.persist_flow_stage_output``, which stamps the
     ``agent_stage_outputs`` row ``origin=ai_generated``.
     """
-    produced = ProducedDag(
-        origin=DagOrigin.AI_GENERATED,
+    produced = ProducedFlow(
+        origin=FlowOrigin.AI_GENERATED,
         identifier=campaign,
         label=campaign,
         content={"structural_nodes": [], "arestas": []},
@@ -179,7 +179,7 @@ def _operationalization_payload(draw: st.DrawFn, campaign: str) -> dict:
     """A real ``ProducedOperationalization`` serialized for the artifact slot.
 
     Produced by the real deterministic ``AiOperationalizer`` (no LLM, no network:
-    a fake in-memory Atomic Red Team pool) from a drawn ``DagView``. The run
+    a fake in-memory Atomic Red Team pool) from a drawn ``FlowView``. The run
     service reconstructs it via ``ProducedOperationalization.model_validate`` and
     persists it via ``op_agent.persist_stage_output`` (which also persists the
     derived ``EnvironmentParameters`` and stamps the stage-output row
@@ -188,7 +188,7 @@ def _operationalization_payload(draw: st.DrawFn, campaign: str) -> dict:
     nodes = draw(
         st.lists(
             st.builds(
-                DagNodeView,
+                FlowNodeView,
                 node_id=_slug_strategy,
                 technique_id=st.one_of(st.none(), _technique_id_strategy),
                 technique_name=st.one_of(st.none(), st.text(max_size=16)),
@@ -197,7 +197,7 @@ def _operationalization_payload(draw: st.DrawFn, campaign: str) -> dict:
             max_size=4,
         )
     )
-    dag = DagView(
+    flow = FlowView(
         campaign_id=campaign,
         name=campaign,
         curated=True,
@@ -207,7 +207,7 @@ def _operationalization_payload(draw: st.DrawFn, campaign: str) -> dict:
     # No LLM / no RAG memory injected and a fake empty atomic pool: the agent
     # degrades to its deterministic selection and runs purely in memory.
     agent = AiOperationalizer(atomic_lookup=lambda _tid: [])
-    produced = agent.operationalize(campaign, dag)
+    produced = agent.operationalize(campaign, flow)
     return produced.model_dump(mode="json")
 
 
@@ -235,16 +235,16 @@ def _run_final_state(draw: st.DrawFn) -> tuple[dict, int, bool]:
     the three stage artifacts is present so the Run always writes at least one
     ``agent_stage_outputs`` row to assert on.
     """
-    include_dag = draw(st.booleans())
+    include_flow = draw(st.booleans())
     include_op = draw(st.booleans())
     include_env = draw(st.booleans())
     # Guarantee at least one artifact is present.
-    if not (include_dag or include_op or include_env):
-        include_dag = True
+    if not (include_flow or include_op or include_env):
+        include_flow = True
 
     artifacts: dict[str, Any] = {}
-    if include_dag:
-        artifacts["dag"] = _produced_dag_payload(_CAMPAIGN_ID)
+    if include_flow:
+        artifacts["flow"] = _produced_flow_payload(_CAMPAIGN_ID)
     if include_op:
         artifacts["operationalization"] = draw(
             _operationalization_payload(_CAMPAIGN_ID)

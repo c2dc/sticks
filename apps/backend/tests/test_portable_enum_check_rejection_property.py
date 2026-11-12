@@ -50,7 +50,7 @@ exact column type those tables will use.
 Hypothesis generates strings that are guaranteed to be **outside** the enum's
 members (any member value is rejected by ``assume``). For each example a fresh
 temp-file SQLite database is built by the ORM (same pattern as
-``test_dag_entity_property.py`` / ``test_origin_persisted_extensible_property.py``),
+``test_flow_entity_property.py`` / ``test_origin_persisted_extensible_property.py``),
 a single valid row is seeded, and then the out-of-member value is written both
 as an INSERT of a new row and as an UPDATE of the seeded row. The property
 asserts that:
@@ -101,7 +101,7 @@ _SEED_MEMBER = {name: list(e)[0] for name, e in _ENUMS.items()}
 
 # ---------------------------------------------------------------------------
 # Ephemeral session helper (fresh temp-file SQLite + ORM schema per example),
-# mirroring test_dag_entity_property.py.
+# mirroring test_flow_entity_property.py.
 # ---------------------------------------------------------------------------
 
 

@@ -232,7 +232,7 @@
 }
 
 /* ============================================================
-   DAG candidate cards (DAG agent / Stage 3 slide)
+   Flow candidate cards (flow agent / Stage 3 slide)
    The three candidate graphs use the SAME technique set arranged
    differently, so node counts per "row" differ and the raw Mermaid
    SVGs render at very different heights (the 7-deep linear chain is
@@ -243,11 +243,11 @@
 /* Make the three candidate cards equal height and lay each out as a column so
    the diagram can center vertically. The tallest (A, the 7-deep chain) sets the
    row height; B and C stretch to match with their graphs centered. */
-.dag-candidate {
+.flow-candidate {
   display: flex;
   flex-direction: column;
 }
-.dag-candidate .mermaid {
+.flow-candidate .mermaid {
   flex: 1 1 auto;
   display: flex;
   justify-content: center;
@@ -260,7 +260,7 @@
    SVG; we override both so the diagram is bounded by a shared max-height and
    the full column width, scaling a tall graph (the 7-deep linear chain) down
    until every node is visible. object-fit guards against any residual overflow. */
-.dag-candidate .mermaid > svg {
+.flow-candidate .mermaid > svg {
   width: 100% !important;
   height: auto !important;
   max-width: 100% !important;

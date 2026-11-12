@@ -1,5 +1,21 @@
 # Project status — meeting of October 1, 2026
 
+> **Update note.** This is a dated snapshot of the earlier three-stage Pipeline
+> UI. Since then the curated pipeline (`StageService`, the `/stage/N` routes, and
+> their screens) was removed: "curated" is now only a database flag, and the eight
+> curated campaigns remain as data. The product is agentic-only, with the phase
+> order `input → operationalization → flow → environment → execution →
+> evaluation`. The `flow` phase builds an *attack flow* (the MITRE Attack Flow
+> format, from the MITRE Center for Threat-Informed Defense,
+> <https://center-for-threat-informed-defense.github.io/attack-flow/>) using a
+> three-path policy (`exact` / `adapted` / `created`). Atomic Red Team, the Docker
+> Hub catalog, and the Attack Flow corpus are ingested automatically at the first
+> start and verified at every start (states `pending` / `running` / `ready` /
+> `failed`; variables `STICKS_INGEST_ON_START`, `ATTACK_FLOW_REF`,
+> `GITHUB_TOKEN`, `OLLAMA_BASE_URL`, `OLLAMA_EMBED_MODEL`). See `README.md` and
+> `docs/agentic-phases-literature.md`. The rows below describe the state on the
+> meeting date.
+
 ## Executive summary
 
 The Pipeline UI is implemented end to end in mocked mode and its three stages

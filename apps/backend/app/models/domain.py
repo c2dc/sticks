@@ -41,11 +41,14 @@ from sqlalchemy import (
     Enum as SAEnum,
     Float,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
     UniqueConstraint,
 )
+from sqlalchemy import text as sa_text
+from sqlalchemy import false as sa_false
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -53,7 +56,9 @@ from app.models.enums import (
     AbilityResultStatus,
     AgentRunStatus,
     AgentStage,
-    DagOrigin,
+    FlowOrigin,
+    IngestSource,
+    IngestStatus,
     EnvironmentPlatform,
     EvaluatorDecision,
     Language,
@@ -68,8 +73,8 @@ from app.models.enums import (
 def _utcnow() -> dt.datetime:
     """Naive UTC timestamp (portable across PostgreSQL and the test SQLite).
 
-    Matches the convention used across the service layer (``StageService``,
-    ``DagService``, ``OperationRunner``, ...): the AI bookkeeping rows stamp
+    Matches the convention used across the service layer (``SessionStateService``,
+    ``OperationRunner``, ...): the AI bookkeeping rows stamp
     their creation/update timestamps with a timezone-naive UTC value so the
     column stays portable between PostgreSQL (the product database) and the
     ephemeral SQLite used by the unit tests.
@@ -157,7 +162,8 @@ def _portable_enum(enum_cls: type, name: str) -> SAEnum:
 
 
 class Case(Base):
-    """Curated campaign — maps the file pair in ``data/api/`` and the DAG.
+    """Campaign row (curated or AI-materialized); the abilities, adversary and
+    attack flows hang off it by ``campaign_id``.
 
     ``translation_source`` is an explicit, extensible attribute (Req. 11.1/11.2).
     """
@@ -168,50 +174,75 @@ class Case(Base):
     id: Mapped[str] = mapped_column(String, primary_key=True)
     name: Mapped[str] = mapped_column(String, nullable=False)  # "ShadowRay"
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    # path data/api/{campaign}_dag-ability.json
-    ability_file: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    # path data/api/{campaign}_dag-adversary.json
-    adversary_file: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    # path data/dag/{campaign}_dag.json
-    dag_file: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     translation_source: Mapped[TranslationSource] = mapped_column(
         _portable_enum(TranslationSource, "translation_source"),
         default=TranslationSource.HUMAN_CURATION,
         nullable=False,
     )
+    # True for the curated cases (derived by migration e1f2a3b4c5d6 from the
+    # existence of a human_curation flow); false for AI-materialized campaigns.
+    curated: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=sa_false(), nullable=False
+    )
 
 
-class Dag(Base):
-    """First-class persisted DAG, multi-origin (Req. 4).
+class AttackFlowRow(Base):
+    """First-class persisted attack flow, multi-origin (Req. 4).
 
-    A Campaign (``Case``) can have N DAGs: each row references a ``Case`` by
-    ``campaign_id`` (FK → ``campaigns.id``), establishing the 1 Campaign → N Dags
+    A Campaign (``Case``) can have N attack flows: each row references a ``Case`` by
+    ``campaign_id`` (FK → ``campaigns.id``), establishing the 1 Campaign → N Flows
     relation (Req. 4.1, 4.2) — in the same FK style already used by ``Ability``/
     ``Adversary``/``StageRun``.
 
-    ``origin`` is an explicit, extensible attribute (``DagOrigin``), persisted
+    ``origin`` is an explicit, extensible attribute (``FlowOrigin``), persisted
     with ``native_enum=False`` (VARCHAR + CHECK) via ``_portable_enum``: the
     generated CHECK already includes ``ai_generated``, so inserting an
-    ``ai_generated`` DAG in the future requires no schema migration (Req. 4.3,
+    ``ai_generated`` attack flow in the future requires no schema migration (Req. 4.3,
     4.6).
 
     The graph content (``structural_nodes`` + ``edges``) is stored in a single
-    portable JSON column, equivalent to the content of
-    ``data/dag/{slug}_dag.json`` (Req. 4.4).
+    portable JSON column (Req. 4.4).
     """
 
-    __tablename__ = "dags"
+    __tablename__ = "attack_flows"
+    __table_args__ = (
+        CheckConstraint(
+            "origin IN ('human_curation', 'ai_generated', 'mitre_corpus')",
+            name="ck_attack_flows_origin",
+        ),
+        Index(
+            "uq_attack_flows_source_key",
+            "source_key",
+            unique=True,
+            sqlite_where=sa_text("source_key IS NOT NULL"),
+            postgresql_where=sa_text("source_key IS NOT NULL"),
+        ),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    campaign_id: Mapped[str] = mapped_column(
-        String, ForeignKey("campaigns.id"), nullable=False
+    # Nullable since migration f2a3b4c5d6e7: MITRE corpus flows do not belong
+    # to a Sticks campaign.
+    campaign_id: Mapped[Optional[str]] = mapped_column(
+        String, ForeignKey("campaigns.id"), nullable=True
     )
-    origin: Mapped[DagOrigin] = mapped_column(
-        _portable_enum(DagOrigin, "dag_origin"),
-        default=DagOrigin.HUMAN_CURATION,
+    origin: Mapped[FlowOrigin] = mapped_column(
+        _portable_enum(FlowOrigin, "flow_origin"),
+        default=FlowOrigin.HUMAN_CURATION,
         nullable=False,
     )
-    # readable DAG identifier/version (Req. 4.4); for curation,
+    # Corpus metadata (migration f2a3b4c5d6e7). ``source_key`` is the corpus
+    # file name (idempotency key, partial UNIQUE index); ``source_sha`` is the
+    # blob SHA from the tag listing.
+    source_key: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    source_sha: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    scope: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    has_cycles: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=sa_false(), nullable=False
+    )
+    # {kind, references[], similarity} for AI-produced flows.
+    provenance: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
+    # readable attack flow identifier/version (Req. 4.4); for curation,
     # derived from the file (e.g. "human-curation-v1")
     identifier: Mapped[str] = mapped_column(String, nullable=False)
     label: Mapped[Optional[str]] = mapped_column(String, nullable=True)
@@ -242,18 +273,13 @@ class StageRun(Base):
     error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     # modeling step at which it failed (Stage 1)
     failed_step: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    # DAG chosen for this run (filled in Stage 1 — Req. 4.7, 6.3).
-    # Nullable: Stages 2/3/4 and old runs have no value.
-    chosen_dag_id: Mapped[Optional[int]] = mapped_column(
-        Integer, ForeignKey("dags.id"), nullable=True
-    )
     updated_at: Mapped[Optional[dt.datetime]] = mapped_column(
         DateTime, nullable=True
     )
 
 
 class Ability(Base):
-    """Maps ``data/api/{campaign}_dag-ability.json`` (list of abilities).
+    """A campaign Ability (curated or AI-materialized).
 
     ``translation_source`` is an explicit, extensible attribute (Req. 11.1/11.2).
     """
@@ -280,7 +306,7 @@ class Ability(Base):
 
 
 class Adversary(Base):
-    """Maps ``data/api/{campaign}_dag-adversary.json`` (single object).
+    """The Adversary of a campaign (single object with its ``atomic_ordering``).
 
     ``translation_source`` is an explicit, extensible attribute (Req. 11.1/11.2).
     """
@@ -438,29 +464,24 @@ class StixVersion(Base):
 
     * ``version`` is the PK (e.g. ``"18.0"``).
     * ``curated`` marks the version as curated (``True`` for version 18 — Req. 5.5).
-    * ``curated_artifacts_path`` points to the version's curated artifacts
-      (Req. 5.6), ``None`` when the version has no associated curated artifacts.
     """
 
     __tablename__ = "stix_versions"
 
     version: Mapped[str] = mapped_column(String, primary_key=True)  # e.g. "18.0"
     curated: Mapped[bool] = mapped_column(Boolean, nullable=False)
-    curated_artifacts_path: Mapped[Optional[str]] = mapped_column(
-        String, nullable=True
-    )
 
 
 class EnvironmentParametersRow(Base):
     """Stage 4 environment parameters (Operationalization) — Req. 8.3.
 
     The second typed Output of Stage 4 (``EnvironmentParameters``) is persisted
-    in a single portable JSON column (``content``), like ``Dag.content``, avoiding
+    in a single portable JSON column (``content``), like ``AttackFlowRow.content``, avoiding
     unnecessary normalization (Req. 8.3, 17.1).
 
     ``platform`` persists as VARCHAR + CHECK (``native_enum=False``) from the
     consolidated :class:`EnvironmentPlatform`. Following the precedent of
-    ``DagOrigin``/``ai_generated``, this enum already declares
+    ``FlowOrigin``/``ai_generated``, this enum already declares
     ``virtual_machine``, so the generated CHECK admits it even though only
     ``container`` is implemented in the application (Req. 17.1): persisting a
     virtual-machine platform in the future requires no schema migration
@@ -497,72 +518,11 @@ class EnvironmentParametersRow(Base):
     created_at: Mapped[dt.datetime] = mapped_column(DateTime, nullable=False)
 
 
-class ProvisionedEnvironmentRow(Base):
-    """Persisted Stage 5 (environment creation) Output — Req. 6.3, 1.6.
-
-    The typed artifact
-    :class:`~app.services.environment.provisioner.ProvisionedEnvironment` produced
-    when Stage 5 provisioning becomes **ready** (healthy containers + Abilities
-    loaded + isolation approved) is persisted here, in a single portable JSON
-    column (``content``) associated with the Campaign, exactly in the precedent of
-    ``Dag.content`` / ``EnvironmentParametersRow.content`` /
-    ``ExecutionReport.metrics`` — so Stage 6 and the screen consume the Output
-    **after completion** (Req. 6.3) and provisioning is **reused** without
-    bringing up a new one when the environment is already ready (idempotency —
-    Req. 1.6).
-
-    ``platform`` persists as VARCHAR + CHECK (``native_enum=False``) from the
-    consolidated :class:`EnvironmentPlatform` — like
-    ``EnvironmentParametersRow.platform`` — so the generated CHECK already
-    accepts ``virtual_machine`` with no future migration (Req. 17.2). The default
-    ``EnvironmentPlatform.CONTAINER`` serializes to ``container``.
-
-    ``origin`` is the explicit, extensible attribute (``TranslationSource``,
-    VARCHAR + CHECK that already includes ``ai_generated``): a future
-    ``ai_generated`` provisioning fits with no schema change (Req. 16.2, 16.4).
-
-    ``ready`` stores the acceptance verdict of the persisted Output (the three
-    prerequisites passed) — the signal Stage 5 idempotency reads to reuse the
-    environment (Req. 1.6). A single row per Campaign (latest-row-wins upsert):
-    persistence always updates the Campaign's existing row.
-    """
-
-    __tablename__ = "provisioned_environment"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    campaign_id: Mapped[str] = mapped_column(
-        String, ForeignKey("campaigns.id"), nullable=False
-    )
-    # The column type is derived from the consolidated ``EnvironmentPlatform``
-    # (which already declares ``virtual_machine``), so the portable CHECK accepts
-    # the VM from the first migration — no future migration (Req. 17.2). The
-    # default ``EnvironmentPlatform.CONTAINER`` serializes to ``container``.
-    platform: Mapped[EnvironmentPlatform] = mapped_column(
-        _portable_enum(EnvironmentPlatform, "environment_platform"),
-        default=EnvironmentPlatform.CONTAINER,
-        nullable=False,
-    )
-    # ``ProvisionedEnvironment`` serialized via ``model_dump(mode="json")``
-    # (platform, target containers, compose_file, isolation, health,
-    # loaded_abilities, origin) — portable Stage 5 Output (Req. 6.3).
-    content: Mapped[Any] = mapped_column(JSON, nullable=False)
-    origin: Mapped[TranslationSource] = mapped_column(
-        _portable_enum(TranslationSource, "translation_source"),
-        default=TranslationSource.HUMAN_CURATION,
-        nullable=False,
-    )
-    # Acceptance verdict of the Output (the three prerequisites passed) — the
-    # "ready+persisted" signal Stage 5 idempotency reads (Req. 1.6).
-    ready: Mapped[bool] = mapped_column(Boolean, nullable=False)
-    created_at: Mapped[dt.datetime] = mapped_column(DateTime, nullable=False)
-    updated_at: Mapped[dt.datetime] = mapped_column(DateTime, nullable=False)
-
-
 class ExecutionReport(Base):
     """Stage 6 report/metrics (execution, measurement and report) — Req. 15.7.
 
     The ``SufficiencyMetrics`` are persisted in a portable JSON column
-    (``metrics``), like ``Dag.content``. ``success_verdict`` stores the overall
+    (``metrics``), like ``AttackFlowRow.content``. ``success_verdict`` stores the overall
     execution verdict (Req. 15.6) and ``environment_deprovisioned`` records
     whether the environment was deprovisioned at the end of Stage 6 (Req. 12.1).
     """
@@ -605,7 +565,7 @@ class ExecutionReport(Base):
 #   * Portable enums persist as VARCHAR + CHECK via ``_portable_enum`` (no
 #     native PostgreSQL ENUM), storing the enum *values*.
 #   * FK links reuse the existing style (``ForeignKey("table.column")``) into
-#     ``campaigns``, ``dags``, ``environment_parameters`` and the Stage 6
+#     ``campaigns``, ``attack_flows``, ``environment_parameters`` and the Stage 6
 #     ``execution_reports``.
 #
 # _Requirements: 11.1, 11.4, 11.8, 11.9_
@@ -668,7 +628,7 @@ class AgentIteration(Base):
     stage node the evaluator routed back into and is null on the first pass.
 
     ``refined_stage`` persists as VARCHAR + CHECK from :class:`AgentStage`
-    (``dag`` / ``operationalization`` / ``environment``).
+    (``flow`` / ``operationalization`` / ``environment``).
     """
 
     __tablename__ = "agent_iterations"
@@ -694,11 +654,11 @@ class AgentStageOutput(Base):
     """The per-stage agent artifact of an iteration (Req. 11.5).
 
     Belongs to an :class:`AgentIteration` via ``iteration_id`` (1 iteration →
-    N stage outputs). The serialized artifact (``ProducedDag`` |
+    N stage outputs). The serialized artifact (``ProducedFlow`` |
     ``ProducedOperationalization`` | ``ProvisionedEnvironment``) lives in the
     portable JSON ``payload`` column. Where it corresponds to an existing
-    persisted entity it is linked via ``dag_id`` (the AI-origin ``Dag`` row
-    persisted through ``DagService``) or ``params_id`` (the
+    persisted entity it is linked via ``flow_id`` (the AI-origin ``AttackFlowRow`` row
+    persisted by the flow agent) or ``params_id`` (the
     ``EnvironmentParameters`` row); both FKs are nullable because only one
     applies per stage.
 
@@ -725,12 +685,12 @@ class AgentStageOutput(Base):
         default=TranslationSource.AI_GENERATED,
         nullable=False,
     )
-    # Serialized stage artifact (ProducedDag | ProducedOperationalization |
+    # Serialized stage artifact (ProducedFlow | ProducedOperationalization |
     # ProvisionedEnvironment).
     payload: Mapped[Any] = mapped_column(JSON, nullable=False)
-    # Linked AI-origin Dag row (when this is a DAG stage output); nullable.
-    dag_id: Mapped[Optional[int]] = mapped_column(
-        Integer, ForeignKey("dags.id"), nullable=True
+    # Linked AI-origin AttackFlowRow row (when this is a flow stage output); nullable.
+    flow_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("attack_flows.id"), nullable=True
     )
     # Linked EnvironmentParameters row (when this is an operationalization
     # output); nullable.
@@ -778,7 +738,7 @@ class AgentEvaluation(Base):
     success_rate: Mapped[float] = mapped_column(Float, nullable=False)
     procedural_coverage: Mapped[float] = mapped_column(Float, nullable=False)
     verdict_success: Mapped[bool] = mapped_column(Boolean, nullable=False)
-    # Serialized list of the DAG nodes that failed (drives the refine target).
+    # Serialized list of the attack flow nodes that failed (drives the refine target).
     failed_nodes: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
     decision: Mapped[EvaluatorDecision] = mapped_column(
         _portable_enum(EvaluatorDecision, "evaluator_decision"),
@@ -927,8 +887,7 @@ class StixPackage(Base):
     same version reuses the existing row. ``name`` is NOT NULL (e.g.
     ``"Enterprise ATT&CK v{version}"``). ``downloaded_at`` is a NOT NULL
     naive-UTC timestamp (project convention via :func:`_utcnow`) refreshed on
-    every re-persistence. ``source_file`` is the on-disk bundle path the package
-    was persisted from, nullable.
+    every re-persistence.
     """
 
     __tablename__ = "stix_packages"
@@ -943,8 +902,6 @@ class StixPackage(Base):
     downloaded_at: Mapped[dt.datetime] = mapped_column(
         DateTime, default=_utcnow, nullable=False
     )
-    # On-disk bundle path the package was persisted from; nullable.
-    source_file: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
 
 class StixTypeCount(Base):
@@ -1253,7 +1210,7 @@ class ImageCatalog(Base):
 # Conventions carried over from the existing models:
 #   * Integer surrogate primary key.
 #   * ``campaign_id`` String FK into ``campaigns.id`` (NOT NULL), following the
-#     precedent of ``EnvironmentParametersRow`` / ``ProvisionedEnvironmentRow``.
+#     precedent of ``EnvironmentParametersRow``.
 #   * Portable generic types only (String / JSON / DateTime), so the mapping
 #     runs identically on PostgreSQL (the product database) and the ephemeral
 #     SQLite used by the unit tests. No ``VECTOR`` column here.
@@ -1272,16 +1229,16 @@ class ProvisioningMap(Base):
     One row per campaign carrying the fixed inventory (images/services/topology)
     derived from the techniques/platforms of the campaign's abilities (Req. 8.1).
     ``campaign_id`` is a NOT NULL FK into ``campaigns.id`` (the same FK style
-    used by ``EnvironmentParametersRow`` / ``ProvisionedEnvironmentRow``).
+    used by ``EnvironmentParametersRow``).
 
     ``target_os`` is a portable ``String`` rather than an enum — the
     ``ProvisioningMapService`` owns the value set (``linux`` | ``windows``) and
     the design specifies a plain ``String`` column. ``content`` is the fixed
-    inventory serialized in a single portable JSON column, like ``Dag.content``.
+    inventory serialized in a single portable JSON column, like ``AttackFlowRow.content``.
 
     The single-column UNIQUE ``(campaign_id)`` is the idempotency key: one map
     per campaign (upsert latest-wins), consistent with
-    ``ProvisionedEnvironmentRow`` — re-deriving the map updates the campaign's
+    ``ContainerEmulability`` — re-deriving the map updates the campaign's
     existing row rather than duplicating it.
     """
 
@@ -1327,7 +1284,7 @@ class ProvisioningMap(Base):
 #     is shared across campaigns, so there is no FK to ``campaigns``.
 #   * ``container_emulability`` carries a single-column UNIQUE on ``campaign_id``
 #     (the idempotency key — one row per campaign, upsert latest-wins),
-#     following the precedent of ``ProvisioningMap`` / ``ProvisionedEnvironmentRow``.
+#     following the precedent of ``ProvisioningMap``.
 #   * The ``emulability`` enum persists as VARCHAR + CHECK via ``_portable_enum``
 #     (``native_enum=False``), storing the enum *values*, so the generated CHECK
 #     bounds the value set to ``container`` | ``dispensable`` | ``not_container``
@@ -1348,8 +1305,7 @@ class TechniqueEmulability(Base):
     is no FK to ``campaigns``. ``emulability`` is one of ``container`` |
     ``dispensable`` | ``not_container`` (:class:`TechniqueEmulabilityKind`),
     persisted as VARCHAR + CHECK via ``_portable_enum`` so the generated CHECK
-    bounds the value set. ``rationale`` is optional free-form text recording why
-    the technique was classified that way (curated note or heuristic).
+    bounds the value set.
 
     The Container_Emulability_Service derives a campaign's emulability from these
     rows: a campaign is container-emulable iff every one of its techniques is
@@ -1365,8 +1321,6 @@ class TechniqueEmulability(Base):
         _portable_enum(TechniqueEmulabilityKind, "technique_emulability_kind"),
         nullable=False,
     )
-    # Optional free-form note on why the technique was classified this way.
-    rationale: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
 
 class ContainerEmulability(Base):
@@ -1376,7 +1330,7 @@ class ContainerEmulability(Base):
     a container (or dispensable). ``campaign_id`` carries a single-column UNIQUE
     constraint — the idempotency key — so re-deriving the campaign's emulability
     updates the existing row rather than duplicating it (upsert latest-wins),
-    consistent with ``ProvisioningMap`` / ``ProvisionedEnvironmentRow``.
+    consistent with ``ProvisioningMap``.
 
     ``container_emulable`` is ``True`` iff every technique of the campaign is
     ``container`` or ``dispensable`` (Req. 6.2). ``blocking_techniques`` is an
@@ -1403,3 +1357,86 @@ class ContainerEmulability(Base):
     # Optional JSON list of the technique ids that block container emulation;
     # null/empty when the campaign is container-emulable (Req. 6.5).
     blocking_techniques: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
+
+
+class AttackFlowObjectRow(Base):
+    """One object of a persisted attack flow (action, condition, operator, asset).
+
+    ``stix_id`` is the STIX-style id (``attack-action--<uuid>``); it is unique
+    within a flow. ``technique_id`` is indexed so the relational half of the
+    flow retriever can find flows by technique.
+    """
+
+    __tablename__ = "attack_flow_objects"
+
+    __table_args__ = (
+        UniqueConstraint(
+            "flow_id", "stix_id", name="uq_attack_flow_objects_flow_id_stix_id"
+        ),
+        Index("ix_attack_flow_objects_technique_id", "technique_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    flow_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("attack_flows.id", ondelete="CASCADE"), nullable=False
+    )
+    stix_id: Mapped[str] = mapped_column(String, nullable=False)
+    type: Mapped[str] = mapped_column(String, nullable=False)
+    name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    technique_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    tactic_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    properties: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
+
+
+class AttackFlowEdgeRow(Base):
+    """One directed edge of a persisted attack flow.
+
+    ``is_back_edge`` marks edges removed to derive the acyclic execution view.
+    """
+
+    __tablename__ = "attack_flow_edges"
+
+    __table_args__ = (
+        Index("ix_attack_flow_edges_flow_id", "flow_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    flow_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("attack_flows.id", ondelete="CASCADE"), nullable=False
+    )
+    source_stix_id: Mapped[str] = mapped_column(String, nullable=False)
+    target_stix_id: Mapped[str] = mapped_column(String, nullable=False)
+    # "effect" for control edges, "asset" for action -> asset references.
+    kind: Mapped[str] = mapped_column(String, nullable=False, default="effect")
+    is_back_edge: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=sa_false(), nullable=False
+    )
+
+
+class IngestSourceState(Base):
+    """Persisted ingestion state of one knowledge source (one row per source).
+
+    Also acts as the per-source lock: the orchestrator moves a row to
+    ``running`` atomically and refreshes ``heartbeat_at`` while it works.
+    """
+
+    __tablename__ = "ingest_source_state"
+
+    source: Mapped[IngestSource] = mapped_column(
+        _portable_enum(IngestSource, "ingest_source"), primary_key=True
+    )
+    status: Mapped[IngestStatus] = mapped_column(
+        _portable_enum(IngestStatus, "ingest_status"),
+        default=IngestStatus.PENDING,
+        nullable=False,
+    )
+    loaded_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    embedded_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    expected_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    # Short failure cause, never containing secrets.
+    error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # List of {item, reason} for items skipped during ingestion.
+    skipped: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
+    started_at: Mapped[Optional[dt.datetime]] = mapped_column(DateTime, nullable=True)
+    finished_at: Mapped[Optional[dt.datetime]] = mapped_column(DateTime, nullable=True)
+    heartbeat_at: Mapped[Optional[dt.datetime]] = mapped_column(DateTime, nullable=True)

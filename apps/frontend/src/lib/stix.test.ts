@@ -5,6 +5,14 @@ import fc from "fast-check"
 // against the mock to assert (a) the exact URL it builds and (b) that the
 // payload returned by `api` is passed through untransformed.
 vi.mock("@/lib/api", () => ({
+  ApiError: class ApiError extends Error {
+    readonly status: number
+    constructor(status: number, message: string) {
+      super(message)
+      this.name = "ApiError"
+      this.status = status
+    }
+  },
   api: {
     get: vi.fn(() => Promise.resolve(undefined)),
     post: vi.fn(() => Promise.resolve(undefined)),
@@ -254,13 +262,42 @@ describe("lib/stix — endpoint wrappers (new API surface)", () => {
         name: "n",
         downloaded: true,
         selectable: true,
-        file: "f",
       })
 
       await downloadBase("17.1/rc 2")
 
       expect(postMock).toHaveBeenCalledWith(
         "/stix/bases/17.1%2Frc%202/download",
+      )
+    })
+
+    it("follows the background ingestion until the base is downloaded", async () => {
+      postMock.mockResolvedValueOnce({ version: "18.0", downloaded: false, persisted: false })
+      const base = { version: "18.0", name: "n", downloaded: true, selectable: true }
+      getMock
+        .mockResolvedValueOnce({ bases: [{ ...base, downloaded: false, selectable: false }] })
+        .mockResolvedValueOnce([
+          { source: "stix_packages", status: "running", error: null },
+        ])
+        .mockResolvedValueOnce({ bases: [base] })
+
+      await expect(downloadBase("18.0", { intervalMs: 1 })).resolves.toEqual(base)
+      expect(getMock).toHaveBeenCalledWith("/stix/bases")
+      expect(getMock).toHaveBeenCalledWith("/ingestion/status")
+    })
+
+    it("rejects with the ingestion error when the stix_packages source fails", async () => {
+      postMock.mockResolvedValueOnce({ version: "18.0", downloaded: false, persisted: false })
+      getMock
+        .mockResolvedValueOnce({
+          bases: [{ version: "18.0", name: "n", downloaded: false, selectable: false }],
+        })
+        .mockResolvedValueOnce([
+          { source: "stix_packages", status: "failed", error: "network: StixDownloadError" },
+        ])
+
+      await expect(downloadBase("18.0", { intervalMs: 1 })).rejects.toThrow(
+        "network: StixDownloadError",
       )
     })
   })

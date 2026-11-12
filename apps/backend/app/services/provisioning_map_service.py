@@ -240,7 +240,7 @@ class ProvisioningMapService:
         """Upsert the single ``provisioning_map`` row for the campaign (Req. 8.2).
 
         Keeps **one row per campaign** (``latest-wins`` upsert on the unique
-        ``campaign_id`` — the same upsert contract as ``ProvisionedEnvironmentRow``):
+        ``campaign_id`` — the same upsert contract as ``ContainerEmulability``):
         updates the existing row when present, creates it otherwise. Only
         ``add``s/updates the row and ``flush``es it; the ``commit`` is the
         caller's, so the derivation shares the caller's unit of work.

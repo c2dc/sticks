@@ -10,7 +10,7 @@ and follows the Campaign_Key rule:
 * a pre-existing row's ``translation_source`` is preserved across re-materialize.
 
 Each generated example gets its **own** ephemeral SQLite database (built with
-the same engine/session pattern as ``tests/test_curated_ingest_service.py``) so
+the usual temp-file SQLite engine/session pattern) so
 Hypothesis examples never share state — a function-scoped fixture would be
 reused across examples, accumulating rows and tripping the
 ``(package_id, stix_id)`` unique constraint. The STIX tables are seeded directly
@@ -265,7 +265,7 @@ def test_materialize_preserves_preexisting_translation_source(
         )
 
         # Pre-create the campaigns row with an explicit translation_source, as if
-        # it had been ingested by the CuratedIngestService before.
+        # it had been persisted as curated before.
         session = factory()
         try:
             session.add(

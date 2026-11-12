@@ -21,12 +21,14 @@ from app.models.domain import (
     AuditLogEntry,
     Case,
     ContainerEmulability,
-    Dag,
+    AttackFlowEdgeRow,
+    AttackFlowObjectRow,
+    AttackFlowRow,
     EnvironmentParametersRow,
     ExecutionReport,
     ExperienceMemory,
+    IngestSourceState,
     Operation,
-    ProvisionedEnvironmentRow,
     SessionState,
     StageRun,
     StixVersion,
@@ -38,9 +40,12 @@ from app.models.enums import (
     AbilityResultStatus,
     AgentRunStatus,
     AgentStage,
-    DagOrigin,
     EnvironmentPlatform,
     EvaluatorDecision,
+    FlowOrigin,
+    FlowProvenance,
+    IngestSource,
+    IngestStatus,
     Language,
     OperationState,
     StageState,
@@ -52,7 +57,10 @@ from app.models.enums import (
 __all__ = [
     # Enums
     "TranslationSource",
-    "DagOrigin",
+    "FlowOrigin",
+    "FlowProvenance",
+    "IngestSource",
+    "IngestStatus",
     "EnvironmentPlatform",
     "StageState",
     "OperationState",
@@ -66,7 +74,7 @@ __all__ = [
     "TechniqueEmulabilityKind",
     # Models
     "Case",
-    "Dag",
+    "AttackFlowRow",
     "StageRun",
     "Ability",
     "Adversary",
@@ -77,7 +85,6 @@ __all__ = [
     "UserPreferences",
     "StixVersion",
     "EnvironmentParametersRow",
-    "ProvisionedEnvironmentRow",
     "ExecutionReport",
     # AI curation agent bookkeeping (task 3.1)
     "AgentRun",
@@ -88,4 +95,8 @@ __all__ = [
     # Container emulability (agentic-phase-model-refactor task 12.1)
     "TechniqueEmulability",
     "ContainerEmulability",
+    # Attack flow corpus and ingestion state (agentic-only-flow-redesign 6.1)
+    "AttackFlowObjectRow",
+    "AttackFlowEdgeRow",
+    "IngestSourceState",
 ]

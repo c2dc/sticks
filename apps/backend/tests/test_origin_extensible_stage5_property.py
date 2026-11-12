@@ -34,7 +34,7 @@ A Property 13 (lado Estágio 5) afirma, para qualquer input:
    (sem herdar de ``EnvironmentProvisioner``) também satisfaz o Protocol **sem**
    alterar a assinatura da costura nem o artefato ``ProvisionedEnvironment`` —
    exatamente a extensão por origin exigida por Req. 16.3/16.4. O valor
-   ``gerado_ia`` já pertence à enum ``DagOrigin`` (persistida como VARCHAR+CHECK
+   ``gerado_ia`` já pertence à enum ``FlowOrigin`` (persistida como VARCHAR+CHECK
    que o aceita), logo persistir um artefato ``gerado_ia`` no futuro não exige
    alteração de esquema (Req. 16.4).
 
@@ -43,9 +43,8 @@ Estratégia / isolation
 Reusa os *fakes* de ``tests/test_provisioner_stage5.py`` (``FakeCaldera``,
 ``FakeInspector``, o semeador de campaign curated e os construtores de
 ``EnvironmentParameters``): tudo é puro/in-memory — nenhum daemon Docker, nenhuma
-rede, nenhuma IA. Cada exemplo semeia um campaign curated em um diretório de dados
-**temporário** com o layout ``<data_dir>/{api,dag}/`` e injeta um
-``CaseService`` apontado para ele. Hypothesis varia os contêineres-target, o
+rede, nenhuma IA. Cada exemplo semeia um campaign curated em um banco SQLite
+**temporário** (linhas ORM) e injeta-o como ``session_factory`` do provisioner. Hypothesis varia os contêineres-target, o
 state de isolation e a disponibilidade do Caldera para asserir que o carimbo
 de origin **não depende** de nenhum deles. Hypothesis roda ≥100 iterações.
 """
@@ -60,8 +59,8 @@ from pathlib import Path
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
-from app.models.enums import DagOrigin, TranslationSource
-from app.services.campaign_service import CaseService
+from tests._curated_db import CaseDb, db_put
+from app.models.enums import FlowOrigin, TranslationSource
 from app.services.environment.operationalization import (
     TargetHost,
     EnvironmentParameters,
@@ -110,11 +109,11 @@ class _StubGeradoIa:
 
     def origin(self) -> str:
         # A implementação de IA carimba a origin ``gerado_ia`` — o mesmo valor em
-        # pt-BR já aceito pela enum ``DagOrigin`` (VARCHAR+CHECK), de modo que
+        # pt-BR já aceito pela enum ``FlowOrigin`` (VARCHAR+CHECK), de modo que
         # persistir um artefato ``gerado_ia`` não exige alteração de esquema
         # (Req. 16.4). Devolver a string prova que a assinatura da costura não
         # muda para a nova origin.
-        return DagOrigin.AI_GENERATED.value
+        return FlowOrigin.AI_GENERATED.value
 
     def provision(self, params: EnvironmentParameters) -> ProvisionedEnvironment:
         # Uma IA real CRIARIA o environment sob medida; o stub apenas honra a
@@ -195,10 +194,8 @@ def test_property13_stage5_origin_explicit_and_extensible(
     """
     containers, isolar, caldera_ok = cenario
 
-    data_dir = Path(tempfile.mkdtemp(prefix="origin_extensible_stage5_"))
+    data_dir = CaseDb()
     try:
-        (data_dir / "api").mkdir(parents=True, exist_ok=True)
-        (data_dir / "dag").mkdir(parents=True, exist_ok=True)
         _seed_case(data_dir, _SLUG)
 
         # Fakes de compose + state mantêm ``provision`` sem subprocess/daemon
@@ -210,7 +207,7 @@ def test_property13_stage5_origin_explicit_and_extensible(
         verificaveis = containers or container_names()
         curation = CurationEnvironmentProvisioner(
             inspector=_inspector_para(containers, isolar),
-            case_service=CaseService(data_dir=data_dir),
+            session_factory=data_dir.factory,
             caldera=FakeCaldera(fail=not caldera_ok),
             compose_executor=FakeComposeExecutor(),
             state_inspector=_healthy_state_inspector(verificaveis),
@@ -235,7 +232,7 @@ def test_property13_stage5_origin_explicit_and_extensible(
         #     origin distinta (Req. 16.3, 16.4).
         stub = _StubGeradoIa()
         assert isinstance(stub, EnvironmentProvisioner)
-        assert stub.origin() == DagOrigin.AI_GENERATED.value == "ai_generated"
+        assert stub.origin() == FlowOrigin.AI_GENERATED.value == "ai_generated"
         ai_environment = stub.provision(params)
         assert isinstance(ai_environment, ProvisionedEnvironment)
 
@@ -267,7 +264,7 @@ def test_property13_stage5_origin_explicit_and_extensible(
         # ``gerado_ia`` é um valor legítimo da enum de origin persistida como
         # VARCHAR+CHECK que já o aceita — persistir um artefato gerado_ia no
         # futuro não exige alteração de esquema (Req. 16.4).
-        assert DagOrigin.AI_GENERATED.value == "ai_generated"
-        assert DagOrigin.AI_GENERATED in set(DagOrigin)
+        assert FlowOrigin.AI_GENERATED.value == "ai_generated"
+        assert FlowOrigin.AI_GENERATED in set(FlowOrigin)
     finally:
-        shutil.rmtree(data_dir, ignore_errors=True)
+        data_dir.dispose()

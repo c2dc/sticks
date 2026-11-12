@@ -29,8 +29,7 @@ What this service does (task 9.1)
 
 Injectable Session, naive UTC timestamps
 -----------------------------------------
-Like :class:`~app.services.audit.AuditLogger` and
-:class:`~app.services.stage.StageService`, this service takes an injected
+Like :class:`~app.services.audit.AuditLogger`, this service takes an injected
 SQLAlchemy :class:`~sqlalchemy.orm.Session` so the same code works with the
 app's ``SessionLocal`` and an ephemeral test SQLite session — no global state.
 ``updated_at`` uses **naive UTC** (``datetime.utcnow``), consistent with the
@@ -457,11 +456,11 @@ class SessionStateService:
             The case whose Stage was completed.
         stage:
             The Stage number (1..5) that was completed. The pipeline
-            spans five Stages (1 Structural Modeling, 2 DAG Generation,
+            spans five Stages (1 Structural Modeling, 2 attack flow Generation,
             3 Operationalization, 4 Environment Provisioning, 5 Campaign
             Execution); this method only persists the completion and does not
             bound the stage number itself — the authoritative 1..5 range is
-            enforced by ``StageService``/``VALID_STAGES``.
+            enforced by the stage constants.
 
         Returns
         -------
@@ -540,8 +539,7 @@ class SessionStateService:
     def _get_or_create_stage_run(self, campaign_id: str, *, stage: int) -> StageRun:
         """Return the ``StageRun`` for ``(campaign_id, stage)``, creating it if absent.
 
-        One row per ``(campaign_id, stage)`` is kept (same upsert contract as
-        :class:`~app.services.stage.stage_service.StageService`), so persisting a
+        One row per ``(campaign_id, stage)`` is kept (upsert contract), so persisting a
         completion updates the existing run rather than piling up rows.
         """
         stmt = (

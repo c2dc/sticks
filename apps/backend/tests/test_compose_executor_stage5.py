@@ -378,7 +378,7 @@ def test_caldera_engine_contract_pins_the_fixed_image() -> None:
     assert CALDERA_SERVICE == "caldera-attacker"
     assert CALDERA_SERVICE in LAB_SERVICES
     # A imagem registrada da engine é EXATAMENTE a pinada no mapa do lab —
-    # construída uma vez a partir do fonte (`infra/docker/.docker/caldera`).
+    # construída uma vez a partir do fonte (`ops/docker/.docker/caldera`).
     assert CALDERA_ENGINE_IMAGE == "sticks-caldera-attacker:latest"
     assert CALDERA_ENGINE_IMAGE == LAB_IMAGES[CALDERA_SERVICE]
 

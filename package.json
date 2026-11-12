@@ -4,8 +4,7 @@
   "version": "0.0.0",
   "description": "Comando unico de desenvolvimento: sobe backend (FastAPI), frontend (Vite) e aplica as migracoes do banco (PostgreSQL via Alembic) de uma vez. Os scripts sao multiplataforma (Node), funcionando em Windows, Linux e macOS. Usa npm workspaces para manter um unico node_modules na raiz.",
   "workspaces": [
-    "apps/frontend",
-    "packages/*"
+    "apps/frontend"
   ],
   "scripts": {
     "dev": "node scripts/dev.mjs",

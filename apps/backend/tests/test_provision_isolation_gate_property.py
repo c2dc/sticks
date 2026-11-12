@@ -54,7 +54,7 @@ from typing import Any, Mapping
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from app.services.campaign_service import CaseService
+from tests._curated_db import CaseDb, db_put
 from app.services.containment.isolation import (
     ContainerNetworkInfo,
     ContainerNotFound,
@@ -260,12 +260,7 @@ def _inspector_with_offenders(
     return insp
 
 
-def _write_json(path: Path, payload: object) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload), encoding="utf-8")
-
-
-def _seed_case(data_dir: Path, slug: str) -> None:
+def _seed_case(data_dir: CaseDb, slug: str) -> None:
     abilities = [
         {
             "ability_id": f"{slug}-ab-1",
@@ -274,26 +269,20 @@ def _seed_case(data_dir: Path, slug: str) -> None:
             "executors": [{"name": "sh", "platform": "linux", "command": "echo 1"}],
         },
     ]
-    _write_json(data_dir / "api" / f"{slug}_dag-ability.json", abilities)
-    _write_json(
-        data_dir / "api" / f"{slug}_dag-adversary.json",
-        {
+    db_put(data_dir, "ability", slug, abilities)
+    db_put(data_dir, "adversary", slug, {
             "id": f"{slug}-adv",
             "name": "Seed Adversary",
             "description": "seed",
             "atomic_ordering": [f"{slug}-ab-1"],
-        },
-    )
-    _write_json(
-        data_dir / "dag" / f"{slug}_dag.json",
-        {
+        })
+    db_put(data_dir, "flow", slug, {
             "campaign_name": "Seed",
             "structural_nodes": [
-                {"node_id": "n0", "node_index": 0, "technique_id": "T1190"}
+                {"node_id": "n0", "technique_id": "T1190"}
             ],
             "metadata": {"total_techniques": 1},
-        },
-    )
+        })
 
 
 def _params(containers: list[str]) -> EnvironmentParameters:
@@ -309,12 +298,12 @@ def _params(containers: list[str]) -> EnvironmentParameters:
 
 
 def _provisioner(
-    data_dir: Path, containers: list[str], inspector: object
+    data_dir: CaseDb, containers: list[str], inspector: object
 ) -> CurationEnvironmentProvisioner:
     _seed_case(data_dir, _SLUG)
     return CurationEnvironmentProvisioner(
         inspector=inspector,
-        case_service=CaseService(data_dir=data_dir),
+        session_factory=data_dir.factory,
         caldera=_FakeCaldera(),
         compose_executor=_OkComposeExecutor(),
         state_inspector=_FakeStateInspector(containers),
@@ -369,12 +358,12 @@ def test_isolation_gate_is_failclosed_precondition_of_completion(
             offenders = {containers[0]}
         inspector = _inspector_with_offenders(containers, offenders)
 
-    tmp = Path(tempfile.mkdtemp(prefix="stage5_isolation_gate_prop_"))
+    tmp = CaseDb()
     try:
         prov = _provisioner(tmp, containers, inspector)
         environment = prov.provision(_params(hosts))
     finally:
-        shutil.rmtree(tmp, ignore_errors=True)
+        tmp.dispose()
 
     if scenario == "all_isolated":
         # Gate approves all -> Stage 5 completes (Req. 4.5). ``ready`` can only be
@@ -413,14 +402,14 @@ def test_completion_requires_the_isolation_gate_to_approve_all(
     containers = _resolver(hosts)
     offenders = {containers[offender_pick % len(containers)]}  # always >= 1 offender
 
-    tmp = Path(tempfile.mkdtemp(prefix="stage5_isolation_gate_hard_"))
+    tmp = CaseDb()
     try:
         prov = _provisioner(
             tmp, containers, _inspector_with_offenders(containers, offenders)
         )
         environment = prov.provision(_params(hosts))
     finally:
-        shutil.rmtree(tmp, ignore_errors=True)
+        tmp.dispose()
 
     assert environment.ready is False
     assert environment.failed_step == "verificar_isolamento"
@@ -451,12 +440,12 @@ def test_isolation_gate_failclosed_when_daemon_unavailable() -> None:
     _Requirements: 4.3_
     """
     containers = _resolver(["nginx", "db"])
-    tmp = Path(tempfile.mkdtemp(prefix="stage5_isolation_gate_daemon_"))
+    tmp = CaseDb()
     try:
         prov = _provisioner(tmp, containers, _DaemonDownInspector())
         environment = prov.provision(_params(["nginx", "db"]))
     finally:
-        shutil.rmtree(tmp, ignore_errors=True)
+        tmp.dispose()
 
     assert environment.ready is False
     assert environment.failed_step == "verificar_isolamento"

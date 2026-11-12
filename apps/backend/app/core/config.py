@@ -2,32 +2,20 @@
 
 Design goals for this task (1.1):
 
-* Reuse the values from the existing ``sticks/config/config.py`` (notably
-  ``CALDERA_URL`` and the Caldera API key used as the ``KEY`` header) *without
-  duplicating* them — they are read from the sticks module at runtime.
+* Every value comes from environment variables (``PIPELINE_UI_*``) with sane
+  defaults, including the Caldera URL and the API key used as the ``KEY`` header.
 * The project standardizes on **PostgreSQL only** (no SQLite). The default
   ``database_url`` points at the containerized Postgres published on
   ``localhost:5432`` (service ``sticks-postgres``), so native host dev works
   out of the box. Override with ``PIPELINE_UI_DATABASE_URL`` for other
   environments; the compose ``backend`` service sets it to ``postgres:5432``.
-* Never modify anything under ``sticks/``.
 """
 
 from __future__ import annotations
 
 from functools import lru_cache
-from types import ModuleType
-from typing import Optional
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
-
-from app.core.sticks_config import load_sticks_config
-
-
-def get_sticks_config() -> ModuleType:
-    """Return the loaded existing sticks config module (cached)."""
-    return load_sticks_config()
-
 
 def _clamp(value: float, lower: float, upper: float) -> float:
     """Clamp ``value`` into the inclusive range ``[lower, upper]``."""
@@ -37,9 +25,7 @@ def _clamp(value: float, lower: float, upper: float) -> float:
 class Settings(BaseSettings):
     """Backend settings.
 
-    Values that already live in the existing sticks pipeline are *not* redefined
-    here. Instead they are exposed through computed properties that read from
-    ``sticks/config/config.py`` so there is a single source of truth.
+    All values are overridable through ``PIPELINE_UI_*`` environment variables.
     """
 
     model_config = SettingsConfigDict(
@@ -58,17 +44,11 @@ class Settings(BaseSettings):
     # `postgres:5432`.
     database_url: str = "postgresql+psycopg://pipeline_ui:pipeline_ui@localhost:5432/pipeline_ui"
 
-    # Optional override of the Caldera URL for local/mocked testing. When unset
-    # the value comes from the existing sticks config (single source of truth).
-    caldera_url_override: Optional[str] = None
-
-    # Explicit override of the STIX data directory (Req. 2.1, 2.4). When set
-    # (env PIPELINE_UI_STIX_DIR or .env) it takes precedence over the OS default;
-    # absent/empty falls back to the default (Req. 2.3). The StixService passes
-    # this value as `override` to resolve_stix_data_dir. Kept as Optional[str]
-    # (not Path) to mirror the env var faithfully and leave normalization to
-    # pathlib/the resolver.
-    stix_dir: Optional[str] = None
+    # Caldera C2 connection. Override with PIPELINE_UI_CALDERA_URL /
+    # PIPELINE_UI_CALDERA_KEY (the compose lab publishes Caldera on 8888). The
+    # key is sent as the ``KEY`` header of the Caldera v2 API (red API key).
+    caldera_url: str = "http://localhost:8888"
+    caldera_key: str = "ADMIN123"
 
     # ---- Stage 6 operation collection settings (Req. 3.1) --------------------
 
@@ -112,24 +92,6 @@ class Settings(BaseSettings):
         effective re-check interval never exceeds 30 seconds.
         """
         return _clamp(self.isolation_recheck_interval_seconds, 0.0, 30.0)
-
-    # ---- Reused-from-sticks values (no duplication) --------------------------
-
-    @property
-    def caldera_url(self) -> str:
-        """Caldera base URL, reused from sticks config (``CALDERA_URL``)."""
-        if self.caldera_url_override:
-            return self.caldera_url_override
-        return getattr(get_sticks_config(), "CALDERA_URL")
-
-    @property
-    def caldera_key(self) -> str:
-        """Value for the Caldera ``KEY`` header, reused from sticks config.
-
-        The existing pipeline authenticates against Caldera's v2 API using the
-        red API key (``CALDERA_API_KEY_RED``) as the ``KEY`` header.
-        """
-        return getattr(get_sticks_config(), "CALDERA_API_KEY_RED")
 
     @property
     def caldera_headers(self) -> dict[str, str]:

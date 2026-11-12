@@ -1,50 +1,30 @@
 """StixPersistenceService — transactional, idempotent persistence of a STIX
-package into Postgres (tasks 2.1–2.3).
+package into the database.
 
-This service is the single point in the system that writes the STIX tables. At
-download time it derives the structured content of a bundle (type counts,
-campaigns, techniques per campaign, actors and actor→campaign attributions) via
-the existing :class:`~app.services.stix.stix_service.StixService` (parse reused,
-never rewritten) and persists it inside a single transaction. Re-persisting a
-version is idempotent: the row in ``stix_packages`` keyed by ``version`` is
-reused and its derived content is replaced deterministically.
+This service is the single point in the system that writes the STIX tables. It
+receives a bundle **already in memory** (downloaded by
+:meth:`~app.services.stix.stix_service.StixService.fetch_bundle`, never written
+to disk), derives its structured content (type counts, campaigns, techniques per
+campaign, actors and actor→campaign attributions) through the pure derivations of
+:class:`~app.services.stix.stix_service.StixService` and persists it inside a
+single transaction. Re-persisting a version is idempotent: the row in
+``stix_packages`` keyed by ``version`` is reused and its derived content is
+replaced deterministically.
 
-Design alignment
-----------------
-* Lives in the :mod:`app.services.stix` package next to
-  :class:`StixService`, which it reuses for the parse.
-* Takes a SQLAlchemy ``Session`` and an optional ``StixService`` on construction
-  — the same pattern other session-scoped services in this backend follow (e.g.
-  :class:`~app.services.session.session_state_service.SessionStateService`). The
-  optional ``StixService`` keeps the single network egress mockable in tests
-  (inject a ``StixService`` with an isolated ``data_dir`` and a fake
-  ``http_client``).
-* :class:`StixPackagePersistedResult` mirrors the design "Component 1" contract
-  exactly, so the ``/api/stix/*`` handler maps 1:1.
+It is driven by the ``stix_packages`` ingestion source
+(:class:`~app.services.ingestion.runners.StixPackagesSourceRunner`).
 
-This module defines the result DTO, the service, the transactional derivation
-and write (``download_and_persist``), the idempotent upsert per version (reuse
-the ``stix_packages`` row, delete-and-insert the derived child content) and the
-on-demand backfill (``persist_from_disk``, no network egress). Both entry points
-share the private ``_derive_and_write`` core, which wraps the write phase so a
-failure during flush/insert/commit rolls the session back — leaving the package
-unpersisted and the on-disk bundle intact — and re-raises for the API layer to
-map to the ``falha_persistencia`` contract.
-
-Vector indexing hook (task 16.1 / Req. 10.3)
---------------------------------------------
+Vector indexing hook (Req. 10.3)
+--------------------------------
 A ``Stix_Package_Version`` is a ``Pipeline_Input`` and must live in **both**
-stores (Req. 10.1). This service remains the single writer of the exact,
-relational half. The *semantic* half — indexing the version's campaigns into the
-Vector_Store so an agent can retrieve STIX context by similarity (Req. 10.3) —
-is delegated to an **optional, injected** :class:`StixVectorIndexer` invoked only
-**after** the relational commit succeeds (so the index reads the just-committed
-campaigns from the Relational_Store, the source of truth, never the deleted
-bundle). The hook is additive and defensive: when no indexer is injected the
-behaviour is exactly the relational-only one, and the hook never affects the
-``persisted`` verdict of the committed write (Req. 10.6).
+stores (Req. 10.1). The *semantic* half — indexing the version's campaigns into
+the Vector_Store — is delegated to an **optional, injected**
+:class:`StixVectorIndexer` invoked only **after** the relational commit succeeds.
+The hook is additive and defensive: when no indexer is injected the behaviour is
+exactly the relational-only one, and the hook never affects the ``persisted``
+verdict of the committed write (Req. 10.6).
 
-_Requirements: 1.1, 1.3, 1.4, 1.6, 2.1, 2.2, 2.3, 2.4, 4.6, 8.2, 8.4, 9.2, 10.1, 10.3_
+_Requirements: 1.1, 1.3, 1.4, 1.6, 2.1, 2.2, 2.3, 2.4, 4.6, 7.1, 9.2, 10.1, 10.3_
 """
 
 from __future__ import annotations
@@ -79,7 +59,7 @@ class StixPackagePersistedResult(BaseModel):
     """Outcome of persisting a STIX package (design Component 1).
 
     Returned by :meth:`StixPersistenceService.download_and_persist` and
-    :meth:`StixPersistenceService.persist_from_disk`. ``downloaded`` reports
+    :meth:`StixPersistenceService.persist_bundle`. ``downloaded`` reports
     whether the bundle was (re)fetched/present and ``persisted`` whether the DB
     write committed successfully. ``counts_total`` is the sum of the per-type
     counts; ``campaigns_total`` and ``actors_total`` are the number of persisted
@@ -122,12 +102,12 @@ class StixVectorIndexer(Protocol):
 
 
 class StixPersistenceService:
-    """Download and persist a STIX package transactionally and idempotently.
+    """Persist a STIX bundle (held in memory) transactionally and idempotently.
 
     The single point that writes the STIX tables. It reuses an injected
-    :class:`StixService` for the parse/derivation (defaulting to a fresh instance
-    when none is supplied) and writes through the provided SQLAlchemy
-    ``Session``.
+    :class:`StixService` for the download and the derivations (defaulting to a
+    fresh instance when none is supplied) and writes through the provided
+    SQLAlchemy ``Session``.
     """
 
     def __init__(
@@ -138,24 +118,20 @@ class StixPersistenceService:
         vector_indexer: Optional[StixVectorIndexer] = None,
     ) -> None:
         self._session = session
-        # Reuse the injected StixService (so tests can isolate the data dir and
-        # mock the single network egress); otherwise build the default one.
         self._stix_service = stix_service if stix_service is not None else StixService()
         # Optional Vector_Store indexer invoked after a successful commit so the
         # persisted version is also a Pipeline_Input in the vector store
-        # (Req. 10.1, 10.3). Keyword-only and defaulting to None so the existing
-        # relational-only call sites and tests are unchanged and never need a real
-        # embedder/pgvector.
+        # (Req. 10.1, 10.3). Defaults to None so relational-only call sites and
+        # tests never need a real embedder/pgvector.
         self._vector_indexer = vector_indexer
 
     def download_and_persist(self, version: str) -> StixPackagePersistedResult:
-        """Download (if absent) and persist the package, idempotently.
+        """Download the bundle into memory and persist it, idempotently.
 
-        Reuses the bundle already on disk when present (so a re-download does not
-        hit the network needlessly), otherwise triggers the single network egress
-        via :meth:`StixService.download_base`. In both cases the structured
-        content is derived from the file via :class:`StixService` and written in a
-        single transaction (see :meth:`_derive_and_write`).
+        The single network egress is :meth:`StixService.fetch_bundle` (which
+        validates the version first). The bundle never touches the disk. A failed
+        download raises :class:`~app.services.stix.stix_service.StixDownloadError`
+        before anything is written; a failed write rolls the session back.
 
         Args:
             version: The ATT&CK Enterprise version (e.g. ``"18.0"``).
@@ -164,88 +140,47 @@ class StixPersistenceService:
             A :class:`StixPackagePersistedResult` with ``downloaded=True`` and
             ``persisted=True`` on success.
         """
-        # Reuse the file on disk when already present; otherwise download it (the
-        # single network egress, which validates the version and writes atomically).
-        if not self._stix_service.base_path(version).exists():
-            self._stix_service.download_base(version)
+        bundle = self._stix_service.fetch_bundle(version)
+        return self.persist_bundle(version, bundle)
 
-        return self._derive_and_write(version)
-
-    def persist_from_disk(self, version: str) -> StixPackagePersistedResult:
-        """Persist a bundle already on disk without a new network download.
-
-        Used by the on-demand backfill (Req. 8.2): it never triggers a network
-        egress (:meth:`StixService.download_base` is not called), it only derives
-        the structured content from the file already present on disk and writes it
-        through the shared transactional core in :meth:`_derive_and_write`. The
-        read-only derivation (``read_bundle`` / ``dashboard`` / ``list_campaigns``
-        / ``list_adversaries``) leaves the on-disk file intact (Req. 8.4).
-
-        If the DB write fails after the bundle is available, the shared core rolls
-        the session back — leaving the package unpersisted and the on-disk file
-        untouched (Req. 9.2) — and re-raises so the API layer can map it to the
-        ``falha_persistencia`` contract.
-
-        Args:
-            version: The ATT&CK Enterprise version (e.g. ``"18.0"``).
-
-        Returns:
-            A :class:`StixPackagePersistedResult` with ``downloaded=False`` (the
-            bundle was not fetched — it was already present on disk) and
-            ``persisted=True`` on success.
-        """
-        result = self._derive_and_write(version)
-        # The bundle was already on disk — it was not (re)downloaded. Override the
-        # ``downloaded`` flag that the shared core reports as True for the download
-        # path so the backfill result reflects "present, not fetched".
-        return result.model_copy(update={"downloaded": False})
+    def persist_bundle(self, version: str, bundle: dict) -> StixPackagePersistedResult:
+        """Persist an in-memory ``bundle`` for ``version`` (no network access)."""
+        return self._derive_and_write(version, bundle)
 
     # ------------------------------------------------------------------
-    # Transactional derivation + write (design "download com persistência")
+    # Transactional derivation + write
     # ------------------------------------------------------------------
 
-    def _derive_and_write(self, version: str) -> StixPackagePersistedResult:
-        """Derive the structured content via ``StixService`` and write it.
+    def _derive_and_write(self, version: str, bundle: dict) -> StixPackagePersistedResult:
+        """Derive the structured content from ``bundle`` and write it.
 
-        Derives, from the bundle on disk, the per-type counts
-        (:meth:`StixService.dashboard`), the campaigns
-        (:meth:`StixService.list_campaigns`), the techniques a campaign uses and
-        the actor→campaign attributions (:meth:`StixService.list_adversaries`),
-        and persists ``stix_packages`` + ``stix_type_counts`` + ``stix_campaigns``
-        + ``stix_campaign_techniques`` + ``stix_actors`` + ``stix_actor_campaigns``
-        inside a single transaction, committing once (Req. 1.4). The parse is
-        entirely reused from :class:`StixService` — never rewritten here.
+        Derives the per-type counts, the campaigns, the techniques a campaign
+        uses and the actor→campaign attributions, and persists ``stix_packages``
+        + ``stix_type_counts`` + ``stix_campaigns`` + ``stix_campaign_techniques``
+        + ``stix_actors`` + ``stix_actor_campaigns`` inside a single transaction,
+        committing once (Req. 1.4).
 
         The write is idempotent per ``version`` (Req. 2.1–2.4): when a
         ``stix_packages`` row already exists for ``version`` it is reused (not
-        duplicated), its ``downloaded_at`` is refreshed via :func:`_utcnow` and
-        its ``source_file`` is updated, and all derived child content for that
-        package is cleared and re-inserted (delete-and-insert) within the same
-        transaction. Re-persisting the same bundle therefore yields identical DB
-        content with no duplicate rows (``f(x) == f(f(x))``). This method is the
-        shared core both ``download_and_persist`` and ``persist_from_disk`` build
-        on.
+        duplicated), its ``downloaded_at`` is refreshed via :func:`_utcnow` and all
+        derived child content for that package is cleared and re-inserted
+        (delete-and-insert) within the same transaction.
         """
-        # --- Derivation via StixService (parse reused, never rewritten) -----
-        dashboard = self._stix_service.dashboard(version)
-        campaigns = self._stix_service.list_campaigns(version)
-        adversaries = self._stix_service.list_adversaries(version)
-        bundle = self._stix_service.read_bundle(version)
+        # --- Derivation (pure, over the in-memory bundle) -------------------
+        dashboard = self._stix_service.dashboard(version, bundle)
+        campaigns = self._stix_service.list_campaigns(bundle)
+        adversaries = self._stix_service.list_adversaries(bundle)
 
         # Techniques a campaign uses, keyed by the campaign stix_id, derived from
         # the "uses" relationships (campaign source_ref → attack-pattern target_ref).
         techniques_by_campaign = self._derive_campaign_techniques(bundle)
-        # Rich per-campaign fields (external_id, aliases, first/last seen) read
-        # straight from the bundle so stix_campaigns rows are fully populated.
+        # Rich per-campaign fields (external_id, aliases, first/last seen).
         details_by_campaign = self._derive_campaign_details(bundle)
 
         # --- Single transaction --------------------------------------------
-        # Wrap the whole write phase (insert/flush/commit) so that any failure
-        # after the bundle is available rolls the session back — leaving the
-        # package unpersisted and the on-disk file untouched (Req. 8.2, 9.2) —
-        # and re-raises for the API layer to map to ``falha_persistencia``. The
-        # read-only derivation above never mutates the session, so it stays out
-        # of the rollback scope.
+        # Any failure after the bundle is available rolls the session back —
+        # leaving the package unpersisted (Req. 9.2) — and re-raises for the
+        # caller to map.
         try:
             result = self._write_derived_content(
                 version,
@@ -256,59 +191,23 @@ class StixPersistenceService:
                 details_by_campaign=details_by_campaign,
             )
         except Exception:
-            # A failed flush/insert/commit leaves the transaction in an unknown
-            # state; roll it back so no partial package rows survive, then let the
-            # error propagate unchanged. The on-disk bundle is preserved — the
-            # deletion below runs only on the committed (success) path (Req. 1.2,
-            # 7.2).
             self._session.rollback()
             raise
-        # Commit confirmed: the database is now the source of truth for this
-        # version. Index the just-committed campaigns into the Vector_Store so the
-        # version is a Pipeline_Input in both stores (Req. 10.1, 10.3). The index
-        # reads the committed campaigns from the Relational_Store — never the
-        # bundle — so it runs before the on-disk deletion below but would work
-        # regardless of it. It is best-effort and never affects the ``persisted``
-        # verdict of the committed write (Req. 10.6).
+        # Commit confirmed: index the just-committed campaigns into the
+        # Vector_Store (best-effort, never affects ``persisted`` — Req. 10.6).
         self._index_into_vector_store(version)
-        # Delete the on-disk bundle best-effort (Req. 1.1, 6.3). This runs before
-        # ``persist_from_disk`` overrides ``downloaded`` and never affects
-        # ``persisted`` (Req. 2.1).
-        self._delete_bundle_file(version)
         return result
 
     def _index_into_vector_store(self, version: str) -> None:
         """Index the committed version into the Vector_Store (best-effort, Req. 10.3).
 
-        No-op when no :class:`StixVectorIndexer` was injected, so relational-only
-        callers (and their tests) keep the exact previous behaviour with no
-        embedder/pgvector required. When an indexer is present it is invoked via
-        its degrade-safe ``index_version_safe``, so a Vector_Store outage never
-        propagates to the already-committed relational write (Req. 10.6).
+        No-op when no :class:`StixVectorIndexer` was injected. When one is present
+        it is invoked via its degrade-safe ``index_version_safe``, so a
+        Vector_Store outage never propagates to the already-committed write.
         """
         if self._vector_indexer is None:
             return
         self._vector_indexer.index_version_safe(version)
-
-    def _delete_bundle_file(self, version: str) -> None:
-        """Delete the on-disk Bundle_File after a successful commit (best-effort).
-
-        Resolves the bundle path via :meth:`StixService.base_path` and unlinks it
-        with ``missing_ok=True``. Never raises and never affects persistence: a
-        deletion failure is logged as a diagnostic and swallowed, so a committed
-        version is never considered unavailable because of on-disk residue
-        (Req. 2.1, 2.2, 2.3, 7.3).
-        """
-        path = self._stix_service.base_path(version)
-        try:
-            path.unlink(missing_ok=True)
-        except OSError as exc:  # noqa: BLE001 — deletion is best-effort.
-            logger.warning(
-                "best-effort deletion of STIX bundle v%s at %s failed: %s",
-                version,
-                path,
-                exc,
-            )
 
     def _write_derived_content(
         self,
@@ -326,11 +225,10 @@ class StixPersistenceService:
         during flush/insert/commit triggers a rollback (Req. 9.2). All writes for
         the package happen here and commit once (Req. 1.4).
         """
-        source_file = str(self._stix_service.base_path(version))
         # Reuse the existing row keyed by the UNIQUE ``version`` when present so
         # a re-persistence does not duplicate it (Req. 2.1); otherwise insert a
         # fresh one. ``downloaded_at`` is refreshed on every (re-)persistence
-        # (Req. 2.4) and ``source_file`` is kept current.
+        # (Req. 2.4).
         package = self._session.execute(
             select(StixPackage).where(StixPackage.version == version)
         ).scalar_one_or_none()
@@ -339,7 +237,6 @@ class StixPersistenceService:
                 version=version,
                 name=f"Enterprise ATT&CK v{version}",
                 downloaded_at=_utcnow(),
-                source_file=source_file,
             )
             self._session.add(package)
         else:
@@ -349,7 +246,6 @@ class StixPersistenceService:
             self._clear_package_content(package.id)
             package.name = f"Enterprise ATT&CK v{version}"
             package.downloaded_at = _utcnow()
-            package.source_file = source_file
         # Flush so the package id is assigned (fresh insert) and the deletes are
         # applied, all still inside the same open transaction. The package id is
         # then usable as the foreign key of the child rows.

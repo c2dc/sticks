@@ -31,7 +31,7 @@ devolve hits controlados — o SQLite não possui os operadores de cosseno do
 pgvector, então a metade vetorial é sempre exercitada pelo dublê, nunca pelo
 banco. Nenhum embedder real é necessário.
 
-Caso concreto (ex-Property 14): o DAG agent e o op agent obtêm o **mesmo**
+Caso concreto (ex-Property 14): o attack flow agent e o op agent obtêm o **mesmo**
 conjunto de comandos para uma técnica porque ambos passam pela mesma
 ``CommandBase.commands_for_technique`` — asserido ao final do arquivo.
 """
@@ -289,12 +289,12 @@ def test_command_base_resolves_exact_then_similarity(data: st.DataObject) -> Non
 
 
 # ---------------------------------------------------------------------------
-# Concrete example (ex-Property 14): DAG agent and op agent see the SAME set.
+# Concrete example (ex-Property 14): attack flow agent and op agent see the SAME set.
 # ---------------------------------------------------------------------------
 
 
-def test_dag_and_op_agents_obtain_same_command_set() -> None:
-    """DAG agent and op agent resolve the identical command set for a technique.
+def test_flow_and_op_agents_obtain_same_command_set() -> None:
+    """attack flow agent and op agent resolve the identical command set for a technique.
 
     Both agents query the same ``CommandBase.commands_for_technique`` entry
     point, so for a given technique the set of commands they obtain must be
@@ -323,13 +323,70 @@ def test_dag_and_op_agents_obtain_same_command_set() -> None:
         )
         command_base = CommandBase(session, memory=_FakeMemory({}))
 
-        # The DAG agent and the op agent each consult the shared Command_Base.
-        dag_agent_commands = command_base.commands_for_technique(technique_id, k=5)
+        # The attack flow agent and the op agent each consult the shared Command_Base.
+        flow_agent_commands = command_base.commands_for_technique(technique_id, k=5)
         op_agent_commands = command_base.commands_for_technique(technique_id, k=5)
 
-        assert dag_agent_commands == op_agent_commands
-        assert {s.command for s in dag_agent_commands} == {"whoami", "id"}
-        assert all(s.exact is True for s in dag_agent_commands)
+        assert flow_agent_commands == op_agent_commands
+        assert {s.command for s in flow_agent_commands} == {"whoami", "id"}
+        assert all(s.exact is True for s in flow_agent_commands)
+    finally:
+        _dispose(session, engine)
+        try:
+            db_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+
+# ---------------------------------------------------------------------------
+# Batch exact lookup (agentic-only-flow-redesign, Property 13: Operationalization
+# listing is an exact relational lookup; Req. 6.2, 6.3, 6.6). Deterministic.
+# ---------------------------------------------------------------------------
+
+
+class _ExplodingMemory(_FakeMemory):
+    """Memory double that fails the test if the vector half is ever consulted."""
+
+    def retrieve(
+        self, *, campaign_id: str, query: str, k: int = 5
+    ) -> list[dict[str, Any]]:
+        raise AssertionError("exact_commands_for must not consult ExperienceMemory")
+
+
+def test_exact_commands_for_batch_is_exact_ordered_and_memory_free() -> None:
+    session, db_path, engine = _build_ephemeral_session()
+    try:
+        _seed_exact(
+            session,
+            "T1059",
+            [
+                {"command": "b-first", "executor": "sh", "platform": "linux", "source": "atomic_red_team"},
+                {"command": "a-second", "executor": "sh", "platform": "linux", "source": "atomic_red_team"},
+            ],
+        )
+        _seed_exact(
+            session,
+            "T1003",
+            [{"command": "dump", "executor": "cmd", "platform": "windows", "source": "atomic_red_team"}],
+        )
+        _seed_exact(
+            session,
+            "T9999",
+            [{"command": "outside", "executor": "sh", "platform": "linux", "source": "atomic_red_team"}],
+        )
+        command_base = CommandBase(session, memory=_ExplodingMemory({}))
+
+        result = command_base.exact_commands_for(["T1059", "T1003", "T1105", "T1059"])
+
+        # One key per distinct requested id; unmapped technique -> empty list.
+        assert set(result) == {"T1059", "T1003", "T1105"}
+        assert result["T1105"] == []
+        # Insertion (id) order inside a technique; nothing from unrequested ids.
+        assert [s.command for s in result["T1059"]] == ["b-first", "a-second"]
+        assert [s.command for s in result["T1003"]] == ["dump"]
+        assert all(s.exact is True and s.id is not None for v in result.values() for s in v)
+        # Empty input is a no-op.
+        assert command_base.exact_commands_for([]) == {}
     finally:
         _dispose(session, engine)
         try:

@@ -10,15 +10,15 @@ outputs are seeded directly as ``agent_runs`` / ``agent_iterations`` /
 ``agent_stage_outputs`` rows.
 
 Curated-ness is decided SERVER-SIDE by the endpoint from the curated set
-(:meth:`CaseService.list_cases`), so these two examples cover the curated-only
+(the ``campaigns.curated`` flag), so these two examples cover the curated-only
 behaviour the requirement asks for:
 
 * **Curated campaign (Req. 5.3).** For a curated campaign slug (``shadowray``)
-  with a completed run carrying AI DAG + operationalization stage outputs, the
+  with a completed run carrying AI attack flow + operationalization stage outputs, the
   endpoint returns 200 with the per-stage AI-output-vs-human-curation comparison
-  (``stage_3_dag`` technique ids and ``stage_4_operationalization`` ability ids,
+  (``stage_3_flow`` technique ids and ``stage_4_operationalization`` ability ids,
   each with ``matched`` / ``missing`` / ``extra``). The curation baseline is read
-  on demand from the real curated files on disk, so the technique/ability ids the
+  on demand from the database rows, so the technique/ability ids the
   run produced that also appear in the curation show up as ``matched``.
 * **Non-curated campaign (Req. 5.2).** For a campaign slug that is not one of the
   eight Curated_Campaigns, the endpoint does NOT offer the comparison: it returns
@@ -49,14 +49,13 @@ from app.models.domain import (
     AgentStageOutput,
 )
 from app.models.enums import AgentRunStatus, AgentStage, TranslationSource
-from app.services.campaign_service import CaseService
+from tests._curated_db import CURATED_NAMES, seed_case_rows
 
-# A curated slug from the registry (CaseService.list_cases) with real curated
-# files on disk, and a slug that is deliberately NOT in the curated set.
+# A curated slug (``campaigns.curated`` row seeded below), and a slug that is deliberately NOT in the curated set.
 _CURATED_CAMPAIGN = "shadowray"
 _NON_CURATED_CAMPAIGN = "definitely-not-a-curated-campaign"
 
-# A couple of real ids read from the curated shadowray files, so the AI output
+# A couple of ids seeded for the curated shadowray campaign, so the AI output
 # we seed overlaps the curation baseline and yields non-empty ``matched`` sets.
 _CURATED_TECHNIQUE_ID = "T1190"
 _CURATED_ABILITY_ID = "0fa06c9c-fd66-52f1-b94a-83cb37bee900"
@@ -95,14 +94,35 @@ def session_factory() -> Iterator[sessionmaker[Session]]:
         future=True,
         class_=Session,
     )
-    # One-shot curated ingest (sub-step 2.1): the ground-truth baseline now comes
-    # from the DB (the ``dags`` + ``abilities`` rows), since sub-step 2.4 removed
-    # the request-time disk read, so the curated content must be persisted first.
-    from app.services.curated_ingest_service import CuratedIngestService
-
+    # The ground-truth baseline comes from the DB (the ``attack_flows`` +
+    # ``abilities`` rows), so the curated campaign is persisted as ORM rows.
     seed_session = factory()
     try:
-        CuratedIngestService(seed_session).ingest_all()
+        seed_case_rows(
+            seed_session,
+            _CURATED_CAMPAIGN,
+            abilities=[
+                {
+                    "ability_id": _CURATED_ABILITY_ID,
+                    "name": "T1190 - exploit",
+                    "technique_id": _CURATED_TECHNIQUE_ID,
+                    "executors": [],
+                }
+            ],
+            adversary={
+                "id": f"{_CURATED_CAMPAIGN}-adv",
+                "name": "adversary",
+                "atomic_ordering": [_CURATED_ABILITY_ID],
+            },
+            flow={
+                "campaign_name": CURATED_NAMES[_CURATED_CAMPAIGN],
+                "structural_nodes": [
+                    {"node_id": "n0", "technique_id": _CURATED_TECHNIQUE_ID},
+                    {"node_id": "n1", "technique_id": "T1059"},
+                ],
+                "edges": [],
+            },
+        )
     finally:
         seed_session.close()
     try:
@@ -140,9 +160,9 @@ def _make_client(session_factory: sessionmaker[Session]) -> TestClient:
 
 
 def _seed_completed_run_with_ai_outputs(session: Session, campaign_id: str) -> AgentRun:
-    """Seed a COMPLETED run with one iteration carrying AI DAG + op stage outputs.
+    """Seed a COMPLETED run with one iteration carrying AI attack flow + op stage outputs.
 
-    * The DAG stage output carries a serialized ``ProducedDag`` whose
+    * The attack flow stage output carries a serialized ``ProducedFlow`` whose
       ``content.structural_nodes`` include one ``technique_id`` that the
       shadowray curation also carries (-> ``matched``) and one it does not
       (-> ``extra``).
@@ -175,12 +195,12 @@ def _seed_completed_run_with_ai_outputs(session: Session, campaign_id: str) -> A
     session.add(iteration)
     session.flush()
 
-    # DAG stage output — content mirrors the curation format; one technique id
+    # Attack flow stage output — content mirrors the curation format; one technique id
     # overlaps the curation (matched) and one does not (extra).
     session.add(
         AgentStageOutput(
             iteration_id=iteration.id,
-            stage=AgentStage.DAG,
+            stage=AgentStage.FLOW,
             origin=TranslationSource.AI_GENERATED,
             payload={
                 "content": {
@@ -225,13 +245,13 @@ def test_ground_truth_comparison_for_curated_campaign(
     """A curated campaign with a completed run returns the per-stage comparison.
 
     The endpoint decides curated-ness server-side, reads the curation baseline
-    from disk on demand, and returns 200 with a per-stage AI-output-vs-curation
-    comparison (technique ids for the DAG stage, ability ids for the
+    from the database on demand, and returns 200 with a per-stage AI-output-vs-curation
+    comparison (technique ids for the attack flow stage, ability ids for the
     operationalization stage) carrying matched/missing/extra (Req. 5.3).
     """
     # Sanity: the slug under test really is one of the curated campaigns, so the
     # endpoint's server-side curated check will admit it.
-    assert _CURATED_CAMPAIGN in CaseService().list_cases()
+    assert _CURATED_CAMPAIGN in CURATED_NAMES
 
     run = _seed_completed_run_with_ai_outputs(db_session, _CURATED_CAMPAIGN)
 
@@ -245,24 +265,24 @@ def test_ground_truth_comparison_for_curated_campaign(
     assert body["campaign_id"] == _CURATED_CAMPAIGN
     assert body["run_id"] == run.id
 
-    # Two per-stage comparisons: the DAG stage and the operationalization stage.
+    # Two per-stage comparisons: the attack flow stage and the operationalization stage.
     stages = {s["stage"]: s for s in body["stages"]}
     assert set(stages) == {
-        AgentStage.DAG.value,
+        AgentStage.FLOW.value,
         AgentStage.OPERATIONALIZATION.value,
     }
 
-    dag = stages[AgentStage.DAG.value]
-    # The AI produced both ids; the curated set is read from disk on demand.
-    assert set(dag["ai_items"]) == {_CURATED_TECHNIQUE_ID, _EXTRA_TECHNIQUE_ID}
-    assert _CURATED_TECHNIQUE_ID in dag["curated_items"]
+    flow = stages[AgentStage.FLOW.value]
+    # The AI produced both ids; the curated set is read from the database on demand.
+    assert set(flow["ai_items"]) == {_CURATED_TECHNIQUE_ID, _EXTRA_TECHNIQUE_ID}
+    assert _CURATED_TECHNIQUE_ID in flow["curated_items"]
     # The overlapping id is matched, the AI-only id is extra, and a curated id
     # the AI did not produce shows up as missing.
-    assert _CURATED_TECHNIQUE_ID in dag["matched"]
-    assert dag["extra"] == [_EXTRA_TECHNIQUE_ID]
-    assert _EXTRA_TECHNIQUE_ID not in dag["matched"]
-    assert _CURATED_TECHNIQUE_ID not in dag["missing"]
-    assert len(dag["missing"]) > 0  # the curation carries more than the one match.
+    assert _CURATED_TECHNIQUE_ID in flow["matched"]
+    assert flow["extra"] == [_EXTRA_TECHNIQUE_ID]
+    assert _EXTRA_TECHNIQUE_ID not in flow["matched"]
+    assert _CURATED_TECHNIQUE_ID not in flow["missing"]
+    assert len(flow["missing"]) > 0  # the curation carries more than the one match.
 
     op = stages[AgentStage.OPERATIONALIZATION.value]
     assert op["ai_items"] == [_CURATED_ABILITY_ID]
@@ -282,7 +302,7 @@ def test_ground_truth_comparison_rejects_non_curated_campaign(
     ``not_a_curated_campaign`` instead of computing a comparison.
     """
     # Sanity: the slug under test is deliberately not one of the curated set.
-    assert _NON_CURATED_CAMPAIGN not in CaseService().list_cases()
+    assert _NON_CURATED_CAMPAIGN not in CURATED_NAMES
 
     run = _seed_completed_run_with_ai_outputs(db_session, _NON_CURATED_CAMPAIGN)
 

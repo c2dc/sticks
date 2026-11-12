@@ -7,7 +7,7 @@ entry node depend on:
 
 * :func:`app.services.ai.graph.build_graph` — the graph assembly (task 14.2):
   all six nodes present, the linear edges wired in sequence, and the conditional
-  edge after ``evaluate`` routing to the four targets ``dag`` /
+  edge after ``evaluate`` routing to the four targets ``flow`` /
   ``operationalize`` / ``environment`` / ``END`` (Req. 1.7, 3.1, 3.2, 3.3).
 * :func:`app.services.ai.graph.route_after_eval` — the improvement-loop guard
   (task 14.3): ``finish`` once completing the current iteration would reach
@@ -35,13 +35,13 @@ from langgraph.checkpoint.memory import MemorySaver
 from app.services.ai import graph as graph_module
 from app.services.ai.graph import build_graph, orchestrate_node, route_after_eval
 
-# The design's node order (graph.py): orchestrate -> dag -> operationalize ->
+# The design's node order (graph.py): orchestrate -> operationalize -> flow ->
 # environment -> execute -> evaluate. The linear edges must wire exactly this
 # sequence, each stage with a single outgoing edge to the next (Req. 3.1).
 _NODE_ORDER: list[str] = [
     "orchestrate",
-    "dag",
     "operationalize",
+    "flow",
     "environment",
     "execute",
     "evaluate",
@@ -56,7 +56,7 @@ _END = "__end__"
 
 # The four conditional-edge targets after ``evaluate`` — the three refine stages
 # and the loop terminus (``finish`` maps to LangGraph's END node) (Req. 3.2, 3.3).
-_REFINE_TARGETS = {"dag", "operationalize", "environment"}
+_REFINE_TARGETS = {"flow", "operationalize", "environment"}
 
 
 @pytest.fixture()
@@ -115,7 +115,7 @@ def test_all_six_nodes_present(drawn_graph) -> None:
 
 
 # ===========================================================================
-# Linear edges wired in sequence (Req. 3.1): START -> orchestrate -> dag ->
+# Linear edges wired in sequence (Req. 3.1): START -> orchestrate -> operationalize -> flow ->
 # operationalize -> environment -> execute -> evaluate, each stage with exactly
 # one outgoing (non-conditional) edge.
 # ===========================================================================
@@ -156,7 +156,7 @@ def test_each_stage_has_exactly_one_outgoing_linear_edge(drawn_graph) -> None:
         if not edge.conditional:
             outgoing_counts[edge.source] = outgoing_counts.get(edge.source, 0) + 1
 
-    # orchestrate, dag, operationalize, environment, execute each have exactly
+    # orchestrate, operationalize, flow, environment, execute each have exactly
     # one outgoing linear edge (evaluate's successors are all conditional).
     for stage in _NODE_ORDER[:-1]:
         assert outgoing_counts.get(stage) == 1, (
@@ -166,8 +166,62 @@ def test_each_stage_has_exactly_one_outgoing_linear_edge(drawn_graph) -> None:
 
 
 # ===========================================================================
+# Property 7: Phase order of the agent graph. A real run over FAKE nodes visits
+# the stages in PHASE_ORDER (Req. 5.1, 5.6).
+# ===========================================================================
+
+# Graph node name -> AgentStage value (``orchestrate`` is not a phase).
+_NODE_TO_PHASE = {
+    "operationalize": "operationalization",
+    "flow": "flow",
+    "environment": "environment",
+    "execute": "execution",
+    "evaluate": "evaluation",
+}
+
+
+def test_property7_fake_nodes_run_in_phase_order(monkeypatch) -> None:
+    """Property 7: executing the graph with fake nodes follows ``PHASE_ORDER``.
+
+    Every node is replaced by a stub that records its name; the evaluator stub
+    reports success so the improvement loop ends after one pass. Offline and
+    deterministic. **Validates: Requirements 5.1, 5.6**
+    """
+    from app.models.enums import PHASE_ORDER
+    from app.services.ai.agents import env_agent, evaluator, flow_agent, op_agent
+
+    visited: list[str] = []
+
+    def _fake(name: str):
+        def _node(state, *args, **kwargs):
+            visited.append(name)
+            update: dict = {"history": [{"node": name}]}
+            if name == "evaluate":
+                update["evaluation"] = {"verdict_success": True}
+            return update
+
+        return _node
+
+    monkeypatch.setattr(graph_module, "orchestrate_node", _fake("orchestrate"))
+    monkeypatch.setattr(graph_module, "execute_node", _fake("execute"))
+    monkeypatch.setattr(flow_agent, "node", _fake("flow"))
+    monkeypatch.setattr(op_agent, "node", _fake("operationalize"))
+    monkeypatch.setattr(env_agent, "node", _fake("environment"))
+    monkeypatch.setattr(evaluator, "node", _fake("evaluate"))
+
+    app = build_graph(checkpointer=MemorySaver())
+    app.invoke(
+        {"campaign_id": "c", "iteration": 0, "max_iterations": 3, "history": []},
+        config={"configurable": {"thread_id": "phase-order"}},
+    )
+
+    assert visited[0] == "orchestrate"
+    assert [_NODE_TO_PHASE[n] for n in visited[1:]] == list(PHASE_ORDER)
+
+
+# ===========================================================================
 # Conditional edge after evaluate routes to the four targets (Req. 3.2, 3.3):
-# dag, operationalize, environment, and END (the "finish" key).
+# flow, operationalize, environment, and END (the "finish" key).
 # ===========================================================================
 
 
@@ -186,7 +240,7 @@ def test_conditional_edges_fan_out_from_evaluate(drawn_graph) -> None:
 def test_conditional_edge_routes_to_four_targets(drawn_graph) -> None:
     """The conditional edge after evaluate reaches exactly the four targets.
 
-    Three refine stages (``dag`` / ``operationalize`` / ``environment``) plus the
+    Three refine stages (``flow`` / ``operationalize`` / ``environment``) plus the
     loop terminus END — ``route_after_eval``'s ``finish`` key is mapped to END by
     ``build_graph`` (Req. 3.2, 3.3).
     """
@@ -221,7 +275,7 @@ def test_guard_finishes_when_current_iteration_reaches_max() -> None:
         "evaluation": {"verdict_success": False},
         "iteration": 2,
         "max_iterations": 3,
-        "refine_stage": "dag",
+        "refine_stage": "flow",
     }
     assert route_after_eval(state) == "finish"
 
@@ -259,7 +313,7 @@ def test_passing_verdict_finishes_regardless_of_iteration() -> None:
         "evaluation": {"verdict_success": True},
         "iteration": 0,
         "max_iterations": 3,
-        "refine_stage": "dag",
+        "refine_stage": "flow",
     }
     assert route_after_eval(state) == "finish"
 

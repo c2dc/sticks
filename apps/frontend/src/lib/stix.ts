@@ -12,7 +12,8 @@
  * reuse the shared {@link api} client, so transport errors surface as
  * `ApiError` just like the curated-campaigns wrappers in `lib/campaigns.ts`.
  */
-import { api } from "@/lib/api"
+import { ApiError, api } from "@/lib/api"
+import { getIngestionStatus } from "@/lib/ingestion"
 
 // ===========================================================================
 // STIX bases (Req. 2.1, 2.5).
@@ -24,16 +25,18 @@ import { api } from "@/lib/api"
  *
  * `downloaded` reflects whether the version is persisted in the database (the
  * single source of truth); `selectable` is its exact complement of
- * availability (only persisted bases can be selected). `file` stays in the
- * contract but is `null` for persisted versions, since the on-disk bundle is
- * deleted after a successful persist and no longer signals availability.
+ * availability (only persisted bases can be selected). No bundle is stored on
+ * disk, so there is no file path in the contract.
  */
 export interface BaseStixInfo {
   version: string
   name: string
   downloaded: boolean
   selectable: boolean
-  file: string | null
+  /** Legacy field; the bundle is never stored on disk, so it is absent or `null`. */
+  file?: string | null
+  /** `true` iff the version is persisted in the database (backend `completed`). */
+  completed?: boolean
 }
 
 /** Response shape of `GET /api/stix/bases` (backend `BasesResponse`). */
@@ -110,6 +113,13 @@ export interface StixCampaignSummary {
   external_id: string | null
   curated: boolean
   curated_slug: string | null
+  /**
+   * Container-emulability marking: `null`/absent when not derived yet (the
+   * campaign is still listed), `true`/`false` once derived.
+   */
+  container_emulable?: boolean | null
+  /** Technique ids that block container emulation (empty when emulable). */
+  blocking_techniques?: string[]
 }
 
 /**
@@ -223,15 +233,73 @@ export async function getBases(): Promise<BaseStixInfo[]> {
   return resp.bases
 }
 
+/** Body of `POST /api/stix/bases/{version}/download` (backend `StixPackagePersistedResult`). */
+interface StixDownloadResult {
+  version: string
+  downloaded: boolean
+  persisted: boolean
+}
+
+/** Polling knobs of {@link downloadBase}; the defaults suit the real backend. */
+export interface DownloadBaseOptions {
+  /** Milliseconds between two checks of the database state. */
+  intervalMs?: number
+  /** Give up (with `ApiError` 504) after this many milliseconds. */
+  timeoutMs?: number
+}
+
+const DEFAULT_DOWNLOAD_POLL_MS = 1500
+const DEFAULT_DOWNLOAD_TIMEOUT_MS = 10 * 60 * 1000
+
+async function findIngestedBase(version: string): Promise<BaseStixInfo | undefined> {
+  const bases = await getBases()
+  return bases.find((base) => base.version === version && base.downloaded)
+}
+
 /**
- * Download a STIX base, returning its updated info with `downloaded=true`
- * (`POST /api/stix/bases/{version}/download`, Req. 2.5). The only
- * outbound-network action in this module; failures surface as `ApiError`.
+ * Ingest a STIX base into the database and resolve once it is available
+ * (`POST /api/stix/bases/{version}/download`, Req. 2.5, 7.1).
+ *
+ * The backend runs the ingestion in the background (`202`): the bundle is
+ * downloaded in memory and persisted straight into the database. This wrapper
+ * keeps the promise contract of the old synchronous download: it follows
+ * `GET /api/stix/bases` until the version is `downloaded`, and rejects with
+ * `ApiError` when the `stix_packages` ingestion source fails (or times out).
  */
-export function downloadBase(version: string): Promise<BaseStixInfo> {
-  return api.post<BaseStixInfo>(
+export async function downloadBase(
+  version: string,
+  options: DownloadBaseOptions = {},
+): Promise<BaseStixInfo> {
+  const accepted = await api.post<StixDownloadResult | BaseStixInfo>(
     `/stix/bases/${encodeURIComponent(version)}/download`,
   )
+  if (accepted && "downloaded" in accepted && accepted.downloaded) {
+    return accepted as BaseStixInfo
+  }
+
+  const intervalMs = options.intervalMs ?? DEFAULT_DOWNLOAD_POLL_MS
+  const deadline = Date.now() + (options.timeoutMs ?? DEFAULT_DOWNLOAD_TIMEOUT_MS)
+  for (;;) {
+    const ready = await findIngestedBase(version)
+    if (ready) return ready
+
+    const source = (await getIngestionStatus()).find(
+      (item) => item.source === "stix_packages",
+    )
+    if (source?.status === "failed") {
+      throw new ApiError(502, source.error ?? "STIX ingestion failed")
+    }
+    if (source?.status === "ready") {
+      // Re-check once: the ingestion may have finished between the two reads.
+      const late = await findIngestedBase(version)
+      if (late) return late
+      throw new ApiError(502, `STIX version ${version} was not ingested`)
+    }
+    if (Date.now() >= deadline) {
+      throw new ApiError(504, `Timed out waiting for STIX version ${version}`)
+    }
+    await new Promise((resolve) => setTimeout(resolve, intervalMs))
+  }
 }
 
 /**

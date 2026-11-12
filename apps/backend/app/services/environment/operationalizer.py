@@ -5,36 +5,26 @@ This module defines the **per-origin extension point** of Stage 4
 operationalized (today by curation, reading the curated artifacts from disk;
 tomorrow by an AI agent) from the *rest* of the system, so a ``gerado_ia``
 implementation can be plugged in later **without** changing this signature (Req.
-8.6, 16.2, 16.4), following the precedent of ``DagGenerator`` (Stage 3) and
+8.6, 16.2, 16.4), following the precedent of ``FlowGenerator`` (Stage 3) and
 ``EnvironmentProvisioner`` (Stage 5).
 
 Dual Output (two **separate** typed artifacts — Req. 8.4, 8.7):
 
 ``ProducedOperationalization``
     The typed (Pydantic) result of Stage 4 — carries **the ordered Abilities**
-    (reusing :meth:`StageService.assemble_stage2` → ``Stage2Output``, with
+    (as a ``Stage2Output``, with
     ``atomic_ordering`` and ``translation_source``) and **the
-    ``EnvironmentParameters``** derived from the curated DAG nodes. The two
+    ``EnvironmentParameters``** derived from the commands and techniques. The two
     artifacts live in distinct fields, never mixed.
 
 ``OperationalizerByOrigin``
     A :class:`typing.Protocol` ``@runtime_checkable`` with two operations —
     ``origin() -> TranslationSource`` and
-    ``operationalize(campaign, dag) -> ProducedOperationalization``. Any object
+    ``operationalize(campaign, flow) -> ProducedOperationalization``. Any object
     exposing the two signatures satisfies the protocol (structural duck typing),
     with no explicit inheritance.
 
-``CurationOperationalizer``
-    The curation implementation of this iteration. Reuses
-    :meth:`StageService.assemble_stage2`/``CaseService`` to build the ordered
-    Abilities (``atomic_ordering``, ``translation_source=curadoria_humana``) and
-    **derives** the :class:`~app.services.environment.operationalization.EnvironmentParameters`
-    from the curated DAG nodes: ``attacker_commands`` → ``parse_command`` →
-    internal destinations → ``container_for_ip`` resolves ``address``/``container``;
-    ``target_vuln_host_a``/``_b`` → ``vulnerabilities``; ``source_host_type``/
-    ``target_host_type`` → ``host_type``; ``network_context`` → notes; services
-    inferred from the commands. The platform is always ``CONTAINER`` in this spec
-    (Req. 17.1). **No network and no AI** on any path (Req. 11.3, 11.4).
+The AI implementation is ``AiOperationalizer`` (`services/ai/agents/op_agent.py`).
 
 _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.7, 8.8, 11.3, 11.4, 16.2_
 """
@@ -47,19 +37,12 @@ from typing import Optional, Protocol, runtime_checkable
 from pydantic import BaseModel, Field
 
 from app.models.enums import TranslationSource
-from app.services.campaign_service import CaseService, DagNode
-from app.services.containment import container_for_ip, is_internal_ip, parse_command
-from app.services.dag.dag_service import DagView
+from app.services.emulation.views import Stage2Output
 from app.services.environment.operationalization import (
-    TargetHost,
     EnvironmentParameters,
-    EnvironmentPlatform,
     RequiredService,
 )
-from app.services.stage.stage_service import (
-    Stage2Output,
-    StageService,
-)
+from app.services.flow.flow_view import FlowView
 
 
 # ---------------------------------------------------------------------------
@@ -71,21 +54,19 @@ class ProducedOperationalization(BaseModel):
     """Stage 4 output — the **two** separate typed artifacts (Req. 8.4, 8.7).
 
     Stage 4 (Operationalization) has a **dual** output: the Abilities ordered by
-    the DAG and the environment parameters derived from the curated nodes. These
+    the attack flow and the environment parameters derived from the commands. These
     live in **distinct** fields of this result, never mixed (Req. 8.7):
 
     Attributes:
         campaign_id: *Slug* of the operationalized Campaign.
-        abilities: 1st artifact — the :class:`~app.services.stage.stage_service.Stage2Output`
+        abilities: 1st artifact — the :class:`~app.services.emulation.views.Stage2Output`
             with the Abilities (command per executor), the order
             (``atomic_ordering``), the Adversary and ``translation_source``
-            (``curadoria_humana``) — reuse of
-            :meth:`~app.services.stage.stage_service.StageService.assemble_stage2`
-            (Req. 8.2, 8.5, 8.6). ``None`` when the operationalization is
+            (``curadoria_humana``) — (Req. 8.2, 8.5, 8.6). ``None`` when the operationalization is
             suppressed (no upstream technique — Req. 8.1).
         parameters: 2nd artifact — the
             :class:`~app.services.environment.operationalization.EnvironmentParameters`
-            derived from the curated DAG nodes (hosts/services/``network_context``),
+            derived from the commands (hosts/services/``network_context``),
             destined for Stage 5 (Req. 8.3, 8.4).
         origin: Operationalization origin — ``curadoria_humana`` today;
             extensible to ``gerado_ia`` without changing the model (Req. 8.6,
@@ -109,7 +90,7 @@ class OperationalizerByOrigin(Protocol):
 
     A ``@runtime_checkable Protocol`` that defines the **extension point** of the
     operationalization, following the precedent of the other per-origin seams
-    (``DagGenerator`` in Stage 3, ``EnvironmentProvisioner`` in Stage 5): each
+    (``FlowGenerator`` in Stage 3, ``EnvironmentProvisioner`` in Stage 5): each
     origin (``curadoria_humana`` today, ``gerado_ia`` in the future) is an
     implementation interchangeable by injection, **without** redesign (Req. 16.2,
     16.4).
@@ -120,26 +101,24 @@ class OperationalizerByOrigin(Protocol):
     - ``origin()`` — the :class:`~app.models.enums.TranslationSource` this
       implementation stamps on the output (``ProducedOperationalization.origin``
       and ``EnvironmentParameters.origin``).
-    - ``operationalize(campaign, dag)`` — produces the **two** typed Stage 4
+    - ``operationalize(campaign, flow)`` — produces the **two** typed Stage 4
       artifacts (ordered Abilities + ``EnvironmentParameters``) from the
-      Campaign's *slug* and the DAG (Stage 3 output).
+      Campaign's *slug* and the attack flow (Stage 3 output).
 
-    Today there is the curation implementation
-    (:class:`CurationOperationalizer`); an AI implementation
-    (``AiOperationalizer``) fits later under the same signature (Req. 16.2).
+    The AI implementation is ``AiOperationalizer`` (Req. 16.2).
     """
 
     def origin(self) -> TranslationSource:
         """The :class:`~app.models.enums.TranslationSource` of this implementation."""
         ...
 
-    def operationalize(self, campaign: str, dag: "DagView") -> "ProducedOperationalization":
+    def operationalize(self, campaign: str, flow: "FlowView") -> "ProducedOperationalization":
         """Produce the two Stage 4 artifacts (Abilities + ``EnvironmentParameters``).
 
-        ``dag`` is the Stage 3 output (the chosen DAG); the curation
+        ``flow`` is the Stage 3 output (the chosen attack flow); the curation
         implementation uses its presence as a signal of the curated path and
-        derives the parameters from the curated nodes read from disk (no network,
-        no AI — Req. 11.3, 11.4).
+        derives the parameters from the persisted data (no network, no AI —
+        Req. 11.3, 11.4).
         """
         ...
 
@@ -149,8 +128,8 @@ class OperationalizerByOrigin(Protocol):
 # ---------------------------------------------------------------------------
 
 # Patterns (regex) → readable description of the service/vulnerability to
-# provision. Pure and deterministic; applied over the attacker_commands and the
-# target_vuln_host_* of the curated nodes. The order is stable for a
+# provision. Pure and deterministic; applied over the attacker commands and the
+# target setup commands of a technique. The order is stable for a
 # deterministic output.
 _SERVICE_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"\bflask\b", re.IGNORECASE), "servidor Flask (HTTP)"),
@@ -169,9 +148,9 @@ def _infer_services(commands: list[str], technique: Optional[str]) -> list[Requi
     """Infer services/vulnerabilities to provision from ``commands``.
 
     Pure and deterministic: matches each pattern of :data:`_SERVICE_PATTERNS`
-    against the concatenated text of the commands (``attacker_commands`` +
-    ``target_vuln_host_*`` of a node) and returns one :class:`RequiredService` per
-    unique matched pattern, stamping ``origin_technique`` with the node's
+    against the concatenated text of the commands (attacker commands + target
+    setup commands of a technique) and returns one :class:`RequiredService` per
+    unique matched pattern, stamping ``origin_technique`` with the technique's
     ``technique_id`` when available (Req. 8.3). It accesses neither network nor AI.
     """
     if not commands:
@@ -187,285 +166,7 @@ def _infer_services(commands: list[str], technique: Optional[str]) -> list[Requi
             seen.add(description)
     return services
 
-
-class CurationOperationalizer:
-    """Curation implementation of the :class:`OperationalizerByOrigin` seam.
-
-    Produces the **two** Stage 4 artifacts from the material **already curated by
-    a human**, with no network and no AI on any path (Req. 11.3, 11.4):
-
-    1. **Ordered Abilities** — reuses
-       :meth:`~app.services.stage.stage_service.StageService.assemble_stage2`
-       (``Stage2Output`` with ``atomic_ordering`` and
-       ``translation_source=curadoria_humana``), the single source of the curated
-       operationalization (Req. 8.2, 8.5, 8.6).
-    2. **``EnvironmentParameters``** — **derives** them from the curated DAG nodes
-       read from the database (the ``dags`` row via ``DagService``, Req. 1.1,
-       4.1 — no disk): for each node,
-       ``attacker_commands`` → :func:`~app.services.containment.parse_command` →
-       **internal** destinations → :func:`~app.services.containment.container_for_ip`
-       resolves ``address``/``container``; ``target_vuln_host_a``/``_b`` →
-       ``vulnerabilities`` of the matching host; ``source_host_type``/
-       ``target_host_type`` → ``host_type``; ``network_context`` → network note;
-       services inferred from the commands (:func:`_infer_services`). The platform
-       is always ``CONTAINER`` (Req. 17.1).
-
-    It satisfies :class:`OperationalizerByOrigin` structurally — it exposes
-    ``origin()`` + ``operationalize()`` — without explicit inheritance, exactly
-    the point of the seam; it stamps ``curadoria_humana`` on the output (Req. 8.6,
-    16.2).
-
-    _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.7, 8.8, 11.3, 11.4, 16.2_
-    """
-
-    def __init__(
-        self,
-        *,
-        stage_service: Optional[StageService] = None,
-        case_service: Optional[CaseService] = None,
-    ) -> None:
-        """Assemble the curation operationalizer with injectable dependencies.
-
-        Args:
-            stage_service: Optional *session-bound* :class:`StageService` used to
-                assemble the ordered Abilities via
-                :meth:`~app.services.stage.stage_service.StageService.assemble_stage2`
-                (which persists the upstream Stage 1 ``StageRun``). The API layer,
-                which already has the ``Session``, can inject it to reuse the
-                canonical assembly (DB-sourced — Req. 1.1, 4.1). When omitted (the
-                AI-fallback/pure construction, which has no database handle) the
-                ordered Abilities resolve to ``None`` rather than reading the
-                curated files from disk (Req. 4.2).
-            case_service: :class:`CaseService` used only for its in-memory curated
-                registry (no disk). Default: a production instance (reused from the
-                ``stage_service`` when it is passed, to share the same catalog).
-        """
-        self._case_service: CaseService = (
-            case_service
-            if case_service is not None
-            else (
-                getattr(stage_service, "_case_service", None) or CaseService()
-                if stage_service is not None
-                else CaseService()
-            )
-        )
-        self._stage_service: Optional[StageService] = stage_service
-
-    @property
-    def case_service(self) -> CaseService:
-        """The :class:`CaseService` used only for the in-memory curated registry."""
-        return self._case_service
-
-    @property
-    def stage_service(self) -> Optional[StageService]:
-        """The injected :class:`StageService` (or ``None`` in pure mode)."""
-        return self._stage_service
-
-    def _resolve_dag_from_db(self, campaign: str):
-        """Resolve the campaign's curated DAG from the database, or ``None``.
-
-        Uses the ``Session`` of the injected :class:`StageService` to read the
-        ``dags`` row via
-        :meth:`~app.services.dag.dag_service.DagService.resolve_dag_data_from_db`
-        (Req. 1.1, 4.1). Returns ``None`` when no session is available (the
-        AI-fallback construction) or the campaign has no persisted DAG, so the
-        derivation degrades to empty parameters without ever reading disk.
-        """
-        session = getattr(self._stage_service, "_session", None)
-        if session is None:
-            return None
-        from app.services.dag.dag_service import DagService
-
-        return DagService(
-            session=session, case_service=self._case_service
-        ).resolve_dag_data_from_db(campaign)
-
-    def origin(self) -> TranslationSource:
-        """Stamp ``curadoria_humana`` on the Stage 4 output (Req. 8.6, 16.2)."""
-        return TranslationSource.HUMAN_CURATION
-
-    # -- Derivation of the EnvironmentParameters (pure, no network/AI) -------
-
-    @staticmethod
-    def _resolve_hosts(node: DagNode) -> list[TargetHost]:
-        """Derive the :class:`TargetHost` of a curated DAG node (Req. 8.3).
-
-        Resolves the target host(s) from the **internal** destinations of the
-        node's ``attacker_commands`` (via :func:`parse_command` →
-        :func:`container_for_ip`), associating ``address``/``container`` and the
-        node's ``target_host_type``, and packing the ``target_vuln_host_a``
-        commands as the ``vulnerabilities`` of the first resolved target host (and
-        ``target_vuln_host_b`` as a second host, when present). Pure and
-        deterministic; no network.
-        """
-        hosts: list[TargetHost] = []
-
-        # Internal destinations resolved from the commands → target host(s) with
-        # address and container. Preserves order and removes duplicate addresses.
-        addresses: list[str] = []
-        for command in node.attacker_commands:
-            for dest in parse_command(command).destinations:
-                if is_internal_ip(dest.value) and dest.value not in addresses:
-                    addresses.append(dest.value)
-
-        vuln_a = list(node.target_vuln_host_a)
-        vuln_b = list(node.target_vuln_host_b)
-
-        if addresses:
-            first = addresses[0]
-            hosts.append(
-                TargetHost(
-                    label="host_a",
-                    address=first,
-                    container=container_for_ip(first),
-                    host_type=node.target_host_type,
-                    vulnerabilities=vuln_a,
-                )
-            )
-            # Additional internal destinations become extra hosts (e.g. nested ssh).
-            for idx, address in enumerate(addresses[1:], start=1):
-                label = "host_b" if idx == 1 else f"host_{chr(ord('a') + idx)}"
-                hosts.append(
-                    TargetHost(
-                        label=label,
-                        address=address,
-                        container=container_for_ip(address),
-                        host_type=node.target_host_type,
-                        vulnerabilities=vuln_b if idx == 1 else [],
-                    )
-                )
-        elif vuln_a or vuln_b or node.target_host_type is not None:
-            # No internal destination resolved, but there are target-host signals:
-            # we still register a host_a (address/container not resolved).
-            hosts.append(
-                TargetHost(
-                    label="host_a",
-                    host_type=node.target_host_type,
-                    vulnerabilities=vuln_a,
-                )
-            )
-
-        # target_vuln_host_b present without an additional destination: a second
-        # host with no resolved address, carrying only the vulnerabilities.
-        if vuln_b and all(h.label != "host_b" for h in hosts):
-            hosts.append(TargetHost(label="host_b", vulnerabilities=vuln_b))
-
-        return hosts
-
-    def _derive_parameters(self, campaign: str) -> EnvironmentParameters:
-        """Derive the :class:`EnvironmentParameters` from the curated DAG nodes (Req. 8.3).
-
-        Reads the curated DAG from the database (the ``dags`` row keyed by
-        ``campaign_id``, persisted by the curated ingest of sub-step 2.1 —
-        Req. 1.1, 4.1) via :meth:`_resolve_dag_from_db` and walks the
-        ``structural_nodes`` accumulating hosts (with resolved
-        ``address``/``container``, ``host_type`` and vulnerabilities), services
-        inferred from the commands and the ``network_context`` notes. The per-node
-        fields are preserved in the persisted content, so the derivation is
-        equivalent to the former disk read (Req. 1.4, 3.6). The platform is always
-        ``CONTAINER`` (Req. 17.1) and the origin ``curadoria_humana`` (Req. 16.2).
-        A Campaign with no persisted DAG results in empty parameters (without
-        raising). No disk, no network, no AI (Req. 11.3, 11.4).
-        """
-        hosts: list[TargetHost] = []
-        services: list[RequiredService] = []
-        network_context: list[str] = []
-        seen_services: set[tuple[str, Optional[str]]] = set()
-        hosts_by_container: dict[Optional[str], TargetHost] = {}
-
-        dag = self._resolve_dag_from_db(campaign)
-        nodes: list[DagNode] = list(dag.structural_nodes) if dag is not None else []
-
-        for node in nodes:
-            # Per-node network notes (Req. 8.3), de-duplicated preserving order.
-            if node.network_context and node.network_context not in network_context:
-                network_context.append(node.network_context)
-
-            # Target hosts: we merge by (container, address) so as not to
-            # duplicate the same target container across nodes, accumulating the
-            # vulnerabilities.
-            for host in self._resolve_hosts(node):
-                key = host.container if host.container is not None else host.address
-                existing = hosts_by_container.get(key) if key is not None else None
-                if existing is None:
-                    hosts.append(host)
-                    if key is not None:
-                        hosts_by_container[key] = host
-                else:
-                    for vuln in host.vulnerabilities:
-                        if vuln not in existing.vulnerabilities:
-                            existing.vulnerabilities.append(vuln)
-                    if existing.host_type is None and host.host_type is not None:
-                        existing.host_type = host.host_type
-
-            # Services inferred from the commands (attacker + target_vuln_host_*).
-            commands = (
-                list(node.attacker_commands)
-                + list(node.target_vuln_host_a)
-                + list(node.target_vuln_host_b)
-            )
-            for service in _infer_services(commands, node.technique_id):
-                key_s = (service.description, service.origin_technique)
-                if key_s not in seen_services:
-                    services.append(service)
-                    seen_services.add(key_s)
-
-        return EnvironmentParameters(
-            campaign_id=campaign,
-            platform=EnvironmentPlatform.CONTAINER,
-            hosts=hosts,
-            services=services,
-            network_context=network_context,
-            origin=self.origin(),
-        )
-
-    # -- Montagem das Abilities ordenadas (1º artefato) ---------------------
-
-    def _build_abilities(self, campaign: str) -> Optional[Stage2Output]:
-        """Assemble the ordered Abilities, reusing ``assemble_stage2`` (DB-only).
-
-        With a *session-bound* :class:`StageService` injected, it delegates to
-        :meth:`StageService.assemble_stage2` (the canonical assembly, which reads
-        the ``abilities``/``adversaries`` rows from the database — Req. 1.1, 4.1,
-        8.2). Without a stage service (the AI-fallback/pure construction, which
-        has no database handle) there is no source to read, so it returns ``None``
-        rather than reading the curated files from disk (Req. 4.2).
-        """
-        if self._stage_service is not None:
-            return self._stage_service.assemble_stage2(campaign).output
-
-        return None
-
-    def operationalize(self, campaign: str, dag: DagView) -> ProducedOperationalization:
-        """Produce the two Stage 4 artifacts for the *slug* ``campaign`` (Req. 8.4, 8.7).
-
-        1. Assembles the **ordered Abilities** reusing
-           :meth:`StageService.assemble_stage2` — ``atomic_ordering`` and
-           ``translation_source=curadoria_humana`` (Req. 8.2, 8.5, 8.6). When the
-           operationalization is suppressed (no upstream technique), ``abilities``
-           is ``None`` (Req. 8.1).
-        2. **Derives** the :class:`EnvironmentParameters` from the curated DAG
-           nodes (Req. 8.3), with the platform always ``CONTAINER`` (Req. 17.1).
-
-        The two artifacts come out in **separate** fields of
-        :class:`ProducedOperationalization` (Req. 8.7). ``dag`` signals the
-        curated path; the derivation reads the curated nodes from disk (no
-        network, no AI — Req. 11.3, 11.4). Stage 4 completes when **both**
-        artifacts are produced (Req. 8.8).
-        """
-        abilities = self._build_abilities(campaign)
-        parameters = self._derive_parameters(campaign)
-
-        return ProducedOperationalization(
-            campaign_id=campaign,
-            abilities=abilities,
-            parameters=parameters,
-            origin=self.origin(),
-        )
-
-
 __all__ = [
     "ProducedOperationalization",
     "OperationalizerByOrigin",
-    "CurationOperationalizer",
 ]

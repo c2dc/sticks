@@ -9,7 +9,8 @@ Vector_Store, then the relational ``image_catalog``) and only recurring to
 adequate candidate exists in the catalog.
 
 Catalog-before-internet ordering (Req. 5.4). The Docker_Image_Catalog is
-ingested and vectorized in the setup Ingestion (``metadata.source =
+ingested and vectorized in the setup Ingestion (installation and first-run
+ingestion, not the ``input`` phase) (``metadata.source =
 "docker_image_catalog"`` under the ``environment_affinity`` kind), so the
 ``environment`` phase can resolve candidate images offline and depend less on the
 internet at run time. The resolver therefore queries the catalog first — a

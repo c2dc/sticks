@@ -117,7 +117,6 @@ def test_package_overview_from_seeded_rows(session: Session) -> None:
         version="18.0",
         name="Enterprise ATT&CK v18.0",
         downloaded_at=downloaded_at,
-        source_file="/data/stix/enterprise-attack-18.0.json",
     )
     session.add(package)
     session.flush()  # assign package.id

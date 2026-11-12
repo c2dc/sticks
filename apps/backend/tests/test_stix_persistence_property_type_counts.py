@@ -8,7 +8,7 @@ Validates: Requirements 3.2, 3.3
 
 This is a *feature* spec, so the property is expected to HOLD against the
 current implementation of
-:meth:`~app.services.stix.stix_persistence_service.StixPersistenceService.persist_from_disk`.
+:meth:`~app.services.stix.stix_persistence_service.StixPersistenceService.persist_bundle`.
 
 Property (design.md — Property 4)
 ---------------------------------
@@ -32,7 +32,7 @@ six counts. The bundle is written to an isolated ``data_dir`` as
 against an ephemeral file-backed SQLite engine built with
 ``Base.metadata.create_all`` (same session pattern the sibling backend property
 tests use). Nothing here touches the network (``http_client=None`` and
-``persist_from_disk`` never downloads) nor an AI client.
+``persist_bundle`` never downloads) nor an AI client.
 """
 
 from __future__ import annotations
@@ -188,7 +188,7 @@ def _bundle_plan(draw) -> tuple[dict[str, int], int]:
 def test_property4_type_counts_match_bundle(plan: tuple[dict[str, int], int]) -> None:
     """``stix_type_counts.count`` equals the number of bundle objects per type.
 
-    For an arbitrary valid bundle, after ``persist_from_disk(version)`` each of
+    For an arbitrary valid bundle, after ``persist_bundle(version)`` each of
     the six counted types has a persisted ``StixTypeCount`` whose ``count``
     equals the number of objects of that type the bundle carried (``0`` when
     absent), and whose ``description`` is non-empty. Uncounted-type noise objects
@@ -199,19 +199,15 @@ def test_property4_type_counts_match_bundle(plan: tuple[dict[str, int], int]) ->
     counts, noise = plan
     version = "18.0"
 
-    data_dir = Path(tempfile.mkdtemp(prefix="stix_type_counts_data_"))
     factory, db_tmp_dir = _make_session_factory()
     session = factory()
     try:
         bundle = _build_bundle(counts, noise)
-        (data_dir / f"enterprise-attack-{version}.json").write_text(
-            json.dumps(bundle), encoding="utf-8"
-        )
 
-        stix_service = StixService(data_dir=data_dir, http_client=None)
+        stix_service = StixService()
         service = StixPersistenceService(session=session, stix_service=stix_service)
 
-        result = service.persist_from_disk(version)
+        result = service.persist_bundle(version, bundle)
         assert result.persisted is True
 
         # Read the persisted per-type counts back from the DB (not the DTO) so we
@@ -239,7 +235,7 @@ def test_property4_type_counts_match_bundle(plan: tuple[dict[str, int], int]) ->
     finally:
         session.close()
         factory.kw["bind"].dispose()
-        for base in (data_dir, Path(db_tmp_dir)):
+        for base in (Path(db_tmp_dir),):
             for root, _dirs, files in os.walk(base, topdown=False):
                 for name in files:
                     os.remove(os.path.join(root, name))

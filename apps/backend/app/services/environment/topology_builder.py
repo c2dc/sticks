@@ -243,7 +243,7 @@ def compose_path() -> Optional[str]:
     # app/services/environment/topology_builder.py -> parents[3] = app/,
     # parents[5] = repo root (…/app/services/environment -> …/).
     repo_root = FsPath(__file__).resolve().parents[5]
-    candidate = repo_root / "infra" / "docker" / "docker-compose.yml"
+    candidate = repo_root / "ops" / "docker" / "docker-compose.yml"
     return str(candidate) if candidate.exists() else None
 
 

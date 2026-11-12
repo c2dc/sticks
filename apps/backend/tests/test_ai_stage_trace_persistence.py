@@ -41,7 +41,7 @@ from app.models.domain import (
 from app.models.enums import AgentStage
 from app.services.ai.agents.op_agent import AiOperationalizer
 from app.services.ai.run_service import AgentRunService, PersistenceError
-from app.services.dag.dag_service import DagNodeView, DagView
+from app.services.flow.flow_view import FlowNodeView, FlowView
 
 _CAMPAIGN_ID = "campaign-under-test"
 
@@ -109,13 +109,13 @@ def _install_fake_graph(monkeypatch: pytest.MonkeyPatch, graph: _FakeGraph) -> N
 
 def _produced_op() -> Any:
     """A real ProducedOperationalization built by the deterministic agent."""
-    dag = DagView(
+    flow = FlowView(
         campaign_id=_CAMPAIGN_ID,
         name=_CAMPAIGN_ID,
         curated=True,
         can_advance=True,
         nodes=[
-            DagNodeView(
+            FlowNodeView(
                 node_id="n1",
                 technique_id="T1059",
                 technique_name="Command Interpreter",
@@ -124,7 +124,7 @@ def _produced_op() -> Any:
         ],
     )
     agent = AiOperationalizer(atomic_lookup=lambda _tid: [])
-    return agent.operationalize(_CAMPAIGN_ID, dag)
+    return agent.operationalize(_CAMPAIGN_ID, flow)
 
 
 def _op_trace(iteration: int = 0, *, full_processing: bool = True) -> dict:
@@ -145,7 +145,7 @@ def _op_trace(iteration: int = 0, *, full_processing: bool = True) -> dict:
     return {
         "stage": AgentStage.OPERATIONALIZATION.value,
         "iteration": iteration,
-        "agent_input": {"dag": {"nodes": ["n1"]}, "prior_artifacts": None},
+        "agent_input": {"flow": {"nodes": ["n1"]}, "prior_artifacts": None},
         "processing": processing,
     }
 
@@ -193,7 +193,7 @@ def test_stage_output_gets_one_matching_trace_row(
     # 1:1: the trace links the just-persisted stage output via its FK.
     assert traces[0].stage_output_id == outputs[0].id
     # The captured input + processing round-tripped into the JSON columns.
-    assert traces[0].agent_input == {"dag": {"nodes": ["n1"]}, "prior_artifacts": None}
+    assert traces[0].agent_input == {"flow": {"nodes": ["n1"]}, "prior_artifacts": None}
     assert traces[0].processing["llm_response"] == "selected"
 
 

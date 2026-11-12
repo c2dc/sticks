@@ -27,7 +27,7 @@ const NOT_AVAILABLE = "not_available"
 function makeStageOutput(overrides: Partial<AiStageOutput> = {}): AiStageOutput {
   return {
     id: 1,
-    stage: "dag",
+    stage: "flow",
     origin: "ai_generated",
     payload: { nodes: ["T1190"] },
     trace: {
@@ -45,7 +45,7 @@ function makeStageOutput(overrides: Partial<AiStageOutput> = {}): AiStageOutput 
 describe("AgentTracePanel — Input/Processing/Output (Req. 1.1, 1.5, 1.6, 6.2, 6.3)", () => {
   it("renders the three distinctly-labeled parts: Input, Processing, Output", () => {
     const { container } = renderWithI18n(
-      <AgentTracePanel stageName="Agente de geração do DAG" stageOutput={makeStageOutput()} />,
+      <AgentTracePanel stageName="Agente de geração do attack flow" stageOutput={makeStageOutput()} />,
     )
 
     const panel = container.querySelector(
@@ -64,7 +64,7 @@ describe("AgentTracePanel — Input/Processing/Output (Req. 1.1, 1.5, 1.6, 6.2, 
     expect(within(panel).getByText("Saída")).toBeInTheDocument()
 
     // The stage name and the AI-generated origin stamp are shown.
-    expect(within(panel).getByText("Agente de geração do DAG")).toBeInTheDocument()
+    expect(within(panel).getByText("Agente de geração do attack flow")).toBeInTheDocument()
     expect(within(panel).getByText("Gerado por IA")).toBeInTheDocument()
 
     // Input and processing summary content is rendered (not behind a disclosure).
@@ -74,7 +74,7 @@ describe("AgentTracePanel — Input/Processing/Output (Req. 1.1, 1.5, 1.6, 6.2, 
 
   it("keeps the raw LLM 'show details' disclosure CLOSED by default and reveals it on expand (Req. 6.2, 6.3)", async () => {
     const { container } = renderWithI18n(
-      <AgentTracePanel stageName="Agente de geração do DAG" stageOutput={makeStageOutput()} />,
+      <AgentTracePanel stageName="Agente de geração do attack flow" stageOutput={makeStageOutput()} />,
     )
 
     const details = container.querySelector(
@@ -97,7 +97,7 @@ describe("AgentTracePanel — Input/Processing/Output (Req. 1.1, 1.5, 1.6, 6.2, 
   it("renders an explicit 'not available' marker for a sentinel processing element (Req. 1.6)", () => {
     const { container } = renderWithI18n(
       <AgentTracePanel
-        stageName="Agente de geração do DAG"
+        stageName="Agente de geração do attack flow"
         stageOutput={makeStageOutput({
           trace: {
             agent_input: { modeling: "entrada" },
@@ -123,7 +123,7 @@ describe("AgentTracePanel — Input/Processing/Output (Req. 1.1, 1.5, 1.6, 6.2, 
   it("renders the 'not available' output marker when the stage produced no payload", () => {
     const { container } = renderWithI18n(
       <AgentTracePanel
-        stageName="Agente de geração do DAG"
+        stageName="Agente de geração do attack flow"
         stageOutput={makeStageOutput({ payload: {} })}
       />,
     )

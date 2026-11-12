@@ -85,6 +85,7 @@ AFFINITY_KINDS = (
     "environment_affinity",
     "run_outcome",
     "stix_context",
+    "attack_flow",
 )
 
 # Sentinel campaign id anchoring the campaign-agnostic affinities stored by

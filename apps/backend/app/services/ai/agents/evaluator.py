@@ -490,7 +490,7 @@ def _diagnose_failing_stage(
     """Diagnose which curated stage to re-enter and explain why (design §Evaluator).
 
     Returns ``(refine_stage, rationale)`` where ``refine_stage`` is an
-    :class:`~app.models.enums.AgentStage` *value* (``estagio_3_dag`` /
+    :class:`~app.models.enums.AgentStage` *value* (``estagio_3_flow`` /
     ``estagio_4_operacionalizacao`` / ``estagio_5_ambiente``). The heuristic keeps
     the loop focused:
 

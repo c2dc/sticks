@@ -139,7 +139,7 @@ class ContainerEmulabilityService:
         A **read-only** batch lookup for the campaign-list API (Req. 6.4, 6.5):
         it returns the already-derived ``container_emulability`` rows keyed by
         ``campaign_id``, so the listing can surface the container-icon marking
-        without re-deriving (the derivation is the setup-time
+        without re-deriving (the derivation is the one-off
         :meth:`derive`). Campaign ids with no persisted row are simply absent
         from the returned mapping, so the caller treats them as "not derived
         yet" (``container_emulable = None`` — the campaign is still listed,

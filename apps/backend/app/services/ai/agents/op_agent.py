@@ -5,14 +5,14 @@ Stage 4 :class:`~app.services.environment.operationalizer.OperationalizerByOrigi
 seam (task 7.2). It is the **command-semantics core** of the agent system and the
 first shippable agent: it plugs into the *existing* per-origin seam with no change
 to the seam signature, exactly like the curation implementation
-(:class:`~app.services.environment.operationalizer.CurationOperationalizer`).
+(the former curated operationalizer).
 
 What it does (Req. 2.2, 2.4, 2.5, 8.1):
 
 * ``origin()`` stamps :attr:`TranslationSource.AI_GENERATED` (``"gerado_ia"``) on
   everything it produces — the ``ProducedOperationalization.origin`` and the
   derived ``EnvironmentParameters.origin``.
-* ``operationalize(campaign, dag)`` walks the Stage 3 :class:`DagView`, and for
+* ``operationalize(campaign, flow)`` walks the Stage 3 :class:`FlowView`, and for
   each node's ATT&CK technique **selects and parametrizes** concrete Atomic Red
   Team commands (via the ``tool_atomic_lookup`` command pool), assembles the two
   separate Stage 4 artifacts — the ordered Abilities (``Stage2Output``) and the
@@ -49,12 +49,12 @@ from app.services.environment.operationalizer import ProducedOperationalization
 if TYPE_CHECKING:  # pragma: no cover - typing only, no runtime import
     from app.services.ai.memory import ExperienceMemory
     from app.services.ai.state import AgentState
-    from app.services.dag.dag_service import DagView
+    from app.services.flow.flow_view import FlowView
     from app.services.environment.operationalization import (
         EnvironmentParameters,
         TargetHost,
     )
-    from app.services.stage.stage_service import Stage2Output
+    from app.services.emulation.views import Stage2Output
 
 __all__ = ["AiOperationalizer"]
 
@@ -63,7 +63,7 @@ class AiOperationalizer:
     """Stage 4 agent satisfying :class:`OperationalizerByOrigin` structurally.
 
     Selects and parametrizes concrete commands from the Atomic Red Team command
-    pool for each DAG node, and derives the :class:`EnvironmentParameters`. The
+    pool for each attack flow node, and derives the :class:`EnvironmentParameters`. The
     LLM chooses/adapts the atomic tests (primed by cross-campaign RAG experience);
     the command parser self-checks each proposal, and the project's
     service-inference heuristic is reused to derive the services to provision. It
@@ -116,7 +116,7 @@ class AiOperationalizer:
         # Optional Audit_Trace sink injected by the LangGraph ``node`` wrapper,
         # carried as an instance attribute — NOT an ``operationalize`` parameter —
         # so the ``@runtime_checkable`` ``OperationalizerByOrigin`` seam signature
-        # (``operationalize(campaign, dag)``) is byte-for-byte unchanged (design
+        # (``operationalize(campaign, flow)``) is byte-for-byte unchanged (design
         # §A). When ``None`` no trace is captured and behavior is unchanged.
         self._trace_sink = trace_sink
 
@@ -127,17 +127,17 @@ class AiOperationalizer:
         return TranslationSource.AI_GENERATED
 
     def operationalize(
-        self, campaign: str, dag: "DagView"
+        self, campaign: str, flow: "FlowView"
     ) -> ProducedOperationalization:
         """Produce the two Stage 4 artifacts for ``campaign`` with ``origin=gerado_ia``.
 
-        Walks the Stage 3 :class:`DagView` and, per node, looks up the Atomic Red
+        Walks the Stage 3 :class:`FlowView` and, per node, looks up the Atomic Red
         Team command pool for the node's technique, selects/parametrizes the
         commands (LLM-primed by RAG when available, deterministic otherwise), and
         assembles:
 
         1. the **ordered Abilities** (``Stage2Output`` with ``atomic_ordering``
-           and ``translation_source=gerado_ia``); ``None`` when the DAG yields no
+           and ``translation_source=gerado_ia``); ``None`` when the attack flow yields no
            operationalizable technique (Req. 8.1), mirroring the curation seam's
            suppressed output; and
         2. the derived :class:`EnvironmentParameters` (hosts resolved from the
@@ -153,7 +153,7 @@ class AiOperationalizer:
         Audit_Trace capture (Req. 1.2, 1.3, 2.2, 2.3): when the node wrapper
         injected an ``trace_sink`` (a ``list[dict]``) into the constructor, the
         agent appends a single :class:`~app.services.ai.state.AgentTrace` dict
-        capturing its LLM call sites — ``agent_input`` carrying the DAG (the
+        capturing its LLM call sites — ``agent_input`` carrying the attack flow (the
         prior-stage artifact used as the modeling for this stage), the retrieved
         experience and the (absent) attack context / prior artifacts;
         ``processing`` carrying the per-node ``llm_prompt`` / raw ``llm_response``,
@@ -164,14 +164,14 @@ class AiOperationalizer:
         recorded with an explicit ``None`` sentinel the serialization layer maps to
         "not available".
         """
-        experience = self._prime_experience(campaign, dag)
+        experience = self._prime_experience(campaign, flow)
 
         # Per-node LLM prompt/response capture for the trace (populated by the
         # selection pass when an LLM is injected; stays empty on the deterministic
         # fallback so the trace honestly records "no LLM call").
         llm_calls: list[dict[str, Any]] = []
         selections = self._select_per_node(
-            campaign, dag, experience, llm_calls=llm_calls
+            campaign, flow, experience, llm_calls=llm_calls
         )
 
         abilities = self._build_abilities(selections)
@@ -186,10 +186,10 @@ class AiOperationalizer:
                     "stage": AgentStage.OPERATIONALIZATION.value,
                     "iteration": None,
                     "agent_input": {
-                        "modeling": self._dag_summary(dag),
+                        "modeling": self._flow_summary(flow),
                         "retrieved_experience": experience,
                         "attack_context": None,
-                        "prior_artifacts": {"dag": self._dag_summary(dag)},
+                        "prior_artifacts": {"flow": self._flow_summary(flow)},
                     },
                     "processing": {
                         "llm_prompt": [call["prompt"] for call in llm_calls]
@@ -214,10 +214,10 @@ class AiOperationalizer:
         )
 
     @staticmethod
-    def _dag_summary(dag: "DagView") -> dict[str, Any]:
-        """A compact, JSON-native summary of the DAG for the trace ``agent_input``."""
+    def _flow_summary(flow: "FlowView") -> dict[str, Any]:
+        """A compact, JSON-native summary of the attack flow for the trace ``agent_input``."""
         nodes = []
-        for node in getattr(dag, "nodes", []) or []:
+        for node in getattr(flow, "nodes", []) or []:
             nodes.append(
                 {
                     "node_id": getattr(node, "node_id", None),
@@ -227,8 +227,8 @@ class AiOperationalizer:
                 }
             )
         return {
-            "campaign_id": getattr(dag, "campaign_id", None),
-            "name": getattr(dag, "name", None),
+            "campaign_id": getattr(flow, "campaign_id", None),
+            "name": getattr(flow, "name", None),
             "nodes": nodes,
         }
 
@@ -251,7 +251,7 @@ class AiOperationalizer:
         return tool_parse_command
 
     def _prime_experience(
-        self, campaign: str, dag: "DagView"
+        self, campaign: str, flow: "FlowView"
     ) -> list[dict[str, Any]]:
         """Retrieve cross-campaign RAG experience to prime the proposal (Req. 2.2).
 
@@ -262,17 +262,17 @@ class AiOperationalizer:
         """
         if self._memory is None:
             return []
-        query = self._experience_query(dag)
+        query = self._experience_query(flow)
         try:
             return self._memory.retrieve(campaign_id=campaign, query=query)
         except Exception:  # noqa: BLE001 - priming is best-effort (Req. 5.7)
             return []
 
     @staticmethod
-    def _experience_query(dag: "DagView") -> str:
-        """Build the RAG query text from the DAG's techniques (traceable, compact)."""
-        parts: list[str] = [getattr(dag, "name", "") or getattr(dag, "campaign_id", "")]
-        for node in getattr(dag, "nodes", []) or []:
+    def _experience_query(flow: "FlowView") -> str:
+        """Build the RAG query text from the attack flow's techniques (traceable, compact)."""
+        parts: list[str] = [getattr(flow, "name", "") or getattr(flow, "campaign_id", "")]
+        for node in getattr(flow, "nodes", []) or []:
             technique_id = getattr(node, "technique_id", None)
             technique_name = getattr(node, "technique_name", None)
             if technique_id or technique_name:
@@ -284,12 +284,12 @@ class AiOperationalizer:
     def _select_per_node(
         self,
         campaign: str,
-        dag: "DagView",
+        flow: "FlowView",
         experience: list[dict[str, Any]],
         *,
         llm_calls: "Optional[list[dict[str, Any]]]" = None,
     ) -> list[dict[str, Any]]:
-        """Select/parametrize one Ability worth of commands per DAG node (Req. 2.2).
+        """Select/parametrize one Ability worth of commands per attack flow node (Req. 2.2).
 
         For each node carrying a technique, fetches the Atomic Red Team command
         pool and picks the concrete commands to propose. When an LLM is injected
@@ -299,7 +299,7 @@ class AiOperationalizer:
         self-checked with the containment parser (purely to avoid proposing what
         the downstream gate would reject — the gate stays authoritative, Req. 8.1).
 
-        Returns one selection dict per operationalizable node, in DAG order::
+        Returns one selection dict per operationalizable node, in attack flow order::
 
             {
                 "node_id": str,
@@ -313,7 +313,7 @@ class AiOperationalizer:
         lookup = self._atomic_lookup()
         selections: list[dict[str, Any]] = []
 
-        for node in getattr(dag, "nodes", []) or []:
+        for node in getattr(flow, "nodes", []) or []:
             technique_id = getattr(node, "technique_id", None)
             if not technique_id:
                 # No technique to operationalize for this node (Req. 8.1).
@@ -536,15 +536,15 @@ class AiOperationalizer:
 
         Mirrors the curation ``Stage2Output`` shape — one
         ``Stage2AbilityView`` per operationalized node (its executors are the
-        proposed commands), the ``atomic_ordering`` following DAG order, and
+        proposed commands), the ``atomic_ordering`` following attack flow order, and
         ``translation_source=gerado_ia``. Returns ``None`` when nothing was
         operationalizable (suppressed output — Req. 8.1).
         """
         if not selections:
             return None
 
-        # Imported lazily so importing this module needs no stage_service deps.
-        from app.services.stage.stage_service import (
+        # Imported lazily so importing this module stays light.
+        from app.services.emulation.views import (
             Stage2AbilityView,
             Stage2AdversaryView,
             Stage2ExecutorView,
@@ -581,7 +581,7 @@ class AiOperationalizer:
             name="Adversário gerado por IA",
             description=(
                 "Agrupamento de Abilities proposto pelo agente de IA a partir do "
-                "DAG (origem gerado_ia)."
+                "attack flow (origem gerado_ia)."
             ),
             atomic_ordering=list(ordering),
             translation_source=TranslationSource.AI_GENERATED,
@@ -606,7 +606,7 @@ class AiOperationalizer:
         (via the containment parser + ``container_for_ip``), infers the services to
         provision by **reusing** the project's service-inference heuristic
         (:func:`app.services.environment.operationalizer._infer_services`), and
-        collects no network notes (the DAG view carries only the technique
+        collects no network notes (the attack flow view carries only the technique
         identity, not the curated per-node ``network_context``). The platform is
         always ``CONTAINER`` and the origin ``gerado_ia`` (Req. 2.4, 2.5, 17.1).
         """
@@ -760,87 +760,86 @@ def build_agent(
     )
 
 
-def _dag_from_state(state: "AgentState") -> "DagView":
-    """Reconstruct a :class:`DagView` from the serialized DAG in ``state``.
+def _techniques_from_state(state: "AgentState", session: Any = None) -> "FlowView":
+    """Read the campaign's ATT&CK techniques from ``stix_campaign_techniques``.
 
-    The operationalizer walks ``dag.nodes`` (each carrying ``node_id`` /
-    ``technique_id`` / ``technique_name`` / ``tactic``), so this adapter accepts
-    either shape the upstream Stage 3 node may have written into
-    ``artifacts.dag``:
+    The operationalizer seam (``operationalize(campaign, flow)``) walks
+    ``flow.nodes``, so the techniques are handed over as a :class:`FlowView` with
+    one node per technique (``node_id`` = ``technique_id``) and no edges: the
+    operationalization no longer depends on a generated flow (Req. 5.6).
 
-    * a :class:`DagView` dump (already has ``nodes``/``edges``), or
-    * a :class:`~app.services.dag.generator.ProducedDag` dump, whose ``content``
-      holds ``{"structural_nodes": [...], "arestas": [{"de", "para"}]}``.
-
-    Returns an empty (non-curated) :class:`DagView` when no DAG artifact is
-    present, so the node degrades to a suppressed operationalization rather than
-    raising (mirroring the seam's no-technique path, Req. 8.1).
+    The campaign is resolved from ``state["campaign_id"]`` as its ``curated_slug``
+    or ``stix_id`` in the most recently downloaded STIX package. Without a
+    session, with an unknown campaign or with no techniques, an empty
+    (non-curated, unavailable) :class:`FlowView` is returned so the node degrades
+    to a suppressed operationalization instead of raising (Req. 8.1).
     """
-    from app.services.dag.dag_service import DagEdgeView, DagNodeView, DagView
+    from app.services.flow.flow_view import FlowNodeView, FlowView
 
-    artifacts = state.get("artifacts") or {}
-    raw = artifacts.get("operationalization_dag") or artifacts.get("dag") or {}
     campaign_id = state.get("campaign_id", "") or ""
+    empty = FlowView(
+        campaign_id=campaign_id,
+        name=campaign_id,
+        curated=False,
+        can_advance=False,
+        unavailable=True,
+    )
+    if session is None or not campaign_id:
+        return empty
 
-    if not isinstance(raw, dict) or not raw:
-        return DagView(
-            campaign_id=campaign_id,
-            name=campaign_id,
-            curated=False,
-            can_advance=False,
-            unavailable=True,
-        )
+    from sqlalchemy import or_, select
 
-    # Shape 1: a DagView dump already carrying ``nodes``.
-    nodes_raw = raw.get("nodes")
-    edges_raw = raw.get("edges")
+    from app.models.domain import StixCampaign, StixCampaignTechnique, StixPackage
 
-    # Shape 2: a ProducedDag dump — pull the structural graph out of ``content``.
-    if nodes_raw is None and isinstance(raw.get("content"), dict):
-        content = raw["content"]
-        nodes_raw = content.get("structural_nodes") or content.get("nodes")
-        edges_raw = content.get("arestas") or content.get("edges")
-
-    nodes: list[DagNodeView] = []
-    for entry in nodes_raw or []:
-        if not isinstance(entry, dict):
-            continue
-        nodes.append(
-            DagNodeView(
-                node_id=str(
-                    entry.get("node_id") or entry.get("id") or entry.get("identifier") or ""
-                ),
-                technique_id=entry.get("technique_id") or entry.get("tecnica_id"),
-                technique_name=entry.get("technique_name")
-                or entry.get("tecnica_nome"),
-                tactic=entry.get("tactic") or entry.get("tatica"),
+    campaign = session.execute(
+        select(StixCampaign)
+        .join(StixPackage, StixPackage.id == StixCampaign.package_id)
+        .where(
+            or_(
+                StixCampaign.curated_slug == campaign_id,
+                StixCampaign.stix_id == campaign_id,
             )
         )
+        .order_by(StixPackage.downloaded_at.desc(), StixPackage.id.desc())
+        .limit(1)
+    ).scalar_one_or_none()
+    if campaign is None:
+        return empty
 
-    edges: list[DagEdgeView] = []
-    for entry in edges_raw or []:
-        if not isinstance(entry, dict):
-            continue
-        source = entry.get("source") or entry.get("de")
-        target = entry.get("target") or entry.get("para")
-        if source and target:
-            edges.append(DagEdgeView(source=str(source), target=str(target)))
+    rows = (
+        session.execute(
+            select(StixCampaignTechnique)
+            .where(StixCampaignTechnique.campaign_id == campaign.id)
+            .order_by(StixCampaignTechnique.id)
+        )
+        .scalars()
+        .all()
+    )
+    if not rows:
+        return empty
 
-    return DagView(
+    return FlowView(
         campaign_id=campaign_id,
-        name=raw.get("name") or raw.get("label") or campaign_id,
-        curated=bool(raw.get("curated", True)),
-        can_advance=bool(raw.get("can_advance", True)),
-        nodes=nodes,
-        edges=edges,
+        name=campaign.name or campaign_id,
+        curated=bool(campaign.curated),
+        can_advance=True,
+        nodes=[
+            FlowNodeView(
+                node_id=row.technique_id,
+                technique_id=row.technique_id,
+                technique_name=row.technique_name,
+                tactic=row.tactic,
+            )
+            for row in rows
+        ],
+        edges=[],
     )
 
-
 def node(state: "AgentState", *, session: Any = None) -> dict:
-    """LangGraph node for Stage 4 — operationalize the DAG, write the artifact.
+    """LangGraph node for Stage 4 — operationalize the campaign techniques.
 
     Builds the :class:`AiOperationalizer` with lazily-resolved collaborators
-    (:func:`build_agent`), reads the Stage 3 DAG from ``state["artifacts"]``,
+    (:func:`build_agent`), reads the campaign techniques from ``stix_campaign_techniques``,
     calls :meth:`AiOperationalizer.operationalize` and writes the serialized
     result into the returned **state delta** under
     ``artifacts.operationalization`` (``origin=gerado_ia`` — Req. 2.4). The node
@@ -848,7 +847,7 @@ def node(state: "AgentState", *, session: Any = None) -> dict:
     :func:`persist_stage_output` to write the ``agent_stage_outputs`` row within
     its atomic per-iteration transaction (Req. 11.5).
 
-    The returned dict preserves the rest of ``state["artifacts"]`` so the DAG and
+    The returned dict preserves the rest of ``state["artifacts"]`` so the attack flow and
     any other stage output already present survive the merge. A ``history`` entry
     records the node's pass for the append-only trace.
 
@@ -860,7 +859,6 @@ def node(state: "AgentState", *, session: Any = None) -> dict:
         serialized) plus a one-element ``history`` trace.
     """
     campaign_id = state.get("campaign_id", "") or ""
-    dag = _dag_from_state(state)
 
     # Local trace sink injected into the agent: it appends its AgentTrace at its
     # LLM call sites; we stamp the current iteration and return it under the
@@ -873,8 +871,9 @@ def node(state: "AgentState", *, session: Any = None) -> dict:
     # (task 14.1, Req. 12.1, 12.3, 5.2). A legacy ``state["_session"]`` channel is
     # honoured so direct callers/tests keep working.
     resolved_session = session if session is not None else state.get("_session")
+    flow = _techniques_from_state(state, resolved_session)
     agent = build_agent(session=resolved_session, trace_sink=sink)
-    produced = agent.operationalize(campaign_id, dag)
+    produced = agent.operationalize(campaign_id, flow)
 
     iteration = state.get("iteration", 0)
     for trace in sink:
@@ -923,7 +922,7 @@ def persist_stage_output(
     :class:`EnvironmentParameters` as an
     :class:`~app.models.domain.EnvironmentParametersRow` (``origin=gerado_ia``)
     and links its id via ``params_id`` — the ``params_id`` branch of the
-    per-stage-output FK, exactly as the DAG stage output links ``dag_id`` (design
+    per-stage-output FK, exactly as the attack flow stage output links ``flow_id`` (design
     §agent_stage_outputs).
 
     Args:

@@ -14,9 +14,8 @@ the same environment state both produce an *equivalent* ``isolado`` verdict.
 The design satisfies this by routing BOTH stages through the single shared
 function :func:`app.services.containment.inspect_isolation`:
 
-* **Stage 5** — :class:`EnvironmentStageService._check_isolation` calls
-  ``inspect_isolation(containers, self._inspector)`` (and the curation
-  provisioner / topology builder do the same).
+* **Stage 5** — the curation provisioner and the topology builder call
+  ``inspect_isolation(containers, inspector)``.
 * **Stage 6** — :class:`OperationRunner` defaults its injectable
   ``isolation_verifier`` to :func:`inspect_isolation` and invokes it as
   ``self._verify_isolation(containers, self._inspector)`` in its pre-flight

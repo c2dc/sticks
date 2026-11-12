@@ -237,7 +237,7 @@ class AiStageOutputView(BaseModel):
     stage: str = Field(
         ...,
         description=(
-            "Semantic AgentStage value the output belongs to (dag / "
+            "Semantic AgentStage value the output belongs to (flow / "
             "operationalization / environment / execution / evaluation)."
         ),
     )
@@ -321,7 +321,7 @@ class GroundTruthStageComparison(BaseModel):
     """The AI-output-vs-human-curation comparison for one Stage (design §H).
 
     Compares the serialized sets the AI Run produced against the equivalent sets
-    read from the campaign's human curation on disk — read-only and on demand.
+    read from the campaign's human curation in the database — read-only and on demand.
     The two sets drive the symmetric difference so the Researcher sees what the
     AI matched, missed, and added relative to ground truth.
     """
@@ -423,7 +423,7 @@ def start_ai_run(
     :meth:`~app.services.campaign_materializer.CampaignMaterializer.materialize`
     (an idempotent upsert from the STIX). This guarantees ``campaigns.id`` exists
     for ANY of the 52 campaigns, so every FK-bearing write the run performs
-    (``agent_runs.campaign_id``, ``abilities.campaign_id``, ``dags.campaign_id``)
+    (``agent_runs.campaign_id``, ``abilities.campaign_id``, ``attack_flows.campaign_id``)
     is satisfied — the AI_Graph's ``_materialize_ai_abilities`` can then rely on
     the parent row already existing without violating ``abilities.campaign_id``
     (Req. 2.4, 2.5, 2.6). The materialization is a no-op that preserves
@@ -438,7 +438,7 @@ def start_ai_run(
 
     try:
         # Materialize the campaigns row from the STIX BEFORE any FK-bearing write
-        # (agent_runs/abilities/dags -> campaigns.id), so the run — including the
+        # (agent_runs/abilities/attack_flows -> campaigns.id), so the run — including the
         # graph's _materialize_ai_abilities — never violates a FK for a
         # non-curated campaign (Req. 2.4, 2.5, 2.6). Idempotent no-op for an
         # already-materialized (curated) campaign.
@@ -652,16 +652,16 @@ def get_ai_run(
 #
 # A read-only, on-demand comparison of a completed Run's AI output against the
 # human curation of a Curated_Campaign. Curated-ness is decided SERVER-SIDE from
-# the existing curated set (``CaseService.list_cases`` / ``SLUG_TO_STIX``), so a
+# ``campaigns.curated`` flag, so a
 # non-curated campaign gets a clear "not a curated campaign" error. Curation is
 # NEVER invoked as part of running/completing a Run (Req. 5.4) — this endpoint
-# only *reads* the curated files on disk to build the comparison baseline.
+# only *reads* the curated rows from the database to build the comparison baseline.
 
 
-def _technique_ids_from_dag_payload(payload: Any) -> set[str]:
-    """Collect the technique ids an AI DAG stage output produced.
+def _technique_ids_from_flow_payload(payload: Any) -> set[str]:
+    """Collect the technique ids an AI flow stage output produced.
 
-    The DAG stage output ``payload`` is a serialized ``ProducedDag`` whose
+    The attack flow stage output ``payload`` is a serialized ``ProducedFlow`` whose
     ``content`` mirrors the curation format
     ``{"structural_nodes": [...], "arestas": [...]}``; each structural node
     carries an optional ``technique_id``. Returns the non-empty technique ids as
@@ -738,17 +738,15 @@ def compare_ai_run_with_curation(
 ) -> GroundTruthComparisonResponse:
     """Compute the on-demand Ground_Truth_Comparison for a curated campaign (Req. 5.1–5.4).
 
-    Curated-ness is determined SERVER-SIDE from the existing curated set
-    (:meth:`CaseService.list_cases`, keyed identically to
-    :data:`~app.services.stix.stix_service.SLUG_TO_STIX`): the comparison is only
+    Curated-ness is determined SERVER-SIDE from the ``campaigns.curated`` flag:
+    the comparison is only
     offered on the eight Curated_Campaigns. For any other campaign a clear
     "not a curated campaign" 404 is returned (Req. 5.2) rather than a comparison.
 
-    For a curated campaign the handler reads the Run's AI stage outputs (the DAG
+    For a curated campaign the handler reads the Run's AI stage outputs (the attack flow
     technique ids and the operationalization ability ids it produced) and
     compares them — on demand — against the campaign's human curation read from
-    disk via :class:`~app.services.campaign_service.CaseService` (the curated DAG
-    techniques and the curated ability ids). Curation is used ONLY as the
+    the database (the curated flow techniques and the curated ability ids). Curation is used ONLY as the
     comparison baseline and is never invoked as part of running or completing a
     Run (Req. 5.4). An unknown run id — or one belonging to a different campaign
     — is a 404.
@@ -760,8 +758,8 @@ def compare_ai_run_with_curation(
     )
     from app.models.domain import Ability as AbilityModel
     from app.models.enums import AgentStage
-    from app.services.campaign_service import CaseService
-    from app.services.dag.dag_service import DagService
+    from app.models.domain import Case
+    from app.services.curated_case_reader import resolve_flow_data_from_db
 
     run = db.get(AgentRun, id)
     if run is None or run.campaign_id != campaign:
@@ -775,12 +773,11 @@ def compare_ai_run_with_curation(
             },
         )
 
-    # Server-side curated-ness: the campaign slug must be one of the eight
-    # curated cases, else there is no human-curation baseline to compare against
+    # Server-side curated-ness: ``campaigns.curated`` must be true (the eight
+    # curated cases), else there is no human-curation baseline to compare against
     # and the action must not be offered (Req. 5.2).
-    case_service = CaseService()
-    curated_cases = case_service.list_cases()
-    if campaign not in curated_cases:
+    campaign_row = db.get(Case, campaign)
+    if campaign_row is None or not campaign_row.curated:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={
@@ -808,23 +805,23 @@ def compare_ai_run_with_curation(
     ai_ability_ids: set[str] = set()
     for row in stage_output_rows:
         stage_value = getattr(row.stage, "value", row.stage)
-        if stage_value == AgentStage.DAG.value:
-            ai_technique_ids |= _technique_ids_from_dag_payload(row.payload)
+        if stage_value == AgentStage.FLOW.value:
+            ai_technique_ids |= _technique_ids_from_flow_payload(row.payload)
         elif stage_value == AgentStage.OPERATIONALIZATION.value:
             ai_ability_ids |= _ability_ids_from_op_payload(row.payload)
 
     # ---- Curation side: the baseline read from the database, on demand ------
-    # Database-only sourcing (Req. 1.1, 4.1): the curated DAG technique ids come
-    # from the persisted ``dags`` row (via DagService) and the curated ability
+    # Database-only sourcing (Req. 1.1, 4.1): the curated attack flow technique ids come
+    # from the persisted ``attack_flows`` row (via the DB reader) and the curated ability
     # ids from the ``abilities`` rows keyed by ``campaign_id`` — both persisted by
     # the curated ingest (sub-step 2.1). The runtime no longer reads
-    # ``packages/cli/data`` for the comparison baseline (Req. 4.2).
+    # the legacy CLI data directory for the comparison baseline (Req. 4.2).
     curated_technique_ids: set[str] = set()
     curated_ability_ids: set[str] = set()
 
-    curated_dag = DagService(session=db).resolve_dag_data_from_db(campaign)
-    if curated_dag is not None:
-        for node in curated_dag.structural_nodes:
+    curated_flow = resolve_flow_data_from_db(db, campaign)
+    if curated_flow is not None:
+        for node in curated_flow.structural_nodes:
             tid = (node.technique_id or "").strip()
             if tid:
                 curated_technique_ids.add(tid)
@@ -845,7 +842,7 @@ def compare_ai_run_with_curation(
 
     stages = [
         _build_stage_comparison(
-            AgentStage.DAG.value, ai_technique_ids, curated_technique_ids
+            AgentStage.FLOW.value, ai_technique_ids, curated_technique_ids
         ),
         _build_stage_comparison(
             AgentStage.OPERATIONALIZATION.value,

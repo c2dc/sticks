@@ -1,0 +1,335 @@
+{
+  "abilities": [
+    {
+      "ability_id": "0fa06c9c-fd66-52f1-b94a-83cb37bee900",
+      "campaign_id": "shadowray",
+      "description": "During ShadowRay, threat actors exploited CVE-2023-48022 on publicly exposed Ray servers to steal computing power and to expose sensitive data.",
+      "executors": [
+        {
+          "command": "curl -X POST -F 'cmd=whoami' http://192.168.20.30:5055/exec",
+          "name": "sh",
+          "platform": "linux"
+        }
+      ],
+      "name": "T1190 - Exploit Public-Facing Application",
+      "tactic": "initial-access",
+      "technique_id": "T1190",
+      "technique_name": "Exploit Public-Facing Application",
+      "translation_source": "human_curation"
+    },
+    {
+      "ability_id": "1faec135-c77f-5da2-a384-c2d468cc942a",
+      "campaign_id": "shadowray",
+      "description": "During ShadowRay, threat actors used Base64-encrypted Python code to evade detection.",
+      "executors": [
+        {
+          "command": "sshpass -p Passw0rd ssh -o StrictHostKeyChecking=no attacker@192.168.20.30 'base64 -d /tmp/encoded_payload.b64 > /tmp/payload.py && python3 /tmp/payload.py'",
+          "name": "sh",
+          "platform": "linux"
+        }
+      ],
+      "name": "T1027.013 - Encrypted/Encoded File",
+      "tactic": "defense-evasion",
+      "technique_id": "T1027.013",
+      "technique_name": "Encrypted/Encoded File",
+      "translation_source": "human_curation"
+    },
+    {
+      "ability_id": "22545851-970c-5709-bdbc-463e83521af0",
+      "campaign_id": "shadowray",
+      "description": "During ShadowRay, threat actors leveraged graphics processing units (GPU) on compromised nodes for cryptocurrency mining.",
+      "executors": [
+        {
+          "command": "echo 'mining crypto'",
+          "name": "sh",
+          "platform": "linux"
+        }
+      ],
+      "name": "T1496.001 - Compute Hijacking",
+      "tactic": "impact",
+      "technique_id": "T1496.001",
+      "technique_name": "Compute Hijacking",
+      "translation_source": "human_curation"
+    },
+    {
+      "ability_id": "22545851-970c-5709-bdbc-rothshadow",
+      "campaign_id": "shadowray",
+      "description": "This is the end.",
+      "executors": [
+        {
+          "command": "echo \"END OF SHADOWRAY\"",
+          "name": "sh",
+          "platform": "linux"
+        }
+      ],
+      "name": "END OF SHADOWRAY",
+      "tactic": "impact",
+      "technique_id": "T1529",
+      "technique_name": "System Shutdown",
+      "translation_source": "human_curation"
+    },
+    {
+      "ability_id": "368d9d4f-6c23-5351-9f74-69dc719886b6",
+      "campaign_id": "shadowray",
+      "description": "During ShadowRay, threat actors downloaded and executed the XMRig miner on targeted hosts.",
+      "executors": [
+        {
+          "command": "sshpass -p 'Passw0rd'  ssh -o StrictHostKeyChecking=no attacker@192.168.20.30 \"echo 'mining crypto coins'\"",
+          "name": "sh",
+          "platform": "linux"
+        }
+      ],
+      "name": "T1105 - Ingress Tool Transfer",
+      "tactic": "command-and-control",
+      "technique_id": "T1105",
+      "technique_name": "Ingress Tool Transfer",
+      "translation_source": "human_curation"
+    },
+    {
+      "ability_id": "5c0eccee-eee4-5d88-b6e5-c83b25d44eaa",
+      "campaign_id": "shadowray",
+      "description": "During ShadowRay, threat actors used tools including the XMRig miner and Interactsh.",
+      "executors": [
+        {
+          "command": "sshpass -p Passw0rd ssh -o StrictHostKeyChecking=no attacker@192.168.20.30 'nmap localhost 2>&1'",
+          "name": "sh",
+          "platform": "linux"
+        }
+      ],
+      "name": "T1588.002 - Tool",
+      "tactic": "resource-development",
+      "technique_id": "T1588.002",
+      "technique_name": "Tool",
+      "translation_source": "human_curation"
+    },
+    {
+      "ability_id": "60684dd3-782f-5675-bca6-d45648687755",
+      "campaign_id": "shadowray",
+      "description": "During ShadowRay, threat actors executed commands on interactive and reverse shells.",
+      "executors": [
+        {
+          "command": "sshpass -p 'Passw0rd' ssh -o StrictHostKeyChecking=no attacker@192.168.20.30 echo '$(whoami) on $(uname -n)'",
+          "name": "sh",
+          "platform": "linux"
+        }
+      ],
+      "name": "T1546.004 - Unix Shell Configuration Modification",
+      "tactic": "privilege-escalation",
+      "technique_id": "T1546.004",
+      "technique_name": "Unix Shell Configuration Modification",
+      "translation_source": "human_curation"
+    },
+    {
+      "ability_id": "6a74f881-117b-58f2-aa4f-4e976e204f07",
+      "campaign_id": "shadowray",
+      "description": "During ShadowRay, threat actors used the Python `pty` module to open reverse shells.",
+      "executors": [
+        {
+          "command": "curl -X POST -F 'cmd=whoami' http://192.168.20.30:5055/exec",
+          "name": "sh",
+          "platform": "linux"
+        }
+      ],
+      "name": "T1059.006 - Python",
+      "tactic": "execution",
+      "technique_id": "T1059.006",
+      "technique_name": "Python",
+      "translation_source": "human_curation"
+    },
+    {
+      "ability_id": "810c3322-4d43-5152-8d14-b11e78b7b50d",
+      "campaign_id": "shadowray",
+      "description": "During ShadowRay, threat actors used `cat /etc/shadow` to steal password hashes.",
+      "executors": [
+        {
+          "command": "sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@192.168.20.30 'sudo cat /etc/passwd' && sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@192.168.20.30 'sudo cat /etc/shadow'",
+          "name": "sh",
+          "platform": "linux"
+        }
+      ],
+      "name": "T1003.008 - /etc/passwd and /etc/shadow",
+      "tactic": "credential-access",
+      "technique_id": "T1003.008",
+      "technique_name": "/etc/passwd and /etc/shadow",
+      "translation_source": "human_curation"
+    },
+    {
+      "ability_id": "8130dba3-f51c-57d2-9d49-78e9b0bb3c4b",
+      "campaign_id": "shadowray",
+      "description": "During ShadowRay, threat actors downloaded a privilege escalation payload to gain root access.",
+      "executors": [
+        {
+          "command": "sshpass -p 'Passw0rd' ssh attacker@192.168.20.30 wget http://192.168.20.30/dist/nmap-7.98.tgz",
+          "name": "sh",
+          "platform": "linux"
+        }
+      ],
+      "name": "T1068 - Exploitation for Privilege Escalation",
+      "tactic": "privilege-escalation",
+      "technique_id": "T1068",
+      "technique_name": "Exploitation for Privilege Escalation",
+      "translation_source": "human_curation"
+    },
+    {
+      "ability_id": "d6966fcc-0455-51cb-932c-c707f97730f4",
+      "campaign_id": "shadowray",
+      "description": "During ShadowRay, threat actors invoked DNS queries from targeted machines to identify their IP addresses.",
+      "executors": [
+        {
+          "command": "sshpass -p 'Passw0rd' ssh -T -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null attacker@192.168.20.30 'ip -brief a; ip r; ip neigh; hostname -I; sshpass -p \"Passw0rd\" ssh -T -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null attacker@192.168.30.40 \"ip -brief a; ip r; ip neigh; hostname -I\"'",
+          "name": "sh",
+          "platform": "linux"
+        }
+      ],
+      "name": "T1016 - System Network Configuration Discovery",
+      "tactic": "discovery",
+      "technique_id": "T1016",
+      "technique_name": "System Network Configuration Discovery",
+      "translation_source": "human_curation"
+    }
+  ],
+  "adversary": {
+    "atomic_ordering": [
+      "0fa06c9c-fd66-52f1-b94a-83cb37bee900",
+      "1faec135-c77f-5da2-a384-c2d468cc942a",
+      "810c3322-4d43-5152-8d14-b11e78b7b50d",
+      "60684dd3-782f-5675-bca6-d45648687755",
+      "5c0eccee-eee4-5d88-b6e5-c83b25d44eaa",
+      "368d9d4f-6c23-5351-9f74-69dc719886b6",
+      "6a74f881-117b-58f2-aa4f-4e976e204f07",
+      "d6966fcc-0455-51cb-932c-c707f97730f4",
+      "8130dba3-f51c-57d2-9d49-78e9b0bb3c4b",
+      "22545851-970c-5709-bdbc-463e83521af0",
+      "22545851-970c-5709-bdbc-rothshadow"
+    ],
+    "campaign_id": "shadowray",
+    "description": "ShadowRay emulation plan with 10 techniques",
+    "id": "b1a46148-30de-52ff-9984-db67131ff24b",
+    "name": "ShadowRay",
+    "translation_source": "human_curation"
+  },
+  "attack_flow": {
+    "campaign_id": "shadowray",
+    "content": {
+      "campaign_name": "ShadowRay",
+      "edges": [
+        {
+          "from": "10120619-7ead-409c-ac16-d4320150f73a",
+          "to": "43aa1f8a-7836-495a-b120-8d704899ffed"
+        },
+        {
+          "from": "43aa1f8a-7836-495a-b120-8d704899ffed",
+          "to": "a107cf66-fa12-4824-95fe-1abca41797ec"
+        },
+        {
+          "from": "a107cf66-fa12-4824-95fe-1abca41797ec",
+          "to": "7e508757-6743-47f4-be51-6cefd42d1fd1"
+        },
+        {
+          "from": "7e508757-6743-47f4-be51-6cefd42d1fd1",
+          "to": "a70ca6e5-45f7-49ce-88f3-fc6702a38331"
+        },
+        {
+          "from": "a70ca6e5-45f7-49ce-88f3-fc6702a38331",
+          "to": "5f1de72c-b486-4327-981b-a4a97fd34117"
+        },
+        {
+          "from": "5f1de72c-b486-4327-981b-a4a97fd34117",
+          "to": "f38cb545-546d-4f57-8ecb-f397cfb1eee5"
+        },
+        {
+          "from": "f38cb545-546d-4f57-8ecb-f397cfb1eee5",
+          "to": "5ae1684b-720e-49ac-a99e-f7c271b2087d"
+        },
+        {
+          "from": "5ae1684b-720e-49ac-a99e-f7c271b2087d",
+          "to": "e71d8416-9165-4364-80ff-2ce55171cc6c"
+        },
+        {
+          "from": "e71d8416-9165-4364-80ff-2ce55171cc6c",
+          "to": "0e706241-2544-4738-8b14-6bf47a20c492"
+        }
+      ],
+      "structural_nodes": [
+        {
+          "node_id": "10120619-7ead-409c-ac16-d4320150f73a",
+          "node_type": "structural",
+          "tactic": "initial-access",
+          "technique_id": "T1190",
+          "technique_name": "Exploit Public-Facing Application"
+        },
+        {
+          "node_id": "43aa1f8a-7836-495a-b120-8d704899ffed",
+          "node_type": "structural",
+          "tactic": "defense-evasion",
+          "technique_id": "T1027.013",
+          "technique_name": "Encrypted/Encoded File"
+        },
+        {
+          "node_id": "a107cf66-fa12-4824-95fe-1abca41797ec",
+          "node_type": "structural",
+          "tactic": "credential-access",
+          "technique_id": "T1003.008",
+          "technique_name": "/etc/passwd and /etc/shadow"
+        },
+        {
+          "node_id": "7e508757-6743-47f4-be51-6cefd42d1fd1",
+          "node_type": "structural",
+          "tactic": "privilege-escalation",
+          "technique_id": "T1546.004",
+          "technique_name": "Unix Shell Configuration Modification"
+        },
+        {
+          "node_id": "a70ca6e5-45f7-49ce-88f3-fc6702a38331",
+          "node_type": "structural",
+          "tactic": "resource-development",
+          "technique_id": "T1588.002",
+          "technique_name": "Tool"
+        },
+        {
+          "node_id": "5f1de72c-b486-4327-981b-a4a97fd34117",
+          "node_type": "structural",
+          "tactic": "command-and-control",
+          "technique_id": "T1105",
+          "technique_name": "Ingress Tool Transfer"
+        },
+        {
+          "node_id": "f38cb545-546d-4f57-8ecb-f397cfb1eee5",
+          "node_type": "structural",
+          "tactic": "execution",
+          "technique_id": "T1059.006",
+          "technique_name": "Python"
+        },
+        {
+          "node_id": "5ae1684b-720e-49ac-a99e-f7c271b2087d",
+          "node_type": "structural",
+          "tactic": "discovery",
+          "technique_id": "T1016",
+          "technique_name": "System Network Configuration Discovery"
+        },
+        {
+          "node_id": "e71d8416-9165-4364-80ff-2ce55171cc6c",
+          "node_type": "structural",
+          "tactic": "privilege-escalation",
+          "technique_id": "T1068",
+          "technique_name": "Exploitation for Privilege Escalation"
+        },
+        {
+          "node_id": "0e706241-2544-4738-8b14-6bf47a20c492",
+          "node_type": "structural",
+          "tactic": "impact",
+          "technique_id": "T1496.001",
+          "technique_name": "Compute Hijacking"
+        }
+      ]
+    },
+    "identifier": "human-curation-v1",
+    "label": "ShadowRay"
+  },
+  "campaign": {
+    "description": null,
+    "id": "shadowray",
+    "name": "ShadowRay",
+    "translation_source": "human_curation"
+  }
+}

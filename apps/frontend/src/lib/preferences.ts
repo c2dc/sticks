@@ -66,7 +66,7 @@ export { ApiError }
  * normalizing through the i18n single source of truth. Kept additive so the
  * theme-owned exports (task 13.1) stay untouched.
  */
-import { DEFAULT_LANGUAGE, normalizeLanguage, type SupportedLanguage } from "@/i18n"
+import { normalizeLanguage } from "@/i18n"
 
 /**
  * Persist the language preference (Req. 8.4). Normalizes before sending so an
@@ -74,19 +74,4 @@ import { DEFAULT_LANGUAGE, normalizeLanguage, type SupportedLanguage } from "@/i
  */
 export function persistLanguage(language: string | null | undefined): Promise<Preferences> {
   return putPreferences({ language: normalizeLanguage(language) })
-}
-
-/**
- * Restore the last persisted language on open (Req. 8.5). With no persisted
- * preference (first visit) it defaults to pt-BR (Req. 8.6); an invalid persisted
- * value is normalized to pt-BR (Req. 8.7). Reading never throws — a failure
- * yields the pt-BR default so the app still opens.
- */
-export async function restoreLanguage(): Promise<SupportedLanguage> {
-  try {
-    const prefs = await getPreferences()
-    return normalizeLanguage(prefs?.language)
-  } catch {
-    return DEFAULT_LANGUAGE
-  }
 }

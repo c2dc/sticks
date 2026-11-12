@@ -18,15 +18,22 @@ def test_health_endpoint_returns_ok() -> None:
     assert response.json() == {"status": "ok"}
 
 
-def test_settings_reuse_sticks_caldera_values() -> None:
-    """Config must read Caldera values from the existing sticks config,
-    not redefine them."""
-    settings = get_settings()
+def test_settings_caldera_defaults_and_env_override(monkeypatch) -> None:
+    """Caldera URL/key default to the lab values and come from PIPELINE_UI_* env."""
+    from app.core.config import Settings
 
-    # Reused from sticks/config/config.py (CALDERA_URL + CALDERA_API_KEY_RED).
+    monkeypatch.delenv("PIPELINE_UI_CALDERA_URL", raising=False)
+    monkeypatch.delenv("PIPELINE_UI_CALDERA_KEY", raising=False)
+    settings = Settings(_env_file=None)
     assert settings.caldera_url == "http://localhost:8888"
     assert settings.caldera_key == "ADMIN123"
     assert settings.caldera_headers == {"KEY": "ADMIN123"}
+
+    monkeypatch.setenv("PIPELINE_UI_CALDERA_URL", "http://caldera:8888")
+    monkeypatch.setenv("PIPELINE_UI_CALDERA_KEY", "OTHER")
+    overridden = Settings(_env_file=None)
+    assert overridden.caldera_url == "http://caldera:8888"
+    assert overridden.caldera_headers == {"KEY": "OTHER"}
 
 
 def test_database_url_defaults_to_postgres_in_dev() -> None:

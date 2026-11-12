@@ -1,17 +1,24 @@
 {
-  "app": {
-    "title": "STICKS",
-    "subtitle": "STIX → tradução curada → emulação de adversário"
-  },
-  "actions": {
-    "close": "Fechar",
-    "cancel": "Cancelar",
-    "confirm": "Confirmar",
-    "back": "Voltar",
-    "retry": "Tentar novamente"
-  },
-  "status": {
-    "loading": "Carregando…",
-    "error": "Ocorreu um erro."
+  "ingestion": {
+    "title": "Fontes de conhecimento",
+    "source": {
+      "stix_packages": "Pacotes STIX",
+      "curated_seed": "Casos curados",
+      "atomic": "Atomic Red Team",
+      "docker_catalog": "Catálogo Docker",
+      "attack_flow": "Attack Flow"
+    },
+    "status": {
+      "pending": "Pendente",
+      "running": "Carregando",
+      "ready": "Pronta",
+      "failed": "Falhou"
+    },
+    "counts": "{{loaded}} carregados · {{embedded}} vetorizados · {{expected}} esperados",
+    "skipped": "{{count}} ignorados",
+    "failure_cause": "Causa: {{error}}",
+    "resume": "Retomar",
+    "resuming": "Retomando…",
+    "request_error": "Não foi possível verificar o estado da ingestão."
   }
 }

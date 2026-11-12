@@ -12,8 +12,7 @@ cosine similarity (Req. 10.3, 10.6).
 This service owns the *vector* half only. It reads the already-persisted
 campaigns of a version from the Relational_Store via
 :class:`~app.services.stix.stix_package_read_service.StixPackageReadService`
-(never reopening the on-disk bundle — which is deleted after a successful
-commit) and stores one associative row per campaign through
+(the bundle is never kept; it only exists in memory during ingestion) and stores one associative row per campaign through
 :meth:`ExperienceMemory.store_affinity`, carrying ``metadata.kind ==
 "stix_context"``.
 
@@ -92,7 +91,7 @@ class StixVectorIndexService:
     rest of the Vector_Store uses. A :class:`StixPackageReadService` may be
     injected for the relational reads (defaulting to one built over the same
     session), so the exact data is always read from the Relational_Store — the
-    source of truth — and never from the deleted on-disk bundle.
+    source of truth — and never from a bundle.
     """
 
     def __init__(

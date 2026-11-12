@@ -183,13 +183,6 @@ def _mixed_campaign_bundle(draw) -> list[dict]:
     return objects
 
 
-def _write_bundle(path: Path, objects: list[dict]) -> None:
-    """Write a minimal-but-valid STIX bundle (``{"objects": [...]}``) to disk."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps({"type": "bundle", "objects": objects}), encoding="utf-8"
-    )
-
 
 def _cleanup(*bases: Path) -> None:
     """Remove the temporary directories created for an example."""
@@ -222,18 +215,17 @@ def test_property3_curated_flag_consistency(objects: list[dict]) -> None:
 
     Validates: Requirements 4.6
     """
-    data_dir = Path(tempfile.mkdtemp(prefix="pipeline_ui_stix_curated_data_"))
     factory, db_tmp_dir = _make_session_factory()
     session = factory()
     try:
-        _write_bundle(data_dir / f"enterprise-attack-{_VERSION}.json", objects)
+        bundle = {"type": "bundle", "objects": objects}
 
-        stix_service = StixService(data_dir=data_dir, http_client=None)
+        stix_service = StixService()
         service = StixPersistenceService(session=session, stix_service=stix_service)
 
         # Persist from disk (no network egress) — the write sets
         # stix_campaigns.curated = (curated_slug is not None).
-        service.persist_from_disk(_VERSION)
+        service.persist_bundle(_VERSION, bundle)
 
         rows = (
             session.execute(select(StixCampaign))
@@ -259,4 +251,4 @@ def test_property3_curated_flag_consistency(objects: list[dict]) -> None:
     finally:
         session.close()
         factory.kw["bind"].dispose()
-        _cleanup(data_dir, Path(db_tmp_dir))
+        _cleanup(Path(db_tmp_dir))

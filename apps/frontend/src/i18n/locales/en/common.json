@@ -1,17 +1,24 @@
 {
-  "app": {
-    "title": "STICKS",
-    "subtitle": "STIX → curated translation → adversary emulation"
-  },
-  "actions": {
-    "close": "Close",
-    "cancel": "Cancel",
-    "confirm": "Confirm",
-    "back": "Back",
-    "retry": "Retry"
-  },
-  "status": {
-    "loading": "Loading…",
-    "error": "An error occurred."
+  "ingestion": {
+    "title": "Knowledge sources",
+    "source": {
+      "stix_packages": "STIX packages",
+      "curated_seed": "Curated cases",
+      "atomic": "Atomic Red Team",
+      "docker_catalog": "Docker catalog",
+      "attack_flow": "Attack Flow"
+    },
+    "status": {
+      "pending": "Pending",
+      "running": "Loading",
+      "ready": "Ready",
+      "failed": "Failed"
+    },
+    "counts": "{{loaded}} loaded · {{embedded}} embedded · {{expected}} expected",
+    "skipped": "{{count}} skipped",
+    "failure_cause": "Cause: {{error}}",
+    "resume": "Resume",
+    "resuming": "Resuming…",
+    "request_error": "Could not check the ingestion status."
   }
 }

@@ -3,20 +3,18 @@ import fc from "fast-check"
 
 import ptPipeline from "@/i18n/locales/pt-BR/pipeline.json"
 import enPipeline from "@/i18n/locales/en/pipeline.json"
+import ptCommon from "@/i18n/locales/pt-BR/common.json"
+import enCommon from "@/i18n/locales/en/common.json"
+import ptStix from "@/i18n/locales/pt-BR/stix.json"
+import enStix from "@/i18n/locales/en/stix.json"
+import ptPreferences from "@/i18n/locales/pt-BR/preferences.json"
+import enPreferences from "@/i18n/locales/en/preferences.json"
 
 /**
  * Property-based test (fast-check, >= 100 runs) for pt-BR/en key parity across
  * the FULL `pipeline` i18n namespace (pipeline-six-stages, task 14.7).
  *
- * Task 14.5 unified the six-stage i18n keys (stages.1..6) and added the new key
- * groups `environmentParameters.*`, `report.*` and `metrics.*`. This test is
- * the property-level complement to the example-based `pipeline-parity.test.ts`
- * and `stages.terminology.test.ts`: instead of checking a handful of hand-picked
- * keys, it enumerates EVERY leaf path in both locales and asserts, over many
- * generated paths, that the two locales declare exactly the same key tree and
- * that no value is empty. It also asserts the "Estágio"/"Stage" terminology for
- * every stage 1..6.
- *
+ * It enumerates EVERY leaf path in both locales and asserts, over many\r\n * generated paths, that the two locales declare exactly the same key tree and\r\n * that no value is empty.\r\n *
  * This test does NOT add or modify any i18n keys; it only reads the locale JSON.
  *
  * Feature: pipeline-six-stages, Property: pt-BR/en key parity
@@ -65,8 +63,6 @@ const ptPaths = collectLeafPaths(ptPipeline as JsonValue).sort()
 const enPaths = collectLeafPaths(enPipeline as JsonValue).sort()
 const allPaths = Array.from(new Set([...ptPaths, ...enPaths]))
 
-const STAGES = [1, 2, 3, 4, 5, 6] as const
-
 describe("pipeline i18n parity (property, pipeline-six-stages)", () => {
   // Property: for any leaf key present in EITHER locale, it is present in BOTH,
   // and neither value is empty. Driven over the whole namespace key set.
@@ -94,53 +90,78 @@ describe("pipeline i18n parity (property, pipeline-six-stages)", () => {
       { numRuns: 200 },
     )
   })
+})
 
-  // Property: the six stages (and the new key groups) have identical leaf-path
-  // sets across locales. This is the set-equality counterpart of the per-path
-  // check above and fails loudly if either locale gains/loses a key.
-  it("Property: key sets for stages/environmentParameters/report/metrics are identical", () => {
-    const groups = [
-      "stages",
-      "environmentParameters",
-      "report",
-      "metrics",
-    ] as const
+/**
+ * Property 14: i18n key parity for the keys added by agentic-only-flow-redesign
+ * (task 10.6): `flow.*` and `operationalization.*` live in `pipeline`, while
+ * `ingestion.*` lives in `common`. Each locale must declare exactly the same
+ * leaf paths under these groups, all non-empty.
+ *
+ * Feature: agentic-only-flow-redesign, Property 14
+ * Validates: Requirements 5.7, 5.8, 6.3, 6.4, 6.5
+ */
+describe("redesign i18n key parity (agentic-only-flow-redesign)", () => {
+  const groups: Array<[string, JsonValue, JsonValue]> = [
+    ["flow", getByPath(ptPipeline as JsonValue, "flow")!, getByPath(enPipeline as JsonValue, "flow")!],
+    [
+      "operationalization",
+      getByPath(ptPipeline as JsonValue, "operationalization")!,
+      getByPath(enPipeline as JsonValue, "operationalization")!,
+    ],
+    [
+      "ingestion",
+      getByPath(ptCommon as JsonValue, "ingestion")!,
+      getByPath(enCommon as JsonValue, "ingestion")!,
+    ],
+  ]
 
+  it("Property: flow/operationalization/ingestion have identical, non-empty leaves in both locales", () => {
     fc.assert(
-      fc.property(fc.constantFrom(...groups), (group) => {
-        const ptGroup = ptPaths.filter((p) => p.startsWith(`${group}.`))
-        const enGroup = enPaths.filter((p) => p.startsWith(`${group}.`))
-        expect(ptGroup.length).toBeGreaterThan(0)
-        expect(ptGroup).toEqual(enGroup)
+      fc.property(fc.constantFrom(...groups), ([name, pt, en]) => {
+        expect(pt, `${name} missing in pt-BR`).toBeDefined()
+        expect(en, `${name} missing in en`).toBeDefined()
+        const ptLeaves = collectLeafPaths(pt).sort()
+        const enLeaves = collectLeafPaths(en).sort()
+        expect(ptLeaves.length).toBeGreaterThan(0)
+        expect(ptLeaves).toEqual(enLeaves)
+        for (const leaf of ptLeaves) {
+          const ptValue = getByPath(pt, leaf)
+          const enValue = getByPath(en, leaf)
+          expect(typeof ptValue, `${name}.${leaf} (pt-BR)`).toBe("string")
+          expect(typeof enValue, `${name}.${leaf} (en)`).toBe("string")
+          expect((ptValue as string).length).toBeGreaterThan(0)
+          expect((enValue as string).length).toBeGreaterThan(0)
+        }
       }),
-      { numRuns: 100 },
+      { numRuns: 30 },
     )
   })
 
-  // Property: for every stage 1..6, pt-BR uses "Estágio" and en uses "Stage" in
-  // both the `name` and `short` keys, and the keys exist in both locales.
-  it("Property: 'Estágio'/'Stage' terminology for the six stages", () => {
+  it("Property: required ingestion source/status keys exist in both locales", () => {
+    const keys = [
+      ...["stix_packages", "curated_seed", "atomic", "docker_catalog", "attack_flow"].map((s) => `ingestion.source.${s}`),
+      ...["pending", "running", "ready", "failed"].map((s) => `ingestion.status.${s}`),
+    ]
     fc.assert(
-      fc.property(fc.constantFrom(...STAGES), (n) => {
-        const ptName = getByPath(ptPipeline as JsonValue, `stages.${n}.name`)
-        const ptShort = getByPath(ptPipeline as JsonValue, `stages.${n}.short`)
-        const enName = getByPath(enPipeline as JsonValue, `stages.${n}.name`)
-        const enShort = getByPath(enPipeline as JsonValue, `stages.${n}.short`)
-
-        expect(typeof ptName).toBe("string")
-        expect(typeof ptShort).toBe("string")
-        expect(typeof enName).toBe("string")
-        expect(typeof enShort).toBe("string")
-
-        // pt-BR terminology: "Estágio".
-        expect(ptName as string).toContain("Estágio")
-        expect(ptShort as string).toContain("Estágio")
-
-        // en terminology: "Stage".
-        expect(enName as string).toContain("Stage")
-        expect(enShort as string).toContain("Stage")
+      fc.property(fc.constantFrom(...keys), (key) => {
+        expect(getByPath(ptCommon as JsonValue, key), `${key} (pt-BR)`).toBeTypeOf("string")
+        expect(getByPath(enCommon as JsonValue, key), `${key} (en)`).toBeTypeOf("string")
       }),
-      { numRuns: 100 },
+      { numRuns: 30 },
+    )
+  })
+
+  it("Property: displayed values say 'attack flow', never 'DAG'", () => {
+    fc.assert(
+      fc.property(fc.constantFrom(...groups), ([, pt, en]) => {
+        for (const tree of [pt, en]) {
+          for (const leaf of collectLeafPaths(tree)) {
+            expect(getByPath(tree, leaf) as string).not.toMatch(/\bDAGs?\b/)
+          }
+        }
+      }),
+      { numRuns: 30 },
     )
   })
 })
@@ -154,7 +175,6 @@ describe("pipeline i18n parity (property, pipeline-six-stages)", () => {
  * locales as a non-empty string, across every i18n subtree the refactor touches:
  *   - `guided.speech.<phase>`     — Guided_Run_View robot lines (Req. 7.2)
  *   - `aiRun.stageName.<phase>`   — AiRunView agent-step names (Req. 7.2)
- *   - `aiRun.comparison.stage.<phase>` — curation-comparison phase labels
  *   - `campaign.containerEmulability.*` — container-emulability indicators (Req. 6.6)
  *
  * This test does NOT add or modify any i18n keys; it only reads the locale JSON.
@@ -166,21 +186,22 @@ describe("semantic phase i18n parity (agentic-phase-model-refactor)", () => {
   // The five semantic agentic phases, number-free (Req. 1.1). `input` is a
   // non-phase and intentionally excluded from these phase-keyed subtrees.
   const AGENTIC_PHASES = [
-    "dag",
     "operationalization",
+    "flow",
     "environment",
     "execution",
     "evaluation",
   ] as const
 
-  // The full `guided.speech.<phase>` and `aiRun.stageName.<phase>` keys plus the
-  // two `aiRun.comparison.stage.<phase>` labels the UI resolves dynamically from
-  // the backend `AgentStage` value.
+  // The full `guided.speech.<phase>` and `aiRun.stageName.<phase>` keys.
   const PHASE_KEYS = [
     ...AGENTIC_PHASES.map((p) => `guided.speech.${p}`),
     ...AGENTIC_PHASES.map((p) => `aiRun.stageName.${p}`),
-    "aiRun.comparison.stage.dag",
-    "aiRun.comparison.stage.operationalization",
+    "guided.generatingFlow",
+    "flow.provenance.exact",
+    "flow.provenance.adapted",
+    "flow.provenance.created",
+    "flow.cycles.title",
   ]
 
   // The container-emulability indicator keys (Req. 6.6).
@@ -258,5 +279,132 @@ describe("semantic phase i18n parity (agentic-phase-model-refactor)", () => {
       }),
       { numRuns: 100 },
     )
+  })
+  // Property: the Input copy treats the STIX version AS the package (one choice),
+  // never "package version" / "package and version" as distinct picks.
+  it("Property: input copy never presents package and version as separate choices", () => {
+    const INPUT_KEYS = [
+      "input.heroDescription",
+      "input.card.packageTitle",
+      "input.card.campaignTitle",
+      "input.card.campaignBlocked",
+    ]
+    const SPLIT = /versão do pacote|pacote e versão|pacote, versão|package version|package and version|package, version/i
+    fc.assert(
+      fc.property(fc.constantFrom(...INPUT_KEYS), (key) => {
+        for (const catalog of [ptPipeline, enPipeline]) {
+          const value = getByPath(catalog as JsonValue, key) as string
+          expect(typeof value, `${key} missing`).toBe("string")
+          expect(value, `${key} splits package and version`).not.toMatch(SPLIT)
+        }
+      }),
+      { numRuns: 50 },
+    )
+  })})
+
+/**
+ * Terminology parity: "input" vs "setup" (agentic-only-flow-redesign, task 22.3).
+ *
+ * "input" is the phase where the user picks the STIX version (the package) and
+ * the campaign. "setup" means exclusively the installation / first-run ingestion
+ * of the knowledge bases (`ingestion.*`). The two concepts must not mix in i18n
+ * keys, displayed values or component sources. Deterministic: reads the locale
+ * JSON and the component sources statically.
+ *
+ * Validates: Requirements 5.7, 5.8, 5.9
+ */
+describe("input vs setup terminology (agentic-only-flow-redesign, task 22.3)", () => {
+  const locales: Record<string, Record<string, JsonValue>> = {
+    en: {
+      common: enCommon as JsonValue,
+      pipeline: enPipeline as JsonValue,
+      stix: enStix as JsonValue,
+      preferences: enPreferences as JsonValue,
+    },
+    "pt-BR": {
+      common: ptCommon as JsonValue,
+      pipeline: ptPipeline as JsonValue,
+      stix: ptStix as JsonValue,
+      preferences: ptPreferences as JsonValue,
+    },
+  }
+
+  const SETUP_WORD = /set[\s-]?up/i
+
+  /** Every leaf of every namespace of a locale, as `{ key, value }`. */
+  function entriesOf(locale: string): Array<{ key: string; value: string }> {
+    const out: Array<{ key: string; value: string }> = []
+    for (const tree of Object.values(locales[locale])) {
+      for (const key of collectLeafPaths(tree)) {
+        out.push({ key, value: String(getByPath(tree, key)) })
+      }
+    }
+    return out
+  }
+
+  it("(a) input.* keys exist in en and pt-BR", () => {
+    const required = [
+      "input.heroTitle",
+      "input.heroDescription",
+      "input.card.packageTitle",
+      "input.card.campaignTitle",
+      "input.card.campaignBlocked",
+      "input.back",
+      "input.next",
+      "input.nextHint",
+      "input.run.title",
+      "input.run.changeCampaign",
+      "input.run.campaign",
+    ]
+    for (const locale of Object.keys(locales)) {
+      for (const key of required) {
+        const value = getByPath(locales[locale].pipeline, key)
+        expect(typeof value, `${key} missing in ${locale}`).toBe("string")
+        expect((value as string).length, `${key} empty in ${locale}`).toBeGreaterThan(0)
+      }
+    }
+    // Same input.* leaf set in both locales.
+    const leaves = (tree: JsonValue) =>
+      collectLeafPaths(getByPath(tree, "input")!).sort()
+    expect(leaves(ptPipeline as JsonValue)).toEqual(leaves(enPipeline as JsonValue))
+  })
+
+  it("(b) no selection-domain value says 'setup' / 'set up'", () => {
+    const SELECTION = /^(input|baseStix|campaign|stix)\./
+    for (const locale of Object.keys(locales)) {
+      const selection = entriesOf(locale).filter((e) => SELECTION.test(e.key))
+      expect(selection.length).toBeGreaterThan(0)
+      for (const { key, value } of selection) {
+        expect(value, `${locale}:${key} mentions setup`).not.toMatch(SETUP_WORD)
+      }
+    }
+  })
+
+  it("(b) no i18n key has a 'setup' segment outside ingestion.*", () => {
+    for (const locale of Object.keys(locales)) {
+      for (const { key } of entriesOf(locale)) {
+        if (key.startsWith("ingestion.")) continue
+        const segments = key.split(".")
+        expect(
+          segments.some((s) => /setup/i.test(s)),
+          `${locale}:${key} has a 'setup' segment`,
+        ).toBe(false)
+      }
+    }
+  })
+
+  it("(c) component sources do not use the legacy setup identifiers", () => {
+    const sources = import.meta.glob("../components/**/*.{ts,tsx}", {
+      query: "?raw",
+      import: "default",
+      eager: true,
+    }) as Record<string, string>
+    const files = Object.keys(sources)
+    expect(files.some((f) => f.endsWith("ExecutionWizard.tsx"))).toBe(true)
+
+    const LEGACY = /SetupScreen|handleBackToSetup|setup-panel|back-to-setup/
+    for (const file of files) {
+      expect(sources[file], `${file} uses a legacy setup identifier`).not.toMatch(LEGACY)
+    }
   })
 })

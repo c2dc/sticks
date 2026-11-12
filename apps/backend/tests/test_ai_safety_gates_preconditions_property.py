@@ -92,7 +92,7 @@ from app.services.containment.isolation import (
     ContainerIsolationVerdict,
     IsolationResult,
 )
-from app.services.dag.dag_service import DagNodeView, DagView
+from app.services.flow.flow_view import FlowNodeView, FlowView
 from app.services.operation.runner import OperationRunner, RunOutcome
 
 # The exact pt-BR origin string the AI artifacts must carry (a literal, so the
@@ -270,18 +270,18 @@ def _ai_operationalization_payload(command: str) -> dict[str, Any]:
     """Produce a genuine AI-origin Stage 4 artifact carrying ``command``.
 
     A real :class:`AiOperationalizer` (origin ``gerado_ia``) is driven with a
-    single-node DAG and a fake one-entry Atomic Red Team pool whose command is
+    single-node attack flow and a fake one-entry Atomic Red Team pool whose command is
     ``command``. No LLM is injected, so the agent uses its deterministic
     selection and emits exactly that command. The serialized
     ``ProducedOperationalization`` is returned as the execute node reads it.
     """
-    dag = DagView(
+    flow = FlowView(
         campaign_id="ai-campaign",
         name="ai-campaign",
         curated=False,
         can_advance=True,
         nodes=[
-            DagNodeView(
+            FlowNodeView(
                 node_id="n0",
                 technique_id=_TECHNIQUE_ID,
                 technique_name="Command and Scripting Interpreter",
@@ -311,7 +311,7 @@ def _ai_operationalization_payload(command: str) -> dict[str, Any]:
     # is what makes the gates below act on an AI-origin proposal.
     assert agent.origin() is TranslationSource.AI_GENERATED
 
-    produced = agent.operationalize(dag.campaign_id, dag)
+    produced = agent.operationalize(flow.campaign_id, flow)
     assert produced.origin is TranslationSource.AI_GENERATED
     assert produced.origin.value == _GERADO_IA
 

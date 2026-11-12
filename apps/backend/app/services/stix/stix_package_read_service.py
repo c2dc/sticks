@@ -2,7 +2,7 @@
 (tasks 4.1–4.2).
 
 This service serves the STIX package and campaign overviews reading **only**
-from the database (never reopening nor reprocessing the on-disk bundle). It is
+from the database (no bundle is kept anywhere else). It is
 the counterpart of :class:`~app.services.stix.stix_persistence_service.StixPersistenceService`
 (the single writer): the read service only queries the six STIX tables
 persisted at download time and assembles the response DTOs. It is the source of
@@ -71,9 +71,7 @@ class StixPackageNotPersistedError(Exception):
 
     :meth:`StixPackageReadService.package_overview` raises this when the given
     ``version`` is not persisted (no row in ``stix_packages``). The route layer
-    (task 5.4) catches it to decide whether an on-demand backfill from disk is
-    possible, or otherwise map it to the ``bundle_indisponivel`` 422 contract
-    (Req. 8.3). Carries the offending :attr:`version` for the handler.
+    maps it to the ``bundle_indisponivel`` 422 contract (Req. 8.3). Carries the offending :attr:`version` for the handler.
     """
 
     def __init__(self, version: str) -> None:
@@ -304,7 +302,7 @@ class StixPackageReadService:
     def is_persisted(self, version: str) -> bool:
         """True when ``version`` already has a row in ``stix_packages``.
 
-        Used by the backfill decision (Req. 8.3): a version is persisted when its
+        Used by the download route and the base listing (Req. 8.3): a version is persisted when its
         root row exists. Issues a scalar ``EXISTS``-style lookup on the injected
         session, so it never touches the disk.
 
@@ -347,7 +345,7 @@ class StixPackageReadService:
         """Assemble the package overview from the database only (Req. 3.1–3.4).
 
         Resolves the ``stix_packages`` row by ``version`` and, reading **only**
-        from the database (never reopening the on-disk bundle), builds the
+        from the database (no bundle is kept elsewhere), builds the
         :class:`StixPackageOverview`:
 
         * **Identification** — ``version`` / ``name`` from the package row and
@@ -369,7 +367,7 @@ class StixPackageReadService:
 
         Raises:
             StixPackageNotPersistedError: when ``version`` has no row in
-                ``stix_packages`` (so the route can decide on a backfill — Req. 8.3).
+                ``stix_packages`` (the route maps it to ``bundle_indisponivel`` 422 — Req. 8.3).
         """
         package = self._session.execute(
             select(StixPackage).where(StixPackage.version == version)
@@ -629,7 +627,7 @@ class StixPackageReadService:
 
         Raises:
             StixPackageNotPersistedError: when ``version`` has no row in
-                ``stix_packages`` (so the route can decide on a backfill — Req. 12.7).
+                ``stix_packages`` (the route maps it to ``bundle_indisponivel`` 422 — Req. 12.7).
         """
         package_id = self._resolve_package_id(version)
 

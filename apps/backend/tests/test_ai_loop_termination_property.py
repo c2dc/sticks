@@ -23,7 +23,7 @@ on when the improvement loop ends:
   ``"finish"`` (the ``Run_Service`` marks the run ``completed``);
 * otherwise, the max-iteration guard (``iteration + 1 >= max_iterations``) ends
   the loop with ``"finish"`` (the ``Run_Service`` marks the run ``aborted``);
-* otherwise the loop re-enters a refine stage (``"dag"`` / ``"operationalize"``
+* otherwise the loop re-enters a refine stage (``"flow"`` / ``"operationalize"``
   / ``"environment"``).
 
 Rather than spin up a real compiled graph (PostgreSQL checkpointer + SEPINF +
@@ -91,7 +91,7 @@ def _guard_and_verdicts(draw: st.DrawFn) -> tuple[int, list[bool], str]:
         )
     )
     refine_stage = draw(
-        st.sampled_from(["dag", "operationalize", "environment"])
+        st.sampled_from(["flow", "operationalize", "environment"])
     )
     return max_iterations, verdicts, refine_stage
 

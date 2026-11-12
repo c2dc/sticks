@@ -16,7 +16,7 @@
 // backend enum values or dynamic-consumer runtime leaves keyed by a runtime
 // value (a `t(`prefix.${x}`)` lookup), NOT natural-language identifiers.
 // Renaming them would break the dynamic lookup against the backend contract.
-// Domain / English tokens such as `dag`, `stix`, `substages`, `buildOnline`
+// Domain / English tokens such as `flow`, `stix`, `substages`, `buildOnline`
 // are English identifiers and are likewise never rejected.
 //
 // This test does NOT add or modify any i18n keys; it only reads the locale JSON.
@@ -72,7 +72,7 @@ const CATALOGS: ReadonlyArray<{
  * survive the Portuguese-word check so the dynamic lookups keep resolving.
  */
 const ALLOWED_NON_ENGLISH_LEAVES: ReadonlySet<string> = new Set([
-  // stix.dag.source.* — DagOrigin / TranslationSource enum values.
+  // stix.flow.source.* — FlowOrigin / TranslationSource enum values.
   // (also parametrosAmbiente.origem.* -> environmentParameters.source.*)
   "curadoria_humana",
   "gerado_ia",
@@ -128,7 +128,6 @@ const ALLOWED_NON_ENGLISH_LEAVES: ReadonlySet<string> = new Set([
  * acceptance is driven by their ABSENCE from the Portuguese dictionary below.
  */
 const ALLOWED_DOMAIN_TOKENS: ReadonlySet<string> = new Set([
-  "dag",
   "stix",
   "substages",
   "substeps",

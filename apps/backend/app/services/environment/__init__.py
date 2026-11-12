@@ -18,12 +18,6 @@ described in the design (Stage 4). It is split into focused modules:
   ``inspect_isolation``) and **exposes** the topology, without starting/creating
   anything. The seam is designed so a future ``AiEnvironmentProvisioner`` fits
   with no redesign (Req. 10.2).
-- ``stage_service``: the *session-bound* ``EnvironmentStageService``, which
-  **auto-completes** a curated Campaign's Stage 4 — respecting the sequential
-  gate (Stage 3 completed), requiring the curated environment material and
-  **verifying isolation** via ``provisioner.prepare`` — and persists the
-  ``stage=4`` ``StageRun`` as completed idempotently and transactionally
-  (Req. 5.2, 5.3, 5.6, 9.2, 9.3, 9.4).
 
 _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7, 9.2, 9.3, 9.4, 10.2_
 """
@@ -54,7 +48,6 @@ from app.services.environment.resource_gate import (
     build_resource_plan,
 )
 from app.services.environment.operationalizer import (
-    CurationOperationalizer,
     OperationalizerByOrigin,
     ProducedOperationalization,
 )
@@ -97,11 +90,6 @@ from app.services.environment.report import (
     SufficiencyMetrics,
     TechniqueMetric,
 )
-from app.services.environment.stage_service import (
-    AutoProvisioningResult,
-    EnvironmentStageService,
-    ProvisioningStage5Result,
-)
 from app.services.environment.topology_builder import (
     HOST_CONTAINERS,
     HOST_ROLES,
@@ -126,7 +114,6 @@ __all__ = [
     # operationalizer (seam + dual-Output DTO of Stage 4 — task 5.2)
     "OperationalizerByOrigin",
     "ProducedOperationalization",
-    "CurationOperationalizer",
     # report (metric and report DTOs — Stage 6, task 8.1)
     "TechniqueMetric",
     "SufficiencyMetrics",
@@ -175,11 +162,6 @@ __all__ = [
     # log_buffer (per-campaign provisioning log buffer — Stage 5, task 4.2)
     "ProvisioningLogBuffer",
     "DEFAULT_MAX_LINES",
-    # stage_service (Stage 4 auto-completion — task 4.2; active Stage 5
-    # provisioning — task 5.1)
-    "EnvironmentStageService",
-    "AutoProvisioningResult",
-    "ProvisioningStage5Result",
     # topology_builder (reusable pure construction)
     "HOST_ROLES",
     "HOST_CONTAINERS",

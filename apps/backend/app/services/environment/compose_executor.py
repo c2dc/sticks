@@ -62,7 +62,7 @@ class LogLine:
 
     The ``timestamp`` does **not** live here: it is added by the service when
     buffering and transmitting (monotonic ``seq`` + naive-UTC ``at`` in the
-    ``stage_service`` ``LogLineView``), keeping the executor seam decoupled from
+    ``LogLineView``), keeping the executor seam decoupled from
     the transport and the clock.
 
     Attributes:
@@ -341,7 +341,7 @@ LAB_IMAGES: dict[str, str] = {
 #   (``sticks-caldera-attacker:latest``). It is the same entry already present in
 #   :data:`LAB_IMAGES`; this alias names it so the engine contract is traceable.
 # - **Compiled once from source.** The image is built **from source** at
-#   ``infra/docker/.docker/caldera`` (the magma UI is compiled into the image at
+#   ``ops/docker/.docker/caldera`` (the magma UI is compiled into the image at
 #   build time — Docker Hub is outdated and is **not** used). The build happens
 #   **only** when the image is missing: :meth:`DockerComposeExecutor.up` inspects
 #   the local engine (read-only, :meth:`DockerComposeExecutor._image_exists_docker`)
@@ -359,7 +359,7 @@ LAB_IMAGES: dict[str, str] = {
 # audit trace and future readers can point at the fixed engine explicitly.
 CALDERA_SERVICE: str = "caldera-attacker"
 #: Stable image of the fixed Caldera execution engine — built once from source
-#: (``infra/docker/.docker/caldera``) and reused across Runs (cached, idempotent).
+#: (``ops/docker/.docker/caldera``) and reused across Runs (cached, idempotent).
 CALDERA_ENGINE_IMAGE: str = LAB_IMAGES[CALDERA_SERVICE]
 
 

@@ -1,39 +1,25 @@
-"""Example-based unit tests for :class:`StixPersistenceService` (task 2.9 of the
-``stix-package-persistence-and-overview`` spec).
+"""Example-based unit tests for :class:`StixPersistenceService`.
 
-These are concrete, hand-written example tests that complement the
-Hypothesis-driven property tests living in
-``test_stix_persistence_property_*.py``. Where the property tests assert
-universal invariants over generated bundles, these tests pin down the behavior
-against ONE concrete, readable bundle so the expected row counts and spot-checked
-field values are explicit and easy to reason about.
+Concrete, hand-written examples that complement the Hypothesis-driven property
+tests in ``test_stix_persistence_property_*.py``. They pin the behavior against
+ONE readable in-memory bundle so the expected row counts and spot-checked field
+values are explicit.
 
-Scenarios covered
------------------
-1. **Persist creates rows** — after :meth:`persist_from_disk`, every one of the
-   six STIX tables has the expected number of rows and the spot-checked field
-   values (curated flag + slug, external id, technique id, actor attribution)
-   are correct (Req. 1.4 — a single transactional write populates every table).
-2. **Re-persist does not duplicate** — calling :meth:`persist_from_disk` twice
-   keeps the row counts unchanged, reuses the same ``stix_packages`` id and
-   refreshes ``downloaded_at`` (Req. 2.1, 2.2). The first persistence deletes
-   the on-disk bundle after its commit (``stix-base-persisted-state-and-file-cleanup``),
-   so the bundle is re-materialized on disk before the second persistence —
-   mirroring how a real re-sync re-materializes the same content before
-   re-persisting.
-3. **Simulated failure leaves no rows** — when the commit fails, the service
-   rolls back, no ``stix_packages`` row survives, and the on-disk bundle file is
-   preserved (Req. 9.2). A fresh database is used for this case.
-
-Isolation
+Scenarios
 ---------
-Each test writes a concrete bundle to an isolated ``data_dir`` as
-``enterprise-attack-{version}.json`` and injects a
-``StixService(data_dir=..., http_client=None)`` so nothing touches the real
-``sticks/data/stix`` directory nor the network (``persist_from_disk`` never
-downloads). The write runs against an ephemeral SQLite engine with the full
-schema created via ``Base.metadata.create_all`` — the same fixture pattern the
-sibling property tests use.
+1. **Persist creates rows** — after :meth:`persist_bundle`, every one of the six
+   STIX tables has the expected number of rows and the spot-checked values
+   (curated flag + slug, external id, technique id, actor attribution) are
+   correct (Req. 1.4).
+2. **Re-persist does not duplicate** — persisting twice keeps the row counts,
+   reuses the same ``stix_packages`` id and refreshes ``downloaded_at``
+   (Req. 2.1, 2.2).
+3. **Simulated failure leaves no rows** — when the commit fails, the service
+   rolls back and no ``stix_packages`` row survives (Req. 9.2).
+
+Isolation: the bundle lives in memory only (no file, no network); the write runs
+against an ephemeral SQLite engine with the full schema created via
+``Base.metadata.create_all``.
 
 _Requirements: 1.4, 2.1, 2.2, 9.2_
 """
@@ -64,9 +50,8 @@ from app.services.stix.stix_persistence_service import StixPersistenceService
 from app.services.stix.stix_service import KNOWN_VERSIONS, StixService
 
 
-# A known version so the StixService path/naming matches production. The download
-# path is never exercised — the bundle is written straight to disk and
-# persist_from_disk is called, so there is no network egress.
+# A known version, as in production. ``persist_bundle`` never downloads, so
+# there is no network egress.
 _VERSION = KNOWN_VERSIONS[0]
 
 # Stable STIX ids for the concrete bundle, so the assertions can reference them
@@ -220,13 +205,6 @@ def _make_session_factory() -> tuple[sessionmaker[Session], str]:
     return factory, tmp_dir
 
 
-def _write_bundle(data_dir: Path, bundle: dict) -> Path:
-    """Write the bundle to ``data_dir`` as the on-disk file the backfill reads."""
-    bundle_path = data_dir / f"enterprise-attack-{_VERSION}.json"
-    bundle_path.write_text(json.dumps(bundle), encoding="utf-8")
-    return bundle_path
-
-
 def _cleanup(*bases: Path) -> None:
     """Remove the temporary directories created for a test."""
     for base in bases:
@@ -243,25 +221,22 @@ def _count(session: Session, model) -> int:
     return session.execute(select(func.count()).select_from(model)).scalar_one()
 
 
-def test_persist_from_disk_creates_rows_in_every_table() -> None:
-    """``persist_from_disk`` populates all six tables with the expected rows.
+def test_persist_bundle_creates_rows_in_every_table() -> None:
+    """``persist_bundle`` populates all six tables with the expected rows.
 
     Spot-checks the curated flag/slug, the external id, a persisted technique id
     and the actor attribution against the concrete bundle. Satisfies the single
     transactional write that populates every table (Req. 1.4).
     """
-    data_dir = Path(tempfile.mkdtemp(prefix="stix_persistence_unit_data_"))
     factory, db_tmp_dir = _make_session_factory()
     session = factory()
     try:
-        _write_bundle(data_dir, _example_bundle())
-        stix_service = StixService(data_dir=data_dir, http_client=None)
+        bundle = _example_bundle()
+        stix_service = StixService()
         service = StixPersistenceService(session=session, stix_service=stix_service)
 
-        result = service.persist_from_disk(_VERSION)
+        result = service.persist_bundle(_VERSION, bundle)
         assert result.persisted is True
-        # persist_from_disk reports the bundle was already present, not fetched.
-        assert result.downloaded is False
         assert result.campaigns_total == 2
         assert result.actors_total == 1
 
@@ -320,26 +295,25 @@ def test_persist_from_disk_creates_rows_in_every_table() -> None:
     finally:
         session.close()
         factory.kw["bind"].dispose()
-        _cleanup(data_dir, Path(db_tmp_dir))
+        _cleanup(Path(db_tmp_dir))
 
 
-def test_persist_from_disk_is_idempotent_no_duplicate_rows() -> None:
+def test_persist_bundle_is_idempotent_no_duplicate_rows() -> None:
     """Re-persisting the same version keeps counts, reuses the id, refreshes time.
 
-    Calling ``persist_from_disk`` twice must not duplicate any rows, must reuse
+    Calling ``persist_bundle`` twice must not duplicate any rows, must reuse
     the same ``stix_packages`` id (upsert by version) and must refresh
     ``downloaded_at`` (Req. 2.1, 2.2).
     """
-    data_dir = Path(tempfile.mkdtemp(prefix="stix_persistence_unit_data_"))
     factory, db_tmp_dir = _make_session_factory()
     session = factory()
     try:
-        _write_bundle(data_dir, _example_bundle())
-        stix_service = StixService(data_dir=data_dir, http_client=None)
+        bundle = _example_bundle()
+        stix_service = StixService()
         service = StixPersistenceService(session=session, stix_service=stix_service)
 
         # First persistence.
-        service.persist_from_disk(_VERSION)
+        service.persist_bundle(_VERSION, bundle)
         first = session.execute(
             select(StixPackage).where(StixPackage.version == _VERSION)
         ).scalar_one()
@@ -357,13 +331,8 @@ def test_persist_from_disk_is_idempotent_no_duplicate_rows() -> None:
             )
         }
 
-        # The first commit deleted the on-disk bundle (cleanup spec), so
-        # re-materialize the same content before the second persistence —
-        # exactly what a real re-sync does before re-persisting.
-        _write_bundle(data_dir, _example_bundle())
-
         # Second persistence of the same bundle/version.
-        service.persist_from_disk(_VERSION)
+        service.persist_bundle(_VERSION, bundle)
         session.expire_all()
         second = session.execute(
             select(StixPackage).where(StixPackage.version == _VERSION)
@@ -389,22 +358,21 @@ def test_persist_from_disk_is_idempotent_no_duplicate_rows() -> None:
     finally:
         session.close()
         factory.kw["bind"].dispose()
-        _cleanup(data_dir, Path(db_tmp_dir))
+        _cleanup(Path(db_tmp_dir))
 
 
-def test_persist_from_disk_rolls_back_on_commit_failure_leaving_no_rows() -> None:
-    """A commit failure rolls back, leaving no package row and the file intact.
+def test_persist_bundle_rolls_back_on_commit_failure_leaving_no_rows() -> None:
+    """A commit failure rolls back, leaving no package row.
 
     When the DB write fails after the bundle is available, the service rolls the
-    transaction back — no ``stix_packages`` row survives — and the on-disk bundle
-    file is preserved (Req. 9.2). A fresh database is used for this case.
+    transaction back — no ``stix_packages`` row survives.
+    (Req. 9.2). A fresh database is used for this case.
     """
-    data_dir = Path(tempfile.mkdtemp(prefix="stix_persistence_unit_data_"))
     factory, db_tmp_dir = _make_session_factory()
     session = factory()
     try:
-        bundle_path = _write_bundle(data_dir, _example_bundle())
-        stix_service = StixService(data_dir=data_dir, http_client=None)
+        bundle = _example_bundle()
+        stix_service = StixService()
         service = StixPersistenceService(session=session, stix_service=stix_service)
 
         # Force the single commit to fail so the write cannot be persisted. The
@@ -415,7 +383,7 @@ def test_persist_from_disk_rolls_back_on_commit_failure_leaving_no_rows() -> Non
         session.commit = _boom  # type: ignore[method-assign]
 
         with pytest.raises(RuntimeError, match="simulated commit failure"):
-            service.persist_from_disk(_VERSION)
+            service.persist_bundle(_VERSION, bundle)
 
         # Restore a working commit so the verification queries can run cleanly.
         del session.commit  # type: ignore[attr-defined]
@@ -428,10 +396,7 @@ def test_persist_from_disk_rolls_back_on_commit_failure_leaving_no_rows() -> Non
         assert _count(session, StixCampaignTechnique) == 0
         assert _count(session, StixActor) == 0
         assert _count(session, StixActorCampaign) == 0
-
-        # The on-disk bundle file is preserved — rollback never touches disk.
-        assert bundle_path.exists()
     finally:
         session.close()
         factory.kw["bind"].dispose()
-        _cleanup(data_dir, Path(db_tmp_dir))
+        _cleanup(Path(db_tmp_dir))

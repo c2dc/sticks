@@ -20,7 +20,7 @@ from typing import Annotated, Optional, TypedDict
 class StageArtifacts(TypedDict, total=False):
     """Serialized per-stage outputs produced in the current iteration."""
 
-    dag: dict  # ProducedDag.model_dump()
+    flow: dict  # ProducedFlow.model_dump()
     operationalization: dict  # ProducedOperationalization.model_dump()
     environment: dict  # ProvisionedEnvironment.model_dump()
 
@@ -73,7 +73,7 @@ class AgentTrace(TypedDict, total=False):
     back to this trace by the ``(stage, iteration)`` pair.
     """
 
-    stage: str  # English AgentStage value: dag | operationalization | environment | execution | evaluation
+    stage: str  # English AgentStage value: flow | operationalization | environment | execution | evaluation
     iteration: int
     agent_input: dict  # prior-stage artifacts, selected-campaign context, retrieved experience, attack/stix
     processing: dict  # llm_prompt, llm_response, reasoning, tools_invoked, repair_attempts, retrieved_experience, prior_artifacts

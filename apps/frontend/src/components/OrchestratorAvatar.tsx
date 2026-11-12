@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils"
  * OrchestratorAvatar — the friendly orchestrator robot that conducts the AI Run.
  *
  * It is the visual anchor of the guided Run screen: a small multi-agent
- * "conductor" that speaks to the Researcher, reveals each phase (DAG,
+ * "conductor" that speaks to the Researcher, reveals each phase (attack flow,
  * operationalization, environment) and asks permission to proceed. The avatar
  * is a self-contained inline SVG (no external asset) so it renders instantly,
  * scales crisply and adapts to Modo_Claro / Modo_Escuro via `currentColor` and

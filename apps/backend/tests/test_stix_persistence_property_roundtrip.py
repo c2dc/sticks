@@ -8,11 +8,11 @@ Validates: Requirements 1.3, 3.2, 4.1
 This is a *feature* property test (the ``stix-package-persistence-and-overview``
 spec is a feature, not a bugfix): the property is expected to **hold** against
 the current implementation of
-:meth:`~app.services.stix.stix_persistence_service.StixPersistenceService.persist_from_disk`.
+:meth:`~app.services.stix.stix_persistence_service.StixPersistenceService.persist_bundle`.
 
 Property (design.md — Property 1)
 ---------------------------------
-*For every* valid STIX bundle written to disk, ``persist_from_disk(version)``
+*For every* valid in-memory STIX bundle, ``persist_bundle(version)``
 followed by a read-back from the database reproduces, as a **reference model**,
 the output of the current parser (:class:`StixService`):
 
@@ -43,7 +43,7 @@ backfill path never downloads).
 The persistence runs against an **ephemeral** SQLite ``Session`` (engine on a
 temporary file with the full schema via ``Base.metadata.create_all``, the same
 fixture pattern as ``test_backfill_idempotent_property.py`` /
-``test_dag_models.py``). Nothing here touches the network nor an AI client.
+``test_flow_models.py``). Nothing here touches the network nor an AI client.
 """
 
 from __future__ import annotations
@@ -254,9 +254,9 @@ def _valid_bundle(draw) -> dict:
 def test_property1_persistence_roundtrip_preserves_counts_and_campaigns(
     bundle: dict,
 ) -> None:
-    """``persist_from_disk`` + DB read reproduces the parser's counts/campaigns.
+    """``persist_bundle`` + DB read reproduces the parser's counts/campaigns.
 
-    For an arbitrary valid bundle on disk, after ``persist_from_disk(version)``:
+    For an arbitrary valid in-memory bundle, after ``persist_bundle(version)``:
 
     1. the per-type counts in ``stix_type_counts`` equal, type by type, the
        counts :meth:`StixService.dashboard` derives (Req. 3.2); and
@@ -269,18 +269,11 @@ def test_property1_persistence_roundtrip_preserves_counts_and_campaigns(
     Validates: Requirements 1.3, 3.2, 4.1
     """
     version = "18.0"
-    data_dir = Path(tempfile.mkdtemp(prefix="stix_persistence_roundtrip_data_"))
     factory, db_tmp_dir = _make_session_factory()
     session = factory()
     try:
-        # Write the generated bundle to the isolated data dir as the on-disk
-        # file the backfill reads. No network is involved.
-        bundle_path = data_dir / f"enterprise-attack-{version}.json"
-        bundle_path.write_text(json.dumps(bundle), encoding="utf-8")
-
-        # StixService pointed at the isolated dir with no http_client (the
-        # backfill path never downloads).
-        stix_service = StixService(data_dir=data_dir, http_client=None)
+        # The bundle lives in memory only; no network is involved.
+        stix_service = StixService()
         persistence = StixPersistenceService(
             session=session, stix_service=stix_service
         )
@@ -288,17 +281,15 @@ def test_property1_persistence_roundtrip_preserves_counts_and_campaigns(
         # --- reference model: the parser itself -----------------------------
         expected_counts = {
             type_count.stix_type: type_count.count
-            for type_count in stix_service.dashboard(version).counts
+            for type_count in stix_service.dashboard(version, bundle).counts
         }
         expected_campaign_ids = {
-            campaign.stix_id for campaign in stix_service.list_campaigns(version)
+            campaign.stix_id for campaign in stix_service.list_campaigns(bundle)
         }
 
-        # --- act: persist the on-disk bundle (single writer, no download) ----
-        result = persistence.persist_from_disk(version)
+        # --- act: persist the in-memory bundle (single writer, no download) ----
+        result = persistence.persist_bundle(version, bundle)
         assert result.persisted is True
-        # persist_from_disk reports the bundle was already present, not fetched.
-        assert result.downloaded is False
 
         # --- read back from the DB ------------------------------------------
         package = session.execute(
@@ -331,8 +322,8 @@ def test_property1_persistence_roundtrip_preserves_counts_and_campaigns(
     finally:
         session.close()
         factory.kw["bind"].dispose()
-        # Clean up the data dir and the temporary database directory.
-        for base in (data_dir, Path(db_tmp_dir)):
+        # Clean up the temporary database directory.
+        for base in (Path(db_tmp_dir),):
             for root, _dirs, files in os.walk(base, topdown=False):
                 for name in files:
                     os.remove(os.path.join(root, name))

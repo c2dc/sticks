@@ -39,8 +39,8 @@ Task 15.3 (this change) adds the **SEPINF-failure / ``FAILED`` handling** and th
 
 * ``start``/``resume`` wrap the graph invocation so that when SEPINF is
   unreachable or exceeds its 30-second timeout, the model returns an error, an
-  LLM output cannot be parsed into a valid DAG/command set after the one repair
-  (``DagGenerationError`` and analogous node errors), or a stage cannot be filled
+  LLM output cannot be parsed into a valid attack flow/command set after the one repair
+  (``FlowGenerationError`` and analogous node errors), or a stage cannot be filled
   because its required Agent_Input is absent, the run is flipped to ``FAILED``
   recording a failure cause that identifies the FAILING STAGE, NO FULL AI artifact
   is persisted for the failing node (``_persist_iterations`` is skipped entirely
@@ -54,13 +54,6 @@ Task 15.3 (this change) adds the **SEPINF-failure / ``FAILED`` handling** and th
   ``agent_stage_traces`` row inside a SAVEPOINT — so the failure is auditable
   (Req. 2.6). The AI path is the only processing path: ``_fail_run`` does NOT fall
   back to human curation for the Run (Req. 4.4).
-* :func:`resolve_stage_agent` is the **startup seam fallback** (Req. 12.2, 12.3):
-  it resolves a stage agent (Stage 3 DAG / Stage 4 operationalization / Stage 5
-  environment) behind the pipeline's existing seam, and on an initialization
-  failure falls back to that stage's CURATION implementation
-  (``CurationDagGenerator`` / ``CurationOperationalizer`` /
-  ``CurationEnvironmentProvisioner``) behind the SAME seam, recording a diagnostic
-  that names the affected stage and the fallback.
 """
 
 from __future__ import annotations
@@ -132,14 +125,14 @@ class RunFailedError(RuntimeError):
 
     Signals Requirement 14.1/14.2/14.4: SEPINF was unreachable or timed out, the
     model returned an error, or an LLM output could not be parsed into a valid
-    DAG/command set after the single permitted repair. Before this error is
+    Attack flow/command set after the single permitted repair. Before this error is
     raised the owning ``agent_runs`` row has already been flipped to ``FAILED``
     with its failing-node cause recorded (logged; ``final_verdict_success`` left
     null), and NO AI artifact has been persisted for the failing node — the
     per-iteration persistence is skipped entirely on failure (Req. 14.1, 14.2,
     14.6).
 
-    The exception carries the ``node`` that failed (e.g. ``"dag"``) and the
+    The exception carries the ``node`` that failed (e.g. ``"flow"``) and the
     originating ``cause`` so callers (the API layer) can surface an error
     response identifying the failing node without mutating the run further.
     """
@@ -222,8 +215,8 @@ class AgentRunService:
 
         Failure handling (Req. 14.1, 14.2, 14.6): if the graph invocation fails —
         SEPINF unreachable or no response within the 30-second timeout, a model
-        error, or an LLM output that cannot be parsed into a valid DAG/command set
-        after the one repair (:class:`~app.services.ai.agents.dag_agent.DagGenerationError`
+        error, or an LLM output that cannot be parsed into a valid attack flow/command set
+        after the one repair (:class:`~app.services.ai.agents.flow_agent.FlowGenerationError`
         and analogous node errors) — the run is flipped to ``FAILED`` with its
         failing-node cause recorded, NO AI artifact is persisted for the failing
         node, and a :class:`RunFailedError` is raised. Once ``FAILED`` the run is
@@ -478,8 +471,8 @@ class AgentRunService:
         Invoked when the graph invocation in :meth:`start` / :meth:`resume` raises
         — SEPINF unreachable or no response within its 30-second timeout, a model
         error response, an LLM output that could not be parsed into a valid
-        DAG/command set after the single permitted repair
-        (:class:`~app.services.ai.agents.dag_agent.DagGenerationError` and
+        Attack flow/command set after the single permitted repair
+        (:class:`~app.services.ai.agents.flow_agent.FlowGenerationError` and
         analogous node errors), or a stage that could not be filled because its
         required Agent_Input was absent. It:
 
@@ -504,9 +497,7 @@ class AgentRunService:
           error / bare timeout that reached no LLM call), no bookkeeping row is
           written at all — only ``agent_runs.error`` records the cause;
         * does NOT fall back to human curation for the Run — the AI path is the
-          only processing path (Req. 4.4). ``resolve_stage_agent``'s curation
-          fallback concerns an agent failing to INITIALIZE at startup, not a
-          Run's missing input, and is deliberately left untouched here;
+          only processing path (Req. 4.4). the AI agents are the only implementations;
         * flushes the ``FAILED`` status and RETURNS a :class:`RunFailedError` for
           the caller to raise (``raise self._fail_run(...)``), so once ``FAILED``
           the surrounding ``start`` / ``resume`` never reaches the
@@ -560,7 +551,7 @@ class AgentRunService:
         The message names the FAILING STAGE and the absent-input/cause carried by
         the exception, so the read endpoint can surface a failure that identifies
         both the stage that failed and why. A node error that carries an explicit
-        ``cause`` (``DagGenerationError`` and analogous) contributes it verbatim;
+        ``cause`` (``FlowGenerationError`` and analogous) contributes it verbatim;
         otherwise the exception's own text (a SEPINF transport/timeout/model
         error) is used.
         """
@@ -698,10 +689,10 @@ class AgentRunService:
 
     @staticmethod
     def _stage_for_node(node: str) -> "Optional[AgentStage]":
-        """Map a short node key (``"dag"`` …) onto an :class:`AgentStage` member.
+        """Map a short node key (``"flow"`` …) onto an :class:`AgentStage` member.
 
         The node errors name the failing stage with the router's short key
-        (``"dag"`` / ``"operationalize"`` / ``"environment"``); the persisted
+        (``"flow"`` / ``"operationalize"`` / ``"environment"``); the persisted
         ``agent_stage_outputs.stage`` / ``agent_stage_traces`` rows key on the
         :class:`~app.models.enums.AgentStage` value. Returns the matching member,
         or ``None`` when the key is not one of the three persistable AI stages (a
@@ -710,8 +701,8 @@ class AgentRunService:
         from app.models.enums import AgentStage
 
         mapping = {
-            "dag": AgentStage.DAG,
-            AgentStage.DAG.value: AgentStage.DAG,
+            "flow": AgentStage.FLOW,
+            AgentStage.FLOW.value: AgentStage.FLOW,
             "operationalize": AgentStage.OPERATIONALIZATION,
             "operationalization": AgentStage.OPERATIONALIZATION,
             AgentStage.OPERATIONALIZATION.value: AgentStage.OPERATIONALIZATION,
@@ -725,8 +716,8 @@ class AgentRunService:
         """Identify the failing node from a graph-invocation exception (14.1/14.2).
 
         Prefers an explicit ``node`` attribute carried by the raising exception —
-        :class:`~app.services.ai.agents.dag_agent.DagGenerationError` sets
-        ``node="dag"`` (Req. 14.4), and any analogous node error that follows the
+        :class:`~app.services.ai.agents.flow_agent.FlowGenerationError` sets
+        ``node="flow"`` (Req. 14.4), and any analogous node error that follows the
         same convention is honoured. When no such attribute is present (a SEPINF
         transport error — unreachable / timeout — or a bare model error surfaced
         by the client carries no node), the node cannot be read off the exception
@@ -1031,10 +1022,10 @@ class AgentRunService:
         """Map the state's ``refine_stage`` onto an :class:`AgentStage` (Req. 15.1).
 
         The evaluator's ``_diagnose_failing_stage`` writes an :class:`AgentStage`
-        *value* onto ``state["refine_stage"]`` (``dag`` /
+        *value* onto ``state["refine_stage"]`` (``flow`` /
         ``operationalization`` / ``environment``), so a refining
         iteration lands a direct value here. For robustness this also accepts the
-        router's short refine keys (``"dag"`` / ``"operationalize"`` /
+        router's short refine keys (``"flow"`` / ``"operationalize"`` /
         ``"environment"``) in case either shape reaches the state, so
         ``refined_stage`` is populated whenever the evaluator refined (Req. 15.1,
         15.2). An absent or unrecognised value leaves ``refined_stage`` null
@@ -1049,7 +1040,7 @@ class AgentRunService:
         except ValueError:
             pass
         short_keys = {
-            "dag": AgentStage.DAG,
+            "flow": AgentStage.FLOW,
             "operationalize": AgentStage.OPERATIONALIZATION,
             "operationalization": AgentStage.OPERATIONALIZATION,
             "environment": AgentStage.ENVIRONMENT,
@@ -1097,9 +1088,9 @@ class AgentRunService:
         ``origin = gerado_ia`` (Req. 11.5). For each artifact present in the final
         state:
 
-        * ``artifacts.dag`` is reconstructed into a ``ProducedDag`` and persisted
-          via :func:`dag_agent.persist_dag_stage_output` (which also reconciles the
-          AI-origin ``Dag`` row and links ``dag_id``);
+        * ``artifacts.flow`` is reconstructed into a ``ProducedFlow`` and persisted
+          via :func:`flow_agent.persist_flow_stage_output` (which also reconciles the
+          AI-origin ``AttackFlowRow`` row and links ``flow_id``);
         * ``artifacts.operationalization`` is reconstructed into a
           ``ProducedOperationalization`` and persisted via
           :func:`op_agent.persist_stage_output` (which persists the derived
@@ -1121,22 +1112,22 @@ class AgentRunService:
         commit/rollback boundary.
         """
         from app.models.enums import AgentStage
-        from app.services.ai.agents import dag_agent, env_agent, op_agent
+        from app.services.ai.agents import flow_agent, env_agent, op_agent
 
         traces = final_state.get("traces")
 
-        dag_payload = artifacts.get("dag")
-        if dag_payload:
-            from app.services.dag.generator import ProducedDag
+        flow_payload = artifacts.get("flow")
+        if flow_payload:
+            from app.services.flow.generator import ProducedFlow
 
-            produced_dag = ProducedDag.model_validate(dag_payload)
-            dag_agent.persist_dag_stage_output(
+            produced_flow = ProducedFlow.model_validate(flow_payload)
+            flow_agent.persist_flow_stage_output(
                 self._session,
                 iteration_id=iteration_id,
                 campaign_id=run.campaign_id,
-                produced=produced_dag,
+                produced=produced_flow,
                 trace=self._trace_for(
-                    traces, AgentStage.DAG.value, iteration_index
+                    traces, AgentStage.FLOW.value, iteration_index
                 ),
             )
 
@@ -1176,7 +1167,7 @@ class AgentRunService:
 
         The append-only ``traces`` channel accumulates one
         :class:`~app.services.ai.state.AgentTrace` dict per AI node per pass, each
-        keyed by its English ``stage`` value (``dag`` /
+        keyed by its English ``stage`` value (``flow`` /
         ``operationalization`` / ``environment``) and the 0-based
         ``iteration`` the node ran in. This returns the trace matching the
         persisting stage output's stage and iteration, or ``None`` when no such
@@ -1226,151 +1217,3 @@ class AgentRunService:
             dict(evaluation),
             report_id=report_id,
         )
-
-
-# ---------------------------------------------------------------------------
-# Startup seam fallback (Req. 12.2, 12.3)
-# ---------------------------------------------------------------------------
-#
-# A deployment may ship only a subset of the AI stage agents; every non-deployed
-# stage runs on its existing CURATION implementation behind the same seam without
-# error (Req. 12.2). And when a DEPLOYED stage agent fails to INITIALIZE at
-# startup, the system must fall back to that stage's curation implementation
-# behind the SAME seam and record a diagnostic naming the affected stage and the
-# fallback (Req. 12.3).
-#
-# ``resolve_stage_agent`` is that fallback-aware factory: it tries to initialize
-# the AI implementation for a stage and, on ANY initialization failure, returns
-# the stage's curation implementation instead — both satisfy the same
-# ``@runtime_checkable`` seam Protocol (``DagGenerator`` /
-# ``OperationalizerByOrigin`` / ``EnvironmentProvisioner``), so the caller is
-# origin-agnostic. All imports are lazy so importing this module opens no socket
-# and requires neither LangChain nor the ORM at import time (Req. 1.7).
-
-# The three stages that expose a per-origin seam an AI agent can plug into.
-_STAGE_DAG = "dag"
-_STAGE_OPERATIONALIZE = "operationalize"
-_STAGE_ENVIRONMENT = "environment"
-
-_SEAM_STAGES = (_STAGE_DAG, _STAGE_OPERATIONALIZE, _STAGE_ENVIRONMENT)
-
-
-def _init_ai_dag_generator() -> Any:
-    """Initialize the Stage 3 AI DAG generator (lazy)."""
-    from app.services.ai.agents.dag_agent import AiDagGenerator
-
-    return AiDagGenerator()
-
-
-def _init_ai_operationalizer() -> Any:
-    """Initialize the Stage 4 AI operationalizer (lazy)."""
-    from app.services.ai.agents.op_agent import AiOperationalizer
-
-    return AiOperationalizer()
-
-
-def _init_ai_environment_provisioner() -> Any:
-    """Initialize the Stage 5 AI environment provisioner (lazy)."""
-    from app.services.ai.agents.env_agent import AiEnvironmentProvisioner
-
-    return AiEnvironmentProvisioner()
-
-
-def _init_curation_dag_generator() -> Any:
-    """Initialize the Stage 3 curation DAG generator (lazy, fallback)."""
-    from app.services.dag.generator import CurationDagGenerator
-
-    return CurationDagGenerator()
-
-
-def _init_curation_operationalizer() -> Any:
-    """Initialize the Stage 4 curation operationalizer (lazy, fallback)."""
-    from app.services.environment.operationalizer import CurationOperationalizer
-
-    return CurationOperationalizer()
-
-
-def _init_curation_environment_provisioner() -> Any:
-    """Initialize the Stage 5 curation environment provisioner (lazy, fallback)."""
-    from app.services.environment.provisioner import CurationEnvironmentProvisioner
-
-    return CurationEnvironmentProvisioner()
-
-
-# Per-stage initializers: (AI initializer, curation-fallback initializer). Both
-# sides of each pair satisfy the SAME seam Protocol, so swapping one for the other
-# is transparent to the caller (Req. 12.2, 12.3).
-_STAGE_INITIALIZERS: dict[str, tuple[Any, Any]] = {
-    _STAGE_DAG: (_init_ai_dag_generator, _init_curation_dag_generator),
-    _STAGE_OPERATIONALIZE: (
-        _init_ai_operationalizer,
-        _init_curation_operationalizer,
-    ),
-    _STAGE_ENVIRONMENT: (
-        _init_ai_environment_provisioner,
-        _init_curation_environment_provisioner,
-    ),
-}
-
-
-def resolve_stage_agent(stage: str, *, prefer_ai: bool = True) -> Any:
-    """Resolve a stage's seam implementation, falling back to curation (Req. 12.3).
-
-    Resolves the implementation that plugs into a stage's existing per-origin seam
-    (``DagGenerator`` for ``"dag"``, ``OperationalizerByOrigin`` for
-    ``"operationalize"``, ``EnvironmentProvisioner`` for ``"environment"``). When
-    ``prefer_ai`` is true the AI implementation is tried first; if initializing it
-    raises for ANY reason (a missing dependency, a configuration error, an import
-    failure — a stage agent failing to initialize at startup), the stage's
-    CURATION implementation is initialized and returned instead, behind the SAME
-    seam, and a diagnostic is logged naming the AFFECTED STAGE and the FALLBACK
-    (Req. 12.3). Both implementations satisfy the same ``@runtime_checkable``
-    Protocol, so the caller consumes either one identically (Req. 12.2).
-
-    When ``prefer_ai`` is false the curation implementation is returned directly —
-    the case of a stage whose AI agent is simply not deployed (Req. 12.2), which
-    runs on curation behind the same seam without raising.
-
-    All collaborators are imported lazily so calling this never opens a socket and
-    requires neither LangChain nor the ORM unless a stage is actually resolved
-    (Req. 1.7).
-
-    Args:
-        stage: One of ``"dag"``, ``"operationalize"`` or ``"environment"``.
-        prefer_ai: When true (default) try the AI implementation first and fall
-            back to curation on an initialization failure; when false return the
-            curation implementation directly.
-
-    Returns:
-        A seam implementation for ``stage`` — the AI one when it initializes and
-        ``prefer_ai`` is set, otherwise the curation one.
-
-    Raises:
-        ValueError: when ``stage`` is not one of the three seam stages.
-    """
-    try:
-        init_ai, init_curation = _STAGE_INITIALIZERS[stage]
-    except KeyError:
-        raise ValueError(
-            f"unknown stage {stage!r}; expected one of {_SEAM_STAGES}."
-        ) from None
-
-    if not prefer_ai:
-        # The AI agent for this stage is not deployed: run on curation behind the
-        # same seam without raising (Req. 12.2).
-        return init_curation()
-
-    try:
-        return init_ai()
-    except Exception as exc:  # noqa: BLE001 - any init failure -> curation fallback
-        # A deployed stage agent failed to initialize at startup: fall back to the
-        # curation implementation behind the same seam and record a diagnostic
-        # naming the affected stage and the fallback (Req. 12.3).
-        logger.error(
-            "Stage '%s' agent failed to initialize at startup (%s: %s); falling "
-            "back to its curation implementation behind the same seam.",
-            stage,
-            type(exc).__name__,
-            exc,
-        )
-        return init_curation()

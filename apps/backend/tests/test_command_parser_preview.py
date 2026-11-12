@@ -29,11 +29,11 @@ _Requirements: 6.5, 6.2_
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
+import copy
 
 import pytest
 
+from tests._shadowray_abilities import SHADOWRAY_ABILITIES
 from app.services.containment.command_parser import (
     CommandDestinations,
     Destination,
@@ -67,12 +67,8 @@ def _values(parsed: CommandDestinations) -> set[str]:
 
 
 def _load_shadowray_abilities() -> list[dict]:
-    """Load the real curated ShadowRay abilities from sticks/data (read-only)."""
-    here = Path(__file__).resolve()
-    # tests/ -> backend/ -> apps/ -> repo root -> packages/cli/data/api/...
-    repo_root = here.parents[3]
-    path = repo_root / "packages" / "cli" / "data" / "api" / "shadowray_dag-ability.json"
-    return json.loads(path.read_text(encoding="utf-8"))
+    """Load the ShadowRay abilities snapshot (an in-memory Python constant)."""
+    return copy.deepcopy(SHADOWRAY_ABILITIES)
 
 
 # ===========================================================================

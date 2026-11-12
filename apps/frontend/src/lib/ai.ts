@@ -143,41 +143,6 @@ export interface AiRunDetail {
   iterations: AiIteration[]
 }
 
-/**
- * One stage's AI-output-vs-human-curation comparison (backend
- * `GroundTruthStageComparison`). The symmetric set diff of the identifiers the
- * AI Run produced vs. the ones the human curation carries for this stage.
- */
-export interface GroundTruthStageComparison {
-  /** English `AgentStage` value this comparison belongs to. */
-  stage: string
-  /** The identifiers the AI Run produced for this stage (sorted). */
-  ai_items: string[]
-  /** The identifiers the human curation carries for this stage (sorted). */
-  curated_items: string[]
-  /** Identifiers present in both the AI output and the curation. */
-  matched: string[]
-  /** Curated identifiers the AI output did not produce. */
-  missing: string[]
-  /** AI-produced identifiers absent from the curation. */
-  extra: string[]
-}
-
-/**
- * `GET /api/campaigns/{campaign}/ai/runs/{id}/ground-truth` payload (backend
- * `GroundTruthComparisonResponse`). The on-demand Ground_Truth_Comparison of a
- * completed Run's AI output against the human curation of a Curated_Campaign
- * (Req. 5.3). Curation is read only as the comparison baseline (Req. 5.4).
- */
-export interface GroundTruthComparison {
-  /** The Curated_Campaign slug compared (server-side curated). */
-  campaign_id: string
-  /** The completed Run compared. */
-  run_id: number
-  /** Per-stage AI-output-vs-curation comparisons. */
-  stages: GroundTruthStageComparison[]
-}
-
 /** Request body for the start endpoint (backend `AiRunStartRequest`). */
 export interface StartAiRunRequest {
   /** Optional loop guard; omitted → the configured default (3), clamped to 1..100. */
@@ -210,23 +175,5 @@ export function startAiRun(campaign: string, maxIterations?: number): Promise<Ai
 export function getAiRun(campaign: string, id: number | string): Promise<AiRunDetail> {
   return api.get<AiRunDetail>(
     `/campaigns/${encodeURIComponent(campaign)}/ai/runs/${encodeURIComponent(String(id))}`,
-  )
-}
-
-/**
- * Compute the on-demand Ground_Truth_Comparison of a completed Run against the
- * human curation of a Curated_Campaign (Req. 5.1–5.4). Curated-ness is enforced
- * server-side: the backend returns a "not a curated campaign" error for any
- * non-curated campaign, so this is only called for the eight Curated_Campaigns.
- * Curation is read only as the comparison baseline — it never drives a Run.
- */
-export function compareAiRunWithCuration(
-  campaign: string,
-  id: number | string,
-): Promise<GroundTruthComparison> {
-  return api.get<GroundTruthComparison>(
-    `/campaigns/${encodeURIComponent(campaign)}/ai/runs/${encodeURIComponent(
-      String(id),
-    )}/ground-truth`,
   )
 }

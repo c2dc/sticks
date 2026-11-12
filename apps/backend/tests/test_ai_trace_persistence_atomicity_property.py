@@ -48,7 +48,7 @@ from app.models.domain import (
 )
 from app.models.enums import AgentStage
 from app.services.ai.run_service import AgentRunService, PersistenceError
-from app.services.dag.dag_service import DagNodeView, DagView
+from app.services.flow.flow_view import FlowNodeView, FlowView
 
 _CAMPAIGN_ID = "campaign-under-test"
 
@@ -108,13 +108,13 @@ def _produced_op() -> Any:
     """A real ProducedOperationalization built by the deterministic agent."""
     from app.services.ai.agents.op_agent import AiOperationalizer
 
-    dag = DagView(
+    flow = FlowView(
         campaign_id=_CAMPAIGN_ID,
         name=_CAMPAIGN_ID,
         curated=True,
         can_advance=True,
         nodes=[
-            DagNodeView(
+            FlowNodeView(
                 node_id="n1",
                 technique_id="T1059",
                 technique_name="Command Interpreter",
@@ -123,7 +123,7 @@ def _produced_op() -> Any:
         ],
     )
     agent = AiOperationalizer(atomic_lookup=lambda _tid: [])
-    return agent.operationalize(_CAMPAIGN_ID, dag)
+    return agent.operationalize(_CAMPAIGN_ID, flow)
 
 
 def _op_trace(iteration: int) -> dict:
@@ -131,7 +131,7 @@ def _op_trace(iteration: int) -> dict:
     return {
         "stage": AgentStage.OPERATIONALIZATION.value,
         "iteration": iteration,
-        "agent_input": {"dag": {"nodes": ["n1"]}, "prior_artifacts": None},
+        "agent_input": {"flow": {"nodes": ["n1"]}, "prior_artifacts": None},
         "processing": {
             "llm_prompt": [{"role": "user", "content": "choose commands"}],
             "llm_response": "selected",

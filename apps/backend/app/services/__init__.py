@@ -1,53 +1,27 @@
-"""Application services (CaseService, StageService, ...).
+"""Application services.
 
-``CaseService`` (task 3.1) reads and parses the 8 curated cases; more services
-are populated in later tasks.
+The curated case models (``AbilityData``, ``CaseData``, ...) live in
+:mod:`app.services.curated_case_models`; they are rebuilt from the database by
+:mod:`app.services.curated_case_reader`.
 """
 
 from app.services.audit import AuditLogger, AuditPersistenceError
-from app.services.campaign_service import (
-    CURATED_CASES,
+from app.services.curated_case_models import (
     AbilityData,
     AdversaryData,
     CaseData,
-    CaseService,
-    DagData,
-    DagNode,
     Executor,
-)
-from app.services.stage import (
-    IndicatorElement,
-    InfrastructureElement,
-    MalwareElement,
-    RelationshipElement,
-    Stage1Input,
-    Stage1Output,
-    Stage1Result,
-    Stage1Step,
-    StageService,
-    TechniqueElement,
+    FlowData,
+    FlowNode,
 )
 
 __all__ = [
-    "CURATED_CASES",
     "AbilityData",
     "AdversaryData",
     "AuditLogger",
     "AuditPersistenceError",
     "CaseData",
-    "CaseService",
-    "DagData",
-    "DagNode",
+    "FlowData",
+    "FlowNode",
     "Executor",
-    # Stage 1 (task 8.1)
-    "StageService",
-    "Stage1Result",
-    "Stage1Input",
-    "Stage1Output",
-    "Stage1Step",
-    "TechniqueElement",
-    "RelationshipElement",
-    "IndicatorElement",
-    "InfrastructureElement",
-    "MalwareElement",
 ]

@@ -11,7 +11,7 @@ task asks for (Req. 2.2, 2.4, 2.7, 12.1):
    injected Atomic Red Team pool and proposes exactly them. The resulting
    :class:`ProducedOperationalization` carries ``origin=gerado_ia``
    (``TranslationSource.AI_GENERATED``) on both the top-level artifact and the
-   embedded :class:`EnvironmentParameters`, the Abilities are populated in DAG
+   embedded :class:`EnvironmentParameters`, the Abilities are populated in attack flow
    order, and the derived parameters resolve the hosts/services from the
    LLM-chosen commands (Req. 2.2, 2.4).
 
@@ -36,7 +36,7 @@ import json
 from typing import Any
 
 from app.models.enums import TranslationSource
-from app.services.dag.dag_service import DagEdgeView, DagNodeView, DagView
+from app.services.flow.flow_view import FlowEdgeView, FlowNodeView, FlowView
 from app.services.environment.operationalization import (
     EnvironmentParameters,
     EnvironmentPlatform,
@@ -131,28 +131,28 @@ def _pool_for(technique_id: str) -> list[dict]:
     return pools.get((technique_id or "").strip(), [])
 
 
-def _dag() -> DagView:
-    """A two-node curated DAG carrying the two techniques the pool knows."""
-    return DagView(
+def _flow() -> FlowView:
+    """A two-node curated attack flow carrying the two techniques the pool knows."""
+    return FlowView(
         campaign_id=_SLUG,
         name="AI op faked",
         curated=True,
         can_advance=True,
         nodes=[
-            DagNodeView(
+            FlowNodeView(
                 node_id="n0",
                 technique_id="T1190",
                 technique_name="Exploit Public-Facing Application",
                 tactic="initial-access",
             ),
-            DagNodeView(
+            FlowNodeView(
                 node_id="n1",
                 technique_id="T1059",
                 technique_name="Command and Scripting Interpreter",
                 tactic="execution",
             ),
         ],
-        edges=[DagEdgeView(source="n0", target="n1")],
+        edges=[FlowEdgeView(source="n0", target="n1")],
     )
 
 
@@ -174,7 +174,7 @@ def test_fixed_json_llm_produces_gerado_ia_artifact() -> None:
     chat = _FixedJsonChat([chosen_t1190, chosen_t1059])
 
     agent = AiOperationalizer(chat=chat, atomic_lookup=_pool_for)
-    produced = agent.operationalize(_SLUG, _dag())
+    produced = agent.operationalize(_SLUG, _flow())
 
     # Origin stamping on both artifacts (Req. 2.4).
     assert agent.origin() is TranslationSource.AI_GENERATED
@@ -186,7 +186,7 @@ def test_fixed_json_llm_produces_gerado_ia_artifact() -> None:
     # The LLM was actually consulted (once per operationalizable node).
     assert len(chat.prompts) == 2
 
-    # Abilities populated in DAG order, source_translation = gerado_ia.
+    # Abilities populated in attack flow order, source_translation = gerado_ia.
     assert produced.abilities is not None
     assert produced.abilities.translation_source is TranslationSource.AI_GENERATED
     assert produced.abilities.has_abilities is True
@@ -214,7 +214,7 @@ def test_parameters_derived_from_llm_chosen_commands() -> None:
     chat = _FixedJsonChat([chosen_t1190, chosen_t1059])
 
     agent = AiOperationalizer(chat=chat, atomic_lookup=_pool_for)
-    params = agent.operationalize(_SLUG, _dag()).parameters
+    params = agent.operationalize(_SLUG, _flow()).parameters
 
     assert isinstance(params, EnvironmentParameters)
     assert params.campaign_id == _SLUG
@@ -242,7 +242,7 @@ def test_llm_reply_outside_pool_falls_back_to_deterministic() -> None:
     chat = _FixedJsonChat(["rm -rf / # not in any pool", "echo hallucinated"])
 
     agent = AiOperationalizer(chat=chat, atomic_lookup=_pool_for)
-    produced = agent.operationalize(_SLUG, _dag())
+    produced = agent.operationalize(_SLUG, _flow())
 
     assert produced.origin is TranslationSource.AI_GENERATED
     assert produced.abilities is not None
@@ -266,7 +266,7 @@ class _CurationLikeOperationalizer:
 
     Emits a :class:`ProducedOperationalization` built from the *same* fake pool
     as the AI agent, but stamped ``curadoria_humana`` — modelling exactly what
-    the real :class:`CurationOperationalizer` returns (the same fields/types),
+    a curated-origin operationalization returns (the same fields/types),
     so the test can assert the downstream path consumes both identically without
     seeding curated case files on disk.
     """
@@ -274,11 +274,11 @@ class _CurationLikeOperationalizer:
     def origin(self) -> TranslationSource:
         return TranslationSource.HUMAN_CURATION
 
-    def operationalize(self, campaign: str, dag: DagView) -> ProducedOperationalization:
+    def operationalize(self, campaign: str, flow: FlowView) -> ProducedOperationalization:
         from app.services.environment.operationalizer import _infer_services
         from app.services.containment import container_for_ip, is_internal_ip, parse_command
         from app.services.environment.operationalization import TargetHost
-        from app.services.stage.stage_service import (
+        from app.services.emulation.views import (
             Stage2AbilityView,
             Stage2AdversaryView,
             Stage2ExecutorView,
@@ -292,7 +292,7 @@ class _CurationLikeOperationalizer:
         services = []
         seen_s: set[tuple[str, Any]] = set()
 
-        for node in dag.nodes:
+        for node in flow.nodes:
             pool = _pool_for(node.technique_id or "")
             if not pool:
                 continue
@@ -393,9 +393,9 @@ def test_ai_and_curation_artifacts_are_structurally_equivalent() -> None:
     chat = _FixedJsonChat([chosen_t1190, chosen_t1059])
 
     ai_produced = AiOperationalizer(chat=chat, atomic_lookup=_pool_for).operationalize(
-        _SLUG, _dag()
+        _SLUG, _flow()
     )
-    curation_produced = _CurationLikeOperationalizer().operationalize(_SLUG, _dag())
+    curation_produced = _CurationLikeOperationalizer().operationalize(_SLUG, _flow())
 
     # Same concrete type and same set of model fields (no extra/missing fields).
     assert type(ai_produced) is type(curation_produced) is ProducedOperationalization
@@ -417,7 +417,7 @@ def test_downstream_consumes_ai_and_curation_identically() -> None:
     """The origin-agnostic consumer yields the SAME result for both origins.
 
     Feeding the AI-origin and curation-origin artifacts (built from the same pool
-    + DAG) through the same downstream consumer produces identical,
+    + attack flow) through the same downstream consumer produces identical,
     origin-independent output — the downstream path cannot tell them apart beyond
     the explicit ``origin`` stamp (Req. 2.7, 12.1).
     """
@@ -426,8 +426,93 @@ def test_downstream_consumes_ai_and_curation_identically() -> None:
     chat = _FixedJsonChat([chosen_t1190, chosen_t1059])
 
     ai_produced = AiOperationalizer(chat=chat, atomic_lookup=_pool_for).operationalize(
-        _SLUG, _dag()
+        _SLUG, _flow()
     )
-    curation_produced = _CurationLikeOperationalizer().operationalize(_SLUG, _dag())
+    curation_produced = _CurationLikeOperationalizer().operationalize(_SLUG, _flow())
 
     assert _consume(ai_produced) == _consume(curation_produced)
+
+
+# ---------------------------------------------------------------------------
+# 5. ``_techniques_from_state`` reads ``stix_campaign_techniques`` (Req. 5.6, 8.1)
+# ---------------------------------------------------------------------------
+
+
+def _techniques_session(tmp_path: Any):
+    """A SQLite session with one STIX campaign and two persisted techniques."""
+    from sqlalchemy.orm import Session
+
+    from app.core.config import Settings
+    from app.db.base import Base, import_models
+    from app.db.session import create_db_engine
+    from app.models.domain import StixCampaign, StixCampaignTechnique, StixPackage
+
+    engine = create_db_engine(
+        Settings(database_url=f"sqlite:///{(tmp_path / 'op.db').as_posix()}")
+    )
+    import_models()
+    Base.metadata.create_all(bind=engine)
+    session = Session(bind=engine, expire_on_commit=False)
+
+    package = StixPackage(version="18.0", name="Enterprise ATT&CK v18.0")
+    session.add(package)
+    session.flush()
+    campaign = StixCampaign(
+        package_id=package.id,
+        stix_id="campaign--00000000-0000-0000-0000-000000000001",
+        name="Op campaign",
+        curated=True,
+        curated_slug=_SLUG,
+    )
+    session.add(campaign)
+    session.flush()
+    session.add_all(
+        [
+            StixCampaignTechnique(
+                campaign_id=campaign.id,
+                technique_id="T1190",
+                technique_name="Exploit Public-Facing Application",
+                tactic="initial-access",
+            ),
+            StixCampaignTechnique(
+                campaign_id=campaign.id,
+                technique_id="T1059",
+                technique_name="Command and Scripting Interpreter",
+                tactic="execution",
+            ),
+        ]
+    )
+    session.commit()
+    return session
+
+
+def test_techniques_from_state_reads_campaign_techniques(tmp_path: Any) -> None:
+    from app.services.ai.agents.op_agent import _techniques_from_state
+
+    session = _techniques_session(tmp_path)
+    try:
+        view = _techniques_from_state({"campaign_id": _SLUG}, session)
+    finally:
+        session.close()
+
+    assert [n.technique_id for n in view.nodes] == ["T1190", "T1059"]
+    assert view.edges == []
+    assert view.nodes[0].tactic == "initial-access"
+
+
+def test_techniques_from_state_without_session_is_empty() -> None:
+    from app.services.ai.agents.op_agent import _techniques_from_state
+
+    view = _techniques_from_state({"campaign_id": _SLUG}, None)
+
+    assert view.nodes == []
+    assert view.unavailable is True
+
+
+def test_node_without_session_suppresses_operationalization() -> None:
+    from app.services.ai.agents import op_agent
+
+    delta = op_agent.node({"campaign_id": _SLUG, "artifacts": {}})
+
+    assert delta["artifacts"]["operationalization"]["abilities"] is None
+    assert delta["history"][0]["has_abilities"] is False

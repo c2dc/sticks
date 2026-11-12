@@ -382,8 +382,8 @@ class AiEnvironmentProvisioner:
         The agent's **core value** — the campaign's target scenario it designs
         WITHIN the fixed isolable structure (design §E): the **attacker node**
         (Kali or another, per campaign) and the **targets** (which systems, and
-        the **vulnerabilities to install** on each — the ``target_vuln_host_*``
-        role the curated DAGs demonstrate).
+        the **vulnerabilities to install** on each — the host ``vulnerabilities``
+        of the Stage 4 parameters).
 
         The attacker node is the proposed host flagged as the attacker
         (``host_type`` naming ``attacker``/``kali``/``source``); when none is
@@ -692,7 +692,7 @@ class AiEnvironmentProvisioner:
     def prepare(self, campaign: str) -> ProvisioningResult:
         """Verify the environment of the *slug* ``campaign`` (Stage 4 compat.).
 
-        Kept for the Stage 4 auto-completion (``EnvironmentStageService``) and the
+        Kept for the
         existing topology endpoints, matching the seam signature. It reuses the
         curation pipeline's **read-only** verification unchanged — it creates/starts
         nothing, only verifies the isolation of the existing environment and
@@ -860,7 +860,7 @@ def node(state: "AgentState") -> dict:
     ``ready is False`` and Stage 5 does not complete (Req. 8.3, 9.3).
 
     The node returns **only** the delta it owns — the merged ``artifacts`` (with
-    ``environment`` added, preserving the ``dag``/``operationalization`` the
+    ``environment`` added, preserving the ``flow``/``operationalization`` the
     earlier nodes wrote) and an append-only ``history`` entry. It performs **no**
     persistence and holds **no** ``Session``: persisting the
     ``agent_stage_outputs`` row (``origin=gerado_ia``) is kept factored into
@@ -884,7 +884,7 @@ def node(state: "AgentState") -> dict:
     # the provisioning call site; we stamp the current iteration and return it
     # under the append-only ``traces`` channel (design §A). The
     # ``Annotated[list[dict], add]`` reducer merges it with the
-    # DAG/operationalization traces. The sink is passed through the constructor
+    # Attack flow/operationalization traces. The sink is passed through the constructor
     # (not ``provision``) so the seam signature is unchanged.
     sink: list[dict] = []
     provisioner = AiEnvironmentProvisioner(trace_sink=sink)
@@ -932,8 +932,8 @@ def build_stage_output(
     ``payload`` carrying the serialized ``ProvisionedEnvironment`` the node wrote
     into ``artifacts.environment``.
 
-    Only ``iteration_id`` is required (the FK to the owning iteration); ``dag_id``
-    stays ``None`` (the environment stage links no ``Dag``), and ``params_id`` is
+    Only ``iteration_id`` is required (the FK to the owning iteration); ``flow_id``
+    stays ``None`` (the environment stage links no ``AttackFlowRow``), and ``params_id`` is
     accepted optionally so the caller can link the ``EnvironmentParameters`` row
     when it has persisted one.
 
@@ -968,7 +968,7 @@ def build_stage_output(
         stage=AgentStage.ENVIRONMENT,
         origin=TranslationSource.AI_GENERATED,
         payload=payload,
-        dag_id=None,
+        flow_id=None,
         params_id=params_id,
     )
 

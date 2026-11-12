@@ -12,7 +12,7 @@ with ``deprovision`` at the end of Stage 6 (task 3.3). On ``provision`` it:
 2. **Confirma a saúde** of the target containers (read-only) via the INJECTED
    ``ContainerStateInspector`` — an unhealthy/not-running container fails the
    ``aguardar_saude`` step (Req. 5.1).
-3. **Load the ordered Abilities + Adversary into Caldera** in DAG order
+3. **Load the ordered Abilities + Adversary into Caldera** in attack flow order
    (``atomic_ordering``), reusing ``CalderaClient.load_abilities``/``load_adversary``
    through an INJECTED client, setting ``loaded_abilities`` accordingly
    (Req. 4.1). Fail-closed on any Caldera / case error (Req. 4.4).
@@ -23,7 +23,7 @@ with ``deprovision`` at the end of Stage 6 (task 3.3). On ``provision`` it:
 Everything here is pure/in-memory: a fake ``ComposeExecutor`` (no subprocess, no
 daemon), a fake ``ContainerStateInspector`` (no daemon), a fake Caldera loader
 (no network, no daemon) and a fake container inspector (no Docker daemon), plus a
-temp curated-case ``data_dir`` injected into the ``CaseService``. No real network,
+temp SQLite database holding the curated-case rows (``session_factory``). No real network,
 no AI, no public-network access.
 
 _Requirements: 3.5, 4.4, 5.1, 5.3, 5.5, 7.1, 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 9.7,
@@ -42,8 +42,8 @@ from typing import Any, Callable, Mapping
 
 import pytest
 
+from tests._curated_db import CaseDb, db_put
 from app.models.enums import TranslationSource
-from app.services.campaign_service import CaseService
 from app.services.containment.isolation import (
     ContainerInspector,
     ContainerNetworkInfo,
@@ -239,7 +239,7 @@ def _healthy_state_inspector(containers: list[str]) -> FakeStateInspector:
 # Curated-case temp fixtures (read-only w.r.t. real data)
 # ---------------------------------------------------------------------------
 
-_SLUG = "shadowray"  # a registered curated slug (CURATED_CASES)
+_SLUG = "shadowray"  # a curated slug (campaigns.curated row)
 _C1 = "nginx"
 _C2 = "db"
 _NET = "caldera-kali-network"
@@ -254,12 +254,7 @@ def _resolver(containers: list[str]) -> list[str]:
     return [_HOST_CONTAINERS.get(c, c) for c in containers]
 
 
-def _write_json(path: Path, payload: object) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload), encoding="utf-8")
-
-
-def _seed_case(data_dir: Path, slug: str, *, with_adversary: bool = True,
+def _seed_case(data_dir: CaseDb, slug: str, *, with_adversary: bool = True,
                with_abilities: bool = True) -> None:
     """Seed a minimal curated case with a 2-ability ordered adversary."""
     abilities = (
@@ -284,44 +279,34 @@ def _seed_case(data_dir: Path, slug: str, *, with_adversary: bool = True,
         if with_abilities
         else []
     )
-    _write_json(data_dir / "api" / f"{slug}_dag-ability.json", abilities)
+    db_put(data_dir, "ability", slug, abilities)
 
     if with_adversary:
-        _write_json(
-            data_dir / "api" / f"{slug}_dag-adversary.json",
-            {
+        db_put(data_dir, "adversary", slug, {
                 "id": f"{slug}-adv",
                 "name": "Seed Adversary",
                 "description": "seed",
                 # Reversed order on purpose: provision must load in THIS order.
                 "atomic_ordering": [f"{slug}-ab-2", f"{slug}-ab-1"],
-            },
-        )
-    else:
-        # Remove any adversary so the case has none.
-        (data_dir / "api" / f"{slug}_dag-adversary.json").unlink(missing_ok=True)
+            })
+    # Without an adversary no ``adversaries`` row is persisted.
 
-    _write_json(
-        data_dir / "dag" / f"{slug}_dag.json",
-        {
+    db_put(data_dir, "flow", slug, {
             "campaign_name": "Seed",
             "structural_nodes": [
-                {"node_id": "n0", "node_index": 0, "technique_id": "T1190"}
+                {"node_id": "n0", "technique_id": "T1190"}
             ],
             "metadata": {"total_techniques": 1},
-        },
-    )
+        })
 
 
 @pytest.fixture()
-def data_dir() -> Iterator[Path]:
-    tmp = Path(tempfile.mkdtemp(prefix="pipeline_ui_stage5_"))
-    (tmp / "api").mkdir(parents=True, exist_ok=True)
-    (tmp / "dag").mkdir(parents=True, exist_ok=True)
+def data_dir() -> Iterator[CaseDb]:
+    tmp = CaseDb()
     try:
         yield tmp
     finally:
-        shutil.rmtree(tmp, ignore_errors=True)
+        tmp.dispose()
 
 
 def _params(containers: list[str] | None = None) -> EnvironmentParameters:
@@ -349,7 +334,7 @@ def test_curation_satisfies_the_protocol() -> None:
     assert prov.origin() is TranslationSource.HUMAN_CURATION
 
 
-def test_provision_loads_abilities_in_dag_order_and_concludes(data_dir: Path) -> None:
+def test_provision_loads_abilities_in_flow_order_and_concludes(data_dir: CaseDb) -> None:
     """Isolated + loaded -> environment ready, abilities in atomic_ordering order.
     _Requirements: 9.5, 9.6, 9.8, 9.9_"""
     _seed_case(data_dir, _SLUG)
@@ -357,7 +342,7 @@ def test_provision_loads_abilities_in_dag_order_and_concludes(data_dir: Path) ->
     caldera = FakeCaldera()
     prov = CurationEnvironmentProvisioner(
         inspector=_isolated_inspector(containers),
-        case_service=CaseService(data_dir=data_dir),
+        session_factory=data_dir.factory,
         caldera=caldera,
         compose_executor=FakeComposeExecutor(),
         state_inspector=_healthy_state_inspector(containers),
@@ -382,7 +367,7 @@ def test_provision_loads_abilities_in_dag_order_and_concludes(data_dir: Path) ->
     assert caldera.loaded_adversary["adversary_id"] == f"{_SLUG}-adv"
 
 
-def test_provision_not_isolated_does_not_conclude(data_dir: Path) -> None:
+def test_provision_not_isolated_does_not_conclude(data_dir: CaseDb) -> None:
     """A container on an external bridge keeps the stage non-concluded (Req. 9.7).
     _Requirements: 9.6, 9.7, 14.2, 14.4_"""
     _seed_case(data_dir, _SLUG)
@@ -395,7 +380,7 @@ def test_provision_not_isolated_does_not_conclude(data_dir: Path) -> None:
     )
     prov = CurationEnvironmentProvisioner(
         inspector=insp,
-        case_service=CaseService(data_dir=data_dir),
+        session_factory=data_dir.factory,
         caldera=FakeCaldera(),
         compose_executor=FakeComposeExecutor(),
         state_inspector=_healthy_state_inspector(containers),
@@ -411,7 +396,7 @@ def test_provision_not_isolated_does_not_conclude(data_dir: Path) -> None:
     assert environment.loaded_abilities is True
 
 
-def test_provision_empty_containers_is_fail_closed(data_dir: Path) -> None:
+def test_provision_empty_containers_is_fail_closed(data_dir: CaseDb) -> None:
     """No resolvable target containers -> fail-closed (not approved).
     _Requirements: 9.7, 14.4_"""
     _seed_case(data_dir, _SLUG)
@@ -423,7 +408,7 @@ def test_provision_empty_containers_is_fail_closed(data_dir: Path) -> None:
     lab_containers = container_names()
     prov = CurationEnvironmentProvisioner(
         inspector=FakeInspector(),  # knows nothing -> all unknown -> not isolated
-        case_service=CaseService(data_dir=data_dir),
+        session_factory=data_dir.factory,
         caldera=FakeCaldera(),
         compose_executor=FakeComposeExecutor(),
         # The lab fallback containers must pass the health gate so the pipeline
@@ -437,14 +422,14 @@ def test_provision_empty_containers_is_fail_closed(data_dir: Path) -> None:
     assert environment.isolation.approved is False
 
 
-def test_provision_daemon_unavailable_is_fail_closed(data_dir: Path) -> None:
+def test_provision_daemon_unavailable_is_fail_closed(data_dir: CaseDb) -> None:
     """An unavailable Docker daemon (RuntimeError) reproves fail-closed.
     _Requirements: 9.7, 14.4_"""
     _seed_case(data_dir, _SLUG)
     containers = [_C1, _C2]
     prov = CurationEnvironmentProvisioner(
         inspector=RaisingInspector(),
-        case_service=CaseService(data_dir=data_dir),
+        session_factory=data_dir.factory,
         caldera=FakeCaldera(),
         compose_executor=FakeComposeExecutor(),
         state_inspector=_healthy_state_inspector(containers),
@@ -460,14 +445,14 @@ def test_provision_daemon_unavailable_is_fail_closed(data_dir: Path) -> None:
         assert any("indispon" in r.lower() for r in v.reasons)
 
 
-def test_provision_caldera_failure_marks_abilities_not_loaded(data_dir: Path) -> None:
+def test_provision_caldera_failure_marks_abilities_not_loaded(data_dir: CaseDb) -> None:
     """A Caldera failure keeps ``loaded_abilities`` False (fail-closed load).
     _Requirements: 9.5, 9.9_"""
     _seed_case(data_dir, _SLUG)
     containers = [_C1, _C2]
     prov = CurationEnvironmentProvisioner(
         inspector=_isolated_inspector(containers),
-        case_service=CaseService(data_dir=data_dir),
+        session_factory=data_dir.factory,
         caldera=FakeCaldera(fail=True),
         compose_executor=FakeComposeExecutor(),
         state_inspector=_healthy_state_inspector(containers),
@@ -483,7 +468,7 @@ def test_provision_caldera_failure_marks_abilities_not_loaded(data_dir: Path) ->
     assert environment.ready is False
 
 
-def test_provision_no_abilities_marks_not_loaded(data_dir: Path) -> None:
+def test_provision_no_abilities_marks_not_loaded(data_dir: CaseDb) -> None:
     """A case with no abilities loads nothing -> ``loaded_abilities`` False.
     _Requirements: 9.5, 9.9_"""
     _seed_case(data_dir, _SLUG, with_abilities=False, with_adversary=False)
@@ -491,7 +476,7 @@ def test_provision_no_abilities_marks_not_loaded(data_dir: Path) -> None:
     caldera = FakeCaldera()
     prov = CurationEnvironmentProvisioner(
         inspector=_isolated_inspector(containers),
-        case_service=CaseService(data_dir=data_dir),
+        session_factory=data_dir.factory,
         caldera=caldera,
         compose_executor=FakeComposeExecutor(),
         state_inspector=_healthy_state_inspector(containers),
@@ -503,7 +488,7 @@ def test_provision_no_abilities_marks_not_loaded(data_dir: Path) -> None:
     assert caldera.calls == []  # Caldera never touched when there are no abilities
 
 
-def test_provision_without_adversary_still_loads_abilities(data_dir: Path) -> None:
+def test_provision_without_adversary_still_loads_abilities(data_dir: CaseDb) -> None:
     """No adversary -> abilities still load (load_adversary skipped).
     _Requirements: 9.5_"""
     _seed_case(data_dir, _SLUG, with_adversary=False)
@@ -511,7 +496,7 @@ def test_provision_without_adversary_still_loads_abilities(data_dir: Path) -> No
     caldera = FakeCaldera()
     prov = CurationEnvironmentProvisioner(
         inspector=_isolated_inspector(containers),
-        case_service=CaseService(data_dir=data_dir),
+        session_factory=data_dir.factory,
         caldera=caldera,
         compose_executor=FakeComposeExecutor(),
         state_inspector=_healthy_state_inspector(containers),
@@ -547,7 +532,7 @@ _ETAPAS = (
 
 
 def _curadoria(
-    data_dir: Path,
+    data_dir: CaseDb,
     containers: list[str],
     *,
     compose: FakeComposeExecutor | None = None,
@@ -570,7 +555,7 @@ def _curadoria(
     )
     return CurationEnvironmentProvisioner(
         inspector=inspector if inspector is not None else _isolated_inspector(containers),
-        case_service=CaseService(data_dir=data_dir),
+        session_factory=data_dir.factory,
         caldera=caldera if caldera is not None else FakeCaldera(),
         compose_executor=compose if compose is not None else FakeComposeExecutor(),
         state_inspector=state if state is not None else _healthy_state_inspector(containers),
@@ -583,7 +568,7 @@ def _curadoria(
 # ---------------------------------------------------------------------------
 
 
-def test_provision_happy_path_completes_with_three_prerequisites(data_dir: Path) -> None:
+def test_provision_happy_path_completes_with_three_prerequisites(data_dir: CaseDb) -> None:
     """Quatro etapas ok → ``ready`` com saúde + Abilities + isolation aprovados.
     _Requirements: 5.3, 5.5, 7.1_"""
     containers = [_C1, _C2]
@@ -621,7 +606,7 @@ def test_provision_happy_path_completes_with_three_prerequisites(data_dir: Path)
 # ---------------------------------------------------------------------------
 
 
-def test_provision_failure_bring_up_containers_blocks_pipeline(data_dir: Path) -> None:
+def test_provision_failure_bring_up_containers_blocks_pipeline(data_dir: CaseDb) -> None:
     """``up`` com ``code != 0`` → ``failed_step='subir_conteineres'`` e para.
     _Requirements: 3.5, 7.1_"""
     containers = [_C1, _C2]
@@ -655,7 +640,7 @@ def test_provision_failure_bring_up_containers_blocks_pipeline(data_dir: Path) -
 # ---------------------------------------------------------------------------
 
 
-def test_provision_failure_await_health_blocks_pipeline(data_dir: Path) -> None:
+def test_provision_failure_await_health_blocks_pipeline(data_dir: CaseDb) -> None:
     """Um contêiner ``unhealthy`` → ``failed_step='aguardar_saude'`` e para.
     _Requirements: 5.5, 7.1_"""
     containers = [_C1, _C2]
@@ -683,7 +668,7 @@ def test_provision_failure_await_health_blocks_pipeline(data_dir: Path) -> None:
     assert environment.isolation.approved is False
 
 
-def test_provision_failure_health_container_not_running(data_dir: Path) -> None:
+def test_provision_failure_health_container_not_running(data_dir: CaseDb) -> None:
     """Um contêiner fora de ``running`` também reprova ``aguardar_saude``.
     _Requirements: 5.5, 7.1_"""
     containers = [_C1, _C2]
@@ -709,7 +694,7 @@ def test_provision_failure_health_container_not_running(data_dir: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_provision_failure_load_abilities_blocks_pipeline(data_dir: Path) -> None:
+def test_provision_failure_load_abilities_blocks_pipeline(data_dir: CaseDb) -> None:
     """Caldera indisponível → ``failed_step='carregar_abilities'`` e para.
     _Requirements: 4.4, 7.1_"""
     containers = [_C1, _C2]
@@ -729,7 +714,7 @@ def test_provision_failure_load_abilities_blocks_pipeline(data_dir: Path) -> Non
     assert caldera.calls == ["load_abilities"]
 
 
-def test_provision_failure_load_abilities_campaign_without_abilities(data_dir: Path) -> None:
+def test_provision_failure_load_abilities_campaign_without_abilities(data_dir: CaseDb) -> None:
     """campaign sem Abilities → ``failed_step='carregar_abilities'`` (fail-closed).
     _Requirements: 4.4, 7.1_"""
     containers = [_C1, _C2]
@@ -756,7 +741,7 @@ def test_provision_failure_load_abilities_campaign_without_abilities(data_dir: P
 # ---------------------------------------------------------------------------
 
 
-def test_provision_failure_verify_isolation_blocks_completion(data_dir: Path) -> None:
+def test_provision_failure_verify_isolation_blocks_completion(data_dir: CaseDb) -> None:
     """Contêiner em bridge external → ``failed_step='verificar_isolamento'``.
     _Requirements: 5.3, 5.5, 7.1_"""
     containers = [_C1, _C2]
@@ -786,7 +771,7 @@ def test_provision_failure_verify_isolation_blocks_completion(data_dir: Path) ->
 # ---------------------------------------------------------------------------
 
 
-def test_deprovision_success_without_remaining(data_dir: Path) -> None:
+def test_deprovision_success_without_remaining(data_dir: CaseDb) -> None:
     """``down`` com ``code=0`` → ``deprovisioned=True`` e sem remanescentes.
     _Requirements: 9.1_"""
     containers = [_C1, _C2]
@@ -814,7 +799,7 @@ def test_deprovision_success_without_remaining(data_dir: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_deprovision_failure_reports_remaining_resources(data_dir: Path) -> None:
+def test_deprovision_failure_reports_remaining_resources(data_dir: CaseDb) -> None:
     """``down`` com ``code != 0`` → ``deprovisioned=False`` com remanescentes.
     _Requirements: 9.1_"""
     containers = [_C1, _C2]
@@ -839,7 +824,7 @@ def test_deprovision_failure_reports_remaining_resources(data_dir: Path) -> None
 # ---------------------------------------------------------------------------
 
 
-def test_pipeline_uses_only_fakes_no_public_network(data_dir: Path) -> None:
+def test_pipeline_uses_only_fakes_no_public_network(data_dir: CaseDb) -> None:
     """Todo o pipeline + teardown passam só pelos fakes — sem rede/daemon/subprocess.
     _Requirements: 9.1, 9.2_"""
     containers = [_C1, _C2]
@@ -849,7 +834,7 @@ def test_pipeline_uses_only_fakes_no_public_network(data_dir: Path) -> None:
     inspector = _isolated_inspector(containers)
     prov = CurationEnvironmentProvisioner(
         inspector=inspector,
-        case_service=CaseService(data_dir=data_dir),
+        session_factory=data_dir.factory,
         caldera=caldera,
         compose_executor=compose,
         state_inspector=state,

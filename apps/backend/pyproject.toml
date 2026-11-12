@@ -41,6 +41,9 @@ dev = [
 where = ["."]
 include = ["app*"]
 
+[tool.setuptools.package-data]
+"app.seeds" = ["data/*.json"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]

@@ -1,9 +1,8 @@
 """CalderaClient — wrapper around the MITRE Caldera v2 API.
 
 The ``caldera`` package implements the ``CalderaClient`` component described in
-the design (see "Components and Interfaces" -> ``CalderaClient``). It reuses the
-existing sticks configuration (``CALDERA_URL`` and the ``KEY`` header) via
-:mod:`app.core.config` — nothing under ``sticks/`` is modified.
+the design (see "Components and Interfaces" -> ``CalderaClient``). It reads the
+Caldera URL and the ``KEY`` header from :mod:`app.core.config` (``Settings``).
 
 - ``client`` (task 6.1): availability check with an explicit **10s** timeout and
   an **injectable** ``httpx`` client / transport so tests can simulate a healthy

@@ -12,7 +12,7 @@ Scope of this task (6.1)
 Only the client scaffolding and the availability probe live here:
 
 * base URL (reused from :mod:`app.core.config`, single source of truth),
-* the ``KEY`` header (reused from config),
+* the ``KEY`` header (from Settings),
 * an **injectable** ``httpx`` client / transport so tests (task 6.3) can simulate
   both a healthy response and a 10s timeout **without a real Caldera** (using
   :class:`httpx.MockTransport` or an injected :class:`httpx.Client`),
@@ -448,7 +448,7 @@ class CalderaClient:
         Args:
             settings: Backend settings; defaults to the cached
                 :func:`app.core.config.get_settings`. Provides ``caldera_url``
-                and ``caldera_headers`` (reused from sticks config).
+                and ``caldera_headers`` (from Settings).
             client: An optional pre-built :class:`httpx.Client`. When given it is
                 used as-is (tests pass one backed by :class:`httpx.MockTransport`).
                 The caller owns its lifecycle in that case.
@@ -478,7 +478,7 @@ class CalderaClient:
 
     @property
     def base_url(self) -> str:
-        """Caldera base URL (reused from config), without trailing slash."""
+        """Caldera base URL (from Settings), without trailing slash."""
         return self._settings.caldera_url.rstrip("/")
 
     @property
@@ -698,7 +698,7 @@ class CalderaClient:
     def load_ability(self, ability: Mapping[str, Any]) -> AbilityRef:
         """Create/load a single curated Ability via ``POST /api/v2/abilities``.
 
-        The curated Abilities come from ``data/api/{campaign}_dag-ability.json`` and
+        The curated Abilities come from the ``abilities`` table and
         are pushed into Caldera before an Operation runs (Req. 4.2). The payload
         is sent as-is (its shape already matches the v2 Ability schema) and the
         created Ability is returned as a typed :class:`AbilityRef`.
@@ -763,7 +763,7 @@ class CalderaClient:
     def load_adversary(self, adversary: Mapping[str, Any]) -> AdversaryRef:
         """Create/load a curated Adversary via `POST /api/v2/adversaries` (Req. 4.2).
 
-        The curated Adversary comes from `data/api/{campaign}_dag-adversary.json` and
+        The curated Adversary comes from the ``adversaries`` table and
         must be pushed into Caldera **before** an Operation references it; without
         it, the Operation runs with an empty chain (zero links). Mirrors the
         `sticks/tools/load_adversary.py` utility over the v2 API. The payload is

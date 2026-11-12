@@ -340,9 +340,9 @@ def _ability_attr(ability: object, key: str) -> object | None:
     """Read ``key`` from an Ability-like object OR a raw JSON dict.
 
     The preview accepts both the SQLAlchemy :class:`app.models.domain.Ability`
-    (attribute access) and the raw parsed JSON of ``data/api/{campaign}_dag-ability``
-    (a ``dict``), so callers can preview straight off the curated files without
-    first materializing ORM rows.
+    (attribute access) and a plain ``dict`` with the same keys (an ability
+    serialized in memory), so callers can preview without first materializing ORM
+    rows.
     """
     if isinstance(ability, dict):
         return ability.get(key)

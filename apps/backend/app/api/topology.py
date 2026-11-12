@@ -21,13 +21,12 @@ keeps the ``GET /api/campaigns/{campaign}/topology`` contract identical.
 
 Database-only campaign resolution (Req. 1.1, 3.5, 4.1)
 ------------------------------------------------------
-The campaign's DAG and Abilities — the content that confirms a campaign exists
-and names it — are resolved **from the database** (the ``dags`` table via
-:class:`DagService` and the ``Ability``/``campaigns`` rows keyed by
-``campaign_id``). The request-time disk read through ``CaseService`` was removed
-(sub-step 2.4): the runtime never touches ``packages/cli/data`` (Req. 4.1, 4.2),
-and a campaign with no persisted DAG/Abilities is a 404. The static lab topology
-itself is independent of a campaign's abilities/DAG, so the source change affects
+The campaign's attack flow and Abilities — the content that confirms a campaign exists
+and names it — are resolved **from the database** (the ``attack_flows`` table via
+the DB reader and the ``Ability``/``campaigns`` rows keyed by
+``campaign_id``). The runtime never reads data files from disk (Req. 4.1, 4.2),
+and a campaign with no persisted attack flow/Abilities is a 404. The static lab topology
+itself is independent of a campaign's abilities/attack flow, so the source change affects
 only *how the campaign is resolved*, never the rendered topology for an
 equivalent campaign.
 
@@ -50,7 +49,7 @@ from app.models.domain import (
     Ability as AbilityModel,
     Case as CaseModel,
 )
-from app.services.dag.dag_service import DagService
+from app.services.curated_case_reader import resolve_flow_data_from_db
 from app.services.environment.topology_builder import (
     HostView,
     NetworkView,
@@ -68,17 +67,17 @@ __all__ = ["router", "HostView", "NetworkView", "TopologyResponse"]
 
 
 def _resolve_campaign_name_from_db(campaign: str, db: Session) -> Optional[str]:
-    """Resolve a campaign's display name from the DB when it has DAG + Abilities.
+    """Resolve a campaign's display name from the DB when it has attack flow + Abilities.
 
     Database-only resolution for the topology (Req. 1.1, 3.5, 4.1): a campaign is
     considered resolvable when its content is persisted — it has at least one
-    ``Ability`` row and a ``dags`` row (DAG) keyed by ``campaign_id`` (persisted
+    ``Ability`` row and a ``attack_flows`` row (attack flow) keyed by ``campaign_id`` (persisted
     by the curated ingest of sub-step 2.1). The display name comes from the
     ``campaigns`` row when present, otherwise falls back to the slug.
 
-    Returns ``None`` when the campaign's DAG/Abilities are not persisted; the
+    Returns ``None`` when the campaign's attack flow/Abilities are not persisted; the
     caller maps that to a 404 (the runtime no longer reads
-    ``packages/cli/data`` — Req. 4.1, 4.2). Pure read: no disk, no network.
+    the legacy CLI data directory — Req. 4.1, 4.2). Pure read: no disk, no network.
     """
     has_ability = (
         db.execute(
@@ -92,10 +91,10 @@ def _resolve_campaign_name_from_db(campaign: str, db: Session) -> Optional[str]:
     if has_ability is None:
         return None
 
-    # The DAG is resolved from the ``dags`` table via DagService's DB-first path;
-    # a missing persisted DAG means the campaign is not fully DB-resolvable yet.
-    dag_view = DagService(session=db).get_dag(campaign)
-    if dag_view.error is not None or not dag_view.nodes:
+    # The attack flow is resolved from the ``attack_flows`` table via the DB reader;
+    # a missing persisted attack flow means the campaign is not fully DB-resolvable yet.
+    flow = resolve_flow_data_from_db(db, campaign)
+    if flow is None or not flow.structural_nodes:
         return None
 
     row = (
@@ -120,10 +119,10 @@ def get_topology(
     """Return the contained lab topology + a Mermaid diagram for the case.
 
     Read-only and side-effect free: built from the containment static map and
-    the compose file, with no Docker or network calls. The campaign's DAG +
+    the compose file, with no Docker or network calls. The campaign's attack flow +
     Abilities are resolved **from the database** (Req. 1.1, 3.5, 4.1); the
-    request-time disk read through ``CaseService`` was removed (sub-step 2.4),
-    so a campaign with no persisted DAG/Abilities is a 404 (Req. 4.1, 4.2).
+    runtime never reads data files from disk,
+    so a campaign with no persisted attack flow/Abilities is a 404 (Req. 4.1, 4.2).
     """
     name = _resolve_campaign_name_from_db(campaign, db)
     if name is None:

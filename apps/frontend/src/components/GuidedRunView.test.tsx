@@ -13,15 +13,29 @@ import type {
 } from "@/lib/ai"
 
 /**
- * Deterministic tests for the Guided_Run_View refactor (task 7): the robot
- * reveals the semantic, number-free phases `dag → operationalization →
- * environment → execution → evaluation` one at a time, and `evaluation` is its
- * OWN revealed item carrying the evaluator verdict, distinct from the
- * `execution` step that precedes it (Req. 7.1, 7.3, 7.4, 2.5).
+ * Deterministic tests for the Guided_Run_View: the robot opens on the
+ * operationalization listing and starts the AI run only after the Researcher
+ * reviews it, then reveals the semantic, number-free phases `flow →
+ * environment → execution → evaluation` one at a time. `evaluation` is its OWN
+ * revealed item carrying the evaluator verdict, distinct from the `execution`
+ * step that precedes it (Req. 2.2, 5.7, 6.1, 2.5).
  *
- * The backend run is mocked so a single terminal read drives the whole
- * conversation; no network and no polling delay are exercised.
+ * The backend run and the two read-only phase views are mocked so a single
+ * terminal read drives the whole conversation; no network and no polling delay
+ * are exercised.
  */
+
+vi.mock("@/components/OperationalizationScreen", () => ({
+  OperationalizationScreen: ({ version, campaignKey }: { version: string; campaignKey: string }) => (
+    <div data-testid="operationalization-stub">{`${campaignKey}@${version}`}</div>
+  ),
+}))
+
+vi.mock("@/components/FlowPhaseView", () => ({
+  FlowPhaseView: ({ campaign }: { campaign?: string }) => (
+    <div data-testid="flow-phase-stub">{campaign}</div>
+  ),
+}))
 
 vi.mock("@/lib/ai", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/ai")>()
@@ -33,7 +47,7 @@ import { getAiRun, startAiRun } from "@/lib/ai"
 const startAiRunMock = vi.mocked(startAiRun)
 const getAiRunMock = vi.mocked(getAiRun)
 
-/** A minimal Agent_Output row for a curation phase (dag/op/environment). */
+/** A minimal Agent_Output row for a curation phase (flow/op/environment). */
 function stageOutput(stage: string): AiStageOutput {
   return {
     id: stage.length,
@@ -73,8 +87,8 @@ function terminalDetail(): AiRunDetail {
     notes: null,
     created_at: "2024-01-01T00:00:00",
     stage_outputs: [
-      stageOutput("dag"),
       stageOutput("operationalization"),
+      stageOutput("flow"),
       stageOutput("environment"),
     ],
     failing_agent: null,
@@ -92,16 +106,58 @@ describe("GuidedRunView — semantic phases with evaluation as its own item", ()
     getAiRunMock.mockResolvedValue(detail)
   })
 
+  it("opens on the operationalization listing and starts the run only after the user reviews it", async () => {
+    const user = userEvent.setup()
+    renderWithI18n(<GuidedRunView campaignId="shadowray" version="18.0" />)
+
+    // The first screen is the operationalization listing, with no run started.
+    expect(await screen.findByTestId("operationalization-stub")).toHaveTextContent(
+      "shadowray@18.0",
+    )
+    expect(startAiRunMock).not.toHaveBeenCalled()
+    expect(screen.queryByTestId("flow-phase-stub")).toBeNull()
+
+    // Reviewing it and starting the run reveals the attack flow phase.
+    await user.click(await screen.findByText("Começar a emulação"))
+    expect(startAiRunMock).toHaveBeenCalledWith("shadowray")
+    expect(await screen.findByTestId("flow-phase-stub")).toHaveTextContent("shadowray")
+  })
+
+  it("renders the phases in the order operationalization → flow → execution → evaluation", async () => {
+    const user = userEvent.setup()
+    renderWithI18n(<GuidedRunView campaignId="shadowray" version="18.0" />)
+
+    await user.click(await screen.findByText("Começar a emulação"))
+    for (let i = 0; i < 3; i++) {
+      await user.click(await screen.findByText("Pode prosseguir"))
+    }
+    await waitFor(() => {
+      expect(document.querySelector('[data-section="guided-verdict"]')).not.toBeNull()
+    })
+
+    const nodes = [
+      screen.getByTestId("operationalization-stub"),
+      screen.getByTestId("flow-phase-stub"),
+      document.querySelector('[data-section="guided-execution"]') as Element,
+      document.querySelector('[data-section="guided-verdict"]') as Element,
+    ]
+    for (let i = 0; i < nodes.length - 1; i++) {
+      expect(
+        nodes[i].compareDocumentPosition(nodes[i + 1]) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy()
+    }
+  })
+
   it("reveals execution and evaluation as two distinct ordered items, with the verdict only in evaluation", async () => {
     const user = userEvent.setup()
-    renderWithI18n(<GuidedRunView campaignId="shadowray" />)
+    renderWithI18n(<GuidedRunView campaignId="shadowray" version="18.0" />)
 
-    // Start the run; the robot reaches the first (DAG) phase.
+    // Start the run; the robot reaches the first agent phase (flow).
     await user.click(await screen.findByText("Começar a emulação"))
 
-    // Walk the three curation phases by approving each "proceed" prompt:
-    // dag → operationalization → environment → (reveals) execution.
-    for (let i = 0; i < 3; i++) {
+    // Walk the two curation phases by approving each "proceed" prompt:
+    // flow → environment → (reveals) execution.
+    for (let i = 0; i < 2; i++) {
       const proceed = await screen.findByText("Pode prosseguir")
       await user.click(proceed)
     }

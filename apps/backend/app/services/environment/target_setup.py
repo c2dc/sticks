@@ -125,8 +125,8 @@ def classify_commands(vulnerabilities: list[str]) -> list[ClassifiedCommand]:
     one-to-one.
 
     Args:
-        vulnerabilities: The curated setup commands of a target host (the
-            ``target_vuln_host_*`` lines derived from the DAG node).
+        vulnerabilities: The setup commands of a target host (the
+            ``TargetHost.vulnerabilities`` lines).
 
     Returns:
         A list of :class:`ClassifiedCommand`, in the same order as the input.
@@ -251,7 +251,7 @@ class DockerTargetSetup:
         curated per-host setup — makes a non-zero command **non-fatal**: the setup
         of a lab target is inherently idempotent/best-effort (the curated
         ``*_suta.sh`` scripts themselves use ``|| true``), and a host aggregates
-        the ``target_vuln`` of several DAG nodes, so redundant steps collide
+        the setup commands of several attack flow techniques, so redundant steps collide
         benignly (e.g. ``useradd attacker`` when the user already exists → exit 9,
         ``apt-get install`` of an already-present package, a service already
         listening). Treating those as fatal would abort provisioning against a

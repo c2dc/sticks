@@ -2,18 +2,17 @@
 
 This module defines the typed (Pydantic) models of the **second** Output of
 Stage 4 (Operationalization): the :class:`EnvironmentParameters`. The first
-Output is the ordered Abilities (reusing ``Stage2*``/``CaseService``); this is a
+Output is the ordered Abilities (reusing ``Stage2*``/``build_case_from_db``); this is a
 **separate** typed artifact, destined for Stage 5 (Environment creation), and
-**derived** from the curated fields embedded in the curated DAG nodes
-(``target_vuln_host_a/b``, ``network_context``, ``source_host_type`` /
-``target_host_type``) and from the destinations of the ``attacker_commands``
-(Req. 8.3, 8.4, 8.7).
+**derived** by the operationalizer from the Stage 4 commands and the attack
+flow techniques: target hosts (label, address, host type, vulnerabilities),
+inferred services and per-node network notes (Req. 8.3, 8.4, 8.7).
 
 The environment platform is, for now, **always container** (Req. 17.1). The
 design admits a future virtual machine via :class:`EnvironmentPlatform`
 **without redesign** — the ``maquina_virtual`` member stays as a commented
 placeholder and is **not** implemented in this spec (Req. 17.2), following the
-precedent of ``DagOrigin`` (the enum serializes to VARCHAR+CHECK and new values
+precedent of ``FlowOrigin`` (the enum serializes to VARCHAR+CHECK and new values
 fit with no schema migration).
 
 The origin (:class:`~app.models.enums.TranslationSource`) is explicit and
@@ -44,18 +43,18 @@ from app.models.enums import EnvironmentPlatform, TranslationSource
 
 
 class TargetHost(BaseModel):
-    """A target host derived from the curated DAG commands/nodes (Req. 8.3).
+    """A target host derived from the Stage 4 operationalization commands (Req. 8.3).
 
     Attributes:
-        label: Logical label of the host in the DAG (e.g. ``"host_a"``,
+        label: Logical label of the host in the attack flow (e.g. ``"host_a"``,
             ``"host_b"``).
         address: Internal IP when resolved (e.g. ``"192.168.20.30"``), derived
-            from the ``attacker_commands`` destinations via ``container_for_ip``;
-            ``None`` when not resolved.
+            from the destinations of the attacker commands via
+            ``container_for_ip``; ``None`` when not resolved.
         container: Matching lab container (via ``subnets.container_for_ip``);
             ``None`` when not resolved.
-        host_type: ``source_host_type``/``target_host_type`` of the DAG node.
-        vulnerabilities: ``target_vuln_host_*`` commands of the node matching
+        host_type: Kind of the host (e.g. attacker or target system).
+        vulnerabilities: Setup commands that install the vulnerabilities on
             this host.
     """
 
@@ -72,8 +71,8 @@ class RequiredService(BaseModel):
     Attributes:
         description: Description of the service/vulnerability inferred from the
             commands (e.g. ``"ssh root login"``, ``"flask on port 5000"``).
-        origin_technique: ``technique_id`` of the DAG node that originated the
-            service, when available.
+        origin_technique: ``technique_id`` of the attack flow technique that
+            originated the service, when available.
     """
 
     description: str
@@ -84,17 +83,16 @@ class EnvironmentParameters(BaseModel):
     """Environment parameters — 2nd Output of Stage 4 (Req. 8.3, 8.4, 8.7).
 
     A typed artifact SEPARATE from the Abilities, destined for Stage 5. Derived
-    from the curated fields embedded in the DAG nodes (``target_vuln_host_a``/
-    ``_b``, ``network_context``, ``source_host_type``/``target_host_type``) and
-    from the ``attacker_commands`` destinations.
+    from the Stage 4 commands and the attack flow techniques (hosts, inferred
+    services and per-node network notes).
 
     Attributes:
         campaign_id: *Slug* of the Campaign these parameters belong to.
         platform: Environment platform — always ``CONTAINER`` in this spec
             (Req. 17.1); VM admitted with no redesign (Req. 17.2).
-        hosts: Target hosts derived from the DAG commands/nodes.
+        hosts: Target hosts derived from the Stage 4 commands.
         services: Services/vulnerabilities inferred from the commands.
-        network_context: Per-node network notes (``network_context`` from the DAG).
+        network_context: Per-node network notes describing the lab network.
         origin: Derivation origin — ``curadoria_humana`` today; extensible to
             ``gerado_ia`` without changing the model (Req. 16.2, 16.4).
     """

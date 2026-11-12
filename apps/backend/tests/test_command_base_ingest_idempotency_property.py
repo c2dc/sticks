@@ -445,6 +445,78 @@ def test_command_base_ingest_is_idempotent_by_technique_command_source(
 
 
 # ---------------------------------------------------------------------------
+# Deterministic re-execution through the ingestion orchestrator (Req. 4.4, 7.5).
+# ---------------------------------------------------------------------------
+
+
+def test_orchestrator_rerun_of_atomic_source_does_not_duplicate_commands() -> None:
+    """Running the atomic source twice via the orchestrator adds no rows.
+
+    The second run has an empty plan, so it does not fetch again and leaves
+    ``technique_commands`` and ``experience_memory`` unchanged.
+    """
+    from app.models.domain import ExperienceMemory as ExperienceMemoryRow
+    from app.models.enums import IngestSource, IngestStatus
+    from app.services.ingestion.orchestrator import IngestionOrchestrator
+    from app.services.ingestion.runners import AtomicSourceRunner
+
+    session, db_path, engine = _build_ephemeral_session()
+    fixture_root = Path(tempfile.mkdtemp(prefix="atomics_fixture_"))
+    session.close()
+    try:
+        atomics_dir = _write_atomics_tree(
+            fixture_root,
+            {
+                "T1033": [{"command": "whoami", "executor": "sh", "platforms": ["linux"]}],
+                "T1082": [
+                    {"command": "uname -a", "executor": "sh", "platforms": ["linux"]},
+                    {"command": "ver", "executor": "cmd", "platforms": ["windows"]},
+                ],
+            },
+        )
+        fetcher = _FakeFetcher(atomics_dir)
+        calls: list[str] = []
+        original = fetcher.fetch_atomics_dir
+
+        def _counting(*, ref: str, dest: Path) -> Path:
+            calls.append(ref)
+            return original(ref=ref, dest=dest)
+
+        fetcher.fetch_atomics_dir = _counting  # type: ignore[method-assign]
+        factory = sessionmaker(bind=engine, expire_on_commit=False, future=True)
+        orchestrator = IngestionOrchestrator(
+            factory,
+            {
+                IngestSource.ATOMIC: AtomicSourceRunner(
+                    embedder=_FakeEmbedder(), fetcher=fetcher
+                )
+            },
+        )
+
+        def _counts() -> tuple[int, int]:
+            with factory() as check:
+                return (
+                    _row_count(check, "atomic_red_team"),
+                    int(check.execute(select(func.count()).select_from(ExperienceMemoryRow)).scalar_one()),
+                )
+
+        orchestrator.run_source(IngestSource.ATOMIC)
+        first = _counts()
+        assert first == (3, 3)
+
+        orchestrator.run_source(IngestSource.ATOMIC)
+        assert _counts() == first
+        assert len(calls) == 1
+        state = next(s for s in orchestrator.status() if s.source == IngestSource.ATOMIC)
+        assert state.status == IngestStatus.READY
+    finally:
+        _dispose(session, engine, db_path)
+        import shutil
+
+        shutil.rmtree(fixture_root, ignore_errors=True)
+
+
+# ---------------------------------------------------------------------------
 # Concrete example (ex-Property 12): a fetch failure leaves the table unchanged.
 # ---------------------------------------------------------------------------
 

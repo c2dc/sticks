@@ -3,7 +3,7 @@
 Phase 2, sub-step 2.3a of the disk->DB migration. Any of the 52 campaigns
 persisted in the STIX tables must have a row in the ``campaigns`` relational
 table **before** any FK-bearing record (``agent_runs.campaign_id`` /
-``abilities.campaign_id`` / ``dags.campaign_id``) is written for a run. This
+``abilities.campaign_id`` / ``attack_flows.campaign_id``) is written for a run. This
 service guarantees that row exists, materializing it from the STIX package
 (served by :class:`StixPackageReadService`) without loosening any foreign key.
 
@@ -16,8 +16,8 @@ Design alignment (Component 1)
   ``stix_id`` — exactly the ``campaign_key`` the
   :meth:`StixPackageReadService.campaign_overview` already resolves.
 * ``name`` / ``description`` come from the ``Campaign_Overview``.
-* A pre-existing row (a curated campaign already ingested by
-  ``CuratedIngestService``) is a no-op that preserves its ``translation_source``.
+* A pre-existing row (a curated campaign already persisted with
+  ``curated=True``) is a no-op that preserves its ``translation_source``.
 * A campaign absent from ``stix_campaigns`` raises
   :class:`CampaignNotPersistedError` (the ``_known_campaign_or_404`` guard
   already returns 404 before this in the request path; this error only surfaces
@@ -109,7 +109,7 @@ class CampaignMaterializer:
         existing = self._session.get(Case, campaign_id)
         if existing is None:
             # New row: materialized for an AI run. translation_source is
-            # AI_GENERATED; curated rows (ingested by CuratedIngestService) never
+            # AI_GENERATED; curated rows (already persisted) never
             # reach this branch, so human curation is never overwritten.
             self._session.add(
                 Case(

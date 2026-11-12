@@ -1,7 +1,7 @@
 """AI curation agents package.
 
 Hosts the LangGraph-based agent system that plugs into the existing six-stage
-pipeline seams (``DagGenerator``, ``OperationalizerByOrigin``,
+pipeline seams (``FlowGenerator``, ``OperationalizerByOrigin``,
 ``EnvironmentProvisioner``) with ``origin = AI_GENERATED`` (``"gerado_ia"``),
 closes a bounded plan->execute->measure->improve loop over Stage 6, and persists
 its bookkeeping plus a pgvector experience memory in the existing PostgreSQL.
@@ -15,7 +15,7 @@ Package layout (populated incrementally by later tasks)::
     checkpointer.py  PostgresSaver factory (LangGraph <-> PostgreSQL)
     memory.py        pgvector experience store: embed, upsert, similarity search
     tools.py         tool wrappers over existing backend services
-    agents/          AiDagGenerator / AiOperationalizer / AiEnvironmentProvisioner
+    agents/          FlowAgent / AiOperationalizer / AiEnvironmentProvisioner
                      + evaluator node
     run_service.py   AgentRunService (Session-injected orchestration + persistence)
 

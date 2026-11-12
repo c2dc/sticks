@@ -1,74 +1,9 @@
 {
-  "overview": {
-    "title": "Pipeline Overview",
-    "aggregate": {
-      "label": "Replication progress",
-      "summary": "{{concluidos}} of {{total}} cases completed",
-      "empty": "No cases completed yet"
-    },
-    "selectCasePrompt": "Select a case to track its stages."
-  },
-  "stages": {
-    "1": {
-      "name": "Stage 1 — STIX Base Selection",
-      "short": "Stage 1"
-    },
-    "2": {
-      "name": "Stage 2 — Campaign Selection",
-      "short": "Stage 2"
-    },
-    "3": {
-      "name": "Stage 3 — DAG Generation",
-      "short": "Stage 3"
-    },
-    "4": {
-      "name": "Stage 4 — Operationalization",
-      "short": "Stage 4"
-    },
-    "5": {
-      "name": "Stage 5 — Emulation environment setup",
-      "short": "Stage 5"
-    },
-    "6": {
-      "name": "Stage 6 — Execution, Measurement and Report",
-      "short": "Stage 6"
-    }
-  },
-  "sections": {
-    "entrada": "Input",
-    "processamento": "Processing",
-    "saida": "Output",
-    "placeholder": "Details available on the dedicated stage screen."
-  },
-  "state": {
-    "nao_iniciado": "Not started",
-    "em_andamento": "In progress",
-    "concluido": "Completed",
-    "preConcluido": "Pre-completed (curated)",
-    "erro": "Error",
-    "bloqueado": "Blocked"
-  },
-  "progress": {
-    "label": "Progress",
-    "value": "{{value}}%"
-  },
-  "actions": {
-    "select": "Select stage",
-    "selected": "Stage selected",
-    "openStage": "Open {{stage}}"
-  },
-  "error": {
-    "unknown": "An error occurred in this stage.",
-    "loadCases": "Could not load the cases."
-  },
   "stageView": {
     "loading": "Loading stage data…",
-    "loadError": "Could not load this stage's data.",
-    "back": "Back to overview"
+    "loadError": "Could not load this stage's data."
   },
   "baseStix": {
-    "title": "STIX base selection",
-    "description": "Pick the STIX package version. The base is downloaded from the official MITRE source when no on-disk copy exists.",
     "selected": "Selected base: v{{versao}}",
     "changeBase": "Change base",
     "ready": "Download complete.",
@@ -85,7 +20,6 @@
       "tactics": "Tactics",
       "malware": "Malware",
       "relationships": "Relationships",
-      "curated": "Curated / total",
       "syncedAt": "Synced at {{datetime}}"
     },
     "analytics": {
@@ -100,44 +34,9 @@
       "techniquesUnit": "techniques"
     }
   },
-  "stage1": {
-    "input": {
-      "stix": "STIX reference",
-      "campaignStix": "STIX campaign",
-      "name": "Name",
-      "stixId": "STIX ID",
-      "externalId": "External ID",
-      "description": "Description",
-      "aliases": "Aliases",
-      "firstSeen": "First seen",
-      "lastSeen": "Last seen",
-      "baseVersion": "STIX base version",
-      "notFound": "Campaign not found in this STIX base."
-    },
-    "processing": {
-      "description": "Automated structural modeling of the STIX dataset.",
-      "failedStep": "Failed step: {{step}}"
-    },
-    "output": {
-      "notRun": "Modeling has not run yet. Click “Run modeling” to generate the output.",
-      "empty": "No structural elements were extracted for this case.",
-      "techniques_one": "{{count}} ATT&CK technique",
-      "techniques_other": "{{count}} ATT&CK techniques",
-      "noTechniques": "No techniques extracted.",
-      "relationships": "Relationships",
-      "indicators": "Indicators",
-      "infrastructure": "Infrastructure",
-      "malware": "Malware",
-      "metadata": "Campaign metadata"
-    }
-  },
   "campaign": {
-    "title": "Bundle campaigns",
-    "description": "Select a campaign from the STIX bundle to extract its attributes (identity, aliases and techniques).",
     "listLabel": "Bundle campaigns",
-    "select": "Select campaign",
     "selecting": "Selecting…",
-    "selected": "Campaign selected",
     "noCampaigns": "No campaigns available in this bundle.",
     "attributes": "Extracted attributes",
     "techniques": "ATT&CK techniques",
@@ -150,7 +49,6 @@
     "notExtracted": "Select a campaign to extract and show its attributes.",
     "completed": "Attributes extracted — Stage 2 completed.",
     "failure": "Could not extract the attributes of the selected campaign.",
-    "failedStep": "Failed step: {{step}}",
     "searchPlaceholder": "Search campaign by name...",
     "searchLabel": "Search campaign",
     "noResults": "No campaign matches your search.",
@@ -162,329 +60,15 @@
       "notEmulableWithTechniques": "Not fully container-emulable — blocking techniques: {{techniques}}"
     }
   },
-  "stage2": {
-    "input": {
-      "noInput": "Stage 1 produced no techniques; there is no Stage 2 input."
-    },
-    "processing": {
-      "description": "Translation of abstract behaviors into executable steps."
-    },
-    "translationSource": {
-      "label": "Translation source",
-      "curadoria_humana": "Human curation"
-    },
-    "output": {
-      "suppressed": "No Stage 1 input; Stage 2 output is suppressed.",
-      "noAbilities": "This case has no curated Abilities.",
-      "noAdversary": "There is no Adversary grouping of Abilities for this case.",
-      "abilities_one": "{{count}} curated Ability",
-      "abilities_other": "{{count}} curated Abilities",
-      "tactic": "Tactic",
-      "ordering": "Order and dependencies",
-      "adversary": "Adversary",
-      "adversaryOrdering_one": "{{count}} Ability in the grouping",
-      "adversaryOrdering_other": "{{count}} Abilities in the grouping"
-    }
-  },
-  "stage3": {
-    "input": {
-      "adversary": "Adversary",
-      "noAdversary": "This case has no Adversary to emulate.",
-      "abilities_one": "{{count}} Ability",
-      "abilities_other": "{{count}} Abilities",
-      "requestEmulation": "Request emulation"
-    },
-    "processing": {
-      "noOperation": "No Operation is running for this case.",
-      "pending": "Waiting for Ability status…"
-    },
-    "environment": {
-      "title": "Target environment (contained)",
-      "description": "The emulation creates/uses this isolated environment in your Docker. Today the topology is provisioned by the lab's docker-compose.",
-      "isolated": "Isolated — the attack-plane networks are internal (no route to the host or the internet). The attack does not leave the controlled environment.",
-      "diagram": "Network topology",
-      "networks": "Internal networks",
-      "composeFile": "Environment file (docker-compose)",
-      "attacker": "Attacker",
-      "target": "Target"
-    },
-    "status": {
-      "pendente": "Pending",
-      "em_execucao": "Running",
-      "sucesso": "Success",
-      "falha": "Failure"
-    },
-    "output": {
-      "noResults": "No Operation results yet.",
-      "success": "{{count}} succeeded",
-      "failure": "{{count}} failed"
-    }
-  },
-  "stage6": {
-    "confirmation": {
-      "title": "Safety confirmation — real attack execution",
-      "description": "Review the concrete commands and target containers. Execution starts automatically in a moment; confirm to start now. No command is fired without the isolation gate approved.",
-      "previewLoading": "Loading the commands that will run…",
-      "targets": "Target",
-      "confirm": "Confirm and run now",
-      "starting": "Starting execution…"
-    },
-    "blocked": {
-      "body": "Environment not ready: Stage 5 is not concluded. Redirecting to Stage 5…"
-    },
-    "execution": {
-      "refused": "Execution did not start: the isolation/containment gate was not satisfied or Caldera is unavailable.",
-      "startError": "Could not start the Stage 6 execution."
-    },
-    "connection": {
-      "lost": "Connection lost — reconnecting to the execution channel. Updates resume automatically; no need to reload the page."
-    },
-    "live": {
-      "command": "Command",
-      "target": "Target (container + IP)",
-      "attacker": "Attacker host",
-      "logs": "Logs / output",
-      "notAvailable": "not available"
-    },
-    "stage5": {
-      "title": "Environment (Stage 5)",
-      "readOnly": "Read-only verdict produced in Stage 5. Stage 6 does not re-run any environment check.",
-      "ready": "Ready",
-      "notReady": "Not ready"
-    }
-  },
-  "stage4": {
-    "topology": {
-      "title": "Contained environment topology",
-      "description": "Isolated lab provisioned in your Docker: internal hosts and networks the campaign is emulated against.",
-      "diagram": "Network diagram",
-      "networks": "Internal networks",
-      "noNetworks": "No internal networks provisioned.",
-      "hosts": "Hosts",
-      "noHosts": "No hosts provisioned.",
-      "composeFile": "Environment file (docker-compose)",
-      "role": {
-        "attacker": "Attacker",
-        "target": "Target"
-      }
-    },
-    "isolation": {
-      "title": "Isolation state",
-      "isolated": "Isolated environment — ready for Stage 5",
-      "isolatedDescription": "The attack-plane networks are internal (no route to the host or the internet). Stage 4 auto-completed and Campaign Execution is unlocked.",
-      "notIsolated": "Environment not isolated — Stage 5 blocked",
-      "unavailable": "Isolation not verifiable — Stage 5 blocked",
-      "unavailableDescription": "Isolation could not be verified (Docker daemon unavailable). For safety (fail-closed), Stage 4 does not complete and Campaign Execution stays blocked. The topology is still shown.",
-      "blocked": "Stage 5 (Campaign Execution) stays blocked until isolation is confirmed."
-    }
-  },
-  "stage5": {
-    "provisioning": {
-      "console": {
-        "title": "Provisioning console",
-        "empty": "Waiting for provisioning to start…",
-        "steps": {
-          "subir_conteineres": "Bring up containers",
-          "aguardar_saude": "Wait for health",
-          "build_online": "Build (online)",
-          "encerrar_egresso": "Close egress",
-          "reisolar": "Re-isolate",
-          "verificar_egresso": "Verify egress",
-          "setup_offline": "Setup (offline)",
-          "carregar_abilities": "Load Abilities",
-          "verificar_isolamento": "Verify isolation",
-          "desprovisionar": "Tear down",
-          "concluir": "Finish"
-        },
-        "substeps": {
-          "s51": "5.1 Build/online",
-          "s52": "5.2 Runtime/isolated"
-        },
-        "flow": {
-          "command": "Command",
-          "stdout": "stdout",
-          "stderr": "stderr",
-          "info": "Info"
-        }
-      },
-      "prerequisites": {
-        "title": "Execution prerequisites",
-        "healthyContainers": "Healthy containers",
-        "onlinePrerequisites": "Online prerequisites obtained",
-        "egressLost": "Egress lost (verified)",
-        "abilitiesLoaded": "Abilities loaded in Caldera",
-        "isolationApproved": "Isolation approved",
-        "pendente": "Pending",
-        "ok": "OK",
-        "falha": "Failed",
-        "ready": "Environment ready — all prerequisites verified."
-      },
-      "failure": {
-        "title": "Provisioning failed",
-        "stage6Blocked": "Stage 6 (Campaign Execution) stays blocked until provisioning completes."
-      }
-    }
-  },
-  "environmentParameters": {
-    "title": "Environment parameters",
-    "description": "Artifact derived from the curated DAG nodes; defines the emulation environment for Stage 5.",
-    "platform": {
-      "label": "Platform",
-      "conteiner": "Container",
-      "maquina_virtual": "Virtual machine"
-    },
-    "hosts": {
-      "title": "Target hosts",
-      "empty": "No target host derived for this case.",
-      "label": "Label",
-      "address": "Address",
-      "container": "Container",
-      "hostType": "Host type",
-      "vulnerabilities": "Vulnerabilities",
-      "noVulnerabilities": "No vulnerabilities recorded."
-    },
-    "services": {
-      "title": "Required services",
-      "empty": "No required service derived.",
-      "description": "Description",
-      "sourceTechnique": "Source technique"
-    },
-    "networkContext": {
-      "title": "Network context",
-      "empty": "No network note derived."
-    },
-    "source": {
-      "label": "Source",
-      "curadoria_humana": "Human curation",
-      "gerado_ia": "AI-generated"
-    }
-  },
-  "report": {
-    "title": "Execution report",
-    "description": "Consolidation of execution results, sufficiency measurement and Stage 6 verdict.",
-    "notRun": "Execution has not completed yet; the report will be available at the end of Stage 6.",
-    "generatedAt": "Generated at",
-    "verdict": {
-      "label": "Verdict",
-      "success": "Success",
-      "failure": "Failure"
-    },
-    "environment": {
-      "deprovisioned": "Environment deprovisioned",
-      "notDeprovisioned": "Environment not deprovisioned",
-      "remainingResources": "Remaining resources: {{recursos}}"
-    },
-    "results": {
-      "title": "Results by Ability",
-      "empty": "No execution result recorded.",
-      "ability": "Ability",
-      "status": "Status",
-      "technique": "Technique"
-    },
-    "telemetry": {
-      "title": "Telemetry by technique",
-      "empty": "No telemetry recorded."
-    }
-  },
-  "metrics": {
-    "title": "Procedural sufficiency metrics",
-    "note": "Initial measurement proposal, to be refined.",
-    "totalDagTechniques": "Techniques in the DAG",
-    "successfulTechniques": "Techniques succeeded",
-    "successRate": "Success rate",
-    "proceduralCoverage": "Procedural coverage",
-    "totalTime": "Total time",
-    "timePerTechnique": "Time per technique",
-    "node": "Node",
-    "failedStep": "Failed step",
-    "telemetry": "Telemetry",
-    "failedNodes": {
-      "title": "Failed nodes",
-      "empty": "No node failed."
-    },
-    "percentage": "{{value}}%",
-    "seconds": "{{value}} s"
-  },
-  "emulation": {
-    "title": "Confirm adversary emulation",
-    "description": "Review the complete list of concrete commands and each one's target container before confirming. Nothing runs until you explicitly confirm.",
-    "close": "Close",
-    "cancel": "Cancel",
-    "confirm": "Confirm execution",
-    "running": "Running…",
-    "done": "Done",
-    "previewLoading": "Loading the commands that would run…",
-    "previewError": "Could not load the command preview.",
-    "noCommands": "There are no concrete commands to emulate for this case.",
-    "targets": "Target container",
-    "destinations": "Destinations",
-    "localCommand": "Local command (no external destination)",
-    "noTarget": "No target container defined",
-    "destinationInternal": "Internal destination (lab internal networks)",
-    "destinationExternal": "External destination — the Operation will be refused",
-    "externalBadge": "External destination",
-    "externalWarning": "One or more commands target a destination outside the internal networks. Containment will refuse execution until they are fixed.",
-    "notStarted": "No Operation was started.",
-    "startedBody": "Emulation started.",
-    "error": {
-      "contencao": {
-        "title": "Containment not satisfied",
-        "body": "A command targets a destination outside the internal networks; the Operation was refused.",
-        "destination": "External destination: {{destino}}"
-      },
-      "isolamento": {
-        "title": "Isolation not satisfied",
-        "body": "A target container is not isolated; the Operation was aborted.",
-        "containers": "Containers that failed the check"
-      },
-      "indisponivel": {
-        "title": "Docker environment unavailable",
-        "body": "Caldera did not respond at the configured address within 10 seconds. No Operation was started."
-      },
-      "unknown": {
-        "title": "Emulation failed",
-        "body": "Could not start the emulation."
-      }
-    }
-  },
-  "wizard": {
-    "stepIndicator": "Step {{atual}} of {{total}}",
-    "back": "Back",
-    "next": "Next",
-    "runStage1": "Run modeling",
-    "runEmulation": "Run emulation",
-    "restart": "Restart",
-    "running": "Running...",
-    "blockedHint": "Complete the previous stage to advance.",
-    "stage1ErrorHint": "Modeling failed. Fix the issue to advance.",
-    "openWizard": "Start guided run",
-    "nextAria": "Advance to the next stage",
-    "preCompletedNote": "This stage was already prepared by curation: the result existed before you acted.",
-    "selectCampaignFirst": "Select a campaign in Stage 2 to enable this stage."
-  },
-  "setup": {
-    "title": "Setup",
-    "description": "Pick the STIX base and the campaign before starting the AI run.",
-    "heroTitle": "Let's set up your emulation",
-    "heroDescription": "First pick the STIX package version, then the campaign you want to run. Both choices live here, on the same screen.",
-    "progress": "Setup — step {{atual}} of {{total}}",
-    "advanceHint": "Select a campaign to advance to the guided run.",
+  "input": {
+    "heroTitle": "Let's prepare your emulation",
+    "heroDescription": "First pick the STIX version (the package you will work with), then the campaign you want to run. Both live here, on the same screen.",
     "card": {
-      "packageTitle": "STIX package version",
-      "packageDescription": "Choose which STIX package version to use. The base is downloaded from the official MITRE source when no copy is on disk yet.",
-      "packageReady": "v{{versao}} ready",
-      "campaignTitle": "Package campaign",
-      "campaignDescription": "Select the campaign from the package you want to run in the guided AI emulation.",
-      "campaignBlocked": "Pick a STIX package version above to unlock campaign selection."
-    },
-    "step": {
-      "base": "STIX base",
-      "campaign": "Campaign"
+      "packageTitle": "STIX version (package)",
+      "campaignTitle": "Campaign",
+      "campaignBlocked": "Pick a STIX version above to unlock campaign selection."
     },
     "back": "Back",
-    "advance": "Continue",
-    "advanceAria": "Continue to campaign selection",
-    "advanceBlocked": "Select a STIX base to continue.",
     "next": "Next",
     "nextHint": "Select a campaign to review it, then continue.",
     "run": {
@@ -500,34 +84,51 @@
     "preparing": "Preparing…",
     "working": "I'm working on it…",
     "stillWorking": "I'm still refining in the background — you can go ahead.",
-    "generatingDag": "Analyzing the campaign and building the acyclic graph (DAG) of techniques…",
+    "generatingFlow": "Analyzing the campaign and building the attack flow of techniques…",
     "proceedQuestion": "Shall I proceed with this?",
     "proceed": "Go ahead",
     "finalSummary": "I closed the emulation after {{iteracoes}} iteration(s).",
     "executionReport": "The offensive emulation ran against the targets and the real result was recorded.",
     "evaluationRationale": "Evaluator rationale",
     "speech": {
-      "dag": "I generated the acyclic graph (DAG) of this campaign's techniques. Take a look: shall I proceed with this graph?",
-      "operationalization": "Great. I've now operationalized the graph into the concrete commands below. They look right to me — shall I proceed?",
+      "flow": "I generated the attack flow for this campaign's techniques. Take a look: shall I proceed with this flow?",
+      "operationalization": "Here are the concrete commands available for each technique of this campaign. Review them, then start the emulation when you're ready.",
       "environment": "Nice. I designed the isolated environment where the campaign will be emulated safely. Shall I proceed?",
       "execution": "I ran the offensive emulation against the targets and recorded the real result.",
       "evaluation": "I evaluated the execution result. Here is the evaluator's verdict."
     }
   },
+  "operationalization": {
+    "title": "Operationalization",
+    "description": "For each technique of the campaign, the Atomic Red Team commands that can emulate it.",
+    "loading": "Loading the campaign commands…",
+    "loadError": "Could not load the operationalization of this campaign.",
+    "noTechniques": "This campaign has no techniques to operationalize.",
+    "techniquesLabel": "Campaign techniques",
+    "techniqueCount_one": "{{count}} technique",
+    "techniqueCount_other": "{{count}} techniques",
+    "commandsLabel": "Commands for {{technique}}",
+    "commandCount_one": "{{count}} command",
+    "commandCount_other": "{{count}} commands",
+    "noCommands": "No Atomic Red Team command is available for this technique.",
+    "noCommandsPending": "No command found yet for this technique. The Atomic Red Team base is still loading, so commands may appear soon.",
+    "executor": "Executor",
+    "platform": "Platform",
+    "source": "Source",
+    "unnamedTechnique": "Unnamed technique",
+    "atomicNotice": {
+      "title": "The Atomic Red Team base is still being prepared",
+      "failed": "The Atomic Red Team base failed to load. Commands may be missing.",
+      "progress": "Atomic Red Team base: {{loaded}} of {{expected}} loaded",
+      "progressUnknown": "Atomic Red Team base: loading…",
+      "progressLabel": "Atomic Red Team base loading progress",
+      "refreshing": "This list refreshes automatically every few seconds."
+    }
+  },
   "aiRun": {
-    "title": "AI campaign emulation",
-    "description": "Start the AI campaign emulation and watch each iteration and the evaluator verdict.",
-    "start": "Start AI run",
-    "starting": "Starting…",
     "startError": "Could not start the AI run.",
-    "loadError": "Could not load the AI run.",
-    "noRun": "No AI run started yet.",
     "run": {
-      "title": "Run",
-      "status": "Status",
-      "iterationsUsed": "Iterations used",
-      "maxIterations": "Max iterations",
-      "verdict": "Final verdict"
+      "iterationsUsed": "Iterations used"
     },
     "status": {
       "pending": "Pending",
@@ -541,19 +142,8 @@
       "rejected": "Failed",
       "pending": "Awaiting verdict"
     },
-    "iterations": {
-      "title": "Iterations",
-      "empty": "No iterations available yet.",
-      "index": "Iteration {{indice}}",
-      "refinedStage": "Refined stage",
-      "noRefinedStage": "First pass",
-      "navigation": "Iteration {{atual}} of {{total}}",
-      "previous": "Previous iteration",
-      "next": "Next iteration",
-      "failedAgent": "Failing agent: {{agente}}"
-    },
     "stageName": {
-      "dag": "DAG generation agent",
+      "flow": "Attack flow generation agent",
       "operationalization": "Operationalization agent",
       "environment": "Environment agent",
       "execution": "Execution",
@@ -563,7 +153,6 @@
       "input": "Input",
       "processing": "Processing",
       "output": "Output",
-      "empty": "No agent step available for this iteration.",
       "showDetails": "Show details",
       "notAvailable": "not available",
       "origin": {
@@ -590,7 +179,6 @@
       }
     },
     "environment": {
-      "title": "Environment specifics",
       "fixed": {
         "title": "Fixed infrastructure (system-imposed)",
         "description": "The part of the environment the system fixes — not the agent's to decide.",
@@ -626,7 +214,6 @@
         "isolation": {
           "title": "Isolation (fail-closed)",
           "noVerdicts": "No container verdicts — gate not reached.",
-          "container": "Container",
           "isolated": "Isolated",
           "notIsolated": "Not isolated",
           "reasons": "Reasons",
@@ -639,7 +226,7 @@
         "buildOnline": "Build online obtained",
         "egressClosed": "Egress closed",
         "egressLostVerified": "Egress lost (verified)",
-        "offlineApplied": "Offline setup applied",
+        "offlineApplied": "Offline configuration applied",
         "yes": "Yes",
         "no": "No",
         "egressVerdicts": "Per-host egress verdicts",
@@ -648,41 +235,28 @@
         "conclusive": "Conclusive",
         "reason": "Reason"
       }
+    }
+  },
+  "flow": {
+    "title": "Attack flow",
+    "loading": "Loading the attack flow…",
+    "error": "Could not load the attack flow.",
+    "empty": "No attack flow has been generated for this campaign yet.",
+    "provenance": {
+      "title": "Provenance",
+      "exact": "Exact match",
+      "adapted": "Adapted",
+      "created": "Created",
+      "similarity": "Similarity: {{value}}"
     },
-    "audit": {
-      "title": "Consolidated audit",
-      "description": "The whole Audit_Trace grouped by iteration → agent step.",
-      "iterationsTab": "By iteration",
-      "auditTab": "Audit",
-      "empty": "No audit trace available yet.",
-      "iteration": "Iteration {{indice}}",
-      "noSteps": "No agent step in this iteration."
+    "references": {
+      "title": "MITRE reference flows",
+      "none": "No reference flows were used."
     },
-    "evaluation": {
-      "title": "Evaluator verdict",
-      "decision": "Decision",
-      "successRate": "Success rate",
-      "proceduralCoverage": "Procedural coverage",
-      "rationale": "Rationale",
-      "absent": "Evaluator verdict not available yet."
-    },
-    "decision": {
-      "refine": "Refine",
-      "finish": "Finish"
-    },
-    "comparison": {
-      "action": "Compare with curation",
-      "comparing": "Comparing…",
-      "error": "Could not compare with the curation.",
-      "matched": "Matched",
-      "missing": "Missing",
-      "extra": "Extra",
-      "stage": {
-        "dag": "DAG generation",
-        "operationalization": "Operationalization"
-      }
-    },
-    "open": "Run with AI",
-    "backToFlow": "Back to flow"
+    "cycles": {
+      "title": "Cycles detected",
+      "description": "This attack flow contains cycles. The edges that close them are drawn as back edges.",
+      "backEdge": "Back edge: {{source}} → {{target}}"
+    }
   }
 }

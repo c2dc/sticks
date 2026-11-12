@@ -240,6 +240,55 @@ def test_reingest_is_idempotent_no_duplicate_rows(db_session: Session) -> None:
 
 
 # ===========================================================================
+# Re-execution through the ingestion orchestrator (Req. 4.4, 7.3, 7.5)
+# ===========================================================================
+
+
+def test_orchestrator_rerun_does_not_duplicate_rows_or_embeddings(
+    db_session: Session,
+) -> None:
+    """Running the docker_catalog source twice via the orchestrator is idempotent.
+
+    The second run finds nothing missing (empty plan), so it neither fetches
+    again nor adds ``image_catalog`` or ``experience_memory`` rows.
+    """
+    from app.models.domain import ExperienceMemory as ExperienceMemoryRow
+    from app.models.enums import IngestSource, IngestStatus
+    from app.services.ingestion.orchestrator import IngestionOrchestrator
+    from app.services.ingestion.runners import DockerCatalogSourceRunner
+
+    factory = sessionmaker(
+        bind=db_session.get_bind(), expire_on_commit=False, future=True
+    )
+    fetcher = _FakeFetcher(_two_entries())
+    orchestrator = IngestionOrchestrator(
+        factory,
+        {
+            IngestSource.DOCKER_CATALOG: DockerCatalogSourceRunner(
+                embedder=_FakeEmbedder(), fetcher=fetcher
+            )
+        },
+    )
+
+    def _counts() -> tuple[int, int]:
+        with factory() as session:
+            return (
+                _count_rows(session),
+                int(session.execute(select(func.count()).select_from(ExperienceMemoryRow)).scalar_one()),
+            )
+
+    orchestrator.run_source(IngestSource.DOCKER_CATALOG)
+    first = _counts()
+    assert first == (2, 2)
+
+    orchestrator.run_source(IngestSource.DOCKER_CATALOG)
+    assert _counts() == first
+    assert len(fetcher.calls) == 1
+    state = next(s for s in orchestrator.status() if s.source == IngestSource.DOCKER_CATALOG)
+    assert state.status == IngestStatus.READY
+
+
+# ===========================================================================
 # Caps — direct assertion on max_images and max_text_bytes (Req. 5.2)
 # ===========================================================================
 

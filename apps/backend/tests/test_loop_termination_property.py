@@ -39,7 +39,7 @@ How the property is driven
 --------------------------
 A compiled graph mirrors the loop: a ``refine`` stage node (the single
 refinement target) → an ``evaluate`` node → a conditional edge via the real
-``route_after_eval`` mapping ``{"dag","operationalize","environment"} → refine``
+``route_after_eval`` mapping ``{"flow","operationalize","environment"} → refine``
 and ``"finish" → END``. Hypothesis generates, per example:
 
 * ``max_iterations`` ∈ [1, 12] (a reasonable configured range; Req. 3.6 default
@@ -83,7 +83,7 @@ from app.services.ai.state import AgentState
 # three refine-target keys it may return to loop back. Literals, so the test
 # never trusts the implementation to decide the expected routing vocabulary.
 _FINISH = "finish"
-_REFINE_TARGETS = ("dag", "operationalize", "environment")
+_REFINE_TARGETS = ("flow", "operationalize", "environment")
 
 
 # ---------------------------------------------------------------------------
@@ -170,7 +170,7 @@ def _build_terminating_graph(checkpointer, verdicts: list[bool]):
         "evaluate",
         _recording_router,
         {
-            "dag": "refine",
+            "flow": "refine",
             "operationalize": "refine",
             "environment": "refine",
             "finish": END,

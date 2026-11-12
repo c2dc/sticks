@@ -19,11 +19,11 @@ the portable VARCHAR + CHECK column constraint).
 
 What the property guarantees
 ----------------------------
-* **Origin stamping (Req. 2.4):** for ANY Stage 3 ``DagView`` and ANY Atomic Red
+* **Origin stamping (Req. 2.4):** for ANY Stage 3 ``FlowView`` and ANY Atomic Red
   Team command pool, the ``AiOperationalizer`` stamps the exact string
   ``"gerado_ia"`` on both artifacts it emits — ``ProducedOperationalization.origin``
   and the derived ``EnvironmentParameters.origin`` — regardless of whether the
-  DAG yields an operationalizable technique (so the invariant holds even on the
+  Attack flow yields an operationalizable technique (so the invariant holds even on the
   suppressed-abilities path).
 * **No migration for the Origin (Req. 2.5):** persisting the derived
   ``EnvironmentParameters`` with ``origin = "gerado_ia"`` is accepted by the
@@ -35,13 +35,13 @@ What the property guarantees
 
 How the property is driven
 --------------------------
-Hypothesis generates an arbitrary ``DagView`` (campaign slug + a list of nodes,
+Hypothesis generates an arbitrary ``FlowView`` (campaign slug + a list of nodes,
 each carrying a ``technique_id``/``technique_name``/``tactic``) together with a
 **fake** ``atomic_lookup`` command pool keyed by technique id. The fake lookup is
 a pure in-memory callable, so the agent runs with **no disk and no network** (no
 Atomic Red Team files are read, no SEPINF endpoint is contacted) and with **no
 LLM** injected (the agent degrades to its deterministic selection). The agent's
-``operationalize(campaign, dag)`` is invoked and the property asserts that:
+``operationalize(campaign, flow)`` is invoked and the property asserts that:
 
 1. ``produced.origin is TranslationSource.AI_GENERATED`` and its value is the
    exact string ``"gerado_ia"``;
@@ -75,7 +75,7 @@ from app.db.session import create_db_engine
 from app.models.domain import Case, EnvironmentParametersRow, _utcnow
 from app.models.enums import TranslationSource
 from app.services.ai.agents.op_agent import AiOperationalizer
-from app.services.dag.dag_service import DagNodeView, DagView
+from app.services.flow.flow_view import FlowNodeView, FlowView
 
 # The exact pt-BR string the Origin must carry (Req. 2.4) — a literal, so the
 # assertions never trust the implementation to decide the expected value.
@@ -83,7 +83,7 @@ _GERADO_IA = "ai_generated"
 
 
 # ---------------------------------------------------------------------------
-# Generators: an arbitrary Stage 3 DagView + a fake Atomic Red Team command pool.
+# Generators: an arbitrary Stage 3 FlowView + a fake Atomic Red Team command pool.
 # ---------------------------------------------------------------------------
 
 _slug_strategy = st.text(
@@ -94,7 +94,7 @@ _slug_strategy = st.text(
 _technique_id_strategy = st.from_regex(r"T[0-9]{3,4}(\.[0-9]{3})?", fullmatch=True)
 
 _node_strategy = st.builds(
-    DagNodeView,
+    FlowNodeView,
     node_id=_slug_strategy,
     technique_id=st.one_of(st.none(), _technique_id_strategy),
     technique_name=st.one_of(st.none(), st.text(max_size=24)),
@@ -120,8 +120,8 @@ _pool_entry_strategy = st.fixed_dictionaries(
 
 
 @st.composite
-def _dag_and_lookup(draw: st.DrawFn) -> tuple[DagView, Callable[[str], list[dict]]]:
-    """Draw an arbitrary ``DagView`` and a fake in-memory ``atomic_lookup``.
+def _flow_and_lookup(draw: st.DrawFn) -> tuple[FlowView, Callable[[str], list[dict]]]:
+    """Draw an arbitrary ``FlowView`` and a fake in-memory ``atomic_lookup``.
 
     The fake lookup maps each node's ``technique_id`` to a (possibly empty)
     command pool, so the agent runs purely in memory — no Atomic Red Team file is
@@ -131,7 +131,7 @@ def _dag_and_lookup(draw: st.DrawFn) -> tuple[DagView, Callable[[str], list[dict
     """
     campaign = draw(_slug_strategy)
     nodes = draw(st.lists(_node_strategy, max_size=5))
-    dag = DagView(
+    flow = FlowView(
         campaign_id=campaign,
         name=campaign,
         curated=True,
@@ -152,7 +152,7 @@ def _dag_and_lookup(draw: st.DrawFn) -> tuple[DagView, Callable[[str], list[dict
         # Pure, in-memory: no disk, no network (Req.: avoid disk/network).
         return list(pools.get(technique_id, []))
 
-    return dag, fake_atomic_lookup
+    return flow, fake_atomic_lookup
 
 
 # ---------------------------------------------------------------------------
@@ -192,7 +192,7 @@ def _build_ephemeral_session() -> tuple[Session, Path, Any]:
 
 
 # ---------------------------------------------------------------------------
-# Property 1 — for any DagView + any Atomic Red Team pool, the AiOperationalizer
+# Property 1 — for any FlowView + any Atomic Red Team pool, the AiOperationalizer
 # stamps origin=gerado_ia on BOTH artifacts, and persisting the derived
 # EnvironmentParameters needs no schema migration for the Origin (Req. 2.4, 2.5).
 #
@@ -208,9 +208,9 @@ def _build_ephemeral_session() -> tuple[Session, Path, Any]:
     deadline=None,
     suppress_health_check=[HealthCheck.too_slow],
 )
-@given(data=_dag_and_lookup())
+@given(data=_flow_and_lookup())
 def test_property1_ai_stage4_artifacts_carry_gerado_ia_origin(
-    data: tuple[DagView, Callable[[str], list[dict]]],
+    data: tuple[FlowView, Callable[[str], list[dict]]],
 ) -> None:
     """AI Stage 4 artifacts carry origin=gerado_ia and persist with no migration.
 
@@ -218,7 +218,7 @@ def test_property1_ai_stage4_artifacts_carry_gerado_ia_origin(
     # origin = AI_GENERATED.
     Validates: Requirements 2.4, 2.5
     """
-    dag, fake_atomic_lookup = data
+    flow, fake_atomic_lookup = data
 
     # No LLM and no RAG memory injected: the agent degrades to its deterministic
     # selection and proposes without priming, so it runs with no SEPINF endpoint.
@@ -228,7 +228,7 @@ def test_property1_ai_stage4_artifacts_carry_gerado_ia_origin(
     # Sanity: the agent's declared origin is AI_GENERATED (Req. 2.4).
     assert agent.origin() is TranslationSource.AI_GENERATED
 
-    produced = agent.operationalize(dag.campaign_id, dag)
+    produced = agent.operationalize(flow.campaign_id, flow)
 
     # (1) ProducedOperationalization is stamped gerado_ia (Req. 2.4).
     assert produced.origin is TranslationSource.AI_GENERATED
@@ -247,11 +247,11 @@ def test_property1_ai_stage4_artifacts_carry_gerado_ia_origin(
     session, db_path, engine = _build_ephemeral_session()
     try:
         # FK campaign_id -> campaigns.id must be satisfied.
-        session.add(Case(id=dag.campaign_id, name=dag.campaign_id))
+        session.add(Case(id=flow.campaign_id, name=flow.campaign_id))
         session.commit()
 
         row = EnvironmentParametersRow(
-            campaign_id=dag.campaign_id,
+            campaign_id=flow.campaign_id,
             platform=parameters.platform,
             content=parameters.model_dump(mode="json"),
             origin=parameters.origin,  # TranslationSource.AI_GENERATED

@@ -49,12 +49,12 @@
       <rect width="186" height="150" rx="12" fill="#faf3ff" stroke="#c9a8ef"/>
       <rect width="186" height="34" rx="12" fill="#6b43d6"/>
       <circle cx="26" cy="17" r="12" fill="#ffffff"/><text x="26" y="22" text-anchor="middle" font-size="14" font-weight="800" fill="#6b43d6">3</text>
-      <text x="48" y="22" font-size="12.5" font-weight="800" fill="#ffffff">DAG</text>
+      <text x="48" y="22" font-size="12.5" font-weight="800" fill="#ffffff">Attack flow</text>
       <text x="14" y="58" font-size="11" font-weight="700" fill="#0f1726">Plan: build the</text>
       <text x="14" y="76" font-size="10" fill="#64748b">ordered graph of</text>
       <text x="14" y="91" font-size="10" fill="#64748b">techniques with</text>
       <text x="14" y="106" font-size="10" fill="#64748b">dependencies</text>
-      <text x="14" y="138" font-size="9" font-weight="700" fill="#6b43d6">&#8594; the DAG</text>
+      <text x="14" y="138" font-size="9" font-weight="700" fill="#6b43d6">&#8594; the attack flow</text>
     </g>
     <g transform="translate(682,104)">
       <rect width="186" height="150" rx="12" fill="#faf3ff" stroke="#c9a8ef"/>
@@ -62,7 +62,7 @@
       <circle cx="26" cy="17" r="12" fill="#ffffff"/><text x="26" y="22" text-anchor="middle" font-size="14" font-weight="800" fill="#8b2fd6">4</text>
       <text x="48" y="22" font-size="12.5" font-weight="800" fill="#ffffff">Operational.</text>
       <text x="14" y="58" font-size="11" font-weight="700" fill="#0f1726">Build commands</text>
-      <text x="14" y="76" font-size="10" fill="#64748b">in DAG order +</text>
+      <text x="14" y="76" font-size="10" fill="#64748b">in flow order +</text>
       <text x="14" y="91" font-size="10" fill="#64748b">derive env.</text>
       <text x="14" y="106" font-size="10" fill="#64748b">parameters</text>
       <text x="14" y="138" font-size="9" font-weight="700" fill="#8b2fd6">&#8594; cmds + params</text>

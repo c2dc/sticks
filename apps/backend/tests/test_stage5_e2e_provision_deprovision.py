@@ -38,20 +38,23 @@ _Requirements: 8.1, 8.2, 8.4_
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from pathlib import Path
+
+import pytest
 
 from sqlalchemy.orm import Session
 
 from sqlalchemy import select
 
+from tests._curated_db import CaseDb, SessionSeeder
 from app.models.domain import StageRun
 from app.models.enums import StageState, TranslationSource
-from app.services.campaign_service import CaseService
 from app.services.environment.completion import CompletionStage6Service
 from app.services.environment.operationalization import EnvironmentPlatform
 from app.services.environment.provisioner import CurationEnvironmentProvisioner
 from app.services.operation.runner import OperationRunResult, RunOutcome
-from app.services.stage.stage_service import STAGE_EXECUTION
+from app.services.emulation.views import STAGE_EXECUTION
 
 # Reuso dos *fakes*/helpers do teste de ``provision`` (sem redefinir).
 from tests.test_provisioner_stage5 import (
@@ -82,13 +85,23 @@ from tests.test_completion_stage6 import (  # noqa: F401 — fixtures via import
 _CONTAINERS = [_C1, _C2]
 
 
+@pytest.fixture()
+def case_db() -> Iterator[CaseDb]:
+    """Ephemeral database holding the curated case read by the provisioner."""
+    db = CaseDb()
+    try:
+        yield db
+    finally:
+        db.dispose()
+
+
 # ---------------------------------------------------------------------------
 # Montagem compartilhada: o provisioner REAL com TODOS os colaboradores fakes
 # ---------------------------------------------------------------------------
 
 
 def _real_provisioner(
-    data_dir: Path, compose: FakeComposeExecutor
+    case_db: CaseDb, compose: FakeComposeExecutor
 ) -> CurationEnvironmentProvisioner:
     """Monta a :class:`CurationEnvironmentProvisioner` REAL com os fakes.
 
@@ -98,10 +111,10 @@ def _real_provisioner(
     ``provision`` e o teardown real de ``deprovision`` rodem sem tocar Docker,
     Caldera ou rede.
     """
-    _seed_case(data_dir, _SLUG)
+    _seed_case(case_db, _SLUG)
     return CurationEnvironmentProvisioner(
         inspector=_isolated_inspector(_CONTAINERS),
-        case_service=CaseService(data_dir=data_dir),
+        session_factory=case_db.factory,
         caldera=FakeCaldera(),
         compose_executor=compose,
         state_inspector=_healthy_state_inspector(_CONTAINERS),
@@ -110,7 +123,7 @@ def _real_provisioner(
 
 def _completion_service(
     session: Session,
-    data_dir: Path,
+    data_dir: SessionSeeder,
     *,
     provisioner: CurationEnvironmentProvisioner,
     runner_result: OperationRunResult,
@@ -124,12 +137,12 @@ def _completion_service(
     ``FakeComposeExecutor``), e o ``report_sink`` é o ``_MemorySink`` em
     memória.
     """
+    _seed_case(data_dir, _SLUG)
     return CompletionStage6Service(
         session,
         runner_factory=lambda _s: _FixedRunner(result=runner_result),  # type: ignore[arg-type,return-value]
         provisioner=provisioner,
         report_sink=sink,
-        case_service=CaseService(data_dir=data_dir),
     )
 
 
@@ -140,7 +153,7 @@ def _completion_service(
 
 
 def test_e2e_provision_execute_deprovision_success(
-    session: Session, data_dir: Path
+    session: Session, data_dir: SessionSeeder, case_db: CaseDb
 ) -> None:
     """Laço completo: compose up (provisão) + compose down (teardown) ok.
 
@@ -151,7 +164,7 @@ def test_e2e_provision_execute_deprovision_success(
     _Requirements: 8.1, 8.2_
     """
     compose = FakeComposeExecutor(codigo_subir=0, codigo_derrubar=0)
-    prov = _real_provisioner(data_dir, compose)
+    prov = _real_provisioner(case_db, compose)
 
     # --- Provision (ShadowRay): the THREE prerequisites pass.
     environment = prov.provision(_params(_CONTAINERS))
@@ -214,7 +227,7 @@ def test_e2e_provision_execute_deprovision_success(
 
 
 def test_e2e_teardown_failure_reports_remaining_resources(
-    session: Session, data_dir: Path
+    session: Session, data_dir: SessionSeeder, case_db: CaseDb
 ) -> None:
     """Compose up ok, compose down failure → recursos remanescentes + não conclui.
 
@@ -232,7 +245,7 @@ def test_e2e_teardown_failure_reports_remaining_resources(
         codigo_derrubar=1,
         linhas_derrubar=[("stderr", "Error response from daemon: conflict")],
     )
-    prov = _real_provisioner(data_dir, compose)
+    prov = _real_provisioner(case_db, compose)
 
     # --- Provision: the bring-up ok, the environment becomes ready.
     environment = prov.provision(_params(_CONTAINERS))

@@ -12,16 +12,16 @@ loop wiring described by Requirement 15:
 * **One route maps to one stage agent (15.3, 15.4, 15.5).**
   :func:`app.services.ai.graph.route_after_eval` normalizes that single
   ``refine_stage`` to EXACTLY ONE of the three conditional-edge keys
-  ``"dag"`` / ``"operationalize"`` / ``"environment"`` that ``build_graph``
-  registered onto the DAG / operationalization / environment stage nodes — so a
-  dag route re-enters the DAG agent (15.3), an op route the operationalization
+  ``"flow"`` / ``"operationalize"`` / ``"environment"`` that ``build_graph``
+  registered onto the attack flow / operationalization / environment stage nodes — so a
+  flow route re-enters the attack flow agent (15.3), an op route the operationalization
   agent (15.4), and an environment route the environment agent (15.5). The three
   mappings are covered with reports crafted so ``_diagnose_failing_stage`` picks
   each stage (isolation outcome -> environment; containment/confirmation block or
-  failing executed nodes -> operationalization) plus a direct ``stage_3_dag``
-  state for the dag mapping, which ``_diagnose_failing_stage`` does not produce
+  failing executed nodes -> operationalization) plus a direct ``stage_3_flow``
+  state for the flow mapping, which ``_diagnose_failing_stage`` does not produce
   naturally (it only ever routes to environment or operationalization), so the
-  dag edge key is asserted at the ``route_after_eval`` level.
+  flow edge key is asserted at the ``route_after_eval`` level.
 * **Each iteration records refined stage + non-empty reason (15.6).** Driving
   :class:`app.services.ai.run_service.AgentRunService` over an ephemeral SQLite
   session with a doubled compiled graph whose final state carries an evaluator
@@ -57,10 +57,10 @@ from app.services.ai.run_service import AgentRunService
 
 _CAMPAIGN_ID = "campaign-under-test"
 
-# The three conditional-edge keys ``build_graph`` registered onto the DAG /
+# The three conditional-edge keys ``build_graph`` registered onto the attack flow /
 # operationalization / environment stage nodes (Req. 15.3, 15.4, 15.5). "finish"
 # maps to END and is NOT a refine target.
-_REFINE_EDGE_KEYS = {"dag", "operationalize", "environment"}
+_REFINE_EDGE_KEYS = {"flow", "operationalize", "environment"}
 
 
 # ---------------------------------------------------------------------------
@@ -166,7 +166,7 @@ def test_insufficient_report_yields_single_route_mapped_to_one_stage(
     assert delta["evaluation"]["decision"] == EvaluatorDecision.REFINE.value
 
     # route_after_eval maps that single stage to exactly one refine edge key —
-    # one of {"dag","operationalize","environment"}, never "finish" below the
+    # one of {"flow","operationalize","environment"}, never "finish" below the
     # guard (Req. 15.3, 15.4, 15.5).
     edge_key = route_after_eval(_route_state(refine_stage, delta["evaluation"]))
     assert edge_key == expected_edge_key
@@ -174,25 +174,25 @@ def test_insufficient_report_yields_single_route_mapped_to_one_stage(
     assert edge_key != "finish"
 
 
-def test_dag_route_maps_to_dag_stage_agent() -> None:
-    """A dag-targeted refinement routes to the DAG stage agent edge key (Req. 15.3).
+def test_flow_route_maps_to_flow_stage_agent() -> None:
+    """A flow-targeted refinement routes to the attack flow stage agent edge key (Req. 15.3).
 
     ``_diagnose_failing_stage`` only ever routes to environment or
-    operationalization (never dag) from a report, so the dag mapping is asserted
+    operationalization (never flow) from a report, so the flow mapping is asserted
     at the ``route_after_eval`` level by feeding a state whose ``refine_stage`` is
-    the DAG stage value — exactly what the evaluator would write had it chosen the
-    DAG stage. The router must normalize it to the single ``"dag"`` edge key that
-    ``build_graph`` wired to the Dag_Generation_Agent.
+    the attack flow stage value — exactly what the evaluator would write had it chosen the
+    Attack flow stage. The router must normalize it to the single ``"flow"`` edge key that
+    ``build_graph`` wired to the Flow_Generation_Agent.
     """
     evaluation = {
         "verdict_success": False,
         "decision": EvaluatorDecision.REFINE.value,
     }
     edge_key = route_after_eval(
-        _route_state(AgentStage.DAG.value, evaluation)
+        _route_state(AgentStage.FLOW.value, evaluation)
     )
 
-    assert edge_key == "dag"
+    assert edge_key == "flow"
     assert edge_key in _REFINE_EDGE_KEYS
 
 

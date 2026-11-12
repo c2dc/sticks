@@ -42,7 +42,7 @@ Typed Stage 5 output (task 7.1):
     The curation implementation of this iteration. It does **NOT** start, create
     or modify containers (read-only); **no AI and no public network**. In
     ``provision`` it (1) resolves the target containers from the
-    ``EnvironmentParameters``, (2) **loads the ordered Abilities** (by the DAG's
+    ``EnvironmentParameters``, (2) **loads the ordered Abilities** (by the attack flow's
     ``atomic_ordering``) and the Adversary into Caldera reusing
     ``CalderaClient.load_abilities``/``load_adversary`` — the client is
     **injectable** (a *fake* in the tests, the real one in production) — and (3)
@@ -53,7 +53,7 @@ Typed Stage 5 output (task 7.1):
     an empty list **or** an unavailable daemon fails). It verifies exactly the
     containers the Execution will attack.
 
-As in the rest of the service packages (``dag``/``stage``), the seam is a
+As in the rest of the service packages (``flow``/``stage``), the seam is a
 ``@runtime_checkable Protocol`` and the external dependencies (inspector,
 Campaign) are **injected**, with the production defaults resolved lazily.
 
@@ -68,7 +68,14 @@ from typing import Any, Callable, Mapping, Optional, Protocol, Sequence, runtime
 from pydantic import BaseModel, Field
 
 from app.models.enums import TranslationSource
-from app.services.campaign_service import CaseData, CaseService
+from sqlalchemy.orm import Session
+
+from app.services.curated_case_models import CaseData
+from app.services.curated_case_reader import (
+    build_case_from_db,
+    is_curated,
+    list_curated_names,
+)
 from app.services.containment import (
     ContainerInspector,
     IsolationResult,
@@ -297,7 +304,7 @@ class ProvisionedEnvironment(BaseModel):
             pipeline fails before that step (e.g. bringing the containers up
             failed).
         loaded_abilities: ``True`` iff the ordered Abilities were loaded into
-            Caldera in the DAG order (Req. 5.2, 9.5).
+            Caldera in the attack flow order (Req. 5.2, 9.5).
         origin: Provisioning origin — ``curadoria_humana`` today; extensible to
             ``gerado_ia`` without changing the model (Req. 16.3, 16.4).
         substages: :class:`SubStageSummary` with the outcome of the Stage-5
@@ -497,7 +504,7 @@ class EnvironmentProvisioner(Protocol):
 
     A ``@runtime_checkable Protocol`` that defines the **extension point** of the
     environment creation, following the precedent of the other per-origin seams
-    (``DagGenerator`` in Stage 3, ``OperationalizerByOrigin`` in Stage 4): each
+    (``FlowGenerator`` in Stage 3, ``OperationalizerByOrigin`` in Stage 4): each
     origin (``curadoria_humana`` today, ``gerado_ia`` in the future) is an
     implementation interchangeable by injection, **without** redesign (Req. 16.3,
     16.4).
@@ -524,7 +531,7 @@ class EnvironmentProvisioner(Protocol):
 
     .. note::
         ``prepare(campaign)`` is kept for compatibility with the existing Stage 4
-        auto-completion (``EnvironmentStageService``) and the topology endpoints;
+        the topology endpoints;
         the new ``origin``/``provision``/``deprovision`` methods implement the
         Stage 5 seam of the six-stage pipeline.
     """
@@ -609,7 +616,7 @@ class EnvironmentProvisioner(Protocol):
     def prepare(self, campaign: str) -> ProvisioningResult:
         """Prepare/verify the environment of the *slug* ``campaign`` (Stage 4 compat.).
 
-        Kept for the Stage 4 auto-completion (``EnvironmentStageService``) and the
+        Kept for the
         existing topology endpoints. The curation implementation **creates
         nothing** — it only verifies the isolation of the existing environment and
         exposes the topology.
@@ -652,7 +659,7 @@ class CurationEnvironmentProvisioner:
         self,
         *,
         inspector: Optional[ContainerInspector] = None,
-        case_service: Optional[CaseService] = None,
+        session_factory: Optional[Callable[[], Session]] = None,
         caldera: Optional[CalderaLoader] = None,
         compose_executor: Optional[ComposeExecutor] = None,
         state_inspector: Optional[ContainerStateInspector] = None,
@@ -667,9 +674,11 @@ class CurationEnvironmentProvisioner:
                 ``None`` in production (the real adapter is built lazily by
                 :func:`inspect_isolation` only when the check runs); the tests
                 inject a fake inspector so as not to touch any daemon.
-            case_service: :class:`CaseService` to resolve the Campaign's display
-                name and load the Campaign's curated Abilities/Adversary. Default:
-                a production instance.
+            session_factory: Callable returning a short-lived
+                :class:`~sqlalchemy.orm.Session` used to resolve the Campaign's
+                display name and load its curated Abilities/Adversary from the
+                database. ``None`` in production: the application's
+                ``SessionLocal`` is imported lazily on first use.
             caldera: Caldera client (:class:`CalderaLoader`) used to load the
                 ordered Abilities and the Adversary (Req. 9.5). ``None`` in
                 production — a real :class:`~app.services.caldera.CalderaClient` is
@@ -694,9 +703,7 @@ class CurationEnvironmentProvisioner:
                 task 3.2.
         """
         self._inspector = inspector
-        self._case_service: CaseService = (
-            case_service if case_service is not None else CaseService()
-        )
+        self._session_factory = session_factory
         self._caldera = caldera
         self._compose_executor = compose_executor
         self._state_inspector = state_inspector
@@ -704,14 +711,29 @@ class CurationEnvironmentProvisioner:
         self._egress_prober = egress_prober
         self._target_setup = target_setup
 
-    @property
-    def case_service(self) -> CaseService:
-        """The :class:`CaseService` used to resolve the Campaign name/validation."""
-        return self._case_service
+    def _open_session(self) -> Session:
+        """Open a short-lived database session (lazy default: ``SessionLocal``)."""
+        factory = self._session_factory
+        if factory is None:
+            from app.db.session import SessionLocal
+
+            factory = SessionLocal
+        return factory()
 
     def _campaign_name(self, campaign: str) -> str:
-        """Display name of the Campaign for the topology (fallback: the slug itself)."""
-        return self._case_service.list_cases().get(campaign, campaign)
+        """Display name of the Campaign for the topology (fallback: the slug itself).
+
+        Read from ``campaigns.name`` of the curated campaigns; any database
+        failure falls back to the slug (the topology is still displayed).
+        """
+        try:
+            session = self._open_session()
+            try:
+                return list_curated_names(session).get(campaign, campaign)
+            finally:
+                session.close()
+        except Exception:
+            return campaign
 
     def origin(self) -> TranslationSource:
         """Stamp ``curadoria_humana`` on the Stage 5 output (Req. 16.3)."""
@@ -722,7 +744,7 @@ class CurationEnvironmentProvisioner:
 
         Prefers the containers resolved in the ``hosts`` of the
         :class:`~app.services.environment.operationalization.EnvironmentParameters`
-        (derived from the curated DAG commands); falls back to the curated lab's
+        (derived from the curated attack flow commands); falls back to the curated lab's
         containers (:func:`...topology_builder.container_names`) when the
         parameters resolved none (Req. 9.4) — and that fallback is the
         **target** containers only (not the attacker/C2 hosts), consistent with
@@ -851,7 +873,7 @@ class CurationEnvironmentProvisioner:
     def _ordered_abilities(case: CaseData) -> list[Any]:
         """Order the Campaign's Abilities by the Adversary's ``atomic_ordering`` (Req. 9.5).
 
-        The DAG order is materialized by the curated Adversary's
+        The attack flow order is materialized by the curated Adversary's
         ``atomic_ordering`` (the ``ability_id`` in execution order). It preserves
         that order; Abilities outside the ``atomic_ordering`` (defensive) go to the
         end, in the original order. Without ``atomic_ordering`` it falls back to
@@ -925,8 +947,8 @@ class CurationEnvironmentProvisioner:
     def _load_abilities(self, params: EnvironmentParameters) -> bool:
         """Load the ordered Abilities + the curated Adversary into Caldera (Req. 9.5).
 
-        Reads the curated Campaign by *slug* (``CaseService.try_load_case``,
-        defensive and network-free), orders the Abilities by the DAG's
+        Reads the curated Campaign by *slug* from the database
+        (:func:`build_case_from_db`, network-free), orders the Abilities by the attack flow's
         ``atomic_ordering``, and pushes them to Caldera in order, followed by the
         Adversary. Fail-closed: if the Campaign does not load, there are no
         Abilities, or Caldera fails, it returns ``False`` (Stage 5 does not
@@ -937,13 +959,17 @@ class CurationEnvironmentProvisioner:
         the lab's Caldera (not the public Internet).
         """
         try:
-            result = self._case_service.try_load_case(params.campaign_id)
-        except KeyError:
-            # Slug outside the curated catalog: fail-closed, no Abilities loaded.
+            session = self._open_session()
+            try:
+                if not is_curated(session, params.campaign_id):
+                    # Slug outside the curated set: fail-closed, no Abilities loaded.
+                    return False
+                case = build_case_from_db(session, params.campaign_id)
+            finally:
+                session.close()
+        except Exception:
+            # Database unavailable/unreadable: fail-closed.
             return False
-        if not result.ok or result.case is None:
-            return False
-        case = result.case
         if not case.has_abilities:
             return False
 
@@ -1304,7 +1330,7 @@ class CurationEnvironmentProvisioner:
            (:func:`~app.services.environment.health.inspect_health`, Req. 5.1).
            Failed ⇒ failure identifying the unhealthy container and the reason.
         3. ``carregar_abilities`` — reuses :meth:`_load_abilities` (Abilities
-           ordered by the DAG's ``atomic_ordering`` + Adversary into Caldera —
+           ordered by the attack flow's ``atomic_ordering`` + Adversary into Caldera —
            Req. 4.1). ``False`` ⇒ failure (Caldera unavailable / missing artifact —
            Req. 4.4).
         4. ``verificar_isolamento`` — reuses :meth:`_check_isolation`
