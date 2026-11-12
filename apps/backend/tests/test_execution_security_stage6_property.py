@@ -19,7 +19,7 @@ design: confirmação → contenção → isolation → disponibilidade) rodem d
 * o **verificador de isolation** é um *fake* parametrizável que reprova
   exatamente os contêineres que a geração marcou como não isolados;
 * a Base_de_Dados é um SQLite **efêmero** em file temporário;
-* o campaign curated é semeado em um ``data_dir`` temporário com UM command cujo
+* o campaign curated é semeado como linhas ORM no SQLite efêmero com UM command cujo
   destino (interno/external) é escolhido pela geração.
 
 Para cada exemplo o Hypothesis escolhe um **destino de command** (um IP interno
@@ -53,6 +53,7 @@ from hypothesis import strategies as st
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, sessionmaker
 
+from tests._curated_db import SessionSeeder, db_put
 from app.core.config import Settings
 from app.db.base import Base, import_models
 from app.db.session import create_db_engine
@@ -66,17 +67,16 @@ from app.services.caldera import (
     OPERATIONS_PATH,
     CalderaClient,
 )
-from app.services.campaign_service import CaseService
 from app.services.containment.isolation import (
     ContainerIsolationVerdict,
     IsolationResult,
 )
 from app.services.environment.execution import ExecutionStageService
 from app.services.operation.runner import OperationRunner, RunOutcome
-from app.services.stage.stage_service import STAGE_EXECUTION
+from app.services.emulation.views import STAGE_EXECUTION
 
 
-_SLUG = "shadowray"  # a registered curated slug (CURATED_CASES)
+_SLUG = "shadowray"  # a curated slug (campaigns.curated row)
 
 # Internal lab IPs (resolve to lab containers; see subnets.STATIC_IP_CONTAINERS).
 _INTERNAL_IPS = ("192.168.10.20", "192.168.20.30", "192.168.30.40")
@@ -116,16 +116,9 @@ def _ephemeral_session() -> Iterator[Session]:
         shutil.rmtree(tmp, ignore_errors=True)
 
 
-def _write_json(path: Path, payload: object) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload), encoding="utf-8")
-
-
-def _seed_case(data_dir: Path, slug: str, *, command: str) -> None:
+def _seed_case(data_dir: SessionSeeder, slug: str, *, command: str) -> None:
     """Seed a minimal curated case with a single ability command (one destination)."""
-    _write_json(
-        data_dir / "api" / f"{slug}_dag-ability.json",
-        [
+    db_put(data_dir, "ability", slug, [
             {
                 "ability_id": f"{slug}-ab-1",
                 "name": "first",
@@ -134,27 +127,20 @@ def _seed_case(data_dir: Path, slug: str, *, command: str) -> None:
                     {"name": "sh", "platform": "linux", "command": command}
                 ],
             }
-        ],
-    )
-    _write_json(
-        data_dir / "api" / f"{slug}_dag-adversary.json",
-        {
+        ])
+    db_put(data_dir, "adversary", slug, {
             "id": f"{slug}-adv",
             "name": "Seed Adversary",
             "description": "seed",
             "atomic_ordering": [f"{slug}-ab-1"],
-        },
-    )
-    _write_json(
-        data_dir / "dag" / f"{slug}_dag.json",
-        {
+        })
+    db_put(data_dir, "flow", slug, {
             "campaign_name": "Seed",
             "structural_nodes": [
-                {"node_id": "n0", "node_index": 0, "technique_id": "T1059"}
+                {"node_id": "n0", "technique_id": "T1059"}
             ],
             "metadata": {"total_techniques": 1},
-        },
-    )
+        })
 
 
 # ---------------------------------------------------------------------------
@@ -300,17 +286,14 @@ def _operation_count(session: Session) -> int:
     return session.execute(select(func.count()).select_from(Operation)).scalar() or 0
 
 
-def _run_once(
-    session: Session, data_dir: Path, *, command: str, isolated_all: bool
-):
+def _run_once(session: Session, *, command: str, isolated_all: bool):
     """Seed the case, wire a REAL runner with fakes, and execute Stage 6 once."""
-    _seed_case(data_dir, _SLUG, command=command)
+    _seed_case(SessionSeeder(session), _SLUG, command=command)
     service = ExecutionStageService(
         session,
         runner_factory=_runner_factory(
             _healthy_caldera(), _ConfigurableVerifier(isolated_all=isolated_all)
         ),
-        case_service=CaseService(data_dir=data_dir),
     )
     return service.execute(_SLUG, confirmed=True)
 
@@ -333,41 +316,37 @@ def test_property7_no_execution_with_external_or_unisolated(
     Validates: Requirements 10.2, 13.4, 13.5, 14.2, 14.4, 14.5, 9.6, 9.7
     """
     dest_kind, command = destination
-    tmp = Path(tempfile.mkdtemp(prefix="pipeline_ui_stage6_seg_"))
-    try:
-        with _ephemeral_session() as session:
-            result = _run_once(
-                session, tmp, command=command, isolated_all=isolated_all
-            )
+    with _ephemeral_session() as session:
+        result = _run_once(
+            session, command=command, isolated_all=isolated_all
+        )
 
-            # Independent oracle: only internal destination AND full isolation runs.
-            expected_run = _deve_executar(dest_kind, isolated_all)
+        # Independent oracle: only internal destination AND full isolation runs.
+        expected_run = _deve_executar(dest_kind, isolated_all)
 
-            assert _operation_count(session) == (1 if expected_run else 0)
-            assert result.started is expected_run
+        assert _operation_count(session) == (1 if expected_run else 0)
+        assert result.started is expected_run
 
-            if expected_run:
-                # Happy path: the single execution completed and concluded Stage 6.
-                assert result.result is RunOutcome.COMPLETED
-                assert result.state is OperationState.FINISHED
-                assert result.completed is True
-                assert _stage6_state(session, _SLUG) is StageState.COMPLETED
+        if expected_run:
+            # Happy path: the single execution completed and concluded Stage 6.
+            assert result.result is RunOutcome.COMPLETED
+            assert result.state is OperationState.FINISHED
+            assert result.completed is True
+            assert _stage6_state(session, _SLUG) is StageState.COMPLETED
+        else:
+            # Fail-closed: refused/aborted pre-flight, nothing started/concluded.
+            assert result.completed is False
+            assert _stage6_state(session, _SLUG) is None
+            # Containment runs BEFORE isolation: an external destination
+            # refuses first regardless of the isolation state (gate order of
+            # the design). An internal-but-not-isolated destination aborts at
+            # the isolation gate instead.
+            if dest_kind != "internal":
+                assert result.result is RunOutcome.CONTAINMENT_REFUSED
+                assert result.violations  # offending ability/command surfaced
             else:
-                # Fail-closed: refused/aborted pre-flight, nothing started/concluded.
-                assert result.completed is False
-                assert _stage6_state(session, _SLUG) is None
-                # Containment runs BEFORE isolation: an external destination
-                # refuses first regardless of the isolation state (gate order of
-                # the design). An internal-but-not-isolated destination aborts at
-                # the isolation gate instead.
-                if dest_kind != "internal":
-                    assert result.result is RunOutcome.CONTAINMENT_REFUSED
-                    assert result.violations  # offending ability/command surfaced
-                else:
-                    assert result.result is RunOutcome.ISOLATION_FAILED
-                    assert result.non_isolated_containers
-    finally:
-        shutil.rmtree(tmp, ignore_errors=True)
+                assert result.result is RunOutcome.ISOLATION_FAILED
+                assert result.non_isolated_containers
 
 
 # ---------------------------------------------------------------------------
@@ -389,20 +368,15 @@ def test_property7_internal_and_isolated_always_executes(
     # Oracle sanity: this combination is exactly the one allowed to execute.
     assert _deve_executar("internal", True) is True
 
-    tmp = Path(tempfile.mkdtemp(prefix="pipeline_ui_stage6_seg_"))
-    try:
-        with _ephemeral_session() as session:
-            result = _run_once(
-                session,
-                tmp,
-                command=f"curl http://{internal_ip}/x",
-                isolated_all=True,
-            )
+    with _ephemeral_session() as session:
+        result = _run_once(
+            session,
+            command=f"curl http://{internal_ip}/x",
+            isolated_all=True,
+        )
 
-            assert result.result is RunOutcome.COMPLETED
-            assert result.started is True
-            assert result.completed is True
-            assert _operation_count(session) == 1
-            assert _stage6_state(session, _SLUG) is StageState.COMPLETED
-    finally:
-        shutil.rmtree(tmp, ignore_errors=True)
+        assert result.result is RunOutcome.COMPLETED
+        assert result.started is True
+        assert result.completed is True
+        assert _operation_count(session) == 1
+        assert _stage6_state(session, _SLUG) is StageState.COMPLETED

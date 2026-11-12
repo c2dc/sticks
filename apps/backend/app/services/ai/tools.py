@@ -9,11 +9,11 @@ Hosts thin wrappers used by the agents (e.g. ``tool_read_attack``,
 Each wrapper imports and instantiates its underlying service lazily, uses argv
 lists (never a shell), and performs no I/O at import time (Requirement 1.7).
 
-Database-sourced Agent_Input (task 14.1): the dag/operationalization context
+Database-sourced Agent_Input (task 14.1): the flow/operationalization context
 readers (``tool_read_attack``/``tool_atomic_lookup``) resolve their context from the
 **database** — ``StixPackageReadService.campaign_overview`` for the STIX/ATT&CK
 base context and ``CommandBase.commands_for_technique`` for the Atomic Red Team
-command pool — never from ``packages/cli/data`` on disk (Req. 5.1, 5.2, 5.4).
+command pool — never from the legacy CLI data directory on disk (Req. 5.1, 5.2, 5.4).
 Both take a request-scoped SQLAlchemy ``Session`` so the read shares the run's
 unit of work; without a session they degrade to an empty context rather than
 falling back to disk, preserving the no-disk guarantee.
@@ -24,7 +24,7 @@ from typing import TYPE_CHECKING, Any, Callable, Optional
 if TYPE_CHECKING:  # pragma: no cover - typing only, no import-time cost
     from sqlalchemy.orm import Session
 
-# --- dag-phase tool wrappers (task 10.1, 14.1) ---
+# --- flow-phase tool wrappers (task 10.1, 14.1) ---
 
 # The ATT&CK Enterprise base version the AI pipeline resolves campaigns against
 # (the curated version, the only base carrying the 8 curated campaigns). Mirrors
@@ -41,12 +41,12 @@ def tool_read_attack(
 ) -> dict:
     """STIX/ATT&CK base-context reader from the DATABASE (no disk — Req. 5.1, 5.2, 5.4).
 
-    Thin, lazy, **read-only** tool used by the dag-phase ``AiDagGenerator`` to
+    Thin, lazy, **read-only** tool used by the flow-phase ``FlowAgent`` to
     gather the ATT&CK/STIX base context of a campaign — its identity, techniques
     and actors — from the persisted STIX, for ANY of the 52 campaigns (curated or
     not). It reads from the ``Campaign_Overview`` served by
     :meth:`~app.services.stix.stix_package_read_service.StixPackageReadService.campaign_overview`
-    and never opens ``packages/cli/data`` on disk: the Agent_Input base context is
+    and never opens the legacy CLI data directory on disk: the Agent_Input base context is
     DB-sourced (Req. 5.1, 5.2, 5.4).
 
     Laziness (Requirement 1.7): the read service is imported and instantiated
@@ -83,7 +83,7 @@ def tool_read_attack(
     # Lazy imports: no I/O and no heavy deps at module import time (Req. 1.7).
     if session is None:
         # No session to read the DB with. Do NOT fall back to disk — the
-        # Agent_Input path must never read packages/cli/data (Req. 5.2). An empty
+        # Agent_Input path must never read the legacy CLI data directory (Req. 5.2). An empty
         # base context lets generation proceed (and degrade) without a disk read.
         return {
             "campaign": campaign,
@@ -142,7 +142,7 @@ def tool_read_attack(
 # lookup reads the DB-backed Command_Base and the parser is pure Python. Commands
 # are kept as argv-friendly data (plain strings the caller turns into argv lists);
 # nothing here spawns a subprocess or touches the network (Requirements 2.2, 8.1,
-# 9.2) and nothing reads ``packages/cli/data`` from disk (Req. 5.2).
+# 9.2) and nothing reads the legacy CLI data directory from disk (Req. 5.2).
 
 
 def tool_atomic_lookup(
@@ -153,13 +153,13 @@ def tool_atomic_lookup(
     """Return the Atomic Red Team command pool for a technique from the DATABASE.
 
     The operationalization-phase agent calls this to discover the concrete
-    commands it may select and parametrize for a DAG node. The command source is
+    commands it may select and parametrize for an attack flow node. The command source is
     the DB-backed ``Command_Base`` — the ``technique_commands`` relational mapping
     first, then the pgvector similarity fallback — resolved via
     :meth:`app.services.command_base.CommandBase.commands_for_technique`, NOT the
     curated cases on disk (Req. 12.1, 12.3). This wrapper is a thin, read-only,
     lazy adapter; it never reimplements a catalogue, opens a socket, spawns a
-    subprocess, or reads ``packages/cli/data`` (Req. 5.2).
+    subprocess, or reads the legacy CLI data directory (Req. 5.2).
 
     Args:
         technique_id: The ATT&CK technique id to look up (e.g. ``"T1190"``).
@@ -192,7 +192,7 @@ def tool_atomic_lookup(
         return []
     if session is None:
         # No session to read the DB with. Do NOT fall back to disk — the
-        # Agent_Input/command-pool path must never read packages/cli/data
+        # Agent_Input/command-pool path must never read the legacy CLI data directory
         # (Req. 5.2). An empty pool lets the agent degrade cleanly.
         return []
 

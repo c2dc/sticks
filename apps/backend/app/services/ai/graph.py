@@ -1,6 +1,6 @@
 """LangGraph assembly for the AI curation loop.
 
-Will host ``build_graph()`` wiring the ``StateGraph`` nodes (orchestrate -> dag
+Will host ``build_graph()`` wiring the ``StateGraph`` nodes (orchestrate -> operationalize -> flow
 -> operationalize -> environment -> execute -> evaluate), the linear edges, the
 conditional edge after evaluation and the max-iteration guard (task 14.2).
 
@@ -172,7 +172,7 @@ def execute_node(
 class _RunnerAbility:
     """Runner-facing view of an AI-proposed Ability with plain-dict executors.
 
-    Mirrors the curated adapter in :mod:`app.services.ai`/``api.emulation``: the
+    Mirrors the curated adapter that used to live in the emulation API: the
     unchanged :class:`OperationRunner` reads ``ability_id`` / ``name`` /
     ``executors`` off each ability and builds the Caldera payload straight from
     ``executors`` (which must be JSON-serialisable). Reconstructed here from the
@@ -217,7 +217,7 @@ def _materialize_ai_abilities(
     """Upsert the AI-generated abilities into ``abilities`` before Stage 6 writes.
 
     Mirrors the curated upsert in
-    :meth:`app.services.stage.stage_service.StageService._persist` (~lines
+    the former curated stage persistence (~lines
     2037-2045): for each runner-facing ability, fetch the existing
     :class:`Ability` row by ``ability_id`` or create one, then set the metadata
     the AI artifact already carries (``campaign_id``, ``name``, ``tactic``,
@@ -301,7 +301,7 @@ def _runner_inputs(
     The AI Stage 4 artifact is a serialized
     :class:`~app.services.environment.operationalizer.ProducedOperationalization`
     whose ``abilities`` field is a serialized
-    :class:`~app.services.stage.stage_service.Stage2Output`. From it we rebuild:
+    :class:`~app.services.emulation.views.Stage2Output`. From it we rebuild:
 
     * the ordered runner-facing abilities (one :class:`_RunnerAbility` per
       ``Stage2AbilityView``, in the adversary's ``atomic_ordering`` when present),
@@ -482,7 +482,7 @@ def _normalize(value: Any) -> Any:
 # three graph tasks collision-free in the shared module.
 #
 # The orchestrator is the StateGraph entry node (design: ``orchestrate`` ->
-# ``dag`` -> ... -> ``evaluate``). Before any stage agent runs it:
+# ``operationalize`` -> ``flow`` -> ...  -> ``evaluate``). Before any stage agent runs it:
 #
 #   * loads the campaign context and retrieves cross-campaign experience from the
 #     RAG :class:`~app.services.ai.memory.ExperienceMemory`, seeding an EMPTY
@@ -697,7 +697,7 @@ def _context_query(state: "AgentState", campaign_id: str) -> str:
 # --- build_graph (task 14.2) ---
 #
 # This section owns ONLY the ``build_graph`` assembly. It wires the ``StateGraph``
-# nodes, the linear edges (START -> orchestrate -> dag -> operationalize ->
+# nodes, the linear edges (START -> orchestrate -> operationalize -> flow ->
 # environment -> execute -> evaluate) and the conditional edge after ``evaluate``
 # (the improvement loop). It does NOT own the loop's routing logic: the
 # max-iteration guard and the refine-target selection live in ``route_after_eval``
@@ -723,7 +723,7 @@ def route_after_eval(state: "AgentState") -> str:
 
     Called after the ``evaluate`` node to decide the loop's next hop. Returns one
     of the four keys ``build_graph`` registered on the conditional edge —
-    ``"dag"``, ``"operationalize"``, ``"environment"`` (re-enter that refine
+    ``"flow"``, ``"operationalize"``, ``"environment"`` (re-enter that refine
     target) or ``"finish"`` (mapped to LangGraph's ``END``) — never raising and
     never returning anything else.
 
@@ -742,12 +742,12 @@ def route_after_eval(state: "AgentState") -> str:
       times (``max_iterations`` defaults to 3 per task 14.1 / Req. 3.6).
     * **Refine (Req. 3.3, 15.2-15.5):** otherwise route back to the evaluator's
       chosen refine target, ``state["refine_stage"]``, normalized to one of the
-      three short edge keys ``"dag"`` / ``"operationalize"`` / ``"environment"``
-      so the conditional edge re-enters the matching stage agent (``"dag"`` ->
-      Dag_Generation_Agent, ``"operationalize"`` -> Operationalization_Agent,
+      three short edge keys ``"flow"`` / ``"operationalize"`` / ``"environment"``
+      so the conditional edge re-enters the matching stage agent (``"flow"`` ->
+      Flow_Agent, ``"operationalize"`` -> Operationalization_Agent,
       ``"environment"`` -> Environment_Generation). The evaluator writes its
       choice as an :class:`~app.models.enums.AgentStage` *value* — the semantic,
-      number-free phase names (``dag`` / ``operationalization`` /
+      number-free phase names (``flow`` / ``operationalization`` /
       ``environment``) — which is mapped here to its short edge key; a short key
       is already canonical and passes through unchanged. When the evaluator left
       the target unset the router defaults to ``"operationalize"`` (the
@@ -758,7 +758,7 @@ def route_after_eval(state: "AgentState") -> str:
             ``evaluation``, ``iteration``, ``max_iterations`` and ``refine_stage``.
 
     Returns:
-        One of ``"dag"``, ``"operationalize"``, ``"environment"`` or ``"finish"``.
+        One of ``"flow"``, ``"operationalize"``, ``"environment"`` or ``"finish"``.
     """
     evaluation = state.get("evaluation") or {}
     if evaluation.get("verdict_success"):
@@ -775,11 +775,11 @@ def route_after_eval(state: "AgentState") -> str:
 # exactly one of the three stage agents is re-entered per refining iteration
 # (Req. 15.2-15.5). Kept as literals so this module needs no enum import at
 # call time (Req. 1.7); the values mirror ``app.models.enums.AgentStage``'s
-# semantic, number-free phase values (``dag`` / ``operationalization`` /
+# semantic, number-free phase values (``flow`` / ``operationalization`` /
 # ``environment``).
 _REFINE_STAGE_EDGE_KEYS = {
     # Evaluator-written AgentStage values (semantic, number-free).
-    "dag": "dag",
+   "flow": "flow",
     "operationalization": "operationalize",
     "environment": "environment",
     # Already-canonical short edge keys (idempotent pass-through).
@@ -795,7 +795,7 @@ def _refine_edge_key(refine_stage: Any) -> str:
     :class:`~app.models.enums.AgentStage` *value*; this maps that value (or an
     already-short key, for robustness) onto the single short edge key the
     conditional edge registered, so the loop re-enters the right stage agent —
-    ``"dag"`` -> Dag_Generation_Agent (15.3), ``"operationalize"`` ->
+    ``"flow"`` -> Flow_Agent (15.3), ``"operationalize"`` ->
     Operationalization_Agent (15.4), ``"environment"`` -> Environment_Generation
     (15.5). An unset/unrecognised target defaults to ``"operationalize"``.
     """
@@ -826,12 +826,12 @@ def build_graph(*, checkpointer, session: Any = None):
     Wires the six nodes of the improvement loop and their edges, following the
     design:
 
-        orchestrate -> dag -> operationalize -> environment -> execute -> evaluate
+        orchestrate -> operationalize -> flow -> environment -> execute -> evaluate
 
     Each of those linear stages has exactly one outgoing edge in sequence
     (START -> orchestrate, then each node to the next). After ``evaluate`` a
     conditional edge implements the loop: the router (task 14.3's
-    ``route_after_eval``, resolved lazily here) returns one of ``"dag"``,
+    ``route_after_eval``, resolved lazily here) returns one of ``"flow"``,
     ``"operationalize"``, ``"environment"`` to re-enter that stage, or ``"finish"``
     to end the run (mapped to LangGraph's ``END``).
 
@@ -847,7 +847,7 @@ def build_graph(*, checkpointer, session: Any = None):
             It is bound into the stage nodes (as a keyword argument via
             :func:`functools.partial`) so the agents assemble their Agent_Input
             from the DATABASE — ``Campaign_Overview`` and the pgvector RAG — and
-            NEVER from ``packages/cli/data`` on disk (task 14.1, Req. 5.1, 5.2,
+            NEVER from the legacy CLI data directory on disk (task 14.1, Req. 5.1, 5.2,
             5.4). Binding it here (rather than carrying it on the ``AgentState``)
             keeps the live, non-serializable ``Session`` out of the checkpointed
             state while still reaching every node. When ``None`` the nodes resolve
@@ -860,7 +860,7 @@ def build_graph(*, checkpointer, session: Any = None):
 
     from langgraph.graph import END, START, StateGraph
 
-    from app.services.ai.agents import dag_agent, env_agent, evaluator, op_agent
+    from app.services.ai.agents import flow_agent, env_agent, evaluator, op_agent
     from app.services.ai.state import AgentState
 
     g = StateGraph(AgentState)
@@ -868,12 +868,12 @@ def build_graph(*, checkpointer, session: Any = None):
     # Bind the request-scoped Session into the nodes that assemble the Agent_Input
     # from the database (task 14.1). ``functools.partial`` carries it as a bound
     # kwarg so it never lands on the checkpointed ``AgentState`` (a live Session
-    # is not serializable), while still reaching the DAG/op agents and the
+    # is not serializable), while still reaching the flow/op agents and the
     # orchestrator/evaluator that build the DB-sourced context and RAG.
     g.add_node(
         "orchestrate", partial(orchestrate_node, session=session)
     )  # seeds state + RAG retrieval (DB)
-    g.add_node("dag", partial(dag_agent.node, session=session))  # Stage 3 agent (DB)
+    g.add_node("flow", partial(flow_agent.node, session=session))  # flow agent (DB)
     g.add_node(
         "operationalize", partial(op_agent.node, session=session)
     )  # Stage 4 agent (DB)
@@ -885,9 +885,9 @@ def build_graph(*, checkpointer, session: Any = None):
 
     # Linear edges: each stage has exactly one outgoing edge in sequence.
     g.add_edge(START, "orchestrate")
-    g.add_edge("orchestrate", "dag")
-    g.add_edge("dag", "operationalize")
-    g.add_edge("operationalize", "environment")
+    g.add_edge("orchestrate", "operationalize")
+    g.add_edge("operationalize", "flow")
+    g.add_edge("flow", "environment")
     g.add_edge("environment", "execute")
     g.add_edge("execute", "evaluate")
 
@@ -898,7 +898,7 @@ def build_graph(*, checkpointer, session: Any = None):
         "evaluate",
         _route_after_eval,
         {
-            "dag": "dag",
+            "flow": "flow",
             "operationalize": "operationalize",
             "environment": "environment",
             "finish": END,

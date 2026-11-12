@@ -24,7 +24,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.models.domain import StixCampaign, StixPackage
-from app.services.campaign_service import CURATED_CASES
+from tests._curated_db import CURATED_NAMES as CURATED_CASES
 from app.services.stix.stix_service import CURATED_VERSION
 
 

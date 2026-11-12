@@ -28,7 +28,7 @@ O que a propriedade garante
   ``platform`` é construída a partir de
   :class:`~app.models.enums.EnvironmentPlatform` (que já declara
   ``virtual_machine``), de modo que o ``CHECK`` portável o aceite desde a
-  primeira migração — exatamente o precedente de ``DagOrigin``/``ai_generated``.
+  primeira migração — exatamente o precedente de ``FlowOrigin``/``ai_generated``.
 * **Round-trip do conteúdo (Req. 8.3):** ``campaign_id``, ``content`` (JSON) e
   ``created_at`` voltam idênticos ao persistido, e a FK ``campaign_id → campaigns.id`` é
   respeitada.
@@ -41,7 +41,7 @@ arbitrário. A ``origin`` é fixada em ``"gerado_ia"`` e a ``platform`` em
 ``"maquina_virtual"`` — os valores *futuros* que a Property 13 (lado
 persistência) exige que o esquema aceite sem migração. Para cada exemplo um
 banco SQLite efêmero em file temporário é construído pelo ORM (mesmo padrão
-de ``test_dag_entity_property.py``), inserimos o ``Case`` e a
+de ``test_flow_entity_property.py``), inserimos o ``Case`` e a
 ``EnvironmentParametersRow``, lemos de volta e comparamos cada campo contra o valor
 gerado. As asserções nunca confiam na implementação para decidir o result
 esperado. Cada exemplo constrói e descarta o próprio banco (sem vazamento de
@@ -114,7 +114,7 @@ _conteudo_strategy = st.fixed_dictionaries(
 # created_at arbitrário. Microssegundos zerados: SQLite guarda DateTime como
 # text ISO e alguns formatos truncam frações, então mantemos o round-trip
 # determinístico (ainda cobre data/hora arbitrárias), igual a
-# test_dag_entity_property.py.
+# test_flow_entity_property.py.
 _criado_em_strategy = st.datetimes(
     min_value=dt.datetime(2000, 1, 1),
     max_value=dt.datetime(2100, 12, 31, 23, 59, 59),
@@ -131,7 +131,7 @@ _params_strategy = st.fixed_dictionaries(
 # ---------------------------------------------------------------------------
 # Ephemeral session helper (fresh temp-file SQLite + ORM schema per example).
 #
-# Mirrors test_dag_entity_property.py: the schema is built with the ORM
+# Mirrors test_flow_entity_property.py: the schema is built with the ORM
 # (``Base.metadata.create_all``), NOT alembic — so ``gerado_ia`` e
 # ``maquina_virtual`` persistem SEM migração nova, porque os ``CHECK`` portáveis
 # (``native_enum=False``) já incluem esses valores.

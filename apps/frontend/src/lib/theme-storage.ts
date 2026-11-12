@@ -19,15 +19,6 @@ import type { Theme } from "@/components/theme-provider"
 /** localStorage key holding the user's explicit theme choice, when any. */
 export const THEME_STORAGE_KEY = "sticks.tema"
 
-/** True when the OS currently reports a dark color-scheme preference. */
-export function systemPrefersDark(): boolean {
-  return (
-    typeof window !== "undefined" &&
-    typeof window.matchMedia === "function" &&
-    window.matchMedia("(prefers-color-scheme: dark)").matches
-  )
-}
-
 /** Read the user's explicitly stored theme, or `null` if none was stored. */
 export function readStoredTheme(): Theme | null {
   try {

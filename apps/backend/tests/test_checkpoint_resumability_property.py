@@ -25,7 +25,7 @@ checkpoint contract the production saver obeys (Requirements 4.2, 4.3).
 How the property is driven
 --------------------------
 A linear graph mirrors the design's node order
-(``orchestrate -> dag -> operationalize -> environment -> execute -> evaluate``);
+(``orchestrate -> operationalize -> flow -> environment -> execute -> evaluate``);
 each node mutates the shared ``AgentState`` so a checkpoint carries non-trivial
 content. Hypothesis generates, per example:
 
@@ -70,13 +70,13 @@ from langgraph.graph import END, START, StateGraph
 
 from app.services.ai.state import AgentState
 
-# The design's node order (graph.py): orchestrate -> dag -> operationalize ->
+# The design's node order (graph.py): orchestrate -> operationalize -> flow ->
 # environment -> execute -> evaluate. Mirrored here so the property exercises the
 # real sequence a production run checkpoints through.
 _NODE_ORDER: list[str] = [
     "orchestrate",
-    "dag",
     "operationalize",
+    "flow",
     "environment",
     "execute",
     "evaluate",

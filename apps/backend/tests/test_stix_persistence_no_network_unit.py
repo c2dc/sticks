@@ -1,23 +1,15 @@
-"""Targeted example for the no-network / file-intact re-sync guarantee
-(task 4.2 of the ``stix-package-overview-resync-and-english-labels`` spec).
+"""Targeted example: persisting an in-memory bundle performs NO network egress.
 
-Feature: stix-package-overview-resync-and-english-labels.
+Validates: Requirements 1.5, 7.1
 
-Validates: Requirements 1.5
-
-A single focused example proving that re-syncing a version whose bundle is
-already on disk performs NO network egress. ``StixPersistenceService.persist_from_disk`` never calls
-``StixService.download_base``, so an injected ``http_client`` whose ``get`` would
-raise if invoked must never be reached. The service is wired as
-``StixPersistenceService(session, StixService(data_dir=..., http_client=...))``
-against an ephemeral file-backed SQLite engine built with
-``Base.metadata.create_all`` — the same session pattern the sibling backend
-tests use.
+``StixPersistenceService.persist_bundle`` never calls ``StixService.fetch_bundle``,
+so an injected ``http_client`` whose ``get`` would raise if invoked must never be
+reached. The service runs against an ephemeral file-backed SQLite engine built
+with ``Base.metadata.create_all``.
 """
 
 from __future__ import annotations
 
-import json
 import os
 import tempfile
 from collections.abc import Iterator
@@ -42,8 +34,7 @@ from app.services.stix.stix_service import StixService
 class _FailingHttpClient:
     """An ``http_client`` double that raises on any ``get`` and records the call.
 
-    ``persist_from_disk`` must never trigger a download when the bundle is on
-    disk, so ``get`` must never be reached. If it is, ``called`` flips to ``True``
+    ``persist_bundle`` must never trigger a download, so ``get`` must never be reached. If it is, ``called`` flips to ``True``
     and an ``AssertionError`` is raised to surface the unexpected egress.
     """
 
@@ -140,42 +131,15 @@ def _build_bundle() -> dict:
     }
 
 
-def test_persist_from_disk_no_network_and_deletes_bundle(session: Session) -> None:
-    """Re-sync from disk never calls the http client; the bundle is deleted on commit.
-
-    Writes a bundle to an isolated ``data_dir``, injects an ``http_client`` that
-    fails if invoked, runs ``persist_from_disk``, then asserts (1) the persist
-    succeeded, (2) the http client was never called (no network egress), and
-    (3) the on-disk bundle is deleted after the successful commit — the DB is now
-    the single source of truth for the version (``stix-base-persisted-state-and-file-cleanup``,
-    Req. 6.3). The read-only derivation itself performs no network egress.
-
-    Validates: Requirements 1.5
-    """
+def test_persist_bundle_makes_no_network_call(session: Session) -> None:
+    """``persist_bundle`` commits the package without reaching the http client."""
     version = "18.0"
-    data_dir = Path(tempfile.mkdtemp(prefix="stix_no_network_data_"))
-    try:
-        bundle_path = data_dir / f"enterprise-attack-{version}.json"
-        bundle_path.write_text(json.dumps(_build_bundle()), encoding="utf-8")
+    http_client = _FailingHttpClient()
+    service = StixPersistenceService(
+        session=session, stix_service=StixService(http_client=http_client)
+    )
 
-        http_client = _FailingHttpClient()
-        stix_service = StixService(data_dir=data_dir, http_client=http_client)
-        service = StixPersistenceService(session=session, stix_service=stix_service)
+    result = service.persist_bundle(version, _build_bundle())
 
-        result = service.persist_from_disk(version)
-
-        # The re-sync committed from the on-disk bundle (no fetch).
-        assert result.persisted is True
-        assert result.downloaded is False
-
-        # No network egress: the injected client was never reached.
-        assert http_client.called is False
-
-        # The successful commit deleted the on-disk bundle best-effort: the DB is
-        # now the single source of truth for the version (cleanup spec, Req. 6.3).
-        assert not bundle_path.exists()
-    finally:
-        for root, _dirs, files in os.walk(data_dir, topdown=False):
-            for name in files:
-                os.remove(os.path.join(root, name))
-            os.rmdir(root)
+    assert result.persisted is True
+    assert http_client.called is False

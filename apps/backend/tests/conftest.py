@@ -12,3 +12,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
+
+# No test may trigger network access or background ingestion through the app
+# ``lifespan``; tests that need the orchestrator build it explicitly.
+os.environ["STICKS_INGEST_ON_START"] = "0"

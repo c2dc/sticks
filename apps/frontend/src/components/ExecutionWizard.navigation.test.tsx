@@ -4,30 +4,24 @@ import userEvent from "@testing-library/user-event"
 
 import { renderWithI18n } from "@/test/render"
 import { ExecutionWizard } from "@/components/ExecutionWizard"
-import type { CasesResponse } from "@/lib/campaigns"
 
 /**
  * Navigation tests for the two-layer ExecutionWizard (ai-first-campaign-flow).
- * The unified Setup screen replaces the obsolete two-step Continue/Back between
+ * The unified Input screen replaces the obsolete two-step Continue/Back between
  * base and campaign. These drive the real shell DOM and assert:
  *
- *  1. Base and campaign selection live on the SAME screen; Back on Setup exits
+ *  1. Base and campaign selection live on the SAME screen; Back on Input exits
  *     to the Landing.
  *  2. Propagation: the STIX base chosen in the base panel flows into the
  *     campaign panel, and changing the base updates what is propagated.
  *  3. Selecting a campaign reaches the guided Run (Layer 2); "change campaign"
- *     returns to the unified Setup — the Run is reached from Setup, not as an
+ *     returns to the unified Input — the Run is reached from Input, not as an
  *     overlay off a ruler.
  *
- * The Setup bodies and the Run view are stubbed. The BaseStixView stub exposes
+ * The Input bodies and the Run view are stubbed. The BaseStixView stub exposes
  * the current `version` and reselection buttons; the CampaignView stub echoes
  * the `version` it received and offers a button to report the chosen slug.
  */
-
-vi.mock("@/lib/campaigns", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/campaigns")>()
-  return { ...actual, fetchCases: vi.fn() }
-})
 
 vi.mock("@/components/BaseStixView", async () => {
   const { useEffect: ue } = await import("react")
@@ -37,11 +31,12 @@ vi.mock("@/components/BaseStixView", async () => {
       onVersionSelected,
       onCompletionChange,
     }: {
-      campaignId: string
       version?: string
       onVersionSelected?: (v: string) => void
       onCompletionChange?: (ok: boolean) => void
     }) => {
+      // Start with version 18.0 chosen (the Researcher picked it in the base list).
+      ue(() => { onVersionSelected?.("18.0") }, []) // eslint-disable-line
       ue(() => { onCompletionChange?.(true) }, [version]) // eslint-disable-line
       return (
         <div data-testid="base-stix-view">
@@ -63,16 +58,15 @@ vi.mock("@/components/CampaignView", () => ({
     version,
     onCompleted,
   }: {
-    campaignId: string
-    version?: string
-    onCompleted?: (slug: string, result: unknown) => void
+    version: string
+    onCompleted?: (campaignKey: string) => void
   }) => (
     <div data-testid="campaign-view">
-      <span data-testid="campaign-version">{version ?? "no-version"}</span>
+      <span data-testid="campaign-version">{version}</span>
       <button
         type="button"
         data-testid="select-campaign"
-        onClick={() => onCompleted?.("shadowray", { completed: true })}
+        onClick={() => onCompleted?.("shadowray")}
       >
         select
       </button>
@@ -81,35 +75,19 @@ vi.mock("@/components/CampaignView", () => ({
 }))
 
 vi.mock("@/components/GuidedRunView", () => ({
-  GuidedRunView: ({ campaignId }: { campaignId: string }) => (
-    <div data-testid="guided-run-view">{campaignId}</div>
+  GuidedRunView: ({ campaignId, version }: { campaignId: string; version: string }) => (
+    <div data-testid="guided-run-view">{`${campaignId}@${version}`}</div>
   ),
 }))
 
-import { fetchCases } from "@/lib/campaigns"
-
-const fetchCasesMock = vi.mocked(fetchCases)
-
-function makeCases(): CasesResponse {
-  return {
-    campaigns: [{ id: "shadowray", name: "ShadowRay" }],
-    progress: { completed_campaigns: 0, total_campaigns: 8, percentage: 0 },
-  }
-}
-
-describe("ExecutionWizard — unified Setup selection + propagation", () => {
-  beforeEach(() => {
-    fetchCasesMock.mockReset()
-    fetchCasesMock.mockResolvedValue(makeCases())
-  })
-
+describe("ExecutionWizard — unified Input selection + propagation", () => {
   it("renders base and campaign selection on the same screen", async () => {
     renderWithI18n(<ExecutionWizard />)
     expect(await screen.findByTestId("base-stix-view")).toBeInTheDocument()
     expect(await screen.findByTestId("campaign-view")).toBeInTheDocument()
   })
 
-  it("Back on the Setup screen exits to the Landing", async () => {
+  it("Back on the Input screen exits to the Landing", async () => {
     const onExitToStart = vi.fn()
     renderWithI18n(<ExecutionWizard onExitToStart={onExitToStart} />)
     await screen.findByTestId("base-stix-view")
@@ -135,13 +113,8 @@ describe("ExecutionWizard — unified Setup selection + propagation", () => {
   })
 })
 
-describe("ExecutionWizard — reaching the Run and returning to Setup", () => {
-  beforeEach(() => {
-    fetchCasesMock.mockReset()
-    fetchCasesMock.mockResolvedValue(makeCases())
-  })
-
-  it("selecting a campaign reaches the Run; 'change campaign' returns to Setup", async () => {
+describe("ExecutionWizard — reaching the Run and returning to Input", () => {
+  it("selecting a campaign reaches the Run; 'change campaign' returns to Input", async () => {
     renderWithI18n(<ExecutionWizard />)
     await screen.findByTestId("base-stix-view")
     await screen.findByTestId("campaign-view")
@@ -152,11 +125,11 @@ describe("ExecutionWizard — reaching the Run and returning to Setup", () => {
     await userEvent.click(await screen.findByTestId("advance-to-run"))
 
     const run = await screen.findByTestId("guided-run-view")
-    expect(run).toHaveTextContent("shadowray")
+    expect(run).toHaveTextContent("shadowray@18.0")
     // Not a modal/overlay — Layer 2 is the primary view.
     expect(screen.queryByRole("dialog")).toBeNull()
 
-    await userEvent.click(screen.getByTestId("back-to-setup"))
+    await userEvent.click(screen.getByTestId("back-to-input"))
     expect(await screen.findByTestId("campaign-view")).toBeInTheDocument()
     expect(screen.queryByTestId("guided-run-view")).toBeNull()
   })

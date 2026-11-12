@@ -214,7 +214,7 @@ def _seed_state() -> dict:
         "max_iterations": 3,
         "retrieved_experience": [{"snippet": "prior outcome"}],
         "artifacts": {
-            "dag": {"origin": "ai_generated", "nodes": ["T1059"]},
+            "flow": {"origin": "ai_generated", "nodes": ["T1059"]},
             "operationalization": {
                 "origin": "ai_generated",
                 "abilities": {

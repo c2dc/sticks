@@ -37,7 +37,7 @@ from hypothesis import strategies as st
 
 from app.services.environment.provisioner import CurationEnvironmentProvisioner
 from app.services.operation.runner import OperationRunner
-from app.services.stage.stage_service import Stage2AbilityView
+from app.services.emulation.views import Stage2AbilityView
 
 # The two duplicated projections under test. Both are static methods, so each can be
 # invoked directly on a sequence of ability objects. Parametrizing across both proves the
@@ -322,7 +322,7 @@ def test_curated_orm_ability_payload_preserved(projection) -> None:
         tactic="command-and-control",
         technique_name="Web Service",
         technique_id="T1102",
-        description="A curated ability loaded from the DAG ability file.",
+        description="A curated ability loaded from the attack flow ability file.",
         executors=[{"name": "sh", "platform": "linux", "command": "curl https://example"}],
     )
 

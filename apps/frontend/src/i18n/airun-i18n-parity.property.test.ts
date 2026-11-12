@@ -4,7 +4,7 @@ import fc from "fast-check"
 import ptPipeline from "@/i18n/locales/pt-BR/pipeline.json"
 import enPipeline from "@/i18n/locales/en/pipeline.json"
 
-import type { AgentRunStatus, EvaluatorDecision } from "@/lib/ai"
+import type { AgentRunStatus } from "@/lib/ai"
 
 /**
  * Property-based test (fast-check, >= 100 runs) for pt-BR/en key parity across
@@ -79,7 +79,6 @@ const STATUS_KEYS: AgentRunStatus[] = [
   "failed",
   "aborted",
 ]
-const DECISION_KEYS: EvaluatorDecision[] = ["refine", "finish"]
 
 describe("aiRun i18n parity (property, ai-curation-agents)", () => {
   // Property: for any leaf key present in EITHER locale under `aiRun`, it is
@@ -117,7 +116,6 @@ describe("aiRun i18n parity (property, ai-curation-agents)", () => {
   it("Property: all status/decision enum keys exist in both locales (Req. 13.5, 13.6)", () => {
     const enumKeys = [
       ...STATUS_KEYS.map((s) => `aiRun.status.${s}`),
-      ...DECISION_KEYS.map((d) => `aiRun.decision.${d}`),
     ]
 
     fc.assert(

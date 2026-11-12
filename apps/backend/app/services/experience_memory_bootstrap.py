@@ -6,8 +6,8 @@ cross-campaign experience to prime its proposals. This service populates it, onc
 and idempotently, with the *associative* half of the Memory_Rule (design §F):
 
 * **Patterns from the 8 curated cases.** The curated content was already ingested
-  into the relational tables by :class:`CuratedIngestService`
-  (``campaigns``/``abilities``/``adversaries``/``dags``). This bootstrap reads that
+  into the relational tables
+  (``campaigns``/``abilities``/``adversaries``/``attack_flows``). This bootstrap reads that
   curated content **from the database** (never from disk) and derives associative
   rows from it: one ``command_affinity`` per concrete executor command of each
   curated ability (technique↔command↔tool/platform), and one
@@ -111,12 +111,50 @@ class ExperienceMemoryBootstrap:
 
     # ---- per-campaign derivation ------------------------------------------
 
+    def count_missing(self) -> int:
+        """Number of derived entries not yet stored (DB only, no embedding).
+
+        Lets the ingestion orchestrator decide whether the bootstrap still has
+        work to do without calling the embedder.
+        """
+        from app.models.domain import Case as CampaignRow
+        from app.models.domain import ExperienceMemory as ExperienceMemoryRow
+
+        existing = {
+            key
+            for (key,) in self._session.execute(
+                select(ExperienceMemoryRow.meta["dedup_key"].as_string()).where(
+                    ExperienceMemoryRow.meta["source"].as_string() == _SOURCE
+                )
+            )
+            if key
+        }
+        campaign_ids = self._session.execute(
+            select(CampaignRow.id).order_by(CampaignRow.id)
+        ).scalars().all()
+        missing = 0
+        for campaign_id in campaign_ids:
+            for _kind, content, _metadata in self._derive_entries(campaign_id):
+                if self._memory.content_dedup_key(content) not in existing:
+                    missing += 1
+        return missing
+
     def _bootstrap_campaign(self, campaign_id: str) -> tuple[int, int]:
         """Store the associative rows derived from one curated campaign."""
-        from app.models.domain import Ability as AbilityRow
-
         inserted = 0
         skipped = 0
+        for kind, content, metadata in self._derive_entries(campaign_id):
+            if self._memory.store_affinity(kind=kind, content=content, metadata=metadata):
+                inserted += 1
+            else:
+                skipped += 1
+        return inserted, skipped
+
+    def _derive_entries(self, campaign_id: str) -> list[tuple[str, str, dict[str, Any]]]:
+        """Derive ``(kind, content, metadata)`` entries from one curated campaign."""
+        from app.models.domain import Ability as AbilityRow
+
+        entries: list[tuple[str, str, dict[str, Any]]] = []
 
         abilities = (
             self._session.execute(
@@ -141,21 +179,20 @@ class ExperienceMemoryBootstrap:
                     f"technique {technique_id} executor {tool} "
                     f"platform {platform}: {command}"
                 )
-                if self._memory.store_affinity(
-                    kind="command_affinity",
-                    content=content,
-                    metadata={
-                        "source": _SOURCE,
-                        "campaign_id": campaign_id,
-                        "technique_id": technique_id,
-                        "command": command,
-                        "executor": tool,
-                        "platform": platform,
-                    },
-                ):
-                    inserted += 1
-                else:
-                    skipped += 1
+                entries.append(
+                    (
+                        "command_affinity",
+                        content,
+                        {
+                            "source": _SOURCE,
+                            "campaign_id": campaign_id,
+                            "technique_id": technique_id,
+                            "command": command,
+                            "executor": tool,
+                            "platform": platform,
+                        },
+                    )
+                )
 
         # (b) an environment affinity capturing the target-environment pattern
         # (the set of techniques/platforms) the curated campaign exercised.
@@ -166,21 +203,20 @@ class ExperienceMemoryBootstrap:
                 f"campaign {campaign_id} target environment: techniques "
                 f"{', '.join(techniques)}; platforms {', '.join(platforms)}"
             )
-            if self._memory.store_affinity(
-                kind="environment_affinity",
-                content=content,
-                metadata={
-                    "source": _SOURCE,
-                    "campaign_id": campaign_id,
-                    "techniques": techniques,
-                    "platforms": platforms,
-                },
-            ):
-                inserted += 1
-            else:
-                skipped += 1
+            entries.append(
+                (
+                    "environment_affinity",
+                    content,
+                    {
+                        "source": _SOURCE,
+                        "campaign_id": campaign_id,
+                        "techniques": techniques,
+                        "platforms": platforms,
+                    },
+                )
+            )
 
-        return inserted, skipped
+        return entries
 
     # ---- helpers -----------------------------------------------------------
 
@@ -189,7 +225,7 @@ class ExperienceMemoryBootstrap:
         """Yield the ``{name, platform, command}`` executor dicts of an ability.
 
         The ``abilities.executors`` column is a portable JSON list of executor
-        mappings (see :class:`CuratedIngestService`); defensively ignore anything
+        mappings (see :class:`~app.models.domain.Ability`); defensively ignore anything
         that is not a list of dicts so a malformed row never aborts the bootstrap.
         """
         if not isinstance(executors, list):

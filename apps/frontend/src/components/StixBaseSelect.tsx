@@ -28,7 +28,7 @@ export interface StixBaseSelectProps {
  * `onSelectBase` directly on the click — there is no separate "Select version"
  * button (Req. 7.1). Clicking a **not-yet-downloaded** version reveals an
  * inline Download action, keeping the download an explicit action (Req. 7.5).
- * The whole control stays on one compact row, keeping the Setup screen simple.
+ * The whole control stays on one compact row, keeping the Input screen simple.
  */
 export function StixBaseSelect({ onSelectBase }: StixBaseSelectProps) {
   const { t } = useTranslation("stix")

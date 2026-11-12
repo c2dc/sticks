@@ -445,7 +445,7 @@ def test_failed_persist_halts_and_marks_failed_with_cause() -> None:
     """
     failing = {"iteration": 1, "node": "environment"}
     saver = FakeCheckpointSaver(fail_on=failing)
-    checkpoints = [{"iteration": 0, "node": "dag"}, failing]
+    checkpoints = [{"iteration": 0, "node": "flow"}, failing]
 
     with pytest.raises(RunHalted) as excinfo:
         run_with_checkpoints(saver, "t-fail", checkpoints)
@@ -461,7 +461,7 @@ def test_failed_persist_retains_last_successful_checkpoint() -> None:
     must still hold the first checkpoint unchanged — the failure retains, not
     corrupts, prior state (Req 4.6).
     """
-    good = {"iteration": 0, "node": "dag"}
+    good = {"iteration": 0, "node": "flow"}
     failing = {"iteration": 1, "node": "environment"}
     saver = FakeCheckpointSaver(fail_on=failing)
 
@@ -485,10 +485,10 @@ def test_failed_persist_halts_before_subsequent_checkpoints() -> None:
 
     with pytest.raises(RunHalted):
         run_with_checkpoints(
-            saver, "t-halt", [{"iteration": 0, "node": "dag"}, failing, never]
+            saver, "t-halt", [{"iteration": 0, "node": "flow"}, failing, never]
         )
 
     attempted = [checkpoint for _tid, checkpoint in saver.put_calls]
     assert never not in attempted, "run must not persist past the failure"
     # The first (good) and the failing one were attempted, in order, and no more.
-    assert attempted == [{"iteration": 0, "node": "dag"}, failing]
+    assert attempted == [{"iteration": 0, "node": "flow"}, failing]

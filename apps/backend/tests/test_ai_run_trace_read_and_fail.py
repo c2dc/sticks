@@ -130,7 +130,7 @@ def _make_client(session_factory: sessionmaker[Session]) -> TestClient:
 def _seed_completed_run_with_trace(session: Session) -> AgentRun:
     """Seed a COMPLETED run, one iteration, two stage outputs each with a trace.
 
-    * The DAG stage output carries a FULLY populated processing trace.
+    * The attack flow stage output carries a FULLY populated processing trace.
     * The operationalization stage output carries a trace with SOME processing
       elements left ``None`` (and one missing entirely) so the read layer must
       resolve them to the ``"not_available"`` sentinel.
@@ -160,22 +160,22 @@ def _seed_completed_run_with_trace(session: Session) -> AgentRun:
     session.add(iteration)
     session.flush()
 
-    # DAG stage output — fully populated processing.
-    dag_output = AgentStageOutput(
+    # Attack flow stage output — fully populated processing.
+    flow_output = AgentStageOutput(
         iteration_id=iteration.id,
-        stage=AgentStage.DAG,
+        stage=AgentStage.FLOW,
         origin=TranslationSource.AI_GENERATED,
         payload={"nodes": ["T1059"], "edges": []},
         created_at=now,
     )
-    session.add(dag_output)
+    session.add(flow_output)
     session.flush()
     session.add(
         AgentStageTrace(
-            stage_output_id=dag_output.id,
+            stage_output_id=flow_output.id,
             agent_input={"attack_context": "T1059", "prior_artifacts": {}},
             processing={
-                "llm_prompt": "generate a dag for T1059",
+                "llm_prompt": "generate a flow for T1059",
                 "llm_response": "{...}",
                 "reasoning": "chose a linear chain",
                 "tools_invoked": ["attack_lookup"],
@@ -201,9 +201,9 @@ def _seed_completed_run_with_trace(session: Session) -> AgentRun:
     session.add(
         AgentStageTrace(
             stage_output_id=op_output.id,
-            agent_input={"prior_artifacts": {"dag": "..."}},
+            agent_input={"prior_artifacts": {"flow": "..."}},
             processing={
-                "llm_prompt": "operationalize the dag",
+                "llm_prompt": "operationalize the flow",
                 "llm_response": None,
                 "reasoning": None,
                 "tools_invoked": None,
@@ -246,9 +246,9 @@ def test_get_run_returns_stage_outputs_trace_and_sentinel(
     stage_outputs = iteration["stage_outputs"]
     assert len(stage_outputs) == 2
 
-    # Ordered by stage: "dag" sorts before "operationalization".
+    # Ordered by stage: "flow" sorts before "operationalization".
     assert [so["stage"] for so in stage_outputs] == [
-        AgentStage.DAG.value,
+        AgentStage.FLOW.value,
         AgentStage.OPERATIONALIZATION.value,
     ]
 
@@ -259,19 +259,19 @@ def test_get_run_returns_stage_outputs_trace_and_sentinel(
         assert "agent_input" in so["trace"]
         assert "processing" in so["trace"]
 
-    # The DAG output trace carries fully populated processing (no sentinel).
-    dag_proc = stage_outputs[0]["trace"]["processing"]
-    assert dag_proc["llm_prompt"] == "generate a dag for T1059"
-    assert dag_proc["llm_response"] == "{...}"
-    assert dag_proc["reasoning"] == "chose a linear chain"
-    assert dag_proc["tools_invoked"] == ["attack_lookup"]
-    assert dag_proc["repair_attempts"] == 0
-    assert dag_proc["repair_hints"] == []
-    assert NOT_AVAILABLE not in dag_proc.values()
+    # The attack flow output trace carries fully populated processing (no sentinel).
+    flow_proc = stage_outputs[0]["trace"]["processing"]
+    assert flow_proc["llm_prompt"] == "generate a flow for T1059"
+    assert flow_proc["llm_response"] == "{...}"
+    assert flow_proc["reasoning"] == "chose a linear chain"
+    assert flow_proc["tools_invoked"] == ["attack_lookup"]
+    assert flow_proc["repair_attempts"] == 0
+    assert flow_proc["repair_hints"] == []
+    assert NOT_AVAILABLE not in flow_proc.values()
 
     # The op output trace has absent/None elements resolved to "not_available".
     op_proc = stage_outputs[1]["trace"]["processing"]
-    assert op_proc["llm_prompt"] == "operationalize the dag"  # present, kept.
+    assert op_proc["llm_prompt"] == "operationalize the flow"  # present, kept.
     assert op_proc["llm_response"] == NOT_AVAILABLE  # None -> sentinel.
     assert op_proc["reasoning"] == NOT_AVAILABLE
     assert op_proc["tools_invoked"] == NOT_AVAILABLE
@@ -279,7 +279,7 @@ def test_get_run_returns_stage_outputs_trace_and_sentinel(
     assert op_proc["repair_hints"] == NOT_AVAILABLE  # missing key -> sentinel.
     # The agent_input the agent received is surfaced as-is.
     assert stage_outputs[1]["trace"]["agent_input"] == {
-        "prior_artifacts": {"dag": "..."}
+        "prior_artifacts": {"flow": "..."}
     }
 
 
@@ -347,14 +347,14 @@ def test_fail_run_records_error_and_persists_partial_trace(
         "iteration": 0,
         "agent_input": {"prior_artifacts": {}},
         "processing": {
-            "llm_prompt": "operationalize the dag",
+            "llm_prompt": "operationalize the flow",
             "llm_response": None,
-            "reasoning": "aborted: required dag artifact absent",
+            "reasoning": "aborted: required flow artifact absent",
         },
     }
     exc = _NodeFailureWithTrace(
         node="operationalize",
-        cause="required Agent_Input (dag artifact) absent",
+        cause="required Agent_Input (flow artifact) absent",
         trace=partial_trace,
     )
     _install_failing_graph(monkeypatch, _FailingGraph(exc))
@@ -414,13 +414,13 @@ def test_get_run_surfaces_error_and_failing_agent_on_failed_run(
 ) -> None:
     """The read endpoint surfaces run.error + the iteration's failing_agent (Req. 2.6)."""
     partial_trace = {
-        "stage": AgentStage.DAG.value,
+        "stage": AgentStage.FLOW.value,
         "iteration": 0,
         "agent_input": {"attack_context": "T1059"},
-        "processing": {"llm_prompt": "generate a dag", "llm_response": None},
+        "processing": {"llm_prompt": "generate a flow", "llm_response": None},
     }
     exc = _NodeFailureWithTrace(
-        node="dag",
+        node="flow",
         cause="LLM output unparseable after one repair",
         trace=partial_trace,
     )
@@ -446,20 +446,20 @@ def test_get_run_surfaces_error_and_failing_agent_on_failed_run(
     # The run summary surfaces the structured failure cause.
     assert body["run"]["status"] == AgentRunStatus.FAILED.value
     assert body["run"]["error"] is not None
-    assert "dag" in body["run"]["error"]
+    assert "flow" in body["run"]["error"]
 
     # The failing stage is reported on the iteration's failing_agent via its
     # minimal (empty-payload) anchor stage output.
     iterations = body["iterations"]
     assert len(iterations) == 1
     iteration = iterations[0]
-    assert iteration["failing_agent"] == AgentStage.DAG.value
+    assert iteration["failing_agent"] == AgentStage.FLOW.value
 
     anchor = iteration["stage_outputs"][0]
-    assert anchor["stage"] == AgentStage.DAG.value
+    assert anchor["stage"] == AgentStage.FLOW.value
     assert anchor["payload"] == {}
     # The partial trace surfaces: captured elements kept, absent -> sentinel.
     processing = anchor["trace"]["processing"]
-    assert processing["llm_prompt"] == "generate a dag"
+    assert processing["llm_prompt"] == "generate a flow"
     assert processing["llm_response"] == NOT_AVAILABLE
     assert processing["reasoning"] == NOT_AVAILABLE

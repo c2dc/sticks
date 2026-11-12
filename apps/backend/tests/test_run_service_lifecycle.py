@@ -1,9 +1,7 @@
 """Unit tests for AgentRunService lifecycle, atomic persistence and failures (task 15.4).
 
-Exercise :class:`app.services.ai.run_service.AgentRunService` and the
-startup seam fallback :func:`app.services.ai.run_service.resolve_stage_agent`
-end to end with **fakes only** — no SEPINF endpoint, no PostgreSQL, no real
-LangGraph. The compiled graph is replaced by monkeypatching
+Exercise :class:`app.services.ai.run_service.AgentRunService` end to end
+with **fakes only** — no SEPINF endpoint, no PostgreSQL, no real LangGraph. The compiled graph is replaced by monkeypatching
 ``AgentRunService._build_graph`` to return a fake compiled graph whose
 ``invoke`` returns a controlled final ``AgentState`` (or raises), the
 checkpointer/pgvector availability probe is patched to a no-op, and persistence
@@ -28,21 +26,16 @@ Coverage:
   :class:`PersistenceError` is raised.
 * **Req 14.1 / 14.2 / 14.6 — FAILED on SEPINF/node errors.** A graph invocation
   that raises a SEPINF transport/timeout/model error OR a
-  :class:`~app.services.ai.agents.dag_agent.DagGenerationError` flips the run to
+  :class:`~app.services.ai.agents.flow_agent.FlowGenerationError` flips the run to
   ``FAILED`` recording the failing-node cause, persists NO AI artifact, leaves
   ``final_verdict_success`` null, and never transitions the run out of
   ``FAILED``; a :class:`RunFailedError` naming the failing node is raised.
-* **Req 12.2 / 12.3 — startup fallback diagnostic.** When a stage's AI agent
-  fails to initialize, :func:`resolve_stage_agent` returns that stage's curation
-  implementation (which structurally satisfies the same seam Protocol) and logs
-  a diagnostic naming the affected stage.
 
-_Requirements: 4.2, 11.4, 11.7, 14.1, 14.2, 14.6, 12.2, 12.3_
+_Requirements: 4.2, 11.4, 11.7, 14.1, 14.2, 14.6_
 """
 
 from __future__ import annotations
 
-import logging
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -61,12 +54,10 @@ from app.models.domain import (
     AgentStageOutput,
 )
 from app.models.enums import AgentRunStatus
-from app.services.ai import run_service as run_service_module
 from app.services.ai.run_service import (
     AgentRunService,
     PersistenceError,
     RunFailedError,
-    resolve_stage_agent,
 )
 
 _CAMPAIGN_ID = "campaign-under-test"
@@ -421,21 +412,21 @@ def test_sepinf_error_marks_run_failed_and_persists_no_artifact(
     assert _count_rows(session) == (0, 0, 0)
 
 
-def test_dag_generation_error_marks_run_failed_naming_node(
+def test_flow_generation_error_marks_run_failed_naming_node(
     session: Session, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A DagGenerationError names the failing node ``"dag"`` on FAILED (Req. 14.4)."""
-    from app.services.ai.agents.dag_agent import DagGenerationError
+    """A FlowGenerationError names the failing node ``"flow"`` on FAILED (Req. 14.4)."""
+    from app.services.ai.agents.flow_agent import FlowGenerationError
 
     graph = _FakeGraph(
-        raises=DagGenerationError("unparseable after one repair", node="dag")
+        raises=FlowGenerationError("unparseable after one repair", node="flow")
     )
     _install_fake_graph(monkeypatch, graph)
 
     with pytest.raises(RunFailedError) as excinfo:
         AgentRunService(session).start(_CAMPAIGN_ID)
 
-    assert excinfo.value.node == "dag"
+    assert excinfo.value.node == "flow"
     run = session.execute(select(AgentRun)).scalar_one()
     assert run.status is AgentRunStatus.FAILED
     assert run.final_verdict_success is None
@@ -460,112 +451,3 @@ def test_failed_run_does_not_transition_out_of_failed(
     assert run.status is AgentRunStatus.FAILED
     assert run.status is not AgentRunStatus.COMPLETED
     assert run.status is not AgentRunStatus.ABORTED
-
-
-# ===========================================================================
-# Requirement 12.2 / 12.3 — startup seam fallback diagnostic
-# ===========================================================================
-
-
-def _patch_ai_initializer(
-    monkeypatch: pytest.MonkeyPatch, stage: str, init: Any
-) -> None:
-    """Swap the AI initializer for ``stage`` in the table ``resolve_stage_agent`` reads.
-
-    ``resolve_stage_agent`` resolves the (AI, curation) initializer pair from the
-    module-level ``_STAGE_INITIALIZERS`` dict, which captured the real function
-    objects at import time — so patching the module attribute alone is not seen.
-    This patches the dict entry itself, keeping the curation fallback intact.
-    """
-    _ai, curation = run_service_module._STAGE_INITIALIZERS[stage]
-    monkeypatch.setitem(
-        run_service_module._STAGE_INITIALIZERS, stage, (init, curation)
-    )
-
-
-def test_resolve_stage_agent_falls_back_to_curation_on_init_failure(
-    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
-) -> None:
-    """A failing AI init falls back to curation behind the same seam (Req. 12.3).
-
-    The DAG stage's AI initializer is patched to raise; ``resolve_stage_agent``
-    must return the curation implementation (which satisfies the ``DagGenerator``
-    seam Protocol structurally) and log a diagnostic naming the affected stage.
-    """
-    from app.services.dag.generator import CurationDagGenerator, DagGenerator
-
-    def _boom() -> Any:
-        raise RuntimeError("AI DAG generator failed to initialize")
-
-    _patch_ai_initializer(monkeypatch, "dag", _boom)
-
-    with caplog.at_level(logging.ERROR, logger=run_service_module.__name__):
-        agent = resolve_stage_agent("dag", prefer_ai=True)
-
-    assert isinstance(agent, CurationDagGenerator)
-    # Structural seam satisfaction: the fallback plugs into the same seam.
-    assert isinstance(agent, DagGenerator)
-    # A diagnostic naming the affected stage was logged (Req. 12.3).
-    assert any(
-        record.levelno >= logging.ERROR and "dag" in record.getMessage().lower()
-        for record in caplog.records
-    ), "expected an ERROR diagnostic naming the affected stage"
-
-
-def test_resolve_stage_agent_operationalize_fallback_satisfies_seam(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Stage 4 AI init failure falls back to the curation operationalizer (Req. 12.3)."""
-    from app.services.environment.operationalizer import (
-        CurationOperationalizer,
-        OperationalizerByOrigin,
-    )
-
-    def _boom() -> Any:
-        raise RuntimeError("op init failed")
-
-    _patch_ai_initializer(monkeypatch, "operationalize", _boom)
-
-    agent = resolve_stage_agent("operationalize", prefer_ai=True)
-
-    assert isinstance(agent, CurationOperationalizer)
-    assert isinstance(agent, OperationalizerByOrigin)
-
-
-def test_resolve_stage_agent_environment_fallback_satisfies_seam(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Stage 5 AI init failure falls back to the curation provisioner (Req. 12.3)."""
-    from app.services.environment.provisioner import (
-        CurationEnvironmentProvisioner,
-        EnvironmentProvisioner,
-    )
-
-    def _boom() -> Any:
-        raise RuntimeError("env init failed")
-
-    _patch_ai_initializer(monkeypatch, "environment", _boom)
-
-    agent = resolve_stage_agent("environment", prefer_ai=True)
-
-    assert isinstance(agent, CurationEnvironmentProvisioner)
-    assert isinstance(agent, EnvironmentProvisioner)
-
-
-def test_resolve_stage_agent_not_deployed_returns_curation_without_error(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A stage whose AI agent is not deployed runs on curation (Req. 12.2).
-
-    With ``prefer_ai=False`` the curation implementation is returned directly and
-    the AI initializer is never consulted (no raise, no fallback path).
-    """
-    from app.services.dag.generator import CurationDagGenerator
-
-    def _must_not_be_called() -> Any:  # pragma: no cover - must never run
-        raise AssertionError("AI initializer must not be consulted when not deployed")
-
-    _patch_ai_initializer(monkeypatch, "dag", _must_not_be_called)
-
-    agent = resolve_stage_agent("dag", prefer_ai=False)
-    assert isinstance(agent, CurationDagGenerator)

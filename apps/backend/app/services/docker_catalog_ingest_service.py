@@ -47,7 +47,7 @@ import json
 import logging
 import urllib.request
 from dataclasses import dataclass, field
-from typing import Any, Iterable, Optional
+from typing import Any, Callable, Iterable, Optional
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -80,6 +80,17 @@ _DOCKER_HUB_API = "https://hub.docker.com"
 # ``image_catalog`` / ``ImageResolver`` value set: ``linux`` | ``windows``.
 _TARGET_OS_LINUX = "linux"
 _TARGET_OS_WINDOWS = "windows"
+
+
+ProgressCallback = Callable[[int, int], None]
+
+
+def docker_entry_embedding_content(
+    image: str, target_os: str, description: str, services: Iterable[str]
+) -> str:
+    """Text embedded for one catalog entry (shared with the orchestrator plan)."""
+    joined = ", ".join(services)
+    return f"docker image {image} ({target_os}): {description} services: {joined}".strip()
 
 
 class DockerCatalogFetchError(RuntimeError):
@@ -271,6 +282,7 @@ class DockerCatalogIngestService:
         *,
         max_images: int = _DEFAULT_MAX_IMAGES,
         max_text_bytes: int = _DEFAULT_MAX_TEXT_BYTES,
+        progress: Optional[ProgressCallback] = None,
     ) -> DockerCatalogIngestSummary:
         """Fetch, upsert and best-effort vectorize the Docker image catalog.
 
@@ -321,6 +333,8 @@ class DockerCatalogIngestService:
             elif error is not None:
                 vector_failures += 1
                 errors.append(error)
+            if progress is not None and entries_seen % 100 == 0:
+                progress(entries_seen, 0)
 
         return DockerCatalogIngestSummary(
             entries_seen=entries_seen,
@@ -331,6 +345,37 @@ class DockerCatalogIngestService:
             capped=capped,
             errors=errors,
         )
+
+    def vectorize_missing(
+        self, progress: Optional[ProgressCallback] = None
+    ) -> tuple[int, list[str]]:
+        """Embed the stored catalog rows that have no embedding yet (no network).
+
+        Returns ``(embeddings_stored, errors)``; failures are isolated per row
+        exactly as in :meth:`ingest`.
+        """
+        from app.models.domain import ImageCatalog
+
+        rows = self._session.execute(
+            select(ImageCatalog).order_by(ImageCatalog.id)
+        ).scalars().all()
+        stored_count = 0
+        errors: list[str] = []
+        for index, row in enumerate(rows, start=1):
+            entry = DockerCatalogEntry(
+                image=row.image,
+                target_os=row.target_os,
+                description=row.notes or "",
+                services=tuple(row.services or ()),
+            )
+            stored, error = self._vectorize_entry(entry)
+            if stored:
+                stored_count += 1
+            elif error is not None:
+                errors.append(error)
+            if progress is not None and index % 100 == 0:
+                progress(index, 0)
+        return stored_count, errors
 
     # ---- relational persistence (idempotent upsert) ------------------------
 
@@ -424,11 +469,9 @@ class DockerCatalogIngestService:
         ``environment`` phase can retrieve candidate images by similarity
         (Req. 5.3, 5.4).
         """
-        services = ", ".join(entry.services) if entry.services else ""
-        return (
-            f"docker image {entry.image} ({entry.target_os}): "
-            f"{entry.description} services: {services}"
-        ).strip()
+        return docker_entry_embedding_content(
+            entry.image, entry.target_os, entry.description, entry.services
+        )
 
 
 __all__ = [

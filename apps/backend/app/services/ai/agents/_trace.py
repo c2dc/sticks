@@ -1,6 +1,6 @@
 """Shared Audit_Trace persistence helper for the stage persist hooks (Req. 2.1, 2.5).
 
-Each stage agent's ``persist_*`` hook (``dag_agent.persist_dag_stage_output``,
+Each stage agent's ``persist_*`` hook (``flow_agent.persist_flow_stage_output``,
 ``op_agent.persist_stage_output``, ``env_agent.persist_stage_output``) persists
 its ``agent_stage_outputs`` row and then calls :func:`persist_stage_trace` with
 the matching :class:`~app.services.ai.state.AgentTrace` dict — looked up by the

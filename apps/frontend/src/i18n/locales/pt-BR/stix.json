@@ -23,49 +23,6 @@
       "downloading": "Baixando…",
       "select": "Selecionar",
       "downloadError": "Não foi possível baixar esta base. Tente novamente."
-    },
-    "selection": {
-      "title": "Escolha o que emular",
-      "subtitle": "Navegue por campanha ou por ator de ameaça para selecionar a jornada que você quer replicar.",
-      "toggle": "Alternar entre campanha e ator",
-      "byCampaign": "Por campanha",
-      "byActor": "Por ator de ameaça",
-      "loading": "Carregando…",
-      "error": "Não foi possível carregar esta lista.",
-      "tryAgain": "Tentar novamente",
-      "alreadyCurated": "Já curada",
-      "noActor": "Sem ator associado",
-      "noCampaigns": "Nenhuma campanha encontrada.",
-      "noActors": "Nenhum ator encontrado.",
-      "actorCampaigns_one": "{{count}} campanha",
-      "actorCampaigns_other": "{{count}} campanhas",
-      "search": "Buscar",
-      "searchPlaceholder": "Buscar por nome ou descrição…",
-      "clearSearch": "Limpar busca",
-      "curatedOnly": "Só curadas",
-      "results_one": "{{count}} de {{total}} campanha",
-      "results_other": "{{count}} de {{total}} campanhas",
-      "noResults": "Nenhuma campanha corresponde à busca.",
-      "actorResults_one": "{{count}} de {{total}} ator",
-      "actorResults_other": "{{count}} de {{total}} atores",
-      "noActorResults": "Nenhum ator corresponde à busca."
-    },
-    "dag": {
-      "title": "Geração do Grafo Acíclico Dirigido (DAG)",
-      "passThrough": "Esta campanha ainda não possui um DAG curado. O fluxo segue direto, sem geração automática.",
-      "error": "Não foi possível carregar o DAG deste caso.",
-      "advance": "Avançar",
-      "back": "Voltar",
-      "loading": "Carregando o DAG…",
-      "generateWithAi": "Gerar com IA",
-      "comingSoon": "em breve",
-      "select": "Selecionar DAG",
-      "noDag": "Esta campanha ainda não possui um DAG. Gere um DAG para avançar.",
-      "source": {
-        "label": "Origem do DAG",
-        "curadoria_humana": "Curadoria humana",
-        "gerado_ia": "Gerado por IA"
-      }
     }
   }
 }

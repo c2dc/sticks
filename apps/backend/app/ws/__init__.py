@@ -1,6 +1,6 @@
 """WebSocket / SSE channels package.
 
-Channels (``/ws/stages/{campaign}``, ``/ws/operation/{operation}``) are
+Channels (``/ws/operation/{operation}``) are
 implemented in later tasks. This package is created now so the structure is in
 place.
 """

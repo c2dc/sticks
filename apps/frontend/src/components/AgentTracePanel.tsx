@@ -7,7 +7,7 @@ import type { AiStageOutput } from "@/lib/ai"
  * AgentTracePanel — the three-part Input → Processing → Output view of a single
  * agent step within one iteration of an AI Run (Req. 1.1, 1.5, 6.1–6.4, task 9.4).
  *
- * Each agent step (DAG generation agent, Operationalization agent, Environment
+ * Each agent step (Flow generation agent, Operationalization agent, Environment
  * agent, Execution, Evaluation) renders here with three distinctly-labeled
  * parts read from the extended `getAiRun` detail:
  *
@@ -54,7 +54,7 @@ export function AgentTracePanel({
   stageName,
   stageOutput,
 }: {
-  /** Meaningful English stage name already resolved by the caller (e.g. "DAG generation agent"). */
+  /** Meaningful English stage name already resolved by the caller (e.g. "Flow generation agent"). */
   stageName: string
   /** The `agent_stage_outputs` row with its 1:1 Audit_Trace for this agent step. */
   stageOutput: AiStageOutput
@@ -174,7 +174,7 @@ export function AgentTracePanel({
  *   reasons) and the fail-closed `isolation` gate (approved + per-container
  *   verdicts).
  * - **substages** — the provisioner sub-phases (build online → close egress →
- *   verify egress lost → apply offline setup) + per-host egress verdicts.
+ *   verify egress lost → apply offline configuration) + per-host egress verdicts.
  *
  * Every string is routed through i18next under the `aiRun.environment.*` keys;
  * component identifiers (`data-section`) are English (Req. 9.1/9.4). Any absent

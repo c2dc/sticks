@@ -6,43 +6,43 @@ measurement + report). The execution itself **reuses** the
 :class:`~app.services.environment.execution.ExecutionStageService`), which
 persists one :class:`~app.models.domain.AbilityResult` per Ability; this task
 **derives** the :class:`~app.services.environment.report.SufficiencyMetrics` from
-those per-Ability results **plus the curated DAG** and consolidates everything
+those per-Ability results **plus the curated attack flow** and consolidates everything
 into an :class:`~app.services.environment.report.ExecutionReport` (Req. 10.4–10.7,
 15.1–15.7).
 
 What is derived, and how
 ------------------------
-The measurement unit is the **DAG technique** (a structural node with
+The measurement unit is the **attack flow technique** (a structural node with
 ``technique_id``; Req. 15.1, 15.3). The execution results come per **Ability**;
 each curated Ability carries its ``technique_id``
-(:class:`~app.services.campaign_service.AbilityData`), so the bridge is
-``ability_id`` → ``technique_id`` → DAG node:
+(:class:`~app.services.curated_case_models.AbilityData`), so the bridge is
+``ability_id`` → ``technique_id`` → attack flow node:
 
-* **total_dag_techniques** — the number of **distinct** DAG techniques (nodes with
+* **total_flow_techniques** — the number of **distinct** attack flow techniques (nodes with
   ``technique_id``, de-duplicated by ``technique_id`` in node order), the
   denominator of ``success_rate`` and ``procedural_coverage`` (Req. 15.1, 15.3).
-* **successful_techniques** — how many DAG techniques had at least one Ability
+* **successful_techniques** — how many attack flow techniques had at least one Ability
   result in ``success`` (a technique may map to more than one Ability).
-* **success_rate** — ``successful_techniques / total_dag_techniques`` ∈ ``[0, 1]``
-  (``0.0`` when the DAG has no techniques, to avoid division by zero — Req. 15.1).
-* **procedural_coverage** — the **effectively executable** proportion: the DAG
+* **success_rate** — ``successful_techniques / total_flow_techniques`` ∈ ``[0, 1]``
+  (``0.0`` when the attack flow has no techniques, to avoid division by zero — Req. 15.1).
+* **procedural_coverage** — the **effectively executable** proportion: the attack flow
   techniques that were **attempted** (some result that left ``pending``), over the
   total — ∈ ``[0, 1]`` (Req. 15.3).
 * **failed_nodes** — the techniques whose consolidated status is ``failure``
-  (failed and had no success), in DAG order, each identified by the
-  representative node's ``node_id`` and annotated with the **DAG step** where the
+  (failed and had no success), in attack flow order, each identified by the
+  representative node's ``node_id`` and annotated with the **attack flow step** where the
   failure occurred (Req. 15.2).
 * **time per technique / total** (Req. 15.4) and **telemetry per technique** (Req.
   15.5), consolidated from the per-Ability results when available.
-* **success_verdict** — the overall verdict: ``True`` iff the DAG is non-empty,
+* **success_verdict** — the overall verdict: ``True`` iff the attack flow is non-empty,
   **all** its techniques had success and no node failed (Req. 15.6, 10.5).
 
 The measurement is **pure and deterministic** — no network, Docker or AI. It
-operates on in-memory structures (the per-Ability results + the DAG + the
+operates on in-memory structures (the per-Ability results + the attack flow + the
 ``ability_id`` → technique map), so the tests exercise it without a database. For
 the production path, :meth:`MeasurementService.measure_from_campaign` resolves the
-curated DAG and the technique map from a
-:class:`~app.services.campaign_service.CaseData`.
+curated attack flow and the technique map from a
+:class:`~app.services.curated_case_models.CaseData`.
 
 _Requirements: 10.4, 10.5, 10.6, 10.7, 15.1, 15.2, 15.3, 15.4, 15.5, 15.6, 15.7_
 """
@@ -54,13 +54,13 @@ from dataclasses import dataclass, field
 from typing import Mapping, Optional, Sequence
 
 from app.models.enums import AbilityResultStatus
-from app.services.campaign_service import CaseData, DagData, DagNode
+from app.services.curated_case_models import CaseData, FlowData, FlowNode
 from app.services.environment.report import (
     SufficiencyMetrics,
     TechniqueMetric,
     ExecutionReport,
 )
-from app.services.stage.stage_service import Stage3AbilityResult
+from app.services.emulation.views import Stage3AbilityResult
 
 
 # ---------------------------------------------------------------------------
@@ -73,7 +73,7 @@ class AbilityMeasurementResult:
     """The normalized measurement input — one result per executed Ability.
 
     A thin, neutral layer over the system's various per-Ability result sources
-    (the historical :class:`~app.services.stage.stage_service.Stage3AbilityResult`
+    (the historical :class:`~app.services.emulation.views.Stage3AbilityResult`
     or the :class:`~app.services.environment.execution.ExecutionAbilityResult` of
     the task 8.2 seam). The measurement consumes **only** what it needs, staying
     decoupled from the concrete result shape.
@@ -118,20 +118,20 @@ class AbilityMeasurementResult:
 
 
 # ---------------------------------------------------------------------------
-# DAG technique (measurement unit) — structural node with technique_id
+# Attack flow technique (measurement unit) — structural node with technique_id
 # ---------------------------------------------------------------------------
 
 
 @dataclass(frozen=True)
-class _DagTechnique:
-    """A distinct DAG technique — the measurement unit (Req. 15.1, 15.3).
+class _FlowTechnique:
+    """A distinct attack flow technique — the measurement unit (Req. 15.1, 15.3).
 
     Attributes:
         technique_id: The technique's ``technique_id``.
         node_id: The representative node's ``node_id`` (the 1st node of that
             technique), to annotate the :class:`TechniqueMetric` and the
             ``failed_nodes``.
-        step: The DAG step (``node_type`` → ``tactic`` → ``node_index``) used to
+        step: The attack flow step (``node_type`` → ``tactic``) used to
             annotate where a failure occurred (Req. 15.2).
     """
 
@@ -140,41 +140,39 @@ class _DagTechnique:
     step: Optional[str] = None
 
 
-def _step_of_node(node: DagNode) -> Optional[str]:
-    """Derive the 'DAG step' of a node, to annotate the failure (Req. 15.2).
+def _step_of_node(node: FlowNode) -> Optional[str]:
+    """Derive the 'attack flow step' of a node, to annotate the failure (Req. 15.2).
 
     Prefers ``node_type`` (the structural phase), falls back to ``tactic`` (the
-    ATT&CK tactic) and finally to the node index. ``None`` when none is present.
+    ATT&CK tactic). ``None`` when none is present.
     """
     if node.node_type:
         return node.node_type
     if node.tactic:
         return node.tactic
-    if node.node_index is not None:
-        return f"node_{node.node_index}"
     return None
 
 
-def _dag_techniques(dag: Optional[DagData]) -> list[_DagTechnique]:
-    """Extract the **distinct** DAG techniques, preserving node order.
+def _flow_techniques(flow: Optional[FlowData]) -> list[_FlowTechnique]:
+    """Extract the **distinct** attack flow techniques, preserving node order.
 
     A technique is a structural node with ``technique_id`` (the same definition as
-    :func:`app.services.stage.stage_service._iter_technique_nodes`),
+    the former structural-node iteration helper),
     de-duplicated by ``technique_id`` — the 1st node of each technique is the
     representative (provides ``node_id`` and the step). Preserves node order for a
     deterministic output.
     """
-    if dag is None:
+    if flow is None:
         return []
-    techniques: list[_DagTechnique] = []
+    techniques: list[_FlowTechnique] = []
     seen: set[str] = set()
-    for node in dag.structural_nodes:
+    for node in flow.structural_nodes:
         tid = node.technique_id
         if not tid or tid in seen:
             continue
         seen.add(tid)
         techniques.append(
-            _DagTechnique(technique_id=tid, node_id=node.node_id, step=_step_of_node(node))
+            _FlowTechnique(technique_id=tid, node_id=node.node_id, step=_step_of_node(node))
         )
     return techniques
 
@@ -234,17 +232,17 @@ class MeasurementService:
     """Derive :class:`SufficiencyMetrics` and consolidate into :class:`ExecutionReport`.
 
     The measurement is **pure and deterministic**: given the list of per-Ability
-    results, the curated DAG and the ``ability_id`` → ``technique_id`` map, it
+    results, the curated attack flow and the ``ability_id`` → ``technique_id`` map, it
     produces the procedural-sufficiency metrics (Req. 15) without touching the
     network, Docker or AI. The entry points:
 
     * :meth:`measure` — the pure derivation, over in-memory structures (results +
-      DAG + map); the target of the tests and of the composition.
+      Attack flow + map); the target of the tests and of the composition.
     * :meth:`consolidate` — packs the metrics (without recomputing) into an
       :class:`ExecutionReport` with the reused results.
     * :meth:`measure_from_campaign` / :meth:`report_from_campaign` — the production
-      convenience that extracts the curated DAG and the technique map from a
-      :class:`~app.services.campaign_service.CaseData` and delegates to the above.
+      convenience that extracts the curated attack flow and the technique map from a
+      :class:`~app.services.curated_case_models.CaseData` and delegates to the above.
 
     No ``Session`` dependency nor external construction — the service is a grouper
     of pure functions; instantiating it is optional (the methods are instance
@@ -257,43 +255,43 @@ class MeasurementService:
         self,
         *,
         results: Sequence[AbilityMeasurementResult],
-        dag: Optional[DagData],
+        flow: Optional[FlowData],
         technique_by_ability: Mapping[str, Optional[str]],
     ) -> SufficiencyMetrics:
-        """Derive the :class:`SufficiencyMetrics` from the results + the DAG (Req. 15).
+        """Derive the :class:`SufficiencyMetrics` from the results + the attack flow (Req. 15).
 
         Args:
             results: The execution's per-Ability results (normalized into
                 :class:`AbilityMeasurementResult`), in execution order.
-            dag: The Campaign's curated DAG (Stage 3 output); defines the universe
+            flow: The Campaign's curated attack flow (Stage 3 output); defines the universe
                 of techniques (the denominator). ``None``/empty ⇒ zeroed metrics.
             technique_by_ability: The ``ability_id`` → ``technique_id`` map of the
                 curated Abilities (the result → technique bridge). An Ability with
-                no mapped technique, or mapped to a technique OUTSIDE the DAG, does
-                not contribute to any DAG technique. A missing ``ability_id`` is
+                no mapped technique, or mapped to a technique OUTSIDE the attack flow, does
+                not contribute to any attack flow technique. A missing ``ability_id`` is
                 ignored.
 
         Returns:
             The consolidated :class:`SufficiencyMetrics` — total/success/rate,
             procedural coverage ∈ ``[0, 1]``, total time, the per-technique list
-            (one per distinct DAG technique, in order), the failed nodes (with
+            (one per distinct attack flow technique, in order), the failed nodes (with
             step) and the overall verdict.
         """
-        techniques = _dag_techniques(dag)
-        # Aggregator per technique_id, initialized with all DAG techniques
+        techniques = _flow_techniques(flow)
+        # Aggregator per technique_id, initialized with all attack flow techniques
         # (techniques not attempted stay 'pending'/not covered).
         aggregates: dict[str, _TechniqueAggregate] = {
             t.technique_id: _TechniqueAggregate() for t in techniques
         }
-        dag_technique_ids: set[str] = set(aggregates)
+        flow_technique_ids: set[str] = set(aggregates)
 
         for result in results:
             ability_id = result.ability_id
             if ability_id is None:
                 continue
             technique = technique_by_ability.get(ability_id)
-            # Only results whose Abilities map to a DAG technique count.
-            if technique is None or technique not in dag_technique_ids:
+            # Only results whose Abilities map to an attack flow technique count.
+            if technique is None or technique not in flow_technique_ids:
                 continue
             aggregates[technique].accumulate(result)
 
@@ -332,12 +330,12 @@ class MeasurementService:
         total = len(techniques)
         success_rate = (successful_techniques / total) if total else 0.0
         coverage = (attempted_techniques / total) if total else 0.0
-        # Overall verdict: non-empty DAG, ALL techniques in success and no failed
-        # node (Req. 15.6, 10.5). An empty DAG is never a success.
+        # Overall verdict: non-empty attack flow, ALL techniques in success and no failed
+        # node (Req. 15.6, 10.5). An empty attack flow is never a success.
         verdict = total > 0 and successful_techniques == total and not failed_nodes
 
         return SufficiencyMetrics(
-            total_dag_techniques=total,
+            total_flow_techniques=total,
             successful_techniques=successful_techniques,
             success_rate=success_rate,
             procedural_coverage=coverage,
@@ -360,7 +358,7 @@ class MeasurementService:
 
         The Stage 6 output (Req. 10.6, 10.7, 15.7): joins the measured
         :class:`SufficiencyMetrics` (preserved in full, **without** recomputing),
-        the :class:`~app.services.stage.stage_service.Stage3AbilityResult` reused
+        the :class:`~app.services.emulation.views.Stage3AbilityResult` reused
         from the execution, the environment deprovisioning flag (Req. 12, filled
         by task 8.4) and the generation timestamp.
 
@@ -390,7 +388,7 @@ class MeasurementService:
     ) -> SufficiencyMetrics:
         """Production convenience: measure from a :class:`CaseData`.
 
-        Extracts the curated DAG (``campaign.dag``) and the ``ability_id`` →
+        Extracts the curated attack flow (``campaign.flow``) and the ``ability_id`` →
         ``technique_id`` map of the curated Abilities (``campaign.abilities``) and
         delegates to :meth:`measure`. Keeps the derivation in one place — the API
         layer (task 8.5) only needs to resolve the Campaign and pass the execution
@@ -401,7 +399,7 @@ class MeasurementService:
         }
         return self.measure(
             results=results,
-            dag=campaign.dag,
+            flow=campaign.flow,
             technique_by_ability=technique_by_ability,
         )
 

@@ -76,7 +76,7 @@ _REFINE = "refine"
 # Generators: a random executed Stage 6 report with an explicit metrics block.
 # ---------------------------------------------------------------------------
 
-# Node identifiers used both as DAG node ids and as the failed-node list entries.
+# Node identifiers used both as attack flow node ids and as the failed-node list entries.
 _node_id_strategy = st.from_regex(r"T[0-9]{3,4}(\.[0-9]{3})?", fullmatch=True)
 
 # A fraction in [0, 1] — the shape of both success_rate and procedural_coverage.

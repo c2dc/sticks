@@ -1,6 +1,6 @@
-"""Command_Base - consultable command index shared by DAG and operationalization.
+"""Command_Base - consultable command index shared by attack flow and operationalization.
 
-The Command_Base is the queryable command index that both the DAG generation
+The Command_Base is the queryable command index that both the attack flow generation
 agent and the operationalization agent consume (Req. 11.2, 12.1). It is composed
 of two halves following the two-memory rule (see
 :mod:`app.services.ai.memory`):
@@ -16,7 +16,7 @@ of two halves following the two-memory rule (see
   12.3).
 
 :meth:`CommandBase.has_command_for` signals whether a technique has any backing
-command at all (exact or by similarity) so the DAG generation agent can flag a
+command at all (exact or by similarity) so the attack flow generation agent can flag a
 gap instead of inventing an unsupported command (Req. 11.4).
 
 This module performs no I/O at import time: the ORM model and the experience
@@ -27,7 +27,7 @@ other Session-injected services (Req. 1.7).
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any, Optional, Sequence
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -57,6 +57,8 @@ class CommandSuggestion:
     platform: str  # "linux" | "windows" | ...
     source: str  # "atomic_red_team" | "threat_intel"
     exact: bool  # True = relational mapping; False = similarity
+    # Primary key of the ``technique_commands`` row (exact suggestions only).
+    id: Optional[int] = None
 
 
 class CommandBase:
@@ -98,9 +100,43 @@ class CommandBase:
         Returns ``True`` when there is at least one exact relational mapping OR
         at least one similarity suggestion for ``technique_id``; ``False`` only
         when neither half of the Command_Base can back the technique, letting the
-        DAG generation agent flag the gap (Req. 11.4).
+        Attack flow generation agent flag the gap (Req. 11.4).
         """
         return bool(self.commands_for_technique(technique_id, k=1))
+
+    def exact_commands_for(
+        self, technique_ids: Sequence[str]
+    ) -> dict[str, list[CommandSuggestion]]:
+        """Batch exact lookup: one ``WHERE technique_id IN (...)`` query.
+
+        Returns a mapping with one key per requested technique id; a technique
+        with no row maps to an empty list. Never consults the Experience_Memory
+        (Req. 6.2, 6.6).
+        """
+        from app.models.domain import TechniqueCommand
+
+        unique_ids = list(dict.fromkeys(technique_ids))
+        result: dict[str, list[CommandSuggestion]] = {tid: [] for tid in unique_ids}
+        if not unique_ids:
+            return result
+        stmt = (
+            select(TechniqueCommand)
+            .where(TechniqueCommand.technique_id.in_(unique_ids))
+            .order_by(TechniqueCommand.technique_id, TechniqueCommand.id)
+        )
+        for row in self._session.execute(stmt).scalars().all():
+            result[row.technique_id].append(
+                CommandSuggestion(
+                    technique_id=row.technique_id,
+                    command=row.command,
+                    executor=row.executor,
+                    platform=row.platform,
+                    source=row.source,
+                    exact=True,
+                    id=row.id,
+                )
+            )
+        return result
 
     # ---- exact (relational) half -------------------------------------------
 

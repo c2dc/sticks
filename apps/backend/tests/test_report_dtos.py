@@ -9,7 +9,7 @@ medição + relatório) definidos em ``app.services.environment.report`` (Req.
 2. :class:`SufficiencyMetrics` — defaults e serialização, incluindo a lista
    ``per_technique`` aninhada.
 3. :class:`ExecutionReport` — consolida as métricas, os
-   :class:`~app.services.stage.stage_service.Stage3AbilityResult` reusados e o
+   :class:`~app.services.emulation.views.Stage3AbilityResult` reusados e o
    deprovisioning flag (Req. 12), serializing in pt-BR.
 
 _Requirements: 15.1, 15.2, 15.3, 15.4, 15.5, 15.6, 15.7, 15.8_
@@ -25,7 +25,7 @@ from app.services.environment import (
     TechniqueMetric,
     ExecutionReport,
 )
-from app.services.stage.stage_service import Stage3AbilityResult
+from app.services.emulation.views import Stage3AbilityResult
 
 
 def test_metrica_tecnica_defaults() -> None:
@@ -58,7 +58,7 @@ def test_metrica_tecnica_full_and_serialization() -> None:
 
 def test_sufficiency_metrics_defaults() -> None:
     metrics = SufficiencyMetrics()
-    assert metrics.total_dag_techniques == 0
+    assert metrics.total_flow_techniques == 0
     assert metrics.successful_techniques == 0
     assert metrics.success_rate == 0.0
     assert metrics.procedural_coverage == 0.0
@@ -70,7 +70,7 @@ def test_sufficiency_metrics_defaults() -> None:
 
 def test_sufficiency_metrics_full_and_nested() -> None:
     metrics = SufficiencyMetrics(
-        total_dag_techniques=4,
+        total_flow_techniques=4,
         successful_techniques=3,
         success_rate=0.75,
         procedural_coverage=0.9,
@@ -83,7 +83,7 @@ def test_sufficiency_metrics_full_and_nested() -> None:
         success_verdict=True,
     )
     dumped = metrics.model_dump(mode="json")
-    assert dumped["total_dag_techniques"] == 4
+    assert dumped["total_flow_techniques"] == 4
     assert dumped["successful_techniques"] == 3
     assert dumped["success_rate"] == 0.75
     assert dumped["procedural_coverage"] == 0.9
@@ -98,7 +98,7 @@ def test_execution_report_requires_campaign_metrics_and_generated_at() -> None:
     generated_at = dt.datetime(2024, 1, 2, 3, 4, 5)
     report = ExecutionReport(
         campaign_id="apt-x",
-        metrics=SufficiencyMetrics(total_dag_techniques=1, successful_techniques=1, success_rate=1.0),
+        metrics=SufficiencyMetrics(total_flow_techniques=1, successful_techniques=1, success_rate=1.0),
         generated_at=generated_at,
     )
     assert report.campaign_id == "apt-x"
@@ -112,7 +112,7 @@ def test_execution_report_full_and_serialization() -> None:
     report = ExecutionReport(
         campaign_id="apt-x",
         metrics=SufficiencyMetrics(
-            total_dag_techniques=2,
+            total_flow_techniques=2,
             successful_techniques=1,
             success_rate=0.5,
             success_verdict=False,

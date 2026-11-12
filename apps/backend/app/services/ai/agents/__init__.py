@@ -1,6 +1,6 @@
 """Stage agents and the evaluator node for the AI curation loop.
 
-Will host the seam implementations ``AiDagGenerator`` (``dag_agent.py``),
+Will host the seam implementations ``FlowAgent`` (``flow_agent.py``),
 ``AiOperationalizer`` (``op_agent.py``) and ``AiEnvironmentProvisioner``
 (``env_agent.py``), plus the evaluator node (``evaluator.py``), populated by
 later tasks.

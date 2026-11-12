@@ -8,7 +8,7 @@ Validates: Requirements 2.2 — ``classify_commands`` splits the **real** curate
 ``sshd &``) are classified ``OFFLINE`` (sub-stage 5.2, isolated).
 
 The commands below are sourced from the real
-``infra/docker/.docker/nginx/shadowray_suta.sh`` so the example exercises the
+``ops/docker/.docker/nginx/shadowray_suta.sh`` so the example exercises the
 heuristic against production-shaped input. The safe default (no online pattern ⇒
 OFFLINE) is also checked, since a misclassification toward OFFLINE never opens
 undue egress.

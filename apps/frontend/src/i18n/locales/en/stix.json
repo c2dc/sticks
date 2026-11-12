@@ -23,49 +23,6 @@
       "downloading": "Downloading…",
       "select": "Select",
       "downloadError": "This base could not be downloaded. Please try again."
-    },
-    "selection": {
-      "title": "Choose what to emulate",
-      "subtitle": "Browse by campaign or by threat actor to select the journey you want to replay.",
-      "toggle": "Toggle between campaign and actor",
-      "byCampaign": "By campaign",
-      "byActor": "By threat actor",
-      "loading": "Loading…",
-      "error": "This list could not be loaded.",
-      "tryAgain": "Try again",
-      "alreadyCurated": "Already curated",
-      "noActor": "No associated actor",
-      "noCampaigns": "No campaigns found.",
-      "noActors": "No actors found.",
-      "actorCampaigns_one": "{{count}} campaign",
-      "actorCampaigns_other": "{{count}} campaigns",
-      "search": "Search",
-      "searchPlaceholder": "Search by name or description…",
-      "clearSearch": "Clear search",
-      "curatedOnly": "Curated only",
-      "results_one": "{{count}} of {{total}} campaign",
-      "results_other": "{{count}} of {{total}} campaigns",
-      "noResults": "No campaign matches your search.",
-      "actorResults_one": "{{count}} of {{total}} actor",
-      "actorResults_other": "{{count}} of {{total}} actors",
-      "noActorResults": "No actor matches your search."
-    },
-    "dag": {
-      "title": "Directed Acyclic Graph (DAG) generation",
-      "passThrough": "This campaign does not have a curated DAG yet. The flow passes straight through, with no automatic generation.",
-      "error": "The DAG for this case could not be loaded.",
-      "advance": "Advance",
-      "back": "Back",
-      "loading": "Loading the DAG…",
-      "generateWithAi": "Generate with AI",
-      "comingSoon": "coming soon",
-      "select": "Select DAG",
-      "noDag": "This campaign does not have a DAG yet. Generate a DAG to advance.",
-      "source": {
-        "label": "DAG source",
-        "curadoria_humana": "Human curation",
-        "gerado_ia": "AI-generated"
-      }
     }
   }
 }

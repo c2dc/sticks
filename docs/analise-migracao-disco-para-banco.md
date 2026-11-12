@@ -1,5 +1,9 @@
 # Análise — Migração de disco para banco e "tudo via IA"
 
+> **Nota de atualização.** Este documento é uma análise datada (nov/2026) do estado anterior, e os termos "DAG", `StageService`, `/stage/N` e "caso curado" aparecem aqui como descrição histórica. Hoje o pipeline curado foi removido (curated é apenas uma flag), o "DAG" virou *attack flow* (formato MITRE Attack Flow) e a ordem das fases é `input → operationalization → flow → environment → execution → evaluation`. Ver `README.md` e `docs/agentic-phases-literature.md`.
+
+> **Atualização (tarefa 21.4).** packages/cli (JSONs em data/api e data/dag, config.py e utilitários) foi removido; os dados vivem apenas no banco e a URL/chave do Caldera vêm de Settings (PIPELINE_UI_CALDERA_URL/PIPELINE_UI_CALDERA_KEY). Referências a esses caminhos abaixo são históricas.
+>
 > Documento de análise e recomendações. Não altera código. Baseado em inspeção
 > do código em `apps/backend` e do estado real do banco (Postgres `sticks-postgres`)
 > em nov/2026.
@@ -51,7 +55,7 @@ Fonte de verdade em disco hoje, lida em tempo de request:
    descritos como "mapeia o arquivo em data/api/...".
 4. **`sticks_config`**: resolve `packages/cli/config/config.py` por caminho.
 5. **Atomic Red Team**: vive no plugin do Caldera
-   (`infra/docker/.docker/caldera/plugins`), não numa estrutura do backend.
+   (`ops/docker/.docker/caldera/plugins`), não numa estrutura do backend.
 
 ## 4. Pontos de bloqueio para "tudo via IA"
 

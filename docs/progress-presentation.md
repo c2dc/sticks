@@ -1,5 +1,18 @@
 # STICKS (Pipeline UI + Adversary Emulation)
 
+> **Update note.** This text is a dated progress report of the earlier three-stage
+> pipeline. The curated pipeline was removed ("curated" is now only a database
+> flag, with the 8 campaigns kept as data). The current model is agentic-only,
+> with the phase order `input → operationalization → flow → environment →
+> execution → evaluation`. The `flow` phase builds an *attack flow* in the MITRE
+> Attack Flow format (MITRE Center for Threat-Informed Defense,
+> <https://center-for-threat-informed-defense.github.io/attack-flow/>) with a
+> three-path policy (`exact` / `adapted` / `created`), and the knowledge bases
+> (Atomic Red Team, Docker Hub catalog, Attack Flow corpus) are ingested
+> automatically at the first start and verified at every start. See `README.md`.
+> "Stage 2 automation" below now corresponds to the `operationalization` and
+> `flow` phases.
+
 ---
 
 ## 1. In one sentence

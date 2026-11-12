@@ -77,7 +77,7 @@ from typing import Any, Mapping
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from app.services.campaign_service import CaseService
+from tests._curated_db import CaseDb, db_put
 from app.services.containment.isolation import (
     ContainerNetworkInfo,
     ContainerNotFound,
@@ -404,12 +404,7 @@ def _inspector(containers: list[str], *, non_isolated: str = "") -> _FakeInspect
     return insp
 
 
-def _write_json(path: Path, payload: object) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload), encoding="utf-8")
-
-
-def _seed_case(data_dir: Path, slug: str) -> None:
+def _seed_case(data_dir: CaseDb, slug: str) -> None:
     abilities = [
         {
             "ability_id": f"{slug}-ab-1",
@@ -418,26 +413,20 @@ def _seed_case(data_dir: Path, slug: str) -> None:
             "executors": [{"name": "sh", "platform": "linux", "command": "echo 1"}],
         },
     ]
-    _write_json(data_dir / "api" / f"{slug}_dag-ability.json", abilities)
-    _write_json(
-        data_dir / "api" / f"{slug}_dag-adversary.json",
-        {
+    db_put(data_dir, "ability", slug, abilities)
+    db_put(data_dir, "adversary", slug, {
             "id": f"{slug}-adv",
             "name": "Seed Adversary",
             "description": "seed",
             "atomic_ordering": [f"{slug}-ab-1"],
-        },
-    )
-    _write_json(
-        data_dir / "dag" / f"{slug}_dag.json",
-        {
+        })
+    db_put(data_dir, "flow", slug, {
             "campaign_name": "Seed",
             "structural_nodes": [
-                {"node_id": "n0", "node_index": 0, "technique_id": "T1190"}
+                {"node_id": "n0", "technique_id": "T1190"}
             ],
             "metadata": {"total_techniques": 1},
-        },
-    )
+        })
 
 
 def _params(containers: list[str], *, label_salt: int = 0) -> EnvironmentParameters:
@@ -509,12 +498,12 @@ def test_failure_never_leaves_a_target_with_egress(
     prober = _StatefulEgressProber(failpoint=failpoint, fail_host=fail_host)
     non_isolated = fail_host if failpoint == "isolation_reproves" else ""
 
-    tmp = Path(tempfile.mkdtemp(prefix="stage5_failclosed_prop_"))
+    tmp = CaseDb()
     try:
         _seed_case(tmp, _SLUG)
         prov = CurationEnvironmentProvisioner(
             inspector=_inspector(containers, non_isolated=non_isolated),
-            case_service=CaseService(data_dir=tmp),
+            session_factory=tmp.factory,
             caldera=_FakeCaldera(),
             compose_executor=compose,
             state_inspector=_FakeStateInspector(containers),
@@ -524,7 +513,7 @@ def test_failure_never_leaves_a_target_with_egress(
         )
         environment = prov.provision(_params(hosts, label_salt=label_salt))
     finally:
-        shutil.rmtree(tmp, ignore_errors=True)
+        tmp.dispose()
 
     # Stage 5 is NOT complete, with the ``failed_step`` matching the injected point.
     assert environment.ready is False, (

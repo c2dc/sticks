@@ -1,17 +1,4 @@
 {
-  "title": "Preferences",
-  "theme": {
-    "label": "Theme",
-    "light": "Light Mode",
-    "lightHint": "Corporate theme with a light background.",
-    "dark": "Dark Mode",
-    "darkHint": "Hacker-culture theme with a dark background."
-  },
-  "language": {
-    "label": "Language",
-    "ptBR": "Português (pt-BR)",
-    "en": "English"
-  },
   "navbar": {
     "toggleTheme": "Toggle theme",
     "toThemeLight": "Switch to Light Mode",

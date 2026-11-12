@@ -1,5 +1,5 @@
-"""Core package: configuration and integration with the existing sticks pipeline."""
+"""Core package: backend configuration."""
 
-from app.core.config import Settings, get_settings, get_sticks_config
+from app.core.config import Settings, get_settings
 
-__all__ = ["Settings", "get_settings", "get_sticks_config"]
+__all__ = ["Settings", "get_settings"]

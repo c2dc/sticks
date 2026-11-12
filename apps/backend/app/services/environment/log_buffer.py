@@ -2,7 +2,7 @@
 
 This module defines :class:`ProvisioningLogBuffer` — the **in-memory**, per-case
 buffer of the Stage 5 provisioning log lines. It is the structure that the
-:class:`~app.services.environment.stage_service.EnvironmentStageService` (tasks
+the provisioning service (tasks
 5.1/5.2) feeds with each :class:`~app.services.environment.compose_executor.LogLine`
 emitted by the executor and the pipeline steps, and from which the WebSocket
 channel (``ws/channels.py``, task 4.3) and the REST endpoints (task 6.x) read for:
@@ -59,7 +59,7 @@ import threading
 from typing import Callable, Optional
 
 from app.services.environment.compose_executor import LogLine
-from app.services.stage.stage_service import LogLineView
+from app.services.emulation.views import LogLineView
 
 # Default per-case line limit. Keeps a live execution's buffer within a
 # predictable memory band in a long-lived process; on exceeding, the oldest
@@ -72,7 +72,7 @@ def _utcnow() -> dt.datetime:
     """Naive UTC timestamp (portable between PostgreSQL and the test SQLite).
 
     Same contract as the same-named helper in
-    :mod:`app.services.environment.stage_service`: ``datetime.now(UTC)`` with the
+    the provisioning service: ``datetime.now(UTC)`` with the
     ``tzinfo`` stripped, so the :class:`LogLineView` ``at`` is naive-UTC and
     consistently comparable across any database backend.
     """
@@ -84,7 +84,7 @@ class ProvisioningLogBuffer:
 
     Keeps, for each ``campaign_id``, a **bounded** list of :class:`LogLineView` in
     monotonic ``seq`` order. Fed by the
-    :class:`~app.services.environment.stage_service.EnvironmentStageService` with
+    the provisioning service with
     each :class:`LogLine` emitted (via :meth:`append`), and read by the WebSocket
     channel and the REST endpoints (via :meth:`read` for the full buffer and
     :meth:`new_since` for the reconnection delta).
@@ -212,7 +212,7 @@ class ProvisioningLogBuffer:
 # The provisioning log buffer must be **a single instance per process**, shared
 # across three consumers:
 #
-# * the :class:`~app.services.environment.stage_service.EnvironmentStageService`,
+# * the the provisioning service,
 #   which **appends** each :class:`LogLine` emitted by the pipeline (task 5.1);
 # * the Stage WebSocket channel (``app.ws.channels.run_stage_progress_channel``),
 #   which **reads** the buffer to feed the screen's live terminal (task 4.3); and
@@ -229,7 +229,7 @@ _LOG_BUFFER: ProvisioningLogBuffer = ProvisioningLogBuffer()
 def get_log_buffer() -> ProvisioningLogBuffer:
     """Return the process-level shared :class:`ProvisioningLogBuffer`.
 
-    It is the **same** instance that the :class:`EnvironmentStageService` feeds
+    It is the **same** instance that the the provisioning service feeds
     (appending each pipeline :class:`LogLine`), that the Stage WebSocket channel
     reads for the live terminal (Req. 2.2) and that the Stage 5 REST endpoints
     read to return the current buffer (Req. 2.5, 2.7). In production it returns the

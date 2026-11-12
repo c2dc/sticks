@@ -5,7 +5,6 @@ import userEvent from "@testing-library/user-event"
 import { renderWithI18n } from "@/test/render"
 import App from "@/App"
 import type { BaseStixInfo } from "@/lib/stix"
-import type { Campaign, CasesResponse } from "@/lib/campaigns"
 
 // Mock every API wrapper the App + wizard touch so no network is used and the
 // routing can be driven deterministically.
@@ -23,23 +22,9 @@ vi.mock("@/lib/stix", async (importOriginal) => {
   return { ...actual, getBases: vi.fn() }
 })
 
-vi.mock("@/lib/campaigns", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/campaigns")>()
-  return { ...actual, fetchCases: vi.fn() }
-})
-
-vi.mock("@/lib/wizard", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/wizard")>()
-  return { ...actual, getCampaign: vi.fn(), resetCampaign: vi.fn() }
-})
-
 import { getBases } from "@/lib/stix"
-import { fetchCases } from "@/lib/campaigns"
-import { getCampaign } from "@/lib/wizard"
 
 const getBasesMock = vi.mocked(getBases)
-const fetchCasesMock = vi.mocked(fetchCases)
-const getCampaignMock = vi.mocked(getCampaign)
 
 function makeBases(): BaseStixInfo[] {
   return [
@@ -53,37 +38,10 @@ function makeBases(): BaseStixInfo[] {
   ]
 }
 
-function makeCases(): CasesResponse {
-  return {
-    campaigns: [{ id: "shadowray", name: "ShadowRay" }],
-    progress: { completed_campaigns: 0, total_campaigns: 8, percentage: 0 },
-  }
-}
-
-function makeCampaign(): Campaign {
-  return {
-    id: "shadowray",
-    name: "ShadowRay",
-    states: {
-      fully_completed: false,
-      stages: [1, 2, 3, 4, 5, 6].map((stage) => ({
-        stage: stage as 1 | 2 | 3 | 4 | 5 | 6,
-        state: "nao_iniciado" as const,
-        progress: 0,
-        blocked: stage > 1,
-      })),
-    },
-  }
-}
-
 describe("App flow integration (landing → wizard routing)", () => {
   beforeEach(() => {
     getBasesMock.mockReset()
     getBasesMock.mockResolvedValue(makeBases())
-    fetchCasesMock.mockReset()
-    fetchCasesMock.mockResolvedValue(makeCases())
-    getCampaignMock.mockReset()
-    getCampaignMock.mockResolvedValue(makeCampaign())
   })
 
   it("mounts the Landing first, then enters the ExecutionWizard on the CTA click", async () => {
@@ -96,11 +54,11 @@ describe("App flow integration (landing → wizard routing)", () => {
     expect(screen.queryByTestId("execution-wizard")).toBeNull()
 
     // START via the CTA switches the view landing → wizard, straight into the
-    // unified Setup screen (package + campaign on one screen).
+    // unified Input screen (package + campaign on one screen).
     await user.click(cta)
 
     expect(await screen.findByTestId("execution-wizard")).toBeInTheDocument()
-    // The flow enters at the unified Setup screen (two-layer shell), not the
+    // The flow enters at the unified Input screen (two-layer shell), not the
     // old 1..6 ruler.
     expect(
       await screen.findByText(/Vamos preparar sua emulação/),

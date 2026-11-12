@@ -1,6 +1,6 @@
 """Integration tests for the real-time WebSocket channels (task 11.3).
 
-These exercise the two channels wired in ``app.ws.router`` end to end through
+These exercise the channel wired in ``app.ws.router`` end to end through
 FastAPI's ``TestClient.websocket_connect`` against an **ephemeral SQLite DB**:
 
 * ``WS /ws/stages/{campaign}`` — connecting yields at least one stage-state frame
@@ -19,7 +19,7 @@ The channels open a fresh session from ``app.db.session.SessionLocal`` per poll;
 each test monkeypatches that module attribute to a factory bound to the
 ephemeral engine, mirroring the DB-override pattern used elsewhere in the suite.
 
-_Requirements: 1.4, 1.5, 4.3, 4.4, 4.5_
+_Requirements: 1.3, 4.3, 4.4, 4.5_
 """
 
 from __future__ import annotations
@@ -44,12 +44,10 @@ from app.models.domain import (
     AbilityResult,
     Case,
     Operation,
-    StageRun,
 )
 from app.models.enums import (
     AbilityResultStatus,
     OperationState,
-    StageState,
 )
 
 
@@ -120,175 +118,17 @@ def _seed_case(session: Session, slug: str = "shadowray") -> None:
 
 
 # ---------------------------------------------------------------------------
-# WS /ws/stages/{campaign}
+# WS /ws/stages/{campaign} was removed with the curated pipeline
 # ---------------------------------------------------------------------------
 
 
-def test_stages_channel_emits_frame_reflecting_persisted_stage_run(
-    client: TestClient, session_factory: sessionmaker[Session]
-) -> None:
-    """Connecting yields a stage frame reflecting the persisted StageRun.
+def test_removed_stages_channel_is_not_served(client: TestClient) -> None:
+    """The legacy ``/ws/stages/{campaign}`` channel no longer exists (Req. 1.3)."""
+    from starlette.websockets import WebSocketDisconnect
 
-    A ``completed`` Stage 1 with 100% progress is persisted; the first (and,
-    because ``completed`` is terminal, only) frame must carry that state and
-    percentage. _Requirements: 1.4_
-    """
-    session = session_factory()
-    try:
-        _seed_case(session)
-        session.add(
-            StageRun(
-                campaign_id="shadowray",
-                stage=1,
-                state=StageState.COMPLETED,
-                progress=100,
-            )
-        )
-        session.commit()
-    finally:
-        session.close()
-
-    with client.websocket_connect(
-        "/ws/stages/shadowray?intervalo=0"
-    ) as ws:
-        frame = ws.receive_json()
-
-    assert frame["campaign_id"] == "shadowray"
-    assert frame["stage"] == 1
-    assert frame["state"] == StageState.COMPLETED.value  # "completed"
-    assert frame["progress"] == 100
-    # First frame reports no prior transition.
-    assert frame["previous_state"] is None
-
-
-def test_stages_channel_pushes_repeatedly_while_in_progress(
-    client: TestClient, session_factory: sessionmaker[Session]
-) -> None:
-    """While ``em_andamento`` the channel keeps pushing frames (Req. 1.5).
-
-    With a zero interval and ``max_frames=3`` the loop should emit 3 frames for a
-    still-in-progress stage (it is not terminal, so it would otherwise loop
-    forever). Later frames carry ``previous_state == em_andamento`` (the
-    transition-from state the UI sees). _Requirements: 1.5_
-    """
-    session = session_factory()
-    try:
-        _seed_case(session)
-        session.add(
-            StageRun(
-                campaign_id="shadowray",
-                stage=1,
-                state=StageState.IN_PROGRESS,
-                progress=42,
-            )
-        )
-        session.commit()
-    finally:
-        session.close()
-
-    with client.websocket_connect(
-        "/ws/stages/shadowray?intervalo=0&max_frames=3"
-    ) as ws:
-        frames = [ws.receive_json() for _ in range(3)]
-
-    assert len(frames) == 3
-    assert all(f["state"] == StageState.IN_PROGRESS.value for f in frames)
-    assert all(f["progress"] == 42 for f in frames)
-    assert frames[0]["previous_state"] is None
-    # Subsequent frames report the state they were last seen in.
-    assert frames[1]["previous_state"] == StageState.IN_PROGRESS.value
-
-
-@pytest.mark.parametrize("stage", [1, 2, 3, 4, 5, 6])
-def test_stages_channel_accepts_all_six_stages(
-    client: TestClient,
-    session_factory: sessionmaker[Session],
-    stage: int,
-) -> None:
-    """Every stage in ``VALID_STAGES`` (1..6) is accepted by the channel.
-
-    After task 1.1 widened ``VALID_STAGES`` to ``(1, 2, 3, 4, 5, 6)``, the
-    ``WS /ws/stages/{campaign}`` channel — which validates ``stage`` against
-    that constant — must accept 1..6 and push a typed ``StageProgressEvent``
-    frame (not the ``invalido`` guard frame). _Requirements: 1.2, 3.1_
-    """
-    session = session_factory()
-    try:
-        _seed_case(session)
-        session.add(
-            StageRun(
-                campaign_id="shadowray",
-                stage=stage,
-                state=StageState.COMPLETED,
-                progress=100,
-            )
-        )
-        session.commit()
-    finally:
-        session.close()
-
-    with client.websocket_connect(
-        f"/ws/stages/shadowray?intervalo=0&stage={stage}"
-    ) as ws:
-        frame = ws.receive_json()
-
-    # A valid stage yields a StageProgressEvent frame, never the ``invalido``
-    # guard frame reserved for out-of-range stages.
-    assert frame.get("valid") is not False
-    assert frame["campaign_id"] == "shadowray"
-    assert frame["stage"] == stage
-    assert frame["state"] == StageState.COMPLETED.value  # "completed"
-    assert frame["progress"] == 100
-
-
-@pytest.mark.parametrize("stage", [0, 7])
-def test_stages_channel_rejects_out_of_range_stage(
-    client: TestClient,
-    session_factory: sessionmaker[Session],
-    stage: int,
-) -> None:
-    """Stages outside ``VALID_STAGES`` yield a single ``invalido`` frame.
-
-    0 and 7 bracket the 1..6 range; both must be rejected gracefully with an
-    informational frame rather than raising into the socket. _Requirements: 3.1_
-    """
-    session = session_factory()
-    try:
-        _seed_case(session)
-    finally:
-        session.close()
-
-    with client.websocket_connect(
-        f"/ws/stages/shadowray?intervalo=0&stage={stage}"
-    ) as ws:
-        frame = ws.receive_json()
-
-    assert frame["valid"] is False
-    assert frame["stage"] == stage
-    assert "message" in frame
-
-
-def test_stages_channel_reports_not_started_when_no_stage_run(
-    client: TestClient, session_factory: sessionmaker[Session]
-) -> None:
-    """A case with no StageRun rows reports ``nao_iniciado`` at 0% (Req. 9.5).
-
-    ``nao_iniciado`` is not terminal, so ``max_frames=1`` bounds the loop.
-    """
-    session = session_factory()
-    try:
-        _seed_case(session)
-    finally:
-        session.close()
-
-    with client.websocket_connect(
-        "/ws/stages/shadowray?intervalo=0&max_frames=1"
-    ) as ws:
-        frame = ws.receive_json()
-
-    assert frame["state"] == StageState.NOT_STARTED.value
-    assert frame["progress"] == 0
-
+    with pytest.raises(WebSocketDisconnect):
+        with client.websocket_connect("/ws/stages/shadowray"):
+            pass
 
 # ---------------------------------------------------------------------------
 # WS /ws/operation/{operation}

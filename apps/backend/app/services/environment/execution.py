@@ -5,13 +5,13 @@ reuses** the already-built :class:`~app.services.operation.runner.OperationRunne
 (the old Stage 5 "Campaign Execution" of the five-stage scheme), without
 reimplementing any of its safety logic. This module is the *session-bound*
 **seam** that ties the runner to the new stage number
-(:data:`~app.services.stage.stage_service.STAGE_EXECUTION` ``= 6``), exposing the
+(:data:`~app.services.emulation.views.STAGE_EXECUTION` ``= 6``), exposing the
 **preview** as a visible precondition and marking the Stage 6 completion through
 the single completion path
 (:meth:`SessionStateService.persist_stage_completion`).
 
 It is, for Execution, the counterpart of the environment auto-completion
-(:class:`~app.services.environment.stage_service.EnvironmentStageService`): same
+(the provisioning service): same
 *service with injected ``Session``* seam, same **injectable** external dependency
 (here the ``OperationRunner`` via a small *factory*, after the fashion of
 ``api/emulation.py``), and same completion-persistence path.
@@ -86,7 +86,8 @@ from sqlalchemy.orm import Session
 
 from app.models.enums import AbilityResultStatus, OperationState
 from app.services.caldera import CalderaUnavailable
-from app.services.campaign_service import AbilityData, CaseData, CaseService
+from app.services.curated_case_models import AbilityData, CaseData
+from app.services.curated_case_reader import build_case_from_db, is_curated
 from app.services.containment import EmulationPreview, preview_abilities
 from app.services.operation.runner import (
     OperationRunner,
@@ -94,7 +95,7 @@ from app.services.operation.runner import (
     RunOutcome,
 )
 from app.services.session.session_state_service import SessionStateService
-from app.services.stage.stage_service import STAGE_EXECUTION
+from app.services.emulation.views import STAGE_EXECUTION
 
 
 # ---------------------------------------------------------------------------
@@ -120,7 +121,7 @@ class _RunnerAbility:
 
     The :class:`OperationRunner` builds the ``POST /api/v2/abilities`` Caldera
     payload directly from ``ability.executors``, which must be JSON-serializable.
-    :class:`~app.services.campaign_service.AbilityData` carries Pydantic
+    :class:`~app.services.curated_case_models.AbilityData` carries Pydantic
     :class:`Executor` models, so this adapter exposes the same *duck-typed*
     surface (``ability_id``/``name``/``executors``) with ``executors`` as flat
     dicts ``{name, platform, command}``. It reuses exactly the same projection as
@@ -161,7 +162,7 @@ def _adversary_payload(case: CaseData) -> Optional[dict[str, object]]:
     """Build the ``POST /api/v2/adversaries`` payload (v2 uses ``adversary_id``).
 
     Loading the Adversary — with its ``atomic_ordering`` — before the Operation is
-    what gives the Operation a non-empty chain to execute in the DAG order (Req.
+    what gives the Operation a non-empty chain to execute in the attack flow order (Req.
     10.3). Without a curated Adversary it returns ``None`` (the Abilities load
     still happens).
     """
@@ -262,14 +263,14 @@ class ExecutionStageService:
     """Stage 6 Execution seam reusing the ``OperationRunner`` (task 8.2).
 
     Same mold as the other *session-bound* services
-    (:class:`~app.services.environment.stage_service.EnvironmentStageService` /
-    :class:`~app.services.dag.dag_service.DagService`): it receives an injected
+    (the provisioning service):
+    it receives an injected
     :class:`~sqlalchemy.orm.Session` and builds the
     :class:`OperationRunner` through an **injectable** *factory*
     (``runner_factory``), so the tests replace the whole construction (Caldera
     client + isolation checker) with *fakes* — without real Caldera or Docker —,
-    exactly as ``api/emulation.py`` does. The :class:`CaseService`
-    (resolution/reading of the curated Campaign) is also injectable.
+    exactly as ``api/emulation.py`` does. The curated Campaign is read from
+    the database through the injected ``session``.
 
     The seam does **not** reimplement any of the four gates nor the per-command
     persistence: it delegates to :meth:`OperationRunner.run` (single application
@@ -289,7 +290,6 @@ class ExecutionStageService:
         session: Session,
         *,
         runner_factory: RunnerFactory,
-        case_service: Optional[CaseService] = None,
     ) -> None:
         """Assemble the Stage 6 Execution seam.
 
@@ -303,19 +303,9 @@ class ExecutionStageService:
                 the runner bound to the request ``Session``. Injected to keep the
                 seam thin and allow a full *override* in the tests (Caldera client
                 + isolation checker), without real Caldera/Docker.
-            case_service: :class:`CaseService` to resolve/read the curated Campaign
-                (Abilities + Adversary). Default: a production instance.
         """
         self._session = session
         self._runner_factory = runner_factory
-        self._case_service: CaseService = (
-            case_service if case_service is not None else CaseService()
-        )
-
-    @property
-    def case_service(self) -> CaseService:
-        """The :class:`CaseService` used to resolve/read the curated Campaign."""
-        return self._case_service
 
     # -- preview (visible precondition, Req. 13.6, 13.7) ---------------------
 
@@ -482,25 +472,20 @@ class ExecutionStageService:
     # -- helpers -------------------------------------------------------------
 
     def _load_case(self, campaign: str) -> CaseData:
-        """Resolve and read the curated Campaign ``campaign``, raising on invalid paths.
+        """Resolve and read the curated Campaign ``campaign`` from the database.
 
-        A *slug* outside the curated catalog is a :class:`KeyError`; a
-        missing/malformed Campaign file is a descriptive :class:`ValueError` — the
+        A *slug* that is not a curated campaign is a :class:`KeyError`; a
+        database read failure is a descriptive :class:`ValueError` — the
         same distinction the API layer maps to 404/422 (the endpoints are task
         8.5). The returned :class:`CaseData` exposes the Abilities and the
         Adversary the execution needs.
         """
-        if campaign not in self._case_service.list_cases():
+        if not is_curated(self._session, campaign):
             raise KeyError(f"Unknown campaign: {campaign!r}.")
-        result = self._case_service.try_load_case(campaign)
-        if not result.ok or result.case is None:
-            detail = (
-                result.error.detail
-                if result.error
-                else f"Failed to read Campaign {campaign!r}."
-            )
-            raise ValueError(detail)
-        return result.case
+        try:
+            return build_case_from_db(self._session, campaign)
+        except Exception as exc:  # database read failure
+            raise ValueError(f"Failed to read Campaign {campaign!r}: {exc}") from exc
 
 
 __all__ = [

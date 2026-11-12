@@ -53,7 +53,7 @@ Each example draws a *world* per version: campaigns, each owning techniques
 (carrying a tactic) and attributed actors, with the ids prefixed per version so
 leakage is detectable. A valid STIX bundle is assembled from the world
 (campaign / attack-pattern / intrusion-set objects plus ``uses`` and
-``attributed-to`` relationships), written to an isolated ``data_dir`` as
+``attributed-to`` relationships), held in memory as
 ``enterprise-attack-{version}.json`` and persisted via
 :class:`StixPersistenceService` fed by a :class:`StixService` with a ``None``
 ``http_client`` (no network). Both bundles are persisted into the SAME ephemeral
@@ -434,7 +434,7 @@ def _assert_valid_top_n(
 # reflects the persisted tables.
 @settings(
     max_examples=40,
-    # Each example does disk I/O (ephemeral SQLite + two bundle files on disk),
+    # Each example does disk I/O (ephemeral SQLite),
     # whose cost varies with the environment; the default ``deadline`` (200ms)
     # is therefore a source of *timing* flakiness, not of correctness.
     deadline=None,
@@ -459,20 +459,17 @@ def test_property6_analytics_matches_row_oracle_without_cross_version(
 
     Validates: Requirements 12.1, 12.2, 12.3, 12.4, 12.6
     """
-    data_dir = Path(tempfile.mkdtemp(prefix="stix_read_analytics_data_"))
     factory, db_tmp_dir = _make_session_factory()
     session = factory()
     try:
-        stix_service = StixService(data_dir=data_dir, http_client=None)
+        stix_service = StixService()
         persistence = StixPersistenceService(
             session=session, stix_service=stix_service
         )
 
         # Persist BOTH versions into the SAME database.
         for version, world in ((VERSION_A, world_a), (VERSION_B, world_b)):
-            bundle_path = data_dir / f"enterprise-attack-{version}.json"
-            bundle_path.write_text(json.dumps(world["bundle"]), encoding="utf-8")
-            result = persistence.persist_from_disk(version)
+            result = persistence.persist_bundle(version, world["bundle"])
             assert result.persisted is True
 
         read_service = StixPackageReadService(session)
@@ -573,7 +570,7 @@ def test_property6_analytics_matches_row_oracle_without_cross_version(
     finally:
         session.close()
         factory.kw["bind"].dispose()
-        for base in (data_dir, Path(db_tmp_dir)):
+        for base in (Path(db_tmp_dir),):
             for root, _dirs, files in os.walk(base, topdown=False):
                 for name in files:
                     os.remove(os.path.join(root, name))

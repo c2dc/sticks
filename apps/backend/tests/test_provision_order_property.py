@@ -45,7 +45,7 @@ from typing import Any, Callable, Mapping
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from app.services.campaign_service import CaseService
+from tests._curated_db import CaseDb, db_put
 from app.services.containment.isolation import (
     ContainerNetworkInfo,
     ContainerNotFound,
@@ -282,12 +282,7 @@ def _isolated_inspector(containers: list[str]) -> _FakeInspector:
     return insp
 
 
-def _write_json(path: Path, payload: object) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload), encoding="utf-8")
-
-
-def _seed_case(data_dir: Path, slug: str) -> None:
+def _seed_case(data_dir: CaseDb, slug: str) -> None:
     abilities = [
         {
             "ability_id": f"{slug}-ab-1",
@@ -296,26 +291,20 @@ def _seed_case(data_dir: Path, slug: str) -> None:
             "executors": [{"name": "sh", "platform": "linux", "command": "echo 1"}],
         },
     ]
-    _write_json(data_dir / "api" / f"{slug}_dag-ability.json", abilities)
-    _write_json(
-        data_dir / "api" / f"{slug}_dag-adversary.json",
-        {
+    db_put(data_dir, "ability", slug, abilities)
+    db_put(data_dir, "adversary", slug, {
             "id": f"{slug}-adv",
             "name": "Seed Adversary",
             "description": "seed",
             "atomic_ordering": [f"{slug}-ab-1"],
-        },
-    )
-    _write_json(
-        data_dir / "dag" / f"{slug}_dag.json",
-        {
+        })
+    db_put(data_dir, "flow", slug, {
             "campaign_name": "Seed",
             "structural_nodes": [
-                {"node_id": "n0", "node_index": 0, "technique_id": "T1190"}
+                {"node_id": "n0", "technique_id": "T1190"}
             ],
             "metadata": {"total_techniques": 1},
-        },
-    )
+        })
 
 
 def _params(containers: list[str]) -> EnvironmentParameters:
@@ -378,12 +367,12 @@ def test_stage_52_never_runs_before_51_completed_for_all_hosts(
         recorder, lost_fail=fail_set if failpoint == "probe" else frozenset()
     )
 
-    tmp = Path(tempfile.mkdtemp(prefix="stage5_order_prop_"))
+    tmp = CaseDb()
     try:
         _seed_case(tmp, _SLUG)
         prov = CurationEnvironmentProvisioner(
             inspector=_isolated_inspector(containers),
-            case_service=CaseService(data_dir=tmp),
+            session_factory=tmp.factory,
             caldera=_FakeCaldera(),
             compose_executor=compose,
             state_inspector=_FakeStateInspector(containers),
@@ -393,7 +382,7 @@ def test_stage_52_never_runs_before_51_completed_for_all_hosts(
         )
         environment = prov.provision(_params(hosts))
     finally:
-        shutil.rmtree(tmp, ignore_errors=True)
+        tmp.dispose()
 
     events = recorder.events
 
@@ -468,12 +457,12 @@ def test_51_failure_on_any_host_blocks_all_of_52(hosts: list[str]) -> None:
     prober = _FakeEgressProber(recorder)
     compose = _FakeComposeExecutor(recorder)
 
-    tmp = Path(tempfile.mkdtemp(prefix="stage5_order_prop_fail_"))
+    tmp = CaseDb()
     try:
         _seed_case(tmp, _SLUG)
         prov = CurationEnvironmentProvisioner(
             inspector=_isolated_inspector(containers),
-            case_service=CaseService(data_dir=tmp),
+            session_factory=tmp.factory,
             caldera=_FakeCaldera(),
             compose_executor=compose,
             state_inspector=_FakeStateInspector(containers),
@@ -483,7 +472,7 @@ def test_51_failure_on_any_host_blocks_all_of_52(hosts: list[str]) -> None:
         )
         environment = prov.provision(_params(hosts))
     finally:
-        shutil.rmtree(tmp, ignore_errors=True)
+        tmp.dispose()
 
     assert all(ph != "5.2" for ph, _s, _c in recorder.events), (
         f"a 5.2 executou apesar da falha de 5.1 no 1º host: {recorder.events}"

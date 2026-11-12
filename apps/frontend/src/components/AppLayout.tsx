@@ -1,5 +1,6 @@
 import type { ReactNode } from "react"
 
+import { IngestionStatusBar } from "@/components/IngestionStatusBar"
 import { NavBar } from "@/components/NavBar"
 
 /**
@@ -10,6 +11,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <NavBar />
+      <IngestionStatusBar />
       <div className="mx-auto max-w-6xl px-4 py-6">
         <main className="flex flex-col gap-6">{children}</main>
       </div>

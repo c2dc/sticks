@@ -1,8 +1,7 @@
 """Integration test: the runtime never reads ``packages/cli/data`` (task 5.3).
 
 Sub-step 2.4 removed every request-time disk read from the runtime: once the
-curated content is ingested into the database (sub-step 2.1), ``CaseService`` and
-``DagService`` resolve campaigns from the ``campaigns``/``dags``/``abilities``/
+curated content is persisted in the database, every service resolves campaigns from the ``campaigns``/``attack_flows``/``abilities``/
 ``adversaries`` rows and never touch ``packages/cli/data/api`` nor
 ``packages/cli/data/dag`` while serving a request (Req. 1.1, 4.1, 4.2). This test
 is the *real* security guarantee for that invariant: instead of trusting a code
@@ -28,29 +27,34 @@ read a curated file from disk before sub-step 2.4:
 
 * campaign list (``GET /api/campaigns``) and detail (``GET /api/campaigns/{c}``),
 * Stage 2 selection — read (``GET .../stage/2``) and select (``POST .../stage/2/select``),
-* DAG endpoint (``GET /api/campaigns/{c}/dag``),
+* attack flow endpoint (``GET /api/campaigns/{c}/flow``),
 * emulation preview (``POST .../stage/5/emulation/preview``),
 * topology (``GET /api/campaigns/{c}/topology``).
 
 The whole campaign is seeded directly as ORM rows (a ``campaigns`` row, the
-structural ``dags`` row, the ``abilities`` and the ``adversaries`` row) plus the
+structural ``attack_flows`` row, the ``abilities`` and the ``adversaries`` row) plus the
 ``stix_campaigns`` guard rows via :func:`tests._stix_seed.ensure_stix_campaigns`,
 so the DB-backed guard (``_known_campaign_or_404``) accepts the slug. Nothing is
 read from disk to set this up, and the probe stays armed for the duration of
 every request.
 
-Concrete rename-behaviour case
-------------------------------
-Task 5.2 renamed ``StageService.run_stage1``/``read_stage1`` to
-``run_stage2_selection``/``read_stage2_selection`` (a semantic rename, no logic
-change). As a concrete case in this same file,
-:func:`test_run_and_read_stage2_selection_produce_expected_stage_result` drives
-both renamed methods against the seeded DB and asserts they produce the expected
-Stage result (the techniques of the seeded DAG), proving behaviour is unchanged
-by the rename (Req. 4.3).
-
-_Requirements: 1.1, 4.2, 5.2, 4.3_
+_Requirements: 1.1, 4.2, 5.2_
 """
+
+# Task 21.1/21.2 - disk-as-storage inventory (decision: runtime data lives in the DB + vector store; the
+# versioned read-only seed JSON in app/seeds/data is not runtime storage)
+#   DONE (21.2): CaseService/CURATED_CASES/_read_json, the disk->DB curated ingest and
+#     the campaigns.ability_file/adversary_file/flow_file columns (M4) were removed;
+#     provisioner/execution/completion and the campaign list read the database.
+#   DONE (21.3): the STIX bundle is downloaded in memory and persisted by the
+#     stix_packages ingestion source; stix_paths, stix_dir, the file backfill and
+#     stix_packages.source_file (M5) were removed.
+#   DONE (21.4): packages/cli (data, legacy CLI code and config) was removed; the
+#     Caldera URL/key now come from Settings (PIPELINE_UI_CALDERA_URL/_KEY).
+#     The probes below keep guarding the removed directory against regressions.
+#   KEEP: atomic_red_team_ingest (OS temp YAML), models/domain.py .env read (config),
+#     caldera/client.py (HTTP only), afb_parser/corpus_fetcher/docker_catalog (memory).
+# Proof below: the 8 curated campaigns are served only from the DB (strict probe).
 
 from __future__ import annotations
 
@@ -68,14 +72,12 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import Settings
-from app.core.sticks_config import _repo_root
 from app.db.base import Base, import_models
 from app.db.session import create_db_engine, get_db
 from app.main import create_app
-from app.models.domain import Ability, Adversary, Case, Dag
-from app.models.enums import DagOrigin, StageState, TranslationSource
-from app.services.campaign_service import CURATED_CASES
-from app.services.stage.stage_service import StageService
+from app.models.domain import Ability, Adversary, Case, AttackFlowRow
+from app.models.enums import FlowOrigin, TranslationSource
+from tests._curated_db import CURATED_NAMES as CURATED_CASES
 
 from tests._stix_seed import ensure_stix_campaigns
 
@@ -84,7 +86,7 @@ from tests._stix_seed import ensure_stix_campaigns
 # The two curated directories that the runtime must NEVER open during a request.
 # ---------------------------------------------------------------------------
 
-_DATA_ROOT = _repo_root() / "packages" / "cli" / "data"
+_DATA_ROOT = Path(__file__).resolve().parents[3] / "packages" / "cli" / "data"
 _FORBIDDEN_DIRS: tuple[Path, ...] = (
     (_DATA_ROOT / "api").resolve(),
     (_DATA_ROOT / "dag").resolve(),
@@ -165,14 +167,14 @@ def filesystem_probe(monkeypatch: pytest.MonkeyPatch) -> list[str]:
 # ---------------------------------------------------------------------------
 # A curated campaign seeded entirely in the DB (no disk fixture).
 #
-# A curated slug is used so the DB-first DAG resolution in ``DagService.get_dag``
-# engages (it only does for a curated slug) and the ``/dag`` + topology endpoints
-# resolve a non-empty graph. The content lives only in the seeded ORM rows, so
+# A curated slug is used so the DB-first flow resolution
+# engages (it only does for a curated slug) and the topology endpoint
+# resolves a non-empty graph. The content lives only in the seeded ORM rows, so
 # the runtime has no reason to touch disk — and the probe proves it does not.
 # ---------------------------------------------------------------------------
 
 _SLUG = "shadowray"
-assert _SLUG in CURATED_CASES, "the seeded slug must be curated for the DAG path"
+assert _SLUG in CURATED_CASES, "the seeded slug must be curated for the attack flow path"
 _CAMPAIGN_NAME = "DB-sourced ShadowRay"
 
 _NODE_1 = {
@@ -196,12 +198,6 @@ _NODE_2 = {
     "attacker_commands": ["curl http://192.168.20.30/second"],
 }
 
-# Expected techniques, in the DAG's first-seen order, as the pure Stage-1
-# extractor (`_extract_techniques`) derives them from the seeded nodes.
-_EXPECTED_TECHNIQUES: list[tuple[str, str, str]] = [
-    ("T1190", "Exploit Public-Facing Application", "initial-access"),
-    ("T1059", "Command and Scripting Interpreter", "execution"),
-]
 
 _ABILITY_1_ID = f"{_SLUG}-ab-1"
 _ABILITY_2_ID = f"{_SLUG}-ab-2"
@@ -218,17 +214,17 @@ def _utcnow() -> dt.datetime:
 def _seed_campaign(session: Session) -> None:
     """Seed the curated campaign as ORM rows only (no disk access).
 
-    Mirrors what ``CuratedIngestService`` persists for a campaign — a
-    ``campaigns`` row, the structural ``dags`` row and the ``Ability``/
+    Persists a ``campaigns`` row, the structural ``attack_flows`` row and the ``Ability``/
     ``Adversary`` rows keyed by ``campaign_id`` — so the runtime resolves
     everything from the database. The ``campaigns`` display name is distinct from
-    the curated ``CaseService`` name to keep the DB-sourced resolution honest.
+    the usual curated name to keep the DB-sourced resolution honest.
     """
     session.add(
         Case(
             id=_SLUG,
             name=_CAMPAIGN_NAME,
             translation_source=TranslationSource.HUMAN_CURATION,
+            curated=True,
         )
     )
     session.add(
@@ -270,11 +266,11 @@ def _seed_campaign(session: Session) -> None:
         )
     )
     session.add(
-        Dag(
+        AttackFlowRow(
             campaign_id=_SLUG,
-            origin=DagOrigin.HUMAN_CURATION,
+            origin=FlowOrigin.HUMAN_CURATION,
             identifier="human-curation-v1",
-            label="DB-sourced DAG",
+            label="DB-sourced attack flow",
             content={
                 "campaign_name": _CAMPAIGN_NAME,
                 "structural_nodes": [_NODE_1, _NODE_2],
@@ -382,31 +378,7 @@ def test_request_paths_never_open_curated_data_directories(
     assert resolved_ids == {_ABILITY_1_ID, _ABILITY_2_ID}
     assert body["atomic_ordering"] == [_ABILITY_1_ID, _ABILITY_2_ID]
 
-    # 3. Stage 2 selection — read view (never executes/persists).
-    resp = client.get(f"/api/campaigns/{_SLUG}/stage/2")
-    assert resp.status_code == 200, resp.text
-
-    # 4. Stage 2 selection — select (extracts from the DB-sourced DAG).
-    resp = client.post(
-        f"/api/campaigns/{_SLUG}/stage/2/select", json={"slug": _SLUG}
-    )
-    assert resp.status_code == 200, resp.text
-
-    # 5. DAG endpoint — structural graph resolved from the ``dags`` table.
-    resp = client.get(f"/api/campaigns/{_SLUG}/dag")
-    assert resp.status_code == 200, resp.text
-    dag_body = resp.json()
-    assert dag_body["curated"] is True
-    node_techniques = {n["technique_id"] for n in dag_body["nodes"]}
-    assert node_techniques == {"T1190", "T1059"}
-
-    # 6. Emulation preview — Abilities + Adversary resolved from the DB.
-    resp = client.post(f"/api/campaigns/{_SLUG}/stage/5/emulation/preview")
-    assert resp.status_code == 200, resp.text
-    preview_ids = {a["ability_id"] for a in resp.json()["abilities"]}
-    assert preview_ids == {_ABILITY_1_ID, _ABILITY_2_ID}
-
-    # 7. Topology — DAG + Abilities + name resolved from the DB.
+    # 3. Topology — attack flow + Abilities + name resolved from the DB.
     resp = client.get(f"/api/campaigns/{_SLUG}/topology")
     assert resp.status_code == 200, resp.text
     assert resp.json()["name"] == _CAMPAIGN_NAME
@@ -441,62 +413,230 @@ def test_probe_detects_a_forbidden_open(filesystem_probe: list[str]) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Concrete rename-behaviour case: run_stage2_selection / read_stage2_selection
-# produce the expected Stage result (behaviour unchanged by the task 5.2 rename).
+# Task 21.1: all 8 curated campaigns (flow, abilities, adversary, environment)
+# are served from the database only. The strict probe fails on ANY access
+# (open/read_text/read_bytes/glob/rglob/iterdir/exists/listdir/scandir) to
+# anything under packages/cli/data.
 # ---------------------------------------------------------------------------
 
+_ALL_SLUGS: tuple[str, ...] = tuple(CURATED_CASES)
+_DATA_ROOT_RESOLVED = _DATA_ROOT.resolve()
 
-def test_run_and_read_stage2_selection_produce_expected_stage_result(
-    seeded: sessionmaker[Session],
-    filesystem_probe: list[str],
-) -> None:
-    """The renamed Stage-2 selection methods produce the expected result (Req. 4.3).
 
-    Task 5.2 renamed ``run_stage1``/``read_stage1`` to
-    ``run_stage2_selection``/``read_stage2_selection`` without changing the
-    logic. ``run_stage2_selection`` runs the structural modeling off the
-    DB-sourced DAG, persists it and completes the stage; ``read_stage2_selection``
-    then reflects the persisted state read-only. Both must surface exactly the
-    techniques of the seeded DAG, in the DAG's first-seen order — the behaviour
-    the pre-rename methods had. The probe stays armed to confirm the rename also
-    kept the no-disk contract (Req. 1.1, 4.2).
-    """
-    session = seeded()
+def _under_data_root(target: Any) -> bool:
+    resolved = _normalise(target)
+    if resolved is None:
+        return False
     try:
-        service = StageService(session=session)
+        resolved.relative_to(_DATA_ROOT_RESOLVED)
+        return True
+    except ValueError:
+        return False
 
-        # run_stage2_selection: models + persists; stage completes (Req. 4.3).
-        run_result = service.run_stage2_selection(_SLUG)
-    finally:
-        session.close()
 
-    assert run_result.state is StageState.COMPLETED
-    assert run_result.ok is True
-    assert run_result.output is not None
-    run_techniques = [
-        (t.technique_id, t.technique_name, t.tactic)
-        for t in run_result.output.techniques
-    ]
-    assert run_techniques == _EXPECTED_TECHNIQUES
+@pytest.fixture
+def strict_data_probe(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """Record every disk access under ``packages/cli/data`` (any API, any depth)."""
+    breaches: list[str] = []
 
-    # read_stage2_selection: read-only view of the now-completed stage; it must
-    # reflect the same techniques without re-running or persisting.
-    session = seeded()
-    try:
-        read_result = StageService(session=session).read_stage2_selection(_SLUG)
-    finally:
-        session.close()
+    def _wrap_path_method(name: str) -> None:
+        real = getattr(Path, name)
 
-    assert read_result.state is StageState.COMPLETED
-    assert read_result.output is not None
-    read_techniques = [
-        (t.technique_id, t.technique_name, t.tactic)
-        for t in read_result.output.techniques
-    ]
-    assert read_techniques == _EXPECTED_TECHNIQUES
+        def guarded(self: Path, *args: Any, **kwargs: Any) -> Any:
+            if _under_data_root(self):
+                breaches.append(f"Path.{name}:{self}")
+            return real(self, *args, **kwargs)
 
-    # The rename kept the no-disk contract: neither method read a curated file.
-    assert breaches_empty(filesystem_probe), (
-        "a Stage-2 selection method opened a forbidden curated data file: "
-        f"{filesystem_probe}"
+        monkeypatch.setattr(Path, name, guarded)
+
+    def _wrap_os_func(name: str) -> None:
+        real = getattr(os, name)
+
+        def guarded(path: Any = ".", *args: Any, **kwargs: Any) -> Any:
+            if _under_data_root(path):
+                breaches.append(f"os.{name}:{path}")
+            return real(path, *args, **kwargs)
+
+        monkeypatch.setattr(os, name, guarded)
+
+    for method in (
+        "read_text", "read_bytes", "open", "glob", "rglob", "iterdir",
+        "exists", "is_file", "is_dir", "stat",
+    ):
+        _wrap_path_method(method)
+    for func in ("listdir", "scandir", "walk", "stat"):
+        _wrap_os_func(func)
+
+    real_builtins_open = builtins.open
+    real_io_open = io.open
+    real_os_open = os.open
+
+    def _record(kind: str, file: Any) -> None:
+        if _under_data_root(file):
+            breaches.append(f"{kind}:{file}")
+
+    def g_builtins_open(file: Any, *a: Any, **k: Any) -> Any:
+        _record("builtins.open", file)
+        return real_builtins_open(file, *a, **k)
+
+    def g_io_open(file: Any, *a: Any, **k: Any) -> Any:
+        _record("io.open", file)
+        return real_io_open(file, *a, **k)
+
+    def g_os_open(path: Any, *a: Any, **k: Any) -> Any:
+        _record("os.open", path)
+        return real_os_open(path, *a, **k)
+
+    monkeypatch.setattr(builtins, "open", g_builtins_open)
+    monkeypatch.setattr(io, "open", g_io_open)
+    monkeypatch.setattr(os, "open", g_os_open)
+    return breaches
+
+
+def _seed_slug(session: Session, slug: str) -> None:
+    """Seed one curated campaign (case, 2 abilities, adversary, flow) as ORM rows."""
+    name = f"DB {slug}"
+    ids = [f"{slug}-ab-1", f"{slug}-ab-2"]
+    session.add(
+        Case(
+            id=slug,
+            name=name,
+            translation_source=TranslationSource.HUMAN_CURATION,
+            curated=True,
+        )
     )
+    for index, ability_id in enumerate(ids):
+        session.add(
+            Ability(
+                ability_id=ability_id,
+                campaign_id=slug,
+                name=f"{slug} ability {index}",
+                technique_id=_NODE_1["technique_id"] if index == 0 else _NODE_2["technique_id"],
+                technique_name="technique",
+                tactic="execution",
+                executors=[
+                    {"name": "sh", "platform": "linux", "command": f"echo {slug} {index}"}
+                ],
+                translation_source=TranslationSource.HUMAN_CURATION,
+            )
+        )
+    session.add(
+        Adversary(
+            id=f"{slug}-adv",
+            campaign_id=slug,
+            name=f"{slug} adversary",
+            description="seeded in the DB only",
+            atomic_ordering=ids,
+            translation_source=TranslationSource.HUMAN_CURATION,
+        )
+    )
+    session.add(
+        AttackFlowRow(
+            campaign_id=slug,
+            origin=FlowOrigin.HUMAN_CURATION,
+            identifier="human-curation-v1",
+            label=f"{slug} flow",
+            content={
+                "campaign_name": name,
+                "structural_nodes": [_NODE_1, _NODE_2],
+                "edges": [{"source": "n0", "target": "n1"}],
+            },
+            created_at=_utcnow(),
+        )
+    )
+
+
+@pytest.fixture(scope="module")
+def all_curated_factory() -> Iterator[sessionmaker[Session]]:
+    """Ephemeral SQLite seeded with the 8 curated campaigns (DB rows only)."""
+    tmp_dir = tempfile.mkdtemp(prefix="no_disk_all8_")
+    db_path = Path(tmp_dir) / "all8.db"
+    engine = create_db_engine(Settings(database_url=f"sqlite:///{db_path.as_posix()}"))
+    import_models()
+    Base.metadata.create_all(bind=engine)
+    factory: sessionmaker[Session] = sessionmaker(
+        bind=engine, autocommit=False, autoflush=False,
+        expire_on_commit=False, future=True, class_=Session,
+    )
+    session = factory()
+    try:
+        for slug in _ALL_SLUGS:
+            _seed_slug(session, slug)
+        session.commit()
+    finally:
+        session.close()
+    ensure_stix_campaigns(factory, list(_ALL_SLUGS))
+    try:
+        yield factory
+    finally:
+        engine.dispose()
+        if db_path.exists():
+            os.remove(db_path)
+        os.rmdir(db_path.parent)
+
+
+def test_eight_curated_campaigns_are_served_only_from_the_database(
+    all_curated_factory: sessionmaker[Session],
+    strict_data_probe: list[str],
+) -> None:
+    """Flow, abilities, adversary and environment of all 8 campaigns: DB only (task 21.1)."""
+    from app.services.curated_case_reader import build_case_from_db
+
+    assert len(_ALL_SLUGS) == 8
+    client = _make_client(all_curated_factory)
+
+    assert client.get("/api/campaigns").status_code == 200
+
+    for slug in _ALL_SLUGS:
+        ids = [f"{slug}-ab-1", f"{slug}-ab-2"]
+
+        # Abilities + adversary (+ ordering) via the campaign detail endpoint.
+        detail = client.get(f"/api/campaigns/{slug}")
+        assert detail.status_code == 200, detail.text
+        body = detail.json()
+        assert {a["ability_id"] for a in body["abilities"]} == set(ids)
+        assert body["atomic_ordering"] == ids
+
+        # Attack flow: persisted flows listed and the graph resolved.
+        flows = client.get(f"/api/campaigns/{slug}/flows")
+        assert flows.status_code == 200, flows.text
+        listed = flows.json()["flows"]
+        assert listed, f"no flow served for {slug}"
+        graph = client.get(f"/api/campaigns/{slug}/flows/{listed[0]['id']}")
+        assert graph.status_code == 200, graph.text
+
+        # Environment / topology.
+        topology = client.get(f"/api/campaigns/{slug}/topology")
+        assert topology.status_code == 200, topology.text
+        assert topology.json()["name"] == f"DB {slug}"
+
+        # Full CaseData assembled from the DB (flow + abilities + adversary).
+        session = all_curated_factory()
+        try:
+            case = build_case_from_db(session, slug)
+        finally:
+            session.close()
+        assert [a.ability_id for a in case.abilities] == ids
+        assert case.adversary is not None and case.adversary.atomic_ordering == ids
+        assert case.flow is not None and len(case.flow.structural_nodes) == 2
+
+    assert strict_data_probe == [], (
+        f"disk access under packages/cli/data while serving from the DB: {strict_data_probe}"
+    )
+
+
+def test_strict_probe_detects_every_access_style(strict_data_probe: list[str]) -> None:
+    """Sanity: the strict probe fires for open/read_text/glob/iterdir/listdir."""
+    target = _DATA_ROOT / "api" / "missing.json"
+    with pytest.raises(FileNotFoundError):
+        builtins.open(target)
+    with pytest.raises(FileNotFoundError):
+        target.read_text()
+    list((_DATA_ROOT / "api").glob("*.json"))
+    try:
+        os.listdir(_DATA_ROOT / "dag")
+    except OSError:
+        pass
+    kinds = {entry.split(":", 1)[0] for entry in strict_data_probe}
+    assert {"builtins.open", "Path.read_text", "Path.glob", "os.listdir"} <= kinds
+    strict_data_probe.clear()

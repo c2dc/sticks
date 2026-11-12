@@ -16,7 +16,7 @@ required by the design (Req. 10.8, 10.9, 12):
    completion** (``complete=False``) — the stage completion does **not** happen
    during execution; this seam decides when to complete (Req. 10.9).
 2. **Measures and generates the report** from the execution results + the curated
-   DAG (via ``MeasurementService``), on technique success **or** failure.
+   Attack flow (via ``MeasurementService``), on technique success **or** failure.
 3. **ALWAYS deprovisions** the campaign environment via
    :meth:`EnvironmentProvisioner.deprovision` — on technique success **or**
    failure, even when execution was refused by a gate or aborted (Req. 10.8,
@@ -54,7 +54,8 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.models.domain import ExecutionReport as ExecutionReportRow
-from app.services.campaign_service import CaseData, CaseService
+from app.services.curated_case_models import CaseData
+from app.services.curated_case_reader import build_case_from_db, is_curated
 from app.services.environment.execution import (
     ExecutionResult,
     ExecutionStageService,
@@ -68,7 +69,7 @@ from app.services.environment.provisioner import (
     EnvironmentProvisioner,
 )
 from app.services.environment.report import ExecutionReport
-from app.services.stage.stage_service import Stage3AbilityResult
+from app.services.emulation.views import Stage3AbilityResult
 
 
 #: A persister for the execution's :class:`ExecutionReport`. It confirms the
@@ -245,7 +246,6 @@ class CompletionStage6Service:
         runner_factory: RunnerFactory,
         provisioner: EnvironmentProvisioner,
         report_sink: ReportSink,
-        case_service: Optional[CaseService] = None,
         measurement: Optional[MeasurementService] = None,
     ) -> None:
         """Assemble the Stage 6 completion seam.
@@ -264,19 +264,13 @@ class CompletionStage6Service:
             report_sink: Persister of the :class:`ExecutionReport`
                 (``True`` when it persisted). Precondition of completion (Req.
                 10.9).
-            case_service: :class:`CaseService` to resolve/read the curated Campaign
-                (DAG + Abilities for the measurement). Default: production.
             measurement: The (pure) :class:`MeasurementService` used to measure/consolidate.
                 Default: a new instance.
         """
         self._session = session
-        self._case_service: CaseService = (
-            case_service if case_service is not None else CaseService()
-        )
         self._execution = ExecutionStageService(
             session,
             runner_factory=runner_factory,
-            case_service=self._case_service,
         )
         self._provisioner = provisioner
         self._report_sink = report_sink
@@ -299,7 +293,7 @@ class CompletionStage6Service:
            persists the ``AbilityResult``/``AuditLogEntry`` per command — but
            does **not** complete the stage yet (Req. 10.9).
         2. Measures procedural sufficiency and consolidates the
-           :class:`ExecutionReport` from the execution results + the curated DAG,
+           :class:`ExecutionReport` from the execution results + the curated attack flow,
            on technique success **or** failure (Req. 10.4–10.7).
         3. **ALWAYS** deprovisions the ``environment`` via
            :meth:`EnvironmentProvisioner.deprovision` — even when execution was
@@ -426,23 +420,18 @@ class CompletionStage6Service:
             )
 
     def _load_case(self, campaign: str) -> CaseData:
-        """Resolve and read the curated Campaign ``campaign`` (DAG + Abilities for the measurement).
+        """Resolve and read the curated Campaign ``campaign`` (attack flow + Abilities for the measurement).
 
         Same distinction as the execution seam: a *slug* outside the catalog is a
         :class:`KeyError`; a missing/malformed Campaign is a descriptive
         :class:`ValueError` (the API maps it to 404/422).
         """
-        if campaign not in self._case_service.list_cases():
+        if not is_curated(self._session, campaign):
             raise KeyError(f"Unknown campaign: {campaign!r}.")
-        result = self._case_service.try_load_case(campaign)
-        if not result.ok or result.case is None:
-            detail = (
-                result.error.detail
-                if result.error
-                else f"Failed to read Campaign {campaign!r}."
-            )
-            raise ValueError(detail)
-        return result.case
+        try:
+            return build_case_from_db(self._session, campaign)
+        except Exception as exc:  # database read failure
+            raise ValueError(f"Failed to read Campaign {campaign!r}: {exc}") from exc
 
 
 __all__ = [

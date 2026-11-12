@@ -3,9 +3,10 @@ import { useTranslation } from "react-i18next"
 
 import { StixBaseSelect } from "@/components/StixBaseSelect"
 import { Button } from "@/components/ui/button"
-import { getStageBaseStix, type Stage1ResultStix } from "@/lib/stages"
 import {
+  getBases,
   getPackageAnalytics,
+  type BaseStixInfo,
   getPackageOverview,
   type StixPackageAnalytics,
   type StixPackageOverview,
@@ -13,8 +14,6 @@ import {
 import { cn } from "@/lib/utils"
 
 export interface BaseStixViewProps {
-  /** Campaign slug; used to resolve the Stage 1 result. */
-  campaignId: string
   /**
    * STIX base version already selected in the flow. When absent, the compact
    * base picker is shown. When present, a one-line confirmation of the
@@ -36,7 +35,7 @@ export interface BaseStixViewProps {
 }
 
 /**
- * BaseStixView — the **STIX base selection** setup step, now minimalist.
+ * BaseStixView — the **STIX base selection** input step, now minimalist.
  *
  * - **No version selected** → {@link StixBaseSelect}: a compact dropdown of the
  *   known versions. Clicking a downloaded version selects it directly on the
@@ -47,21 +46,20 @@ export interface BaseStixViewProps {
  *   {@link getPackageOverview} (Req. 6.4, 7.2): the base identity, the per-type
  *   counts and the headline totals.
  *
- * In parallel it reads `getStageBaseStix(campaignId, version)` to confirm the
- * selected base's bundle is on disk ({@link Stage1ResultStix.bundle_on_disk})
+ * In parallel it reads `getBases()` (`GET /stix/bases`) to confirm the
+ * selected base is persisted ({@link BaseStixInfo.completed})
  * and propagates that verdict via `onCompletionChange` so the wizard can unlock
  * campaign selection. The wizard's "advance" follows from this completion
  * verdict, not from any selection button.
  */
 export function BaseStixView({
-  campaignId,
   version,
   onVersionSelected,
   onCompletionChange,
 }: BaseStixViewProps) {
   const { t } = useTranslation("pipeline")
 
-  const [result, setResult] = useState<Stage1ResultStix | null>(null)
+  const [result, setResult] = useState<BaseStixInfo | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [checking, setChecking] = useState(false)
 
@@ -105,11 +103,12 @@ export function BaseStixView({
     }
 
     setChecking(true)
-    getStageBaseStix(campaignId, version)
-      .then((data) => {
+    getBases()
+      .then((bases) => {
         if (!active) return
-        setResult(data)
-        notifyCompletion(data.bundle_on_disk)
+        const found = bases.find((base) => base.version === version) ?? null
+        setResult(found)
+        notifyCompletion(found ? (found.completed ?? found.downloaded) : false)
       })
       .catch(() => {
         if (!active) return
@@ -123,7 +122,7 @@ export function BaseStixView({
     return () => {
       active = false
     }
-  }, [campaignId, version, t, notifyCompletion])
+  }, [version, t, notifyCompletion])
 
   // Load and display the package overview whenever the selected version
   // changes (Req. 6.4, 7.2). Read from the database only; never keep a stale
@@ -238,11 +237,11 @@ function CompletionLine({
 }: {
   checking: boolean
   loadError: string | null
-  result: Stage1ResultStix | null
+  result: BaseStixInfo | null
 }) {
   const { t } = useTranslation("pipeline")
 
-  const error = loadError ?? result?.error_message ?? null
+  const error = loadError
   if (error) {
     return (
       <p className="text-xs text-team-red" role="alert" data-section="completion">
@@ -257,7 +256,7 @@ function CompletionLine({
       </p>
     )
   }
-  const completed = result?.bundle_on_disk ?? false
+  const completed = result ? (result.completed ?? result.downloaded) : false
   return (
     <p
       className={cn("text-xs", completed ? "text-team-blue" : "text-muted-foreground")}

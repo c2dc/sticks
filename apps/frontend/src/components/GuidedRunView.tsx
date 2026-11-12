@@ -17,6 +17,8 @@ import {
 
 import { OrchestratorAvatar, type OrchestratorMood } from "@/components/OrchestratorAvatar"
 import { AgentTracePanel } from "@/components/AgentTracePanel"
+import { FlowPhaseView } from "@/components/FlowPhaseView"
+import { OperationalizationScreen } from "@/components/OperationalizationScreen"
 import { Button } from "@/components/ui/button"
 import { EmptyNote } from "@/components/StageSection"
 import { cn } from "@/lib/utils"
@@ -37,10 +39,11 @@ import {
  * that reveals one phase at a time and asks the Researcher's permission to
  * proceed:
  *
- *   1. DAG generation       — the robot shows the acyclic graph it generated and
- *                             asks "shall I proceed with this graph?".
- *   2. Operationalization   — on approval, it shows the concrete commands it
- *                             produced and asks again.
+ *   1. Operationalization   — right after the campaign is chosen, it lists the
+ *                             commands available for each technique. The AI run
+ *                             starts only once the Researcher reviews them.
+ *   2. Attack flow          — it shows the attack flow it generated (with its
+ *                             provenance) and asks "shall I proceed?".
  *   3. Environment          — then the isolated environment it designed.
  *   4. Execution            — it runs the offensive emulation against the targets
  *                             and reports that the real result was recorded.
@@ -49,8 +52,8 @@ import {
  *                             reports the verdict, distinct from the execution
  *                             step (Req. 2.5, 7.3).
  *
- * Under the hood this drives the SAME backend run as `AiRunView`: it starts a
- * run, polls `getAiRun` (≤5s) and reads the per-stage Agent_Output artifacts of
+ * Under the hood this drives the SAME backend run as `AiRunView`: after the
+ * Researcher reviews the operationalization, it starts a run, polls `getAiRun` (≤5s) and reads the per-stage Agent_Output artifacts of
  * the latest iteration. The "phases" are a presentational projection of those
  * stage outputs — the robot simply gates how many are revealed, so the
  * Researcher is conducted through the multi-agent pipeline rather than shown
@@ -66,9 +69,9 @@ function isTerminal(run: AiRun | null | undefined): boolean {
 
 /**
  * The ordered conductor phases the robot reveals, mapped to the semantic,
- * number-free backend `AgentStage` values: `dag → operationalization →
- * environment → execution → evaluation`, without any numbered labels (Req. 1.1,
- * 1.5, 7.1).
+ * number-free backend `AgentStage` values: `operationalization → flow →
+ * environment → execution → evaluation`, without any numbered labels (Req. 2.2,
+ * 5.7, 6.1).
  *
  * `execution` and `evaluation` are two distinct, ordered items following the
  * literature's plan → act → evaluate pattern: `execution` runs the offensive
@@ -76,8 +79,8 @@ function isTerminal(run: AiRun | null | undefined): boolean {
  * revealed as its own turn after execution (Req. 2.1, 2.5, 7.3).
  */
 const PHASE_ORDER = [
-  "dag",
   "operationalization",
+  "flow",
   "environment",
   "execution",
   "evaluation",
@@ -93,8 +96,12 @@ const TERMINAL_PHASES = new Set<Phase>(["execution", "evaluation"])
 
 export function GuidedRunView({
   campaignId,
+  version,
 }: {
+  /** The chosen campaign key (`campaign_key` of the STIX listing). */
   campaignId: string
+  /** The chosen STIX base version, used by the operationalization listing. */
+  version: string
 }) {
   const { t } = useTranslation("pipeline")
 
@@ -104,7 +111,7 @@ export function GuidedRunView({
   const [startError, setStartError] = useState<string | null>(null)
 
   // How far the Researcher has approved the robot to reveal. Index into
-  // PHASE_ORDER: 0 means "DAG shown, awaiting approval to reveal commands".
+  // PHASE_ORDER: 0 means "operationalization shown, awaiting the review that starts the run".
   const [approvedUpTo, setApprovedUpTo] = useState(0)
 
   const runIdRef = useRef<number | null>(null)
@@ -119,6 +126,8 @@ export function GuidedRunView({
       const run = await startAiRun(campaignId)
       setRunId(run.id)
       setDetail({ run, iterations: [] })
+      // The operationalization was reviewed: reveal the flow phase.
+      setApprovedUpTo(1)
     } catch {
       setStartError(t("aiRun.startError"))
     } finally {
@@ -162,13 +171,17 @@ export function GuidedRunView({
     return map
   }, [latest])
 
-  // Not started yet → the robot's welcome + the single "start" action.
+  // Not started yet → the robot's welcome, the operationalization listing the
+  // Researcher reviews, and the single "start" action that begins the AI run.
   if (!detail) {
     return (
       <GuidedShell>
         <OrchestratorBubble mood={starting ? "thinking" : "talking"} pulse>
           {starting ? t("guided.thinking") : t("guided.greeting")}
         </OrchestratorBubble>
+        <div className="ml-14" data-section="guided-artifact" data-phase="operationalization">
+          <OperationalizationScreen version={version} campaignKey={campaignId} />
+        </div>
         <div className="flex flex-col items-center gap-3">
           <Button size="lg" onClick={() => void start()} disabled={starting} className="px-8">
             {starting ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Sparkles className="size-4" aria-hidden />}
@@ -190,7 +203,7 @@ export function GuidedRunView({
       <GuidedShell>
         <RunHeader run={run} />
         <OrchestratorBubble mood="thinking" pulse>
-          {t("guided.generatingDag")}
+          {t("guided.generatingFlow")}
         </OrchestratorBubble>
         <ThinkingDots />
       </GuidedShell>
@@ -213,13 +226,21 @@ export function GuidedRunView({
           const output = isTerminalPhase ? undefined : outputsByStage.get(phase)
           // A phase is "ready" once its artifact exists (or, for the terminal
           // execution/evaluation phases, once the run reaches a terminal state).
-          const ready = isTerminalPhase ? finished : Boolean(output)
+          // The operationalization listing is read-only and always ready.
+          const ready =
+            phase === "operationalization"
+              ? true
+              : isTerminalPhase
+                ? finished
+                : Boolean(output)
           const isCurrent = index === approvedUpTo
 
           return (
             <PhaseTurn
               key={phase}
               phase={phase}
+              campaignId={campaignId}
+              version={version}
               output={output}
               evaluation={latest?.evaluation}
               ready={ready}
@@ -282,6 +303,8 @@ function RunHeader({ run }: { run: AiRun }) {
  */
 function PhaseTurn({
   phase,
+  campaignId,
+  version,
   output,
   evaluation,
   ready,
@@ -293,6 +316,8 @@ function PhaseTurn({
   onApprove,
 }: {
   phase: Phase
+  campaignId: string
+  version: string
   output?: AiStageOutput
   evaluation?: AiEvaluation | null
   ready: boolean
@@ -322,11 +347,22 @@ function PhaseTurn({
         {ready ? line : t("guided.working")}
       </OrchestratorBubble>
 
-      {/* The artifact the robot produced for this phase. `execution` reports that
-          the emulation ran; `evaluation` carries the evaluator verdict; the
-          curation phases render their Agent_Output artifact. */}
+      {/* The artifact the robot produced for this phase. `operationalization`
+          lists the commands per technique; `flow` shows the attack flow with its
+          provenance; `execution` reports that the emulation ran; `evaluation`
+          carries the evaluator verdict; the other phases render their
+          Agent_Output artifact. */}
       {ready ? (
-        phase === "execution" ? (
+        phase === "operationalization" ? (
+          <div className="ml-14" data-section="guided-artifact" data-phase={phase}>
+            <OperationalizationScreen version={version} campaignKey={campaignId} />
+          </div>
+        ) : phase === "flow" ? (
+          <div className="ml-14 flex flex-col gap-3" data-section="guided-artifact" data-phase={phase}>
+            <FlowPhaseView campaign={campaignId} />
+            {output ? <PhaseArtifact phase={phase} output={output} bare /> : null}
+          </div>
+        ) : phase === "execution" ? (
           <ExecutionReport run={run} />
         ) : phase === "evaluation" ? (
           <EvaluationVerdict run={run} evaluation={evaluation} />
@@ -339,7 +375,7 @@ function PhaseTurn({
 
       {/* "Shall I proceed?" — only on the current frontier phase, once ready, and
           never on the final (execution) phase. */}
-      {isCurrent && ready && !isLastPhase ? (
+      {isCurrent && ready && !isLastPhase && phase !== "operationalization" ? (
         <div
           className="flex flex-col items-center gap-2 rounded-xl border border-team-purple/30 bg-team-purple/5 p-4"
           data-section="guided-proceed"
@@ -358,15 +394,30 @@ function PhaseTurn({
   )
 }
 
-/** The artifact body for a DAG / operationalization / environment phase. */
-function PhaseArtifact({ phase, output }: { phase: Phase; output: AiStageOutput }) {
+/**
+ * The artifact body for a flow / environment phase: the agent trace panel. With
+ * `bare` it renders just the panel, for use inside another artifact wrapper.
+ */
+function PhaseArtifact({
+  phase,
+  output,
+  bare = false,
+}: {
+  phase: Phase
+  output: AiStageOutput
+  bare?: boolean
+}) {
   const { t } = useTranslation("pipeline")
+  const panel = (
+    <AgentTracePanel
+      stageName={t(`aiRun.stageName.${output.stage}`, { defaultValue: output.stage })}
+      stageOutput={output}
+    />
+  )
+  if (bare) return panel
   return (
     <div className="ml-14" data-section="guided-artifact" data-phase={phase}>
-      <AgentTracePanel
-        stageName={t(`aiRun.stageName.${output.stage}`, { defaultValue: output.stage })}
-        stageOutput={output}
-      />
+      {panel}
     </div>
   )
 }

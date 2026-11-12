@@ -352,8 +352,8 @@ def test_ai_generated_ability_result_persists_without_fk_violation(
 # helpers and the approving isolation verifier from Task 1.
 #
 #   * Curated path preservation (Req. 3.1): a curated ability result whose parent
-#     ``abilities`` row was already upserted (exactly as ``stage_service.py::
-#     _persist`` does) persists with no foreign-key violation.
+#     ``abilities`` row was already upserted (exactly as the former
+#     curated persistence did) persists with no foreign-key violation.
 #   * Already-present AI ability preservation (Req. 3.1/3.3): when the AI
 #     ``ability_id`` already has a row in ``abilities`` the ``AbilityResult``
 #     insert succeeds identically and NO duplicate ``abilities`` row is created.
@@ -388,7 +388,7 @@ def _seed_ability(
     technique_id: str = "T1003",
     description: str = "Pre-existing parent ability row.",
 ) -> None:
-    """Upsert a parent ``abilities`` row, mirroring ``stage_service.py::_persist``.
+    """Upsert a parent ``abilities`` row, mirroring the former curated persistence.
 
     Materialises the parent row BEFORE any ``AbilityResult`` is written, exactly
     as the curated path's ``_persist`` upsert does (``session.get(AbilityModel,

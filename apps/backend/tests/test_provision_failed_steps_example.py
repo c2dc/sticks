@@ -20,7 +20,7 @@ The new ``failed_step`` values exercised here:
 Follows the recording-fake pattern of ``tests/test_provision_order_property.py``:
 fakes for ``EgressWindow``/``EgressProber``/``TargetSetup``/``ComposeExecutor``,
 a fake Caldera, a fake isolated inspector, a fake state inspector and a seeded
-``CaseService`` over a ``tmp`` ``data_dir``. The sub-stage seams are injected so
+a temp SQLite database holding the curated-case rows. The sub-stage seams are injected so
 the real orchestration runs; no Docker, public network or Caldera is touched.
 
 Validates: Requirements 8.1, 8.2, 8.5
@@ -37,7 +37,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Mapping
 
-from app.services.campaign_service import CaseService
+from tests._curated_db import CaseDb, db_put
 from app.services.containment.isolation import (
     ContainerNetworkInfo,
     ContainerNotFound,
@@ -247,12 +247,7 @@ def _non_isolated_inspector(containers: list[str]) -> _FakeInspector:
     return insp
 
 
-def _write_json(path: Path, payload: object) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload), encoding="utf-8")
-
-
-def _seed_case(data_dir: Path, slug: str) -> None:
+def _seed_case(data_dir: CaseDb, slug: str) -> None:
     abilities = [
         {
             "ability_id": f"{slug}-ab-1",
@@ -261,26 +256,20 @@ def _seed_case(data_dir: Path, slug: str) -> None:
             "executors": [{"name": "sh", "platform": "linux", "command": "echo 1"}],
         },
     ]
-    _write_json(data_dir / "api" / f"{slug}_dag-ability.json", abilities)
-    _write_json(
-        data_dir / "api" / f"{slug}_dag-adversary.json",
-        {
+    db_put(data_dir, "ability", slug, abilities)
+    db_put(data_dir, "adversary", slug, {
             "id": f"{slug}-adv",
             "name": "Seed Adversary",
             "description": "seed",
             "atomic_ordering": [f"{slug}-ab-1"],
-        },
-    )
-    _write_json(
-        data_dir / "dag" / f"{slug}_dag.json",
-        {
+        })
+    db_put(data_dir, "flow", slug, {
             "campaign_name": "Seed",
             "structural_nodes": [
-                {"node_id": "n0", "node_index": 0, "technique_id": "T1190"}
+                {"node_id": "n0", "technique_id": "T1190"}
             ],
             "metadata": {"total_techniques": 1},
-        },
-    )
+        })
 
 
 def _params() -> EnvironmentParameters:
@@ -306,12 +295,12 @@ def _run(
 ):
     """Run ``provision`` with the given seams over a seeded tmp data_dir."""
     containers = [_CONTAINER]
-    tmp = Path(tempfile.mkdtemp(prefix="stage5_failed_steps_"))
+    tmp = CaseDb()
     try:
         _seed_case(tmp, _SLUG)
         prov = CurationEnvironmentProvisioner(
             inspector=inspector,
-            case_service=CaseService(data_dir=tmp),
+            session_factory=tmp.factory,
             caldera=_FakeCaldera(),
             compose_executor=_FakeComposeExecutor(),
             state_inspector=_FakeStateInspector(containers),
@@ -321,7 +310,7 @@ def _run(
         )
         return prov.provision(_params())
     finally:
-        shutil.rmtree(tmp, ignore_errors=True)
+        tmp.dispose()
 
 
 # ---------------------------------------------------------------------------

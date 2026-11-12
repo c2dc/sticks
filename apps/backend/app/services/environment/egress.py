@@ -70,7 +70,7 @@ EGRESS_NETWORK: str = "sticks-egress-ephemeral"
 
 
 #: Docker Compose prefixes every network it creates with the project name
-#: (``name: sticks`` in ``infra/docker/docker-compose.yml``), so the three
+#: (``name: sticks`` in ``ops/docker/docker-compose.yml``), so the three
 #: ``internal: true`` attack networks exist in the Docker Engine as
 #: ``sticks-caldera-kali-network`` / ``sticks-kali-nginx-network`` /
 #: ``sticks-nginx-db-network`` — NOT under their bare compose keys. The isolation

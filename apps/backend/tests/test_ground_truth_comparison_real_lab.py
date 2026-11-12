@@ -7,7 +7,7 @@ This is the final evaluation deliverable of the AI-curation spec: it measures
 AI-generated curation with the **existing Stage 6 procedural-sufficiency metric**
 and compares it against the **human-curated baseline** — the
 ``Ground_Truth_Benchmark`` of **exactly 8** human-curated campaigns
-(``CaseService.CURATED_CASES``). For each campaign it:
+(the ``campaigns.curated`` rows). For each campaign it:
 
 * runs AI-generated curation through the pipeline via
   :meth:`app.services.ai.run_service.AgentRunService.start` (the compiled
@@ -20,7 +20,7 @@ and compares it against the **human-curated baseline** — the
   recomputed here);
 * computes the **human-curated baseline** for the same campaign with the same
   Stage 6 measurement (:class:`~app.services.environment.measurement.MeasurementService`
-  over the curated :class:`~app.services.campaign_service.CaseData`); and
+  over the curated :class:`~app.services.curated_case_models.CaseData`); and
 * **persists, for each completed run, a comparison result** of the AI run's
   score against that baseline (Req. 10.7) as a per-run JSON artifact under the
   lab output directory.
@@ -79,11 +79,11 @@ from typing import Any, Optional
 import pytest
 
 # Only lightweight, side-effect-free imports at module scope so collection is
-# clean off the lab machine. CaseService reads JSON files lazily (no network /
+# clean off the lab machine. The curated slug registry is a plain constant (no network /
 # DB at import) and gives us the Ground_Truth_Benchmark registry. The heavy AI
 # package, LangGraph, the LLM client and the real Caldera client are imported
 # lazily inside the fixtures / test body.
-from app.services.campaign_service import CURATED_CASES
+from tests._curated_db import CURATED_NAMES as CURATED_CASES
 
 
 # ---------------------------------------------------------------------------
@@ -190,24 +190,24 @@ def _utcnow() -> dt.datetime:
     return dt.datetime.now(dt.timezone.utc).replace(tzinfo=None)
 
 
-def _human_baseline_coverage(campaign_slug: str) -> dict[str, Any]:
+def _human_baseline_coverage(session: Any, campaign_slug: str) -> dict[str, Any]:
     """Compute the human-curated baseline metric for a campaign (lazy imports).
 
     Measures the curated :class:`CaseData` with the SAME Stage 6 measurement the
-    AI run is scored by (:class:`MeasurementService`), over the curated DAG and
+    AI run is scored by (:class:`MeasurementService`), over the curated attack flow and
     the ability→technique map. The baseline reflects the curated universe of
     techniques (the denominator) so the AI run's procedural-sufficiency score is
     compared on the same footing (Req. 10.7). Returns the key baseline numbers.
     """
-    from app.services.campaign_service import CaseService
+    from app.services.curated_case_reader import build_case_from_db
     from app.services.environment.measurement import MeasurementService
 
-    case = CaseService().load_case(campaign_slug)
+    case = build_case_from_db(session, campaign_slug)
     metrics = MeasurementService().measure_from_campaign(campaign=case, results=[])
     return {
         "procedural_coverage": metrics.procedural_coverage,
         "success_rate": metrics.success_rate,
-        "total_dag_techniques": metrics.total_dag_techniques,
+        "total_flow_techniques": metrics.total_flow_techniques,
     }
 
 
@@ -363,7 +363,7 @@ def test_ai_curation_vs_ground_truth_and_persist_comparison(
         ai_metric = _ai_run_final_metric(session, run)
 
         # (3) Human-curated baseline for the same campaign, same Stage 6 metric.
-        baseline = _human_baseline_coverage(campaign_slug)
+        baseline = _human_baseline_coverage(session, campaign_slug)
 
         # (4) Build and PERSIST the per-run comparison result (Req. 10.7). When
         # the run produced a scored iteration, record the signed delta of the AI

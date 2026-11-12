@@ -36,7 +36,7 @@ Each example draws a *world* per version: a set of campaigns, each owning its
 techniques and actors, with the exact expected (technique_ids, actor stix_ids)
 recorded as the oracle. A valid STIX bundle is assembled from the world (campaign
 / attack-pattern / intrusion-set objects plus ``uses`` and ``attributed-to``
-relationships), written to an isolated ``data_dir`` as
+relationships), held in memory as
 ``enterprise-attack-{version}.json`` and persisted via
 :class:`StixPersistenceService` fed by a :class:`StixService` with a ``None``
 ``http_client`` (no network — the backfill path never downloads).
@@ -273,7 +273,7 @@ def _world(draw, version_tag: str) -> dict:
 # returns data of the selected package only.
 @settings(
     max_examples=40,
-    # Each example does disk I/O (ephemeral SQLite + two bundle files on disk),
+    # Each example does disk I/O (ephemeral SQLite),
     # whose cost varies with the environment; the default ``deadline`` (200ms)
     # is therefore a source of *timing* flakiness, not of correctness.
     deadline=None,
@@ -298,20 +298,17 @@ def test_property5_campaign_overview_isolated_to_selected_package(
 
     Validates: Requirements 4.4
     """
-    data_dir = Path(tempfile.mkdtemp(prefix="stix_read_isolation_data_"))
     factory, db_tmp_dir = _make_session_factory()
     session = factory()
     try:
-        stix_service = StixService(data_dir=data_dir, http_client=None)
+        stix_service = StixService()
         persistence = StixPersistenceService(
             session=session, stix_service=stix_service
         )
 
         # Persist BOTH versions into the SAME database.
         for version, world in ((VERSION_A, world_a), (VERSION_B, world_b)):
-            bundle_path = data_dir / f"enterprise-attack-{version}.json"
-            bundle_path.write_text(json.dumps(world["bundle"]), encoding="utf-8")
-            result = persistence.persist_from_disk(version)
+            result = persistence.persist_bundle(version, world["bundle"])
             assert result.persisted is True
 
         read_service = StixPackageReadService(session)
@@ -344,7 +341,7 @@ def test_property5_campaign_overview_isolated_to_selected_package(
     finally:
         session.close()
         factory.kw["bind"].dispose()
-        for base in (data_dir, Path(db_tmp_dir)):
+        for base in (Path(db_tmp_dir),):
             for root, _dirs, files in os.walk(base, topdown=False):
                 for name in files:
                     os.remove(os.path.join(root, name))

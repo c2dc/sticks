@@ -39,6 +39,7 @@ import pytest
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, sessionmaker
 
+from tests._curated_db import SessionSeeder, db_put
 from app.core.config import Settings
 from app.db.base import Base, import_models
 from app.db.session import create_db_engine
@@ -53,7 +54,6 @@ from app.services.caldera import (
     CalderaClient,
     CalderaUnavailable,
 )
-from app.services.campaign_service import CaseService
 from app.services.containment.isolation import (
     ContainerIsolationVerdict,
     IsolationResult,
@@ -65,10 +65,10 @@ from app.services.operation.runner import (
     OperationRunResult,
     RunOutcome,
 )
-from app.services.stage.stage_service import STAGE_EXECUTION
+from app.services.emulation.views import STAGE_EXECUTION
 
 
-_SLUG = "shadowray"  # a registered curated slug (CURATED_CASES)
+_SLUG = "shadowray"  # a curated slug (campaigns.curated row)
 
 
 # ---------------------------------------------------------------------------
@@ -76,22 +76,15 @@ _SLUG = "shadowray"  # a registered curated slug (CURATED_CASES)
 # ---------------------------------------------------------------------------
 
 
-def _write_json(path: Path, payload: object) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload), encoding="utf-8")
-
-
 def _seed_case(
-    data_dir: Path,
+    data_dir: SessionSeeder,
     slug: str,
     *,
     command: str = "cat /etc/passwd",
     with_adversary: bool = True,
 ) -> None:
     """Seed a minimal curated case with a single internal/local ability command."""
-    _write_json(
-        data_dir / "api" / f"{slug}_dag-ability.json",
-        [
+    db_put(data_dir, "ability", slug, [
             {
                 "ability_id": f"{slug}-ab-1",
                 "name": "first",
@@ -100,39 +93,27 @@ def _seed_case(
                     {"name": "sh", "platform": "linux", "command": command}
                 ],
             }
-        ],
-    )
+        ])
     if with_adversary:
-        _write_json(
-            data_dir / "api" / f"{slug}_dag-adversary.json",
-            {
+        db_put(data_dir, "adversary", slug, {
                 "id": f"{slug}-adv",
                 "name": "Seed Adversary",
                 "description": "seed",
                 "atomic_ordering": [f"{slug}-ab-1"],
-            },
-        )
-    _write_json(
-        data_dir / "dag" / f"{slug}_dag.json",
-        {
+            })
+    db_put(data_dir, "flow", slug, {
             "campaign_name": "Seed",
             "structural_nodes": [
-                {"node_id": "n0", "node_index": 0, "technique_id": "T1059"}
+                {"node_id": "n0", "technique_id": "T1059"}
             ],
             "metadata": {"total_techniques": 1},
-        },
-    )
+        })
 
 
 @pytest.fixture()
-def data_dir() -> Iterator[Path]:
-    tmp = Path(tempfile.mkdtemp(prefix="pipeline_ui_stage6_"))
-    (tmp / "api").mkdir(parents=True, exist_ok=True)
-    (tmp / "dag").mkdir(parents=True, exist_ok=True)
-    try:
-        yield tmp
-    finally:
-        shutil.rmtree(tmp, ignore_errors=True)
+def data_dir(session: Session) -> SessionSeeder:
+    """Seeds the curated case rows into the test's own database session."""
+    return SessionSeeder(session)
 
 
 @pytest.fixture()
@@ -174,13 +155,12 @@ class RecordingRunner:
         return self.result
 
 
-def _service_with(session: Session, data_dir: Path, result: OperationRunResult):
+def _service_with(session: Session, data_dir: SessionSeeder, result: OperationRunResult):
     """Build the service wired to a RecordingRunner returning ``result``."""
     runner = RecordingRunner(result=result)
     service = ExecutionStageService(
         session,
         runner_factory=lambda _s: runner,  # type: ignore[arg-type,return-value]
-        case_service=CaseService(data_dir=data_dir),
     )
     return service, runner
 
@@ -212,7 +192,7 @@ def _completed_result() -> OperationRunResult:
 
 
 def test_previsualizar_presents_commands_without_executing(
-    session: Session, data_dir: Path
+    session: Session, data_dir: SessionSeeder
 ) -> None:
     """``preview`` returns the concrete commands and executes nothing.
     _Requirements: 13.6, 13.7_"""
@@ -234,7 +214,7 @@ def test_previsualizar_presents_commands_without_executing(
 # ---------------------------------------------------------------------------
 
 
-def test_executar_calls_runner_exactly_once(session: Session, data_dir: Path) -> None:
+def test_executar_calls_runner_exactly_once(session: Session, data_dir: SessionSeeder) -> None:
     """One execution request -> exactly one ``run(...)`` call (no retry).
     _Requirements: 10.3, 18.3_"""
     _seed_case(data_dir, _SLUG)
@@ -247,7 +227,7 @@ def test_executar_calls_runner_exactly_once(session: Session, data_dir: Path) ->
     assert call["campaign_id"] == _SLUG
     assert call["confirmed"] is True
     assert call["adversary_id"] == f"{_SLUG}-adv"
-    # The adversary payload carries the atomic_ordering (DAG order, Req. 10.3).
+    # The adversary payload carries the atomic_ordering (attack flow order, Req. 10.3).
     assert call["adversary_payload"]["adversary_id"] == f"{_SLUG}-adv"
     assert call["adversary_payload"]["atomic_ordering"] == [f"{_SLUG}-ab-1"]
 
@@ -266,7 +246,7 @@ def _stage6_state(session: Session, campaign: str) -> StageState | None:
     return row.state if row is not None else None
 
 
-def test_execute_completed_concludes_stage6(session: Session, data_dir: Path) -> None:
+def test_execute_completed_concludes_stage6(session: Session, data_dir: SessionSeeder) -> None:
     """COMPLETED + FINISHED concludes Stage 6 via the single completion path.
     _Requirements: 13.1_"""
     _seed_case(data_dir, _SLUG)
@@ -283,7 +263,7 @@ def test_execute_completed_concludes_stage6(session: Session, data_dir: Path) ->
 
 
 def test_execute_not_confirmed_does_not_conclude(
-    session: Session, data_dir: Path
+    session: Session, data_dir: SessionSeeder
 ) -> None:
     """NOT_CONFIRMED runs nothing and does not conclude Stage 6 (Req. 13.2)."""
     _seed_case(data_dir, _SLUG)
@@ -303,7 +283,7 @@ def test_execute_not_confirmed_does_not_conclude(
 
 
 def test_executar_containment_refused_surfaces_violations(
-    session: Session, data_dir: Path
+    session: Session, data_dir: SessionSeeder
 ) -> None:
     """CONTAINMENT_REFUSED surfaces the violations and does not conclude (Req. 13.4)."""
     _seed_case(data_dir, _SLUG)
@@ -332,7 +312,7 @@ def test_executar_containment_refused_surfaces_violations(
 
 
 def test_executar_isolation_failed_surfaces_containers(
-    session: Session, data_dir: Path
+    session: Session, data_dir: SessionSeeder
 ) -> None:
     """ISOLATION_FAILED surfaces the offending containers and does not conclude."""
     _seed_case(data_dir, _SLUG)
@@ -360,7 +340,7 @@ def test_executar_isolation_failed_surfaces_containers(
     assert _stage6_state(session, _SLUG) is None
 
 
-def test_execute_aborted_does_not_conclude(session: Session, data_dir: Path) -> None:
+def test_execute_aborted_does_not_conclude(session: Session, data_dir: SessionSeeder) -> None:
     """ABORTED (audit-trail failure) is a run but does not conclude Stage 6 (Req. 10.2)."""
     _seed_case(data_dir, _SLUG)
     aborted = OperationRunResult(
@@ -380,7 +360,7 @@ def test_execute_aborted_does_not_conclude(session: Session, data_dir: Path) -> 
 
 
 def test_executar_unknown_case_raises_keyerror(
-    session: Session, data_dir: Path
+    session: Session, data_dir: SessionSeeder
 ) -> None:
     """An unknown slug raises KeyError (mapped to 404 by the endpoint layer)."""
     service, _ = _service_with(session, data_dir, _completed_result())
@@ -471,7 +451,7 @@ def _runner_factory(caldera: CalderaClient, verifier):
 
 
 def test_real_runner_not_confirmed_executes_nothing(
-    session: Session, data_dir: Path
+    session: Session, data_dir: SessionSeeder
 ) -> None:
     """Gate 1 via the seam: confirmed=False starts nothing (no Operation row).
     _Requirements: 13.2_"""
@@ -480,7 +460,6 @@ def test_real_runner_not_confirmed_executes_nothing(
     service = ExecutionStageService(
         session,
         runner_factory=_runner_factory(caldera, _AllIsolated()),
-        case_service=CaseService(data_dir=data_dir),
     )
 
     result = service.execute(_SLUG, confirmed=False)
@@ -490,7 +469,7 @@ def test_real_runner_not_confirmed_executes_nothing(
 
 
 def test_real_runner_external_destination_refused(
-    session: Session, data_dir: Path
+    session: Session, data_dir: SessionSeeder
 ) -> None:
     """Gate 2 via the seam: an external destination refuses before any run.
     _Requirements: 13.3, 13.4, 13.5_"""
@@ -499,7 +478,6 @@ def test_real_runner_external_destination_refused(
     service = ExecutionStageService(
         session,
         runner_factory=_runner_factory(caldera, _AllIsolated()),
-        case_service=CaseService(data_dir=data_dir),
     )
 
     result = service.execute(_SLUG, confirmed=True)
@@ -510,7 +488,7 @@ def test_real_runner_external_destination_refused(
     assert _stage6_state(session, _SLUG) is None
 
 
-def test_real_runner_not_isolated_aborts(session: Session, data_dir: Path) -> None:
+def test_real_runner_not_isolated_aborts(session: Session, data_dir: SessionSeeder) -> None:
     """Gate 3 via the seam: a non-isolated target container aborts before run.
     _Requirements: 14.4, 14.5_"""
     _seed_case(data_dir, _SLUG, command="curl http://192.168.20.30/x")
@@ -518,7 +496,6 @@ def test_real_runner_not_isolated_aborts(session: Session, data_dir: Path) -> No
     service = ExecutionStageService(
         session,
         runner_factory=_runner_factory(caldera, _NoneIsolated()),
-        case_service=CaseService(data_dir=data_dir),
     )
 
     result = service.execute(_SLUG, confirmed=True)
@@ -530,7 +507,7 @@ def test_real_runner_not_isolated_aborts(session: Session, data_dir: Path) -> No
 
 
 def test_real_runner_happy_path_runs_persists_and_concludes(
-    session: Session, data_dir: Path
+    session: Session, data_dir: SessionSeeder
 ) -> None:
     """All gates pass -> single execution persists per-command rows + concludes.
     _Requirements: 10.1, 10.2, 10.3, 13.1_"""
@@ -539,7 +516,6 @@ def test_real_runner_happy_path_runs_persists_and_concludes(
     service = ExecutionStageService(
         session,
         runner_factory=_runner_factory(caldera, _AllIsolated()),
-        case_service=CaseService(data_dir=data_dir),
     )
 
     result = service.execute(_SLUG, confirmed=True)

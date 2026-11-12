@@ -22,7 +22,7 @@ class TranslationSource(str, enum.Enum):
 
     Today all 8 curated translations use ``HUMAN_CURATION``. The future value
     ``AI_GENERATED`` is already **declared** here, exactly like the precedent of
-    :class:`DagOrigin`: the columns that use this enum
+    :class:`FlowOrigin`: the columns that use this enum
     (``Ability``/``Adversary``/``Case.origem_traducao`` and
     ``EnvironmentParameters.origem``) persist with ``native_enum=False``
     (VARCHAR + CHECK), so the generated ``CHECK`` already includes ``gerado_ia``
@@ -38,26 +38,50 @@ class TranslationSource(str, enum.Enum):
     AI_GENERATED = "ai_generated"  # produced by an AI agent (pluggable later, Req. 16)
 
 
-class DagOrigin(str, enum.Enum):
-    """Origin of a DAG — an explicit, extensible attribute (Req. 4.3, 4.6, 9.4).
+class FlowOrigin(str, enum.Enum):
+    """Origin of an attack flow — an explicit, extensible attribute.
 
-    Follows **exactly** the precedent of ``TranslationSource``: a ``str`` Enum
-    with pt-BR values that serialize to the strings persisted in the database
-    and exchanged over the REST/JSON API.
+    Replaces the former ``DagOrigin``. Follows the precedent of
+    ``TranslationSource``: a ``str`` Enum whose values are persisted in
+    ``attack_flows.origin`` (VARCHAR + CHECK via ``native_enum=False``) and
+    exchanged over the REST/JSON API.
 
-    The ``Dag`` entity persists ``origem`` with ``native_enum=False`` (VARCHAR +
-    CHECK), so the generated ``CHECK`` already includes **all** the values
-    defined here. Including ``AI_GENERATED`` from the start makes the ``CHECK``
-    accept ``"gerado_ia"`` from the first migration: inserting a ``gerado_ia``
-    DAG in the future does **not** require any schema change or migration
-    (Req. 4.6, 9.4).
+    ``MITRE_CORPUS`` marks flows ingested from the MITRE Attack Flow corpus;
+    they do not belong to a Sticks campaign.
 
-    _Requirements: 4.3, 4.6, 9.4_
+    _Requirements: 2.1, 5.1, 5.2_
     """
 
-    HUMAN_CURATION = "human_curation"  # DAGs produced by human curation
-    AI_GENERATED = "ai_generated"  # produced by an AI agent (pluggable later, Req. 9)
+    HUMAN_CURATION = "human_curation"  # flows produced by human curation
+    AI_GENERATED = "ai_generated"  # produced by an AI agent
+    MITRE_CORPUS = "mitre_corpus"  # ingested from the MITRE Attack Flow corpus
 
+
+class FlowProvenance(str, enum.Enum):
+    """How a campaign flow was obtained from the corpus (three-path policy)."""
+
+    EXACT = "exact"  # a corpus flow matches the campaign as is
+    ADAPTED = "adapted"  # corpus flows were used as a base and adapted
+    CREATED = "created"  # no usable corpus flow; the agent created it
+
+
+class IngestSource(str, enum.Enum):
+    """Knowledge sources loaded by the ingestion orchestrator."""
+
+    ATOMIC = "atomic"
+    DOCKER_CATALOG = "docker_catalog"
+    ATTACK_FLOW = "attack_flow"
+    STIX_PACKAGES = "stix_packages"
+    CURATED_SEED = "curated_seed"
+
+
+class IngestStatus(str, enum.Enum):
+    """Lifecycle of the ingestion of one source."""
+
+    PENDING = "pending"
+    RUNNING = "running"
+    READY = "ready"
+    FAILED = "failed"
 
 class EnvironmentPlatform(str, enum.Enum):
     """Environment platform — container today; VM admitted without redesign (Req. 17).
@@ -68,14 +92,14 @@ class EnvironmentPlatform(str, enum.Enum):
     avoiding an import cycle between models and services.
 
     Subclasses ``str`` to serialize to its value in the API/DB, following the
-    precedent of :class:`TranslationSource`/:class:`DagOrigin`.
+    precedent of :class:`TranslationSource`/:class:`FlowOrigin`.
 
     Both members are **declared** on this single enum: ``CONTAINER`` is
     implemented and exercised this phase (Req. 17.1), while ``VM`` remains
     declared-but-not-exercised (Req. 17.2). Because both live on one enum, the
     portable column CHECK built via ``_portable_enum`` already admits
     ``virtual_machine`` from this migration forward — exactly the precedent of
-    ``DagOrigin``/``ai_generated``: persisting a virtual-machine platform in the
+    ``FlowOrigin``/``ai_generated``: persisting a virtual-machine platform in the
     future does **not** require a schema migration. This consolidation replaces
     the former split between the public enum and a persistence-only
     ``PersistedEnvironmentPlatform``.
@@ -158,7 +182,7 @@ class AgentStage(str, enum.Enum):
     Subclasses ``str`` so members serialize to their values, matching the
     precedent of the other domain enums. The values are the **semantic,
     number-free** phase names of the agentic-centric model
-    (``dag``, ``operationalization``, ``environment``, ``execution``,
+    (``operationalization``, ``flow``, ``environment``, ``execution``,
     ``evaluation``); the legacy ``stage_N_*`` numbering is removed. ``input``
     (the STIX base + campaign selection) is a user Input_Phase, not an agent
     phase, so it is intentionally absent here. ``execution`` and ``evaluation``
@@ -167,20 +191,20 @@ class AgentStage(str, enum.Enum):
 
     Because the backing columns persist with ``native_enum=False`` (VARCHAR +
     CHECK), the CHECK is regenerated to this value set by a reversible
-    migration, which also converts legacy rows (``stage_3_dag → dag``, etc.).
+    migration, which also converts legacy rows (``dag → flow``, etc.).
 
     _Requirements: 1.1, 1.2, 1.6, 2.1_
     """
 
-    DAG = "dag"
     OPERATIONALIZATION = "operationalization"
+    FLOW = "flow"
     ENVIRONMENT = "environment"
     EXECUTION = "execution"  # explicit own phase (plan -> act)
     EVALUATION = "evaluation"  # explicit own phase (evaluate; feeds refinement)
 
 
 # The Phase_Order: the single, ordered list the backend agentic loop walks,
-# ``dag → operationalization → environment → execution → evaluation`` (design
+# ``operationalization → flow → environment → execution → evaluation`` (design
 # §Phase_Order; Req. 1.1, 2.1). ``input`` is intentionally absent — it is the
 # user Input_Phase, not an agent phase. Derived from the enum members so the
 # list and the enum value set can never drift (``execution`` follows

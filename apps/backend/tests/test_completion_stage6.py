@@ -41,6 +41,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
+from tests._curated_db import SessionSeeder, db_put
 from app.core.config import Settings
 from app.db.base import Base, import_models
 from app.db.session import create_db_engine
@@ -52,7 +53,6 @@ from app.models.enums import (
     StageState,
     TranslationSource,
 )
-from app.services.campaign_service import CaseService
 from app.services.environment.completion import CompletionStage6Service, DbReportSink
 from app.services.environment.provisioner import (
     ProvisionedEnvironment,
@@ -67,10 +67,10 @@ from app.services.operation.runner import (
     OperationRunResult,
     RunOutcome,
 )
-from app.services.stage.stage_service import STAGE_EXECUTION
+from app.services.emulation.views import STAGE_EXECUTION
 
 
-_SLUG = "shadowray"  # a registered curated slug (CURATED_CASES)
+_SLUG = "shadowray"  # a curated slug (campaigns.curated row)
 
 
 # ---------------------------------------------------------------------------
@@ -78,15 +78,8 @@ _SLUG = "shadowray"  # a registered curated slug (CURATED_CASES)
 # ---------------------------------------------------------------------------
 
 
-def _write_json(path: Path, payload: object) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload), encoding="utf-8")
-
-
-def _seed_case(data_dir: Path, slug: str, *, command: str = "cat /etc/passwd") -> None:
-    _write_json(
-        data_dir / "api" / f"{slug}_dag-ability.json",
-        [
+def _seed_case(data_dir: SessionSeeder, slug: str, *, command: str = "cat /etc/passwd") -> None:
+    db_put(data_dir, "ability", slug, [
             {
                 "ability_id": f"{slug}-ab-1",
                 "name": "first",
@@ -95,38 +88,26 @@ def _seed_case(data_dir: Path, slug: str, *, command: str = "cat /etc/passwd") -
                     {"name": "sh", "platform": "linux", "command": command}
                 ],
             }
-        ],
-    )
-    _write_json(
-        data_dir / "api" / f"{slug}_dag-adversary.json",
-        {
+        ])
+    db_put(data_dir, "adversary", slug, {
             "id": f"{slug}-adv",
             "name": "Seed Adversary",
             "description": "seed",
             "atomic_ordering": [f"{slug}-ab-1"],
-        },
-    )
-    _write_json(
-        data_dir / "dag" / f"{slug}_dag.json",
-        {
+        })
+    db_put(data_dir, "flow", slug, {
             "campaign_name": "Seed",
             "structural_nodes": [
-                {"node_id": "n0", "node_index": 0, "technique_id": "T1059"}
+                {"node_id": "n0", "technique_id": "T1059"}
             ],
             "metadata": {"total_techniques": 1},
-        },
-    )
+        })
 
 
 @pytest.fixture()
-def data_dir() -> Iterator[Path]:
-    tmp = Path(tempfile.mkdtemp(prefix="pipeline_ui_completion6_"))
-    (tmp / "api").mkdir(parents=True, exist_ok=True)
-    (tmp / "dag").mkdir(parents=True, exist_ok=True)
-    try:
-        yield tmp
-    finally:
-        shutil.rmtree(tmp, ignore_errors=True)
+def data_dir(session: Session) -> SessionSeeder:
+    """Seeds the curated case rows into the test's own database session."""
+    return SessionSeeder(session)
 
 
 @pytest.fixture()
@@ -266,7 +247,7 @@ def _not_confirmed_result() -> OperationRunResult:
 
 def _service(
     session: Session,
-    data_dir: Path,
+    data_dir: SessionSeeder,
     *,
     runner_result: OperationRunResult,
     provisioner: _RecordingProvisioner,
@@ -277,7 +258,6 @@ def _service(
         runner_factory=lambda _s: _FixedRunner(result=runner_result),  # type: ignore[arg-type,return-value]
         provisioner=provisioner,  # type: ignore[arg-type]
         report_sink=sink,
-        case_service=CaseService(data_dir=data_dir),
     )
 
 
@@ -300,7 +280,7 @@ def _stage6_state(session: Session, campaign: str) -> StageState | None:
 
 
 def test_happy_path_tears_down_and_concludes(
-    session: Session, data_dir: Path
+    session: Session, data_dir: SessionSeeder
 ) -> None:
     """COMPLETED+FINISHED -> teardown ran, report persisted, Stage 6 concluded.
     _Requirements: 10.8, 10.9, 12.1, 12.2_"""
@@ -336,7 +316,7 @@ def test_happy_path_tears_down_and_concludes(
 
 
 def test_aborted_execution_still_tears_down_but_does_not_conclude(
-    session: Session, data_dir: Path
+    session: Session, data_dir: SessionSeeder
 ) -> None:
     """ABORTED execution still tears down; Stage 6 does NOT conclude.
     _Requirements: 10.8, 12.1_"""
@@ -365,7 +345,7 @@ def test_aborted_execution_still_tears_down_but_does_not_conclude(
     assert _stage6_state(session, _SLUG) is None
 
 
-def test_not_confirmed_still_tears_down(session: Session, data_dir: Path) -> None:
+def test_not_confirmed_still_tears_down(session: Session, data_dir: SessionSeeder) -> None:
     """A refused (not-confirmed) execution still tears the environment down.
     _Requirements: 10.8, 12.1_"""
     _seed_case(data_dir, _SLUG)
@@ -394,7 +374,7 @@ def test_not_confirmed_still_tears_down(session: Session, data_dir: Path) -> Non
 
 
 def test_teardown_failure_reports_remaining_resources_and_blocks_conclusion(
-    session: Session, data_dir: Path
+    session: Session, data_dir: SessionSeeder
 ) -> None:
     """A failed teardown surfaces remaining resources and blocks conclusion.
     _Requirements: 12.3, 10.9_"""
@@ -432,7 +412,7 @@ def test_teardown_failure_reports_remaining_resources_and_blocks_conclusion(
 
 
 def test_teardown_exception_is_caught_and_reported(
-    session: Session, data_dir: Path
+    session: Session, data_dir: SessionSeeder
 ) -> None:
     """An exception from the provisioner is caught and reported as a teardown failure.
     _Requirements: 12.3_"""
@@ -467,7 +447,7 @@ def test_teardown_exception_is_caught_and_reported(
 
 
 def test_unpersisted_report_blocks_conclusion(
-    session: Session, data_dir: Path
+    session: Session, data_dir: SessionSeeder
 ) -> None:
     """A report that fails to persist blocks conclusion despite success+teardown.
     _Requirements: 10.9_"""
@@ -497,7 +477,7 @@ def test_unpersisted_report_blocks_conclusion(
 # ---------------------------------------------------------------------------
 
 
-def test_unknown_case_raises_keyerror(session: Session, data_dir: Path) -> None:
+def test_unknown_case_raises_keyerror(session: Session, data_dir: SessionSeeder) -> None:
     """An unknown slug raises KeyError (mapped to 404 by the endpoint layer)."""
     provisioner = _RecordingProvisioner(result=_ok_teardown())
     sink = _MemorySink(ok=True)
@@ -533,7 +513,7 @@ def _report(generated_at: object | None = None) -> ExecutionReport:
     return ExecutionReport(
         campaign_id=_SLUG,
         metrics=SufficiencyMetrics(
-            total_dag_techniques=1,
+            total_flow_techniques=1,
             successful_techniques=1,
             success_rate=1.0,
             procedural_coverage=1.0,

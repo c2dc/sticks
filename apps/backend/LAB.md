@@ -94,7 +94,7 @@ The test `tests/test_ground_truth_comparison_real_lab.py` is the final
 evaluation deliverable of the AI-curation spec. It measures **AI-generated**
 curation with the **existing Stage 6 procedural-sufficiency metric** and compares
 it against the **human-curated baseline** — the `Ground_Truth_Benchmark` of
-**exactly 8** human-curated campaigns (`CaseService.CURATED_CASES`)
+**exactly 8** human-curated campaigns (rows with `campaigns.curated = true`)
 (Requirements **10.1, 10.7**).
 
 For each curated campaign it:

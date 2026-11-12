@@ -15,7 +15,7 @@ the example tests in ``test_provisioner_stage5.py``), serving fabricated
 ``ContainerNetworkInfo`` / ``NetworkInfo`` from Hypothesis-generated data. NO real
 Docker daemon, NO network and NO AI are touched — everything is pure in-memory,
 so it is safe on the Windows dev environment. The curated case is seeded into a
-temp ``data_dir`` injected into the ``CaseService`` and the Caldera loader is a
+temp SQLite database injected as the provisioner ``session_factory`` and the Caldera loader is a
 no-network fake, so the only variable under test is the isolation verdict.
 
 Per target container the generators produce one of three network configs:
@@ -47,7 +47,7 @@ from pathlib import Path
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
-from app.services.campaign_service import CaseService
+from tests._curated_db import CaseDb, db_put
 from app.services.containment.isolation import (
     ContainerNetworkInfo,
     ContainerNotFound,
@@ -137,7 +137,7 @@ class FakeStateInspector:
 # Curated-case temp fixtures (read-only w.r.t. real data) — mirrors the example
 # ---------------------------------------------------------------------------
 
-_SLUG = "shadowray"  # a registered curated slug (CURATED_CASES)
+_SLUG = "shadowray"  # a curated slug (campaigns.curated row)
 # A genuinely-internal lab network (internal: true, known subnet).
 _NET = "caldera-kali-network"
 _NET_SUBNET = INTERNAL_NETWORK_SUBNETS[_NET]
@@ -149,16 +149,9 @@ _EXTERNAL_DNS = ("8.8.8.8", "1.1.1.1", "9.9.9.9", "resolver.example.com")
 _EXTERNAL_BRIDGES = ("local-network", "bridge", "host")
 
 
-def _write_json(path: Path, payload: object) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload), encoding="utf-8")
-
-
-def _seed_case(data_dir: Path, slug: str) -> None:
+def _seed_case(data_dir: CaseDb, slug: str) -> None:
     """Seed a minimal curated case so ``provision`` can load the abilities."""
-    _write_json(
-        data_dir / "api" / f"{slug}_dag-ability.json",
-        [
+    db_put(data_dir, "ability", slug, [
             {
                 "ability_id": f"{slug}-ab-1",
                 "name": "first",
@@ -167,27 +160,20 @@ def _seed_case(data_dir: Path, slug: str) -> None:
                     {"name": "sh", "platform": "linux", "command": "echo 1"}
                 ],
             }
-        ],
-    )
-    _write_json(
-        data_dir / "api" / f"{slug}_dag-adversary.json",
-        {
+        ])
+    db_put(data_dir, "adversary", slug, {
             "id": f"{slug}-adv",
             "name": "Seed Adversary",
             "description": "seed",
             "atomic_ordering": [f"{slug}-ab-1"],
-        },
-    )
-    _write_json(
-        data_dir / "dag" / f"{slug}_dag.json",
-        {
+        })
+    db_put(data_dir, "flow", slug, {
             "campaign_name": "Seed",
             "structural_nodes": [
-                {"node_id": "n0", "node_index": 0, "technique_id": "T1190"}
+                {"node_id": "n0", "technique_id": "T1190"}
             ],
             "metadata": {"total_techniques": 1},
-        },
-    )
+        })
 
 
 # ---------------------------------------------------------------------------
@@ -280,13 +266,13 @@ def test_property8_isolation_is_precondition_of_stage5(
     # conclusão do Estágio 5.
     Validates: Requirements 9.6, 9.7, 14.1, 14.2, 14.3
     """
-    tmp = Path(tempfile.mkdtemp(prefix="pipeline_ui_stage5_prop_"))
+    tmp = CaseDb()
     try:
         _seed_case(tmp, _SLUG)
         names = [c.name for c in containers]
         prov = CurationEnvironmentProvisioner(
             inspector=_build_inspector(containers),
-            case_service=CaseService(data_dir=tmp),
+            session_factory=tmp.factory,
             caldera=FakeCaldera(),
             compose_executor=FakeComposeExecutor(),
             state_inspector=FakeStateInspector(),
@@ -328,7 +314,7 @@ def test_property8_isolation_is_precondition_of_stage5(
             assert isolation.approved is True
             assert isolation.non_isolated == []
     finally:
-        shutil.rmtree(tmp, ignore_errors=True)
+        tmp.dispose()
 
 
 def _isolated_only() -> st.SearchStrategy[list[GenContainer]]:
@@ -363,13 +349,13 @@ def test_property8_all_isolated_targets_conclude(
     # Oracle sanity: everything built here is isolated by construction.
     assert all(_expected_isolated(c) for c in containers)
 
-    tmp = Path(tempfile.mkdtemp(prefix="pipeline_ui_stage5_prop_"))
+    tmp = CaseDb()
     try:
         _seed_case(tmp, _SLUG)
         names = [c.name for c in containers]
         prov = CurationEnvironmentProvisioner(
             inspector=_build_inspector(containers),
-            case_service=CaseService(data_dir=tmp),
+            session_factory=tmp.factory,
             caldera=FakeCaldera(),
             compose_executor=FakeComposeExecutor(),
             state_inspector=FakeStateInspector(),
@@ -380,4 +366,4 @@ def test_property8_all_isolated_targets_conclude(
         assert environment.isolation.approved is True
         assert environment.isolation.non_isolated == []
     finally:
-        shutil.rmtree(tmp, ignore_errors=True)
+        tmp.dispose()

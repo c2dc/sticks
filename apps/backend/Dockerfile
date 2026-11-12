@@ -1,16 +1,14 @@
 # Pipeline_UI — Backend (FastAPI)
 #
 # Minimal, Docker Desktop friendly image. Application-layer service ONLY:
-# it never joins the internal attack networks. It reaches Caldera exclusively
-# via the host (localhost:8888 -> host.docker.internal:8888) and reads the
+# it never joins the internal attack networks. It reaches Caldera over the
+# compose management network (http://caldera-c2:8888) and reads the
 # Docker Engine API (socket, read-only) for isolation inspection.
 #
-# NOTE on the sticks integration:
-#   app/core/sticks_config.py loads <repo>/packages/cli/config/config.py by resolving
-#   parents[4] from its own file location. To preserve that layout at runtime,
-#   docker-compose bind-mounts the repository root read-only at /repo and sets
-#   the working directory to /repo/apps/backend. The image itself only
-#   provides the Python environment + installed dependencies.
+# NOTE: docker-compose bind-mounts the repository root read-only at /repo and
+#   sets the working directory to /repo/apps/backend (hot reload + Alembic).
+#   The image itself only provides the Python environment + dependencies.
+#   Settings (Caldera URL/key, database) come from PIPELINE_UI_* env vars.
 
 FROM python:3.11-slim
 
@@ -29,8 +27,7 @@ COPY app ./app
 RUN pip install --upgrade pip \
     && pip install .
 
-# Default working directory is overridden by compose to /repo/apps/backend
-# so that app/core/sticks_config.py can resolve <repo>/packages/cli/config/config.py.
+# Default working directory is overridden by compose to /repo/apps/backend.
 # When run standalone (no repo mount) the image still boots the API.
 EXPOSE 8000
 

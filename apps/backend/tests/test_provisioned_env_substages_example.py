@@ -35,8 +35,8 @@ from typing import Any, Callable, Mapping
 
 import pytest
 
+from tests._curated_db import CaseDb, db_put
 from app.models.enums import TranslationSource
-from app.services.campaign_service import CaseService
 from app.services.containment.isolation import (
     ContainerNetworkInfo,
     ContainerNotFound,
@@ -177,12 +177,7 @@ def _params(containers: list[str]) -> EnvironmentParameters:
     return EnvironmentParameters(campaign_id=_SLUG, hosts=hosts)
 
 
-def _write_json(path: Path, payload: object) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload), encoding="utf-8")
-
-
-def _seed_case(data_dir: Path, slug: str) -> None:
+def _seed_case(data_dir: CaseDb, slug: str) -> None:
     """Seed a minimal curated case with a 2-ability ordered adversary."""
     abilities = [
         {
@@ -198,44 +193,36 @@ def _seed_case(data_dir: Path, slug: str) -> None:
             "executors": [{"name": "sh", "platform": "linux", "command": "echo 2"}],
         },
     ]
-    _write_json(data_dir / "api" / f"{slug}_dag-ability.json", abilities)
-    _write_json(
-        data_dir / "api" / f"{slug}_dag-adversary.json",
-        {
+    db_put(data_dir, "ability", slug, abilities)
+    db_put(data_dir, "adversary", slug, {
             "id": f"{slug}-adv",
             "name": "Seed Adversary",
             "description": "seed",
             "atomic_ordering": [f"{slug}-ab-2", f"{slug}-ab-1"],
-        },
-    )
-    _write_json(
-        data_dir / "dag" / f"{slug}_dag.json",
-        {
+        })
+    db_put(data_dir, "flow", slug, {
             "campaign_name": "Seed",
             "structural_nodes": [
-                {"node_id": "n0", "node_index": 0, "technique_id": "T1190"}
+                {"node_id": "n0", "technique_id": "T1190"}
             ],
             "metadata": {"total_techniques": 1},
-        },
-    )
+        })
 
 
 @pytest.fixture()
-def data_dir() -> Iterator[Path]:
-    tmp = Path(tempfile.mkdtemp(prefix="pipeline_ui_stage5_substages_"))
-    (tmp / "api").mkdir(parents=True, exist_ok=True)
-    (tmp / "dag").mkdir(parents=True, exist_ok=True)
+def data_dir() -> Iterator[CaseDb]:
+    tmp = CaseDb()
     try:
         yield tmp
     finally:
-        shutil.rmtree(tmp, ignore_errors=True)
+        tmp.dispose()
 
 
-def _curation(data_dir: Path, containers: list[str]) -> CurationEnvironmentProvisioner:
+def _curation(data_dir: CaseDb, containers: list[str]) -> CurationEnvironmentProvisioner:
     _seed_case(data_dir, _SLUG)
     return CurationEnvironmentProvisioner(
         inspector=_isolated_inspector(containers),
-        case_service=CaseService(data_dir=data_dir),
+        session_factory=data_dir.factory,
         caldera=FakeCaldera(),
         compose_executor=FakeComposeExecutor(),
         state_inspector=_healthy_state_inspector(containers),
@@ -260,7 +247,7 @@ def test_logline_substage_defaults_to_none() -> None:
     assert marked.substage == "5.1"
 
 
-def test_provision_inherited_lines_have_no_substage(data_dir: Path) -> None:
+def test_provision_inherited_lines_have_no_substage(data_dir: CaseDb) -> None:
     """The lines emitted by the inherited pipeline carry ``substage is None``.
     _Requirements: 6.3_"""
     containers = [_C1, _C2]
@@ -279,7 +266,7 @@ def test_provision_inherited_lines_have_no_substage(data_dir: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_provision_without_on_log_is_valid(data_dir: Path) -> None:
+def test_provision_without_on_log_is_valid(data_dir: CaseDb) -> None:
     """Calling ``provision(params)`` with **no** ``on_log`` still works (Req. 9.2).
     _Requirements: 6.3_"""
     containers = [_C1, _C2]

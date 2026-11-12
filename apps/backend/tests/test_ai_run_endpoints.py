@@ -2,7 +2,7 @@
 
 Exercises the two endpoints registered from ``app/api/ai.py`` end-to-end over
 the real FastAPI app with a :class:`~fastapi.testclient.TestClient`, following
-the existing API-test conventions (``test_dag_endpoints.py``): a fresh temp-file
+the existing API-test conventions (``test_flow_endpoints.py``): a fresh temp-file
 SQLite engine + ORM schema per module and the ``get_db`` dependency overridden
 onto that ephemeral session. No real SEPINF / Postgres / pgvector is involved —
 the ``AgentRunService`` graph build and the dependency-availability probe are
@@ -73,7 +73,7 @@ def _utcnow() -> dt.datetime:
 # ---------------------------------------------------------------------------
 # Ephemeral session factory (fresh temp-file SQLite + ORM schema per module).
 #
-# Mirrors test_dag_endpoints.py: the schema is built straight from the ORM so
+# Mirrors test_flow_endpoints.py: the schema is built straight from the ORM so
 # the AI bookkeeping tables round-trip without a migration. SQLite does not
 # enforce FKs by default, so no Campaign row is required to persist an AgentRun
 # under an arbitrary campaign_id.
@@ -294,7 +294,7 @@ def test_post_start_run_failed_persists_no_row(
         select(func.count()).select_from(AgentRun)
     ).scalar_one()
 
-    _patch_service(monkeypatch, start_raises=RunFailedError("dag"))
+    _patch_service(monkeypatch, start_raises=RunFailedError("flow"))
 
     client = _make_client(session_factory)
     resp = client.post(f"/api/campaigns/{_CAMPAIGN_ID}/ai/run", json={})
@@ -302,7 +302,7 @@ def test_post_start_run_failed_persists_no_row(
     assert resp.status_code == 503, resp.text
     detail = resp.json()["detail"]
     assert detail["reason"] == "run_failed"
-    assert detail["node"] == "dag"
+    assert detail["node"] == "flow"
 
     db_session.expire_all()
     after = db_session.execute(
