@@ -301,6 +301,8 @@
     "description": "C0010",
     "id": "c0010",
     "name": "ATT&CK Campaign C0010",
+    "stix_campaign_key": "C0010",
+    "stix_version": "18.0",
     "translation_source": "human_curation"
   }
 }

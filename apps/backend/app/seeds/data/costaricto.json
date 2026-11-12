@@ -313,6 +313,8 @@
     "description": "CostaRicto",
     "id": "costaricto",
     "name": "CostaRicto",
+    "stix_campaign_key": "C0004",
+    "stix_version": "18.0",
     "translation_source": "human_curation"
   }
 }

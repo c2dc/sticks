@@ -412,6 +412,7 @@ def ingest_client(
     runner = StixPackagesSourceRunner(
         stix_service=StixService(http_client=http),
         versions=[],
+        required_versions=[],
         index_vectors=False,
     )
     orchestrator = IngestionOrchestrator(
@@ -538,6 +539,8 @@ def test_bases_completed_is_true_only_for_persisted_versions(
     """``completed`` is exposed on every base and mirrors DB persistence."""
     before = client.get("/api/stix/bases").json()["bases"]
     assert before and all(b["completed"] is False for b in before)
+    # The per-version ``curated`` field was removed (dead field, task 33.2).
+    assert all("curated" not in b for b in before)
 
     version = _seed_persisted_package(session_factory)
     after = {b["version"]: b for b in client.get("/api/stix/bases").json()["bases"]}

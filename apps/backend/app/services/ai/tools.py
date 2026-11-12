@@ -27,10 +27,10 @@ if TYPE_CHECKING:  # pragma: no cover - typing only, no import-time cost
 # --- flow-phase tool wrappers (task 10.1, 14.1) ---
 
 # The ATT&CK Enterprise base version the AI pipeline resolves campaigns against
-# (the curated version, the only base carrying the 8 curated campaigns). Mirrors
-# ``app.services.stix.stix_service.CURATED_VERSION`` without importing it at
-# module import time (Req. 1.7).
-_DEFAULT_VERSION = "18.0"
+# (the curated version declared by the seed). Taken from the light seed manifest
+# (a constant module: no I/O, no heavy import at module import time, Req. 1.7);
+# the same value as ``app.services.stix.stix_service.CURATED_VERSION``.
+from app.seeds.manifest import CURATED_STIX_VERSION as _DEFAULT_VERSION
 
 
 def tool_read_attack(

@@ -64,9 +64,17 @@ def _make(
     factory: sessionmaker[Session],
     http: FakeStixHttp,
     versions: list[str] | None,
+    required: list[str] | None = (),
+    latest_fetcher=lambda: LATEST,
 ) -> tuple[IngestionOrchestrator, StixPackagesSourceRunner]:
+    # No network: the newest-version lookup is injected. ``required=()`` keeps
+    # these tests independent from the versions the curated seed requires.
     runner = StixPackagesSourceRunner(
-        stix_service=StixService(http_client=http), versions=versions, index_vectors=False
+        stix_service=StixService(http_client=http),
+        versions=versions,
+        required_versions=required,
+        latest_fetcher=latest_fetcher,
+        index_vectors=False,
     )
     return IngestionOrchestrator(factory, {IngestSource.STIX_PACKAGES: runner}), runner
 
@@ -187,3 +195,123 @@ def test_requested_version_is_ingested_even_when_not_configured(
 
     assert _persisted(factory) == {"16.1"}
     assert _state(orchestrator).status == IngestStatus.READY
+
+
+# ---------------------------------------------------------------------------
+# Version policy (task 33.2): latest (upstream) + database + seed-required
+# ---------------------------------------------------------------------------
+
+
+def test_seed_required_version_is_always_part_of_the_plan(
+    factory: sessionmaker[Session], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv(STIX_VERSIONS_ENV, "17.1")  # overrides only item (a)
+    http = FakeStixHttp({"18.0": small_bundle(), "17.1": small_bundle("Beta")})
+    orchestrator, runner = _make(factory, http, None, required=None)
+
+    with factory() as session:
+        assert runner.plan(session).expected_count == 2  # 17.1 + seed-required 18.0
+
+    orchestrator.run_source(IngestSource.STIX_PACKAGES)
+
+    assert _persisted(factory) == {"18.0", "17.1"}  # LATEST was replaced, 18.0 was not
+
+
+def test_stix_versions_never_removes_seed_required_or_persisted_versions(
+    factory: sessionmaker[Session], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv(STIX_VERSIONS_ENV, "19.0")
+    with factory() as session:
+        session.add(StixPackage(version="17.0", name="Enterprise ATT&CK v17.0"))
+        session.commit()
+    http = FakeStixHttp({"19.0": small_bundle(), "18.0": small_bundle("Beta")})
+    # Default required versions (the seed's): 18.0.
+    orchestrator, runner = _make(factory, http, None, required=None)
+
+    with factory() as session:
+        assert runner.plan(session).expected_count == 3  # 17.0 + 18.0 + 19.0
+
+    orchestrator.run_source(IngestSource.STIX_PACKAGES)
+
+    assert _persisted(factory) == {"17.0", "18.0", "19.0"}  # no latest, nothing removed
+    assert sorted(c.rsplit("-", 1)[-1] for c in http.calls) == ["18.0.json", "19.0.json"]
+
+
+def test_default_plan_is_latest_union_seed_required_union_database(
+    factory: sessionmaker[Session], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv(STIX_VERSIONS_ENV, raising=False)
+    with factory() as session:
+        session.add(StixPackage(version="17.0", name="Enterprise ATT&CK v17.0"))
+        session.commit()
+    http = FakeStixHttp({"20.1": small_bundle(), "18.0": small_bundle("Beta")})
+    orchestrator, _ = _make(factory, http, None, required=None, latest_fetcher=lambda: "20.1")
+
+    orchestrator.run_source(IngestSource.STIX_PACKAGES)
+
+    assert _persisted(factory) == {"17.0", "18.0", "20.1"}
+    assert _state(orchestrator).status == IngestStatus.READY
+
+
+def test_latest_is_resolved_from_the_upstream_fetcher(factory: sessionmaker[Session]) -> None:
+    http = FakeStixHttp({"20.1": small_bundle(), "18.0": small_bundle("Beta")})
+    orchestrator, _ = _make(factory, http, None, required=["18.0"], latest_fetcher=lambda: "20.1")
+
+    orchestrator.run_source(IngestSource.STIX_PACKAGES)
+
+    assert _persisted(factory) == {"20.1", "18.0"}
+
+
+def test_latest_falls_back_to_the_known_newest_when_the_lookup_fails(
+    factory: sessionmaker[Session],
+) -> None:
+    def offline() -> str:
+        raise ConnectionError("offline")
+
+    http = FakeStixHttp({LATEST: small_bundle()})
+    orchestrator, _ = _make(factory, http, None, latest_fetcher=offline)
+
+    orchestrator.run_source(IngestSource.STIX_PACKAGES)
+
+    assert _persisted(factory) == {LATEST}
+    assert _state(orchestrator).status == IngestStatus.READY
+
+
+def test_plan_does_not_use_the_network_and_is_empty_when_a_newer_version_is_installed(
+    factory: sessionmaker[Session],
+) -> None:
+    def forbidden() -> str:
+        raise AssertionError("plan must not query the upstream index")
+
+    with factory() as session:
+        session.add(StixPackage(version="99.0", name="newer than the built-in latest"))
+        session.commit()
+    runner = StixPackagesSourceRunner(
+        stix_service=StixService(http_client=FakeStixHttp()),
+        required_versions=[],
+        latest_fetcher=forbidden,
+        index_vectors=False,
+    )
+    with factory() as session:
+        assert runner.plan(session).is_empty
+
+
+def test_latest_enterprise_version_reads_the_upstream_index_format() -> None:
+    from app.services.stix.stix_service import StixDownloadError, latest_enterprise_version
+
+    def entry(domain: str, version: str) -> dict:
+        url = f"https://raw.githubusercontent.com/mitre-attack/attack-stix-data/master/{domain}/{domain}-{version}.json"
+        return {"version": version, "url": url, "modified": "2026-01-01T00:00:00.000Z"}
+
+    index = {
+        "collections": [
+            {"name": "Enterprise ATT&CK", "versions": [entry("enterprise-attack", v) for v in ("9.0", "19.2", "20.1", "20.0")]},
+            {"name": "ICS ATT&CK", "versions": [entry("ics-attack", "99.0")]},
+            {"name": "Mobile ATT&CK", "versions": [entry("mobile-attack", "98.0")]},
+        ]
+    }
+    assert latest_enterprise_version(index) == "20.1"
+    with pytest.raises(StixDownloadError):
+        latest_enterprise_version({"collections": []})
+    with pytest.raises(StixDownloadError):
+        latest_enterprise_version("not an index")

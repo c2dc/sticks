@@ -8,6 +8,12 @@ decoded as UTF-8. Each file holds one curated case with the keys ``campaign``,
 flag and no flow ``origin``: the applier always stores campaigns with
 ``curated = true`` and flows with ``origin = human_curation``.
 
+Each ``campaign`` declares ``stix_version`` (dotted numbers such as ``18.0``, the
+ATT&CK version the case was curated against) and ``stix_campaign_key`` (``C``
+plus four digits, the STIX campaign external id); both are validated here. They are not stored in
+the database (``campaigns`` has no column for them): the binding is derived from
+the seed and :mod:`app.seeds.manifest`.
+
 Only a minimal structural validation is done here (required keys and types); a
 violation raises :class:`SeedDataError` naming the file and the offending key.
 """
@@ -15,6 +21,7 @@ violation raises :class:`SeedDataError` naming the file and the offending key.
 from __future__ import annotations
 
 import json
+import re
 from importlib import resources
 from importlib.resources.abc import Traversable
 from typing import Any
@@ -28,7 +35,13 @@ _REQUIRED_TYPES: dict[str, type] = {
     "adversary": dict,
     "attack_flow": dict,
 }
-_CAMPAIGN_KEYS = ("id", "name", "translation_source")
+_CAMPAIGN_KEYS = ("id", "name", "translation_source", "stix_version", "stix_campaign_key")
+# STIX binding of each case: ATT&CK version curated against and the STIX
+# campaign external id (see ``app.seeds.manifest``).
+_STIX_CAMPAIGN_PATTERNS: dict[str, re.Pattern[str]] = {
+    "stix_version": re.compile(r"\d+(\.\d+)+"),
+    "stix_campaign_key": re.compile(r"C\d{4}"),
+}
 _ABILITY_KEYS = ("ability_id", "campaign_id", "translation_source")
 _ADVERSARY_KEYS = ("id", "campaign_id", "atomic_ordering", "translation_source")
 _FLOW_KEYS = ("campaign_id", "identifier", "content")
@@ -79,6 +92,12 @@ def _validate(slug: str, data: Any) -> dict[str, Any]:
     _require_keys(f"{name}: campaign", data["campaign"], _CAMPAIGN_KEYS)
     if data["campaign"]["id"] != slug:
         raise SeedDataError(f"{name}: campaign.id {data['campaign']['id']!r} != file slug")
+    for key, pattern in _STIX_CAMPAIGN_PATTERNS.items():
+        value = data["campaign"].get(key)
+        if not isinstance(value, str) or not pattern.fullmatch(value):
+            raise SeedDataError(
+                f"{name}: campaign.{key} {value!r} does not match {pattern.pattern!r}"
+            )
     for index, ability in enumerate(data["abilities"]):
         _require_keys(f"{name}: abilities[{index}]", ability, _ABILITY_KEYS)
     _require_keys(f"{name}: adversary", data["adversary"], _ADVERSARY_KEYS)

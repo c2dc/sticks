@@ -60,17 +60,28 @@ in the background on startup (disable with `STICKS_INGEST_ON_START=0`) and when 
 version that is not ingested yet is chosen in the UI
 (`POST /api/stix/bases/{version}/download`, `202`).
 
-Versions kept ingested: every version already in the database, plus the ones in
-the `STIX_VERSIONS` environment variable (comma or whitespace separated,
-`latest` allowed), plus `latest` when the variable is unset or empty. Example:
-`STIX_VERSIONS=18.0,latest`. A failing version leaves the source `failed` (see
+Versions kept ingested (a union):
+
+- the newest ATT&CK Enterprise version, the default. It is resolved by asking the
+  upstream index (`index.json` of `mitre-attack/attack-stix-data`); offline or on
+  error it falls back to `max(KNOWN_VERSIONS)`. `STIX_VERSIONS` (comma or
+  whitespace separated, `latest` allowed, e.g. `STIX_VERSIONS=19.1,latest`)
+  replaces only this item;
+- the version(s) required by the curated cases, declared in the seed
+  (`campaign.stix_version`, today `18.0`; `app.seeds.manifest.REQUIRED_STIX_VERSIONS`).
+  `STIX_VERSIONS` never removes them;
+- every version already in the database.
+
+Each version is about 50 MB and the first start of a fresh installation downloads
+two (the newest and 18.0). A failing version leaves the source `failed` (see
 `GET /api/ingestion/status`) and the next run fetches only what is missing.
+`plan` never uses the network; only `run` queries the upstream index.
 
 ### Curated cases seed (fresh installation)
 
 Principle: runtime data lives in the relational and vector databases. The seed is
 versioned, read-only JSON, one file per campaign, in `app/seeds/data/<slug>.json`
-(8 files, about 124 KB in total). Each file has exactly four top-level keys: `campaign`, `abilities`, `adversary` and `attack_flow`. The files carry no `curated` flag and no flow `origin`: the applier (`app/seeds/apply.py`) always stores `curated = true` and `origin = human_curation`. The flow `content` has only `campaign_name`, `edges` ({from, to}) and `structural_nodes`; each node has only `node_id`, `node_type`, `technique_id`, `technique_name` and `tactic`. Hosts and vulnerabilities are produced by the agents, not stored in the seed.
+(8 files, about 124 KB in total). Each file has exactly four top-level keys: `campaign`, `abilities`, `adversary` and `attack_flow`. The `campaign` object declares the STIX binding of the case: `stix_version` (the ATT&CK version it was curated against, `18.0`) and `stix_campaign_key` (the STIX campaign external id, e.g. `C0045`); both are validated by the loader and not stored in the database. The files carry no `curated` flag and no flow `origin`: the applier (`app/seeds/apply.py`) always stores `curated = true` and `origin = human_curation`. The flow `content` has only `campaign_name`, `edges` ({from, to}) and `structural_nodes`; each node has only `node_id`, `node_type`, `technique_id`, `technique_name` and `tactic`. Hosts and vulnerabilities are produced by the agents, not stored in the seed.
 
 A new database has no curated cases. The 8 curated campaigns (108 abilities, 8
 adversaries, 8 attack flows) are read lazily by `app/seeds/loader.py` through

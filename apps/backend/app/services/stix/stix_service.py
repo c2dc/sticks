@@ -29,6 +29,8 @@ from typing import Any, Optional
 
 from pydantic import BaseModel, Field
 
+from app.seeds.manifest import CURATED_STIX_VERSION
+
 
 # A version is digits separated by dots (e.g. ``18.0``); anything else is rejected
 # before a URL is built.
@@ -95,29 +97,15 @@ KNOWN_VERSIONS: list[str] = [
 ]
 
 # ---------------------------------------------------------------------------
-# Curated-version flag (Req. 5.5, 5.6, 11.5)
+# Curated STIX version
 # ---------------------------------------------------------------------------
 
-# Single source of truth for the curated STIX version. Version 18 is the only
-# base that carries the 8 curated campaigns (persisted in the database) and the
-# ``docker-compose.yml`` lab pointer. The
-# ``stix_versions`` table is *seeded* from this constant (the DB row is a
-# persistable projection of the flag, not an independent source) — keeping the
-# flag in code means ``GET /api/stix/bases`` never needs a request-time lookup to
-# know which base is curated (Req. 5.5, 11.5).
-CURATED_VERSION: str = "18.0"  # the only version with the 8 curated campaigns (Req. 5.5, 11.5)
-
-
-def version_is_curated(version: str) -> bool:
-    """True iff ``version`` is the curated version (carries the 8 curated campaigns).
-
-    The curated version (:data:`CURATED_VERSION`, ``"18.0"``) is the only one that
-    carries the 8 curated campaigns and the pointer to the curated artifacts; for
-    it Stages 3/4/5 resolve their artifacts from the database, with no network
-    and no AI (Req. 5.5, 5.6, 11.5). Any other version returns
-    ``False``.
-    """
-    return version == CURATED_VERSION
+# The ATT&CK version the 8 curated cases were curated against. The single source
+# of truth is the curated seed (``campaign.stix_version`` in
+# ``app/seeds/data/<slug>.json``), mirrored by the seed manifest; nothing else
+# hard-codes it. The ``stix_packages`` ingestion always keeps this version
+# installed (``REQUIRED_STIX_VERSIONS``) next to the newest one.
+CURATED_VERSION: str = CURATED_STIX_VERSION
 
 
 # English description per counted STIX object type (Req. 3.3). The dashboard fills
@@ -156,7 +144,7 @@ SLUG_TO_STIX: dict[str, dict[str, Any]] = {
     },
     "outer_space": {"referencias": ["C0042"], "nome_canonico": "Outer Space"},
     "salesforce_data_exfiltration": {
-        "referencias": [],
+        "referencias": ["C0059"],
         "nome_canonico": "Salesforce Data Exfiltration",
     },
     "shadowray": {"referencias": ["C0045"], "nome_canonico": "ShadowRay"},
@@ -183,6 +171,39 @@ class StixDownloadError(Exception):
         self.version = version
         self.detail = detail
         super().__init__(detail)
+
+
+_ENTERPRISE_URL_RE = re.compile(r"/enterprise-attack/enterprise-attack-(\d+(?:\.\d+)+)\.json$")
+
+
+def latest_enterprise_version(index: Any) -> str:
+    """Highest semantic ``enterprise-attack`` version listed in the upstream ``index.json``.
+
+    Format (verified against the published file): ``{"collections": [{"name":
+    "Enterprise ATT&CK", "versions": [{"version": "20.1", "url": ".../enterprise-attack/
+    enterprise-attack-20.1.json", "modified": "..."}, ...]}, {ICS...}, {Mobile...}]}``.
+    Only versions whose URL points at ``enterprise-attack`` are considered (ICS and
+    Mobile are ignored); malformed entries are skipped.
+
+    Raises:
+        StixDownloadError: the index has no enterprise-attack version.
+    """
+    found: set[str] = set()
+    collections = index.get("collections") if isinstance(index, dict) else None
+    for collection in collections if isinstance(collections, list) else []:
+        versions = collection.get("versions") if isinstance(collection, dict) else None
+        for entry in versions if isinstance(versions, list) else []:
+            if not isinstance(entry, dict):
+                continue
+            version, url = entry.get("version"), entry.get("url")
+            if not isinstance(version, str) or not isinstance(url, str):
+                continue
+            match = _ENTERPRISE_URL_RE.search(url)
+            if match and match.group(1) == version:
+                found.add(version)
+    if not found:
+        raise StixDownloadError("O índice do MITRE ATT&CK não lista versões enterprise-attack.")
+    return max(found, key=_semantic_version_key)
 
 
 # ---------------------------------------------------------------------------
@@ -332,7 +353,38 @@ class StixService:
         """
         return f"{self._URL_BASE_CANONICA}enterprise-attack-{version}.json"
 
-    def _download_content(self, url: str) -> str:
+    # Official index of every published ATT&CK release (all domains), served by
+    # the same repository as the bundles.
+    _INDEX_URL = (
+        "https://raw.githubusercontent.com/mitre-attack/attack-stix-data/"
+        "master/index.json"
+    )
+
+    # The index is tiny, so a short timeout keeps an offline start fast.
+    _INDEX_TIMEOUT_S = 15
+
+    def fetch_latest_version(self) -> str:
+        """Newest published ``enterprise-attack`` version according to the upstream index.
+
+        One small GET of ``index.json`` (``collections[].versions[]`` with
+        ``version``/``url``/``modified``); see :func:`latest_enterprise_version`.
+
+        Raises:
+            StixDownloadError: network/HTTP error, unreadable JSON or an index
+                without any enterprise-attack version.
+        """
+        try:
+            content = self._download_content(self._INDEX_URL, timeout=self._INDEX_TIMEOUT_S)
+            index = json.loads(content)
+        except StixDownloadError:
+            raise
+        except Exception as exc:  # noqa: BLE001 - any client/transport/JSON error.
+            raise StixDownloadError(
+                f"Não foi possível consultar o índice de versões do MITRE ATT&CK: {exc}."
+            ) from exc
+        return latest_enterprise_version(index)
+
+    def _download_content(self, url: str, timeout: Optional[float] = None) -> str:
         """GET ``url`` and return its body as text, raising on a non-OK status.
 
         Uses the injected :attr:`_http_client` when present (tests mock the only
@@ -341,11 +393,11 @@ class StixService:
         """
         client = self._http_client
         if client is not None:
-            response = client.get(url, timeout=self._DOWNLOAD_TIMEOUT_S)
+            response = client.get(url, timeout=timeout or self._DOWNLOAD_TIMEOUT_S)
         else:
             import requests  # Local import: only the network path needs it.
 
-            response = requests.get(url, timeout=self._DOWNLOAD_TIMEOUT_S)
+            response = requests.get(url, timeout=timeout or self._DOWNLOAD_TIMEOUT_S)
 
         # Prefer raise_for_status when available; otherwise check status_code.
         raise_for_status = getattr(response, "raise_for_status", None)

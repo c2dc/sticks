@@ -19,7 +19,7 @@ import logging
 import os
 import re
 import threading
-from typing import Any, Iterable, Mapping, Optional
+from typing import Any, Callable, Iterable, Mapping, Optional
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -362,12 +362,20 @@ class StixPackagesSourceRunner:
     :meth:`StixService.fetch_bundle` and persisted by
     :class:`StixPersistenceService`.
 
-    Versions kept ingested (the *desired set*):
+    Versions kept ingested (the *desired set*, a union):
 
-    * every version already persisted in ``stix_packages`` (never dropped);
-    * the versions listed in the ``STIX_VERSIONS`` environment variable (comma or
-      whitespace separated, ``latest`` meaning the newest known version); when the
-      variable is unset or empty the default is ``latest``;
+    * (a) ``latest``, the system default: the newest ATT&CK Enterprise version.
+      ``run`` resolves it by asking the upstream index (``latest_fetcher``,
+      injectable); offline or on any error it falls back to
+      ``max(KNOWN_VERSIONS)`` without raising. ``plan`` never touches the network:
+      it uses the value resolved earlier in this process or the fallback, and
+      treats ``latest`` as satisfied when a persisted version is at least as new.
+      The ``STIX_VERSIONS`` environment variable (comma or whitespace separated,
+      ``latest`` allowed) replaces ONLY this item;
+    * (b) every version already persisted in ``stix_packages`` (never dropped);
+    * (c) the versions the curated seed requires
+      (:data:`app.seeds.manifest.REQUIRED_STIX_VERSIONS`, today ``18.0``), which
+      ``STIX_VERSIONS`` can never remove;
     * the versions the user asked for through the UI (:meth:`request_version`,
       held in memory only).
 
@@ -386,11 +394,20 @@ class StixPackagesSourceRunner:
         embedder: Optional[Embedder] = None,
         stix_service: Any = None,
         versions: Optional[Iterable[str]] = None,
+        required_versions: Optional[Iterable[str]] = None,
+        latest_fetcher: Optional[Callable[[], str]] = None,
         index_vectors: bool = True,
     ) -> None:
         self._embedder = embedder
         self._stix_service = stix_service
+        # ``versions`` overrides item (a) (the ``latest`` default / STIX_VERSIONS).
         self._configured = list(versions) if versions is not None else None
+        # ``required_versions`` is item (c); ``None`` means the curated seed's.
+        self._required = list(required_versions) if required_versions is not None else None
+        # Returns the newest upstream version or raises; ``None`` uses the
+        # injected/real StixService (index.json).
+        self._latest_fetcher = latest_fetcher
+        self._latest_resolved: Optional[str] = None
         self._index_vectors = index_vectors
         self._requested: set[str] = set()
         self._lock = threading.Lock()
@@ -407,28 +424,87 @@ class StixPackagesSourceRunner:
             requested, self._requested = self._requested, set()
         return requested
 
-    def _configured_versions(self) -> list[str]:
+    def _tokens(self) -> list[str]:
+        """Item (a): explicit versions / ``latest`` tokens (``STIX_VERSIONS`` or default)."""
+        if self._configured is not None:
+            return list(self._configured)
+        raw = os.environ.get(STIX_VERSIONS_ENV, "")
+        tokens = [token for token in re.split(r"[,\s]+", raw) if token]
+        return tokens or ["latest"]
+
+    @staticmethod
+    def _fallback_latest() -> str:
         from app.services.stix.stix_service import KNOWN_VERSIONS, _semantic_version_key
 
-        if self._configured is not None:
-            tokens = list(self._configured)
-        else:
-            raw = os.environ.get(STIX_VERSIONS_ENV, "")
-            tokens = [token for token in re.split(r"[,\s]+", raw) if token]
-            if not tokens:
-                tokens = ["latest"]
-        latest = max(KNOWN_VERSIONS, key=_semantic_version_key)
-        versions: list[str] = []
-        for token in tokens:
-            version = latest if token.strip().lower() == "latest" else token.strip()
-            if _STIX_VERSION_RE.fullmatch(version) and version not in versions:
-                versions.append(version)
-        return versions
+        return max(KNOWN_VERSIONS, key=_semantic_version_key)
 
-    def _desired(self, persisted: Iterable[str], extra: Iterable[str] = ()) -> list[str]:
+    def _resolve_latest(self) -> str:
+        """Newest upstream version (network); ``max(KNOWN_VERSIONS)`` on any failure.
+
+        Never raises. A successful answer is remembered for the process lifetime;
+        a failure is not, so the next run asks again.
+        """
+        if self._latest_resolved is not None:
+            return self._latest_resolved
+        try:
+            fetcher = self._latest_fetcher
+            if fetcher is None:
+                from app.services.stix.stix_service import StixService
+
+                service = self._stix_service if self._stix_service is not None else StixService()
+                fetcher = service.fetch_latest_version
+            version = fetcher()
+            if not isinstance(version, str) or not _STIX_VERSION_RE.fullmatch(version):
+                raise ValueError("invalid latest version")
+        except Exception as exc:  # noqa: BLE001 - offline/any error: use the fallback
+            logger.warning(
+                "stix latest-version lookup failed (%s); using the built-in newest known version",
+                type(exc).__name__,
+            )
+            return self._fallback_latest()
+        self._latest_resolved = version
+        return version
+
+    def _required_versions(self) -> list[str]:
+        """Item (c): versions required by the curated seed (never removable)."""
+        if self._required is not None:
+            versions = list(self._required)
+        else:
+            from app.seeds.manifest import REQUIRED_STIX_VERSIONS
+
+            versions = list(REQUIRED_STIX_VERSIONS)
+        return [v for v in versions if _STIX_VERSION_RE.fullmatch(v)]
+
+    def _desired(
+        self,
+        persisted: Iterable[str],
+        extra: Iterable[str] = (),
+        *,
+        latest: Optional[str] = None,
+    ) -> list[str]:
+        """Union of (a) latest/configured, (b) persisted, (c) seed-required and requested.
+
+        ``latest`` is the already-resolved newest version (``run``); ``None`` means
+        "no network": the value resolved earlier in this process or the built-in
+        fallback. A ``latest`` token already satisfied by a newer persisted version
+        adds nothing.
+        """
         from app.services.stix.stix_service import _semantic_version_key
 
-        desired = set(persisted) | set(self._configured_versions()) | set(extra)
+        persisted = list(persisted)
+        if latest is None:
+            latest = self._latest_resolved or self._fallback_latest()
+        desired: set[str] = set(persisted) | set(self._required_versions()) | set(extra)
+        for token in self._tokens():
+            token = token.strip()
+            if token.lower() == "latest":
+                newer_installed = any(
+                    _semantic_version_key(p) >= _semantic_version_key(latest) for p in persisted
+                )
+                if not newer_installed:
+                    desired.add(latest)
+            elif _STIX_VERSION_RE.fullmatch(token):
+                desired.add(token)
         return sorted(desired, key=_semantic_version_key, reverse=True)
 
     @staticmethod
@@ -474,10 +550,12 @@ class StixPackagesSourceRunner:
         attempted: set[str] = set()
         first_failure: Optional[BaseException] = None
         extra: set[str] = set()
+        # Ask the upstream index once per run (only when ``latest`` is wanted).
+        latest = self._resolve_latest() if "latest" in {t.strip().lower() for t in self._tokens()} else None
         while True:
             extra |= self._take_requested()
             persisted = self._persisted(session)
-            desired = self._desired(persisted, extra)
+            desired = self._desired(persisted, extra, latest=latest)
             todo = [v for v in desired if v not in persisted and v not in attempted]
             if not todo:
                 break

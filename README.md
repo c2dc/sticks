@@ -230,17 +230,34 @@ the campaigns in the vector store. The ingestion is idempotent per version,
 resumable and isolates failures: one failing version never blocks the others.
 
 It runs on the first start (and on every start, doing nothing when nothing is
-missing). The versions kept ingested are:
+missing). The versions kept ingested are the union of:
 
+- **the newest ATT&CK version (the default).** A fresh installation downloads the
+  most recent Enterprise version. The backend asks the upstream index
+  (`index.json` of `mitre-attack/attack-stix-data`) which one that is; offline
+  or on any error it falls back to the newest version built into the backend
+  (`KNOWN_VERSIONS`), without failing. Setting `STIX_VERSIONS` (comma or
+  whitespace separated, e.g. `STIX_VERSIONS=19.1,latest`; `latest` is the newest
+  version) replaces **only this item**;
+- **the version required by the curated cases (today `18.0`).** The 8 curated
+  campaigns were curated against ATT&CK 18.0; every seed file declares it
+  (`campaign.stix_version`, with `campaign.stix_campaign_key`, e.g. `C0045`).
+  `STIX_VERSIONS` can never remove it;
 - every version already in the database (never dropped);
-- the versions listed in the `STIX_VERSIONS` environment variable (comma or
-  whitespace separated, e.g. `STIX_VERSIONS=18.0,latest`; `latest` is the newest
-  version of the maintained index);
-- `latest` when `STIX_VERSIONS` is unset or empty;
 - any version picked in the UI that is not ingested yet: choosing it calls
   `POST /api/stix/bases/{version}/download`, which starts the ingestion in the
   background (`202`) while `GET /api/stix/bases` (`downloaded`) and
   `GET /api/ingestion/status` report the progress.
+
+
+Cost of the first start: each version is about 50 MB to download and persist, and
+a fresh installation downloads **two** versions (the newest and 18.0), so expect
+roughly 100 MB of traffic and a few minutes on a typical connection (progress is
+in `GET /api/ingestion/status`). Later
+starts download nothing when nothing is missing. If a version fails (for example
+offline), only that version is left missing, the source is reported `failed`, and
+the next start resumes just the missing ones. When the newest version is already
+installed (or a newer one is), later starts do not query the network.
 
 **Curated campaigns** (flagged `curated`): APT41 - DUST, ATT&CK Campaign C0010, ATT&CK Campaign
 C0026, CostaRicto, Operation MidnightEclipse, Operation Outer Space,

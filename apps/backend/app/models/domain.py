@@ -454,24 +454,6 @@ class UserPreferences(Base):
     )
 
 
-class StixVersion(Base):
-    """Curated-version flag per STIX version (Req. 5.5, 5.6).
-
-    Persistable source of the curated-version flag. The ``CURATED_VERSION``
-    constant (in :mod:`app.services.stix.stix_service`) is the single source in
-    code and seeds this table in the migration; here we only define the portable
-    schema.
-
-    * ``version`` is the PK (e.g. ``"18.0"``).
-    * ``curated`` marks the version as curated (``True`` for version 18 — Req. 5.5).
-    """
-
-    __tablename__ = "stix_versions"
-
-    version: Mapped[str] = mapped_column(String, primary_key=True)  # e.g. "18.0"
-    curated: Mapped[bool] = mapped_column(Boolean, nullable=False)
-
-
 class EnvironmentParametersRow(Base):
     """Stage 4 environment parameters (Operationalization) — Req. 8.3.
 

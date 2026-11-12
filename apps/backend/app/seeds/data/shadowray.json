@@ -330,6 +330,8 @@
     "description": null,
     "id": "shadowray",
     "name": "ShadowRay",
+    "stix_campaign_key": "C0045",
+    "stix_version": "18.0",
     "translation_source": "human_curation"
   }
 }

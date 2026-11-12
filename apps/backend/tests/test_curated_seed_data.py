@@ -167,3 +167,72 @@ def test_removed_fields_are_gone_from_the_models() -> None:
     )
     assert old_flow.campaign_name == "x"
     assert not (set(old_flow.model_dump()) & REMOVED_FLOW_CONTENT_KEYS)
+
+
+# ---------------------------------------------------------------------------
+# STIX binding declared by the seed (task 33.2)
+# ---------------------------------------------------------------------------
+
+REPORTED_STIX_IDS = {
+    "apt41_dust": ("C0040", "campaign--add4d9de-1256-4166-83b8-57087288dced"),
+    "c0010": ("C0010", "campaign--ab747e62-1bcb-479f-a26b-1cd39d413d81"),
+    "c0026": ("C0026", "campaign--c89fa3ff-4773-4daf-8aec-d8f43f10116e"),
+    "costaricto": ("C0004", "campaign--f9cc545e-b0ef-4b92-8884-a3a4427609f6"),
+    "operation_midnighteclipse": ("C0048", "campaign--455b011a-2510-49ab-a96f-2f84d6a80189"),
+    "outer_space": ("C0042", "campaign--a1f5df89-ec82-45ef-b229-4ca6a407dc4f"),
+    "salesforce_data_exfiltration": ("C0059", "campaign--9cea8bec-07c5-422b-84b8-99d3128ce570"),
+    "shadowray": ("C0045", "campaign--57899965-b171-48ed-bbb4-8faffa3d836a"),
+}
+
+
+def test_every_seed_declares_the_stix_version_and_campaign_key() -> None:
+    for case in _cases():
+        campaign = case["campaign"]
+        slug = campaign["id"]
+        assert campaign["stix_version"] == "18.0"
+        assert campaign["stix_campaign_key"] == REPORTED_STIX_IDS[slug][0]
+        assert campaign["stix_version"] == manifest.STIX_VERSION_BY_SLUG[slug]
+        assert campaign["stix_campaign_key"] == manifest.STIX_CAMPAIGN_KEYS[slug]
+
+
+def test_manifest_stix_binding_matches_the_files() -> None:
+    cases = _cases()
+    assert set(manifest.STIX_VERSION_BY_SLUG) == set(manifest.CAMPAIGN_SLUGS)
+    assert set(manifest.STIX_CAMPAIGN_KEYS) == set(manifest.CAMPAIGN_SLUGS)
+    assert manifest.REQUIRED_STIX_VERSIONS == tuple(
+        sorted({c["campaign"]["stix_version"] for c in cases})
+    )
+    assert manifest.REQUIRED_STIX_VERSIONS == ("18.0",)
+    assert manifest.CURATED_STIX_VERSION == "18.0"
+
+
+def test_slug_to_stix_matches_the_seed_campaign_keys() -> None:
+    from app.services.stix.stix_service import SLUG_TO_STIX
+
+    assert set(SLUG_TO_STIX) == set(manifest.CAMPAIGN_SLUGS)
+    for case in _cases():
+        campaign = case["campaign"]
+        assert SLUG_TO_STIX[campaign["id"]]["referencias"] == [campaign["stix_campaign_key"]]
+
+
+def test_loader_rejects_an_invalid_stix_binding() -> None:
+    good = json.loads((DATA_DIR / "c0010.json").read_text(encoding="utf-8"))
+    for key, bad in (("stix_version", "18"), ("stix_version", "v18.0"), ("stix_campaign_key", "C45")):
+        broken = json.loads(json.dumps(good))
+        broken["campaign"][key] = bad
+        with pytest.raises(loader.SeedDataError, match=key):
+            loader._validate("c0010", broken)
+    missing = json.loads(json.dumps(good))
+    del missing["campaign"]["stix_campaign_key"]
+    with pytest.raises(loader.SeedDataError, match="stix_campaign_key"):
+        loader._validate("c0010", missing)
+
+
+def test_stix_campaign_keys_are_unique_and_well_formed() -> None:
+    import re
+
+    keys = [case["campaign"]["stix_campaign_key"] for case in _cases()]
+    assert len(keys) == 8
+    assert len(set(keys)) == len(keys)
+    assert all(re.fullmatch(r"C\d{4}", key) for key in keys)
+    assert set(keys) == set(manifest.STIX_CAMPAIGN_KEYS.values())

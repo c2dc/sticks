@@ -242,8 +242,10 @@ services:
       # Caldera C2 (alias `caldera-c2` on the mgmt network) and its red API key (KEY header).
       PIPELINE_UI_CALDERA_URL: ${PIPELINE_UI_CALDERA_URL:-http://caldera-c2:8888}
       PIPELINE_UI_CALDERA_KEY: ${PIPELINE_UI_CALDERA_KEY:-ADMIN123}
-      # STIX versions the `stix_packages` ingestion keeps in the database
-      # (comma separated, `latest` allowed). Empty = persisted versions + latest.
+      # STIX versions that replace the default "newest version" item of the
+      # `stix_packages` ingestion (comma separated, `latest` allowed). Empty = the
+      # newest version. Versions already in the database and the one required by
+      # the curated seed (18.0) are always kept.
       STIX_VERSIONS: ${STIX_VERSIONS:-}
     ports:
       # Bound to 127.0.0.1 so ONLY this machine can reach the backend API.

@@ -17,6 +17,9 @@ Rules:
 * The seed files carry neither a ``campaign.curated`` flag nor an
   ``attack_flow.origin``: the applier always sets ``curated = True`` on campaigns
   and ``origin = human_curation`` on flows.
+* ``campaign.stix_version`` / ``campaign.stix_campaign_key`` are validated by the
+  loader but NOT stored: ``campaigns`` has no column for them (the binding to the
+  STIX package comes from the seed and :mod:`app.seeds.manifest`).
 * The function only flushes; the caller owns the transaction and the commit.
 * An ``atomic_ordering`` entry without a matching ability is NOT an error (the
   ``outer_space`` adversary has one in the source data).

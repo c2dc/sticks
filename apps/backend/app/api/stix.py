@@ -56,7 +56,6 @@ from app.services.stix.stix_service import (
     KNOWN_VERSIONS,
     BaseStixInfo,
     _semantic_version_key,
-    version_is_curated,
 )
 
 router = APIRouter(prefix="/api", tags=["stix"])
@@ -104,16 +103,7 @@ def _read_persisted(
 # ---------------------------------------------------------------------------
 
 
-class BaseStixListada(BaseStixInfo):
-    """A STIX base in the listing, with the curated-version flag.
-
-    Extends `BaseStixInfo` with `curated`, projected from `version_is_curated`.
-    """
-
-    curated: bool = False
-
-
-class BaseListItem(BaseStixListada):
+class BaseListItem(BaseStixInfo):
     """A base of the listing, with the ``completed`` verdict of the old stage 1.
 
     ``completed`` is true exactly when the version is persisted in the database,
@@ -127,8 +117,8 @@ class BasesResponse(BaseModel):
     """``GET /api/stix/bases`` payload — the bases listing (Req. 2.1, 5.5).
 
     Each base carries ``downloaded``/``selectable``/``completed`` (presence in the
-    database) plus the ``curated`` flag of the version (``True`` only for the
-    curated version 18 — Req. 5.5, 5.6).
+    database). There is no per-version ``curated`` field: the curated marker lives
+    on each campaign (``GET /stix/bases/{version}/campaigns``).
     """
 
     bases: list[BaseListItem] = Field(default_factory=list)
@@ -199,7 +189,6 @@ def list_bases(db: Session = Depends(get_db)) -> BasesResponse:
             name=f"Enterprise ATT&CK v{version}",
             downloaded=version in persisted,
             selectable=version in persisted,
-            curated=version_is_curated(version),
             completed=version in persisted,
         )
         for version in versions

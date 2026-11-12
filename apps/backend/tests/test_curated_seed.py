@@ -28,13 +28,23 @@ from pathlib import Path
 from typing import Any, Iterator, Optional
 
 import pytest
+from fastapi import HTTPException
+from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import Settings
 from app.db.base import Base, import_models
-from app.db.session import create_db_engine
-from app.models.domain import Ability, Adversary, AttackFlowRow, Case
+from app.db.session import create_db_engine, get_db
+from app.main import create_app
+from app.models.domain import (
+    Ability,
+    Adversary,
+    AttackFlowRow,
+    Case,
+    StixCampaign,
+    StixPackage,
+)
 from app.models.enums import FlowOrigin, IngestSource, IngestStatus, TranslationSource
 from app.seeds import loader, manifest
 from app.seeds.apply import apply_curated_seed
@@ -45,7 +55,11 @@ from app.services.ingestion.runners import (
     AttackFlowSourceRunner,
     CuratedSeedSourceRunner,
     DockerCatalogSourceRunner,
+    STIX_VERSIONS_ENV,
+    StixPackagesSourceRunner,
 )
+from app.services.stix.stix_service import KNOWN_VERSIONS, StixService
+from _stix_fakes import FakeStixHttp, small_bundle
 from tests.test_ingestion_orchestrator import (
     FakeAtomicFetcher,
     FakeCorpusFetcher,
@@ -466,3 +480,267 @@ def test_importing_app_main_does_not_read_the_seed_files() -> None:
     )
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip().splitlines()[-1] == "False"
+
+
+# (h) simulated fresh install, end to end (task 33.3) ---------------------------
+
+NEWEST = "99.0"  # fake "newest upstream" version
+
+
+def _curated_stix_bundle() -> dict[str, Any]:
+    """A small bundle holding the 8 curated STIX campaigns with their real external ids."""
+    bundle = small_bundle()
+    for index, (slug, key) in enumerate(sorted(manifest.STIX_CAMPAIGN_KEYS.items()), start=100):
+        bundle["objects"].append(
+            {
+                "type": "campaign",
+                "id": f"campaign--00000000-0000-0000-0000-{index:012d}",
+                "name": f"Campaign for {slug}",
+                "external_references": [{"source_name": "mitre-attack", "external_id": key}],
+            }
+        )
+    return bundle
+
+
+class _FreshInstall:
+    """Orchestrator with every source on fakes, over the temporary SQLite."""
+
+    def __init__(self, db: SeedDb) -> None:
+        self.db = db
+        self.http = FakeStixHttp(
+            {manifest.CURATED_STIX_VERSION: _curated_stix_bundle(), NEWEST: _curated_stix_bundle()}
+        )
+        self.latest_calls = 0
+        embedder = FakeEmbedder()
+        self.atomic = FakeAtomicFetcher(_write_atomics(db.tmp_dir))
+        self.docker = FakeDockerFetcher(_entries())
+        self.corpus = FakeCorpusFetcher(_corpus())
+        self.orchestrator = IngestionOrchestrator(
+            db.factory,
+            {
+                IngestSource.STIX_PACKAGES: StixPackagesSourceRunner(
+                    stix_service=StixService(http_client=self.http),
+                    latest_fetcher=self._latest,
+                    index_vectors=False,
+                ),
+                IngestSource.CURATED_SEED: CuratedSeedSourceRunner(),
+                IngestSource.ATOMIC: AtomicSourceRunner(embedder=embedder, fetcher=self.atomic),
+                IngestSource.DOCKER_CATALOG: DockerCatalogSourceRunner(
+                    embedder=embedder, fetcher=self.docker
+                ),
+                IngestSource.ATTACK_FLOW: AttackFlowSourceRunner(
+                    embedder=embedder, fetcher=self.corpus
+                ),
+            },
+        )
+
+    def _latest(self) -> str:
+        self.latest_calls += 1
+        return NEWEST
+
+    def states(self) -> dict[IngestSource, Any]:
+        return {s.source: s for s in self.orchestrator.status()}
+
+    def network_calls(self) -> tuple[int, ...]:
+        return (
+            len(self.http.calls),
+            self.latest_calls,
+            self.atomic.calls,
+            self.docker.calls,
+            self.corpus.list_calls,
+        )
+
+    def curated_stix_rows(self, version: str) -> dict[str, str]:
+        """``external_id -> curated_slug`` of the curated ``stix_campaigns`` of ``version``."""
+        with self.db.factory() as session:
+            rows = session.execute(
+                select(StixCampaign.external_id, StixCampaign.curated_slug)
+                .join(StixPackage, StixCampaign.package_id == StixPackage.id)
+                .where(StixPackage.version == version, StixCampaign.curated.is_(True))
+            ).all()
+        return {external_id: slug for external_id, slug in rows}
+
+    def persisted_versions(self) -> set[str]:
+        with self.db.factory() as session:
+            return set(session.execute(select(StixPackage.version)).scalars())
+
+
+@pytest.fixture()
+def fresh(db: SeedDb, monkeypatch: pytest.MonkeyPatch) -> _FreshInstall:
+    monkeypatch.delenv(STIX_VERSIONS_ENV, raising=False)
+    return _FreshInstall(db)
+
+
+def _assert_curated_stix_marking(fresh: _FreshInstall, version: str) -> None:
+    by_key = fresh.curated_stix_rows(version)
+    assert by_key == {key: slug for slug, key in manifest.STIX_CAMPAIGN_KEYS.items()}
+
+
+def test_fresh_install_ends_ready_with_curated_stix_campaigns_in_both_versions(
+    fresh: _FreshInstall, db: SeedDb
+) -> None:
+    fresh.orchestrator.run_all()
+
+    assert all(s.status == IngestStatus.READY for s in fresh.states().values())
+    assert fresh.persisted_versions() == {manifest.CURATED_STIX_VERSION, NEWEST}
+    _assert_curated_stix_marking(fresh, manifest.CURATED_STIX_VERSION)
+    _assert_curated_stix_marking(fresh, NEWEST)
+    with db.factory() as session:
+        curated_cases = session.execute(
+            select(func.count()).select_from(Case).where(Case.curated.is_(True))
+        ).scalar_one()
+        curated_flows = session.execute(
+            select(func.count())
+            .select_from(AttackFlowRow)
+            .where(AttackFlowRow.origin == FlowOrigin.HUMAN_CURATION)
+        ).scalar_one()
+    counts = db.counts()
+    assert (curated_cases, counts["abilities"], counts["adversaries"], curated_flows) == (8, 108, 8, 8)
+
+
+def test_fresh_install_routes_are_coherent_and_second_run_all_is_silent(
+    fresh: _FreshInstall, db: SeedDb, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fresh.orchestrator.run_all()
+    calls = fresh.network_calls()
+    counts = db.counts()
+
+    app = create_app()
+    app.state.ingestion = fresh.orchestrator
+
+    def _override() -> Iterator[Session]:
+        session = db.factory()
+        try:
+            yield session
+        finally:
+            session.close()
+
+    app.dependency_overrides[get_db] = _override
+    client = TestClient(app)
+
+    bases = {b["version"]: b for b in client.get("/api/stix/bases").json()["bases"]}
+    assert bases[manifest.CURATED_STIX_VERSION]["downloaded"] is True
+    assert bases[NEWEST]["downloaded"] is True and bases[NEWEST]["selectable"] is True
+    assert all("curated" not in base for base in bases.values())
+    assert bases[KNOWN_VERSIONS[0]]["downloaded"] is (KNOWN_VERSIONS[0] in {manifest.CURATED_STIX_VERSION, NEWEST})
+
+    for version in (manifest.CURATED_STIX_VERSION, NEWEST):
+        response = client.get(f"/api/stix/bases/{version}/campaigns")
+        assert response.status_code == 200, response.text
+        listed = {c["external_id"]: c for c in response.json()}
+        assert all("curated" in c for c in listed.values())
+        for slug, key in manifest.STIX_CAMPAIGN_KEYS.items():
+            assert listed[key]["curated"] is True
+            assert listed[key]["curated_slug"] == slug
+            assert listed[key]["campaign_key"] == slug
+        assert sum(1 for c in listed.values() if c["curated"]) == 8
+        assert listed["C9001"]["curated"] is False
+
+    # Second run_all: no download, no lookup, and the seed JSON files are not reloaded.
+    import app.seeds.apply as apply_module
+
+    reads: list[str] = []
+    original = loader.load_case
+    monkeypatch.setattr(loader, "load_case", lambda slug: reads.append(slug) or original(slug))
+    applications: list[int] = []
+    original_apply = apply_module.apply_curated_seed
+    monkeypatch.setattr(
+        apply_module, "apply_curated_seed", lambda *a, **k: applications.append(1) or original_apply(*a, **k)
+    )
+
+    fresh.orchestrator.run_all()
+
+    assert fresh.network_calls() == calls
+    assert (reads, applications) == ([], [])
+    assert db.counts() == counts
+    assert all(s.status == IngestStatus.READY for s in fresh.states().values())
+
+
+def test_newest_version_network_failure_does_not_block_curated_version_or_seed(
+    fresh: _FreshInstall, db: SeedDb
+) -> None:
+    fresh.http.fail_versions.add(NEWEST)
+
+    fresh.orchestrator.run_all()
+
+    states = fresh.states()
+    assert states[IngestSource.STIX_PACKAGES].status == IngestStatus.FAILED
+    assert states[IngestSource.STIX_PACKAGES].error == "network: StixDownloadError"
+    for source in (
+        IngestSource.CURATED_SEED,
+        IngestSource.ATOMIC,
+        IngestSource.DOCKER_CATALOG,
+        IngestSource.ATTACK_FLOW,
+    ):
+        assert states[source].status == IngestStatus.READY
+    assert fresh.persisted_versions() == {manifest.CURATED_STIX_VERSION}
+    _assert_curated_stix_marking(fresh, manifest.CURATED_STIX_VERSION)
+    assert db.counts()["abilities"] == 108
+
+    fresh.http.fail_versions.clear()
+    fresh.http.calls.clear()
+    fresh.orchestrator.run_all()
+
+    assert all(s.status == IngestStatus.READY for s in fresh.states().values())
+    assert fresh.persisted_versions() == {manifest.CURATED_STIX_VERSION, NEWEST}
+    assert [c.rsplit("-", 1)[-1] for c in fresh.http.calls] == [f"{NEWEST}.json"]  # only what was missing
+    _assert_curated_stix_marking(fresh, NEWEST)
+
+
+def test_offline_latest_lookup_still_installs_the_seed_required_version(
+    db: SeedDb, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv(STIX_VERSIONS_ENV, raising=False)
+
+    def offline() -> str:
+        raise ConnectionError("offline")
+
+    http = FakeStixHttp(
+        {manifest.CURATED_STIX_VERSION: _curated_stix_bundle(), KNOWN_VERSIONS[0]: small_bundle()}
+    )
+    orchestrator = IngestionOrchestrator(
+        db.factory,
+        {
+            IngestSource.STIX_PACKAGES: StixPackagesSourceRunner(
+                stix_service=StixService(http_client=http), latest_fetcher=offline, index_vectors=False
+            ),
+            IngestSource.CURATED_SEED: CuratedSeedSourceRunner(),
+        },
+    )
+
+    orchestrator.run_all()
+
+    assert all(s.status == IngestStatus.READY for s in orchestrator.status())
+    with db.factory() as session:
+        versions = set(session.execute(select(StixPackage.version)).scalars())
+    assert versions == {manifest.CURATED_STIX_VERSION, KNOWN_VERSIONS[0]}
+
+
+# (i) API guards use the version derived from the seed ---------------------------
+
+
+def test_campaign_and_ai_guards_use_the_seed_derived_version_and_accept_curated_cases(
+    fresh: _FreshInstall, db: SeedDb
+) -> None:
+    from app.api import ai as ai_api
+    from app.api import campaigns as campaigns_api
+    from app.services.campaign_materializer import CampaignMaterializer
+    from app.services.stix.stix_service import CURATED_VERSION
+
+    assert CURATED_VERSION == manifest.CURATED_STIX_VERSION == "18.0"
+    assert campaigns_api.CURATED_VERSION == CURATED_VERSION
+    assert "18.0" not in Path(campaigns_api.__file__).read_text(encoding="utf-8")
+    assert "18.0" not in Path(ai_api.__file__).read_text(encoding="utf-8")
+
+    fresh.orchestrator.run_all()
+
+    with db.factory() as session:
+        for slug in manifest.CAMPAIGN_SLUGS:
+            campaigns_api._known_campaign_or_404(slug, session, campaigns_api.CURATED_VERSION)
+            # The AI run start performs the same guard, then an idempotent materialization.
+            assert CampaignMaterializer(session).materialize(slug, campaigns_api.CURATED_VERSION) == slug
+        session.commit()
+        with pytest.raises(HTTPException) as unknown:
+            campaigns_api._known_campaign_or_404("not_a_campaign", session, campaigns_api.CURATED_VERSION)
+        assert unknown.value.status_code == 404
+    assert db.counts()["abilities"] == 108

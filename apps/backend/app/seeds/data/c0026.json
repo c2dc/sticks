@@ -214,6 +214,8 @@
     "description": "C0026",
     "id": "c0026",
     "name": "ATT&CK Campaign C0026",
+    "stix_campaign_key": "C0026",
+    "stix_version": "18.0",
     "translation_source": "human_curation"
   }
 }
