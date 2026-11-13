@@ -36,13 +36,13 @@ import json
 from typing import Any
 
 from app.models.enums import TranslationSource
-from app.services.flow.flow_view import FlowEdgeView, FlowNodeView, FlowView
+from app.services.ai.agents.op_agent import AiOperationalizer
 from app.services.environment.operationalization import (
     EnvironmentParameters,
     EnvironmentPlatform,
 )
 from app.services.environment.operationalizer import ProducedOperationalization
-from app.services.ai.agents.op_agent import AiOperationalizer
+from app.services.flow.flow_view import FlowEdgeView, FlowNodeView, FlowView
 
 # A lab-internal target IP that resolves to a known container
 # (192.168.20.30 -> nginx), reused from the Stage-4 example suite so the
@@ -195,8 +195,7 @@ def test_fixed_json_llm_produces_gerado_ia_artifact() -> None:
 
     # The LLM-chosen commands are the ones proposed (verbatim from the pool).
     commands_by_technique = {
-        a.technique_id: [e.command for e in a.executors]
-        for a in produced.abilities.abilities
+        a.technique_id: [e.command for e in a.executors] for a in produced.abilities.abilities
     }
     assert commands_by_technique["T1190"] == [chosen_t1190]
     assert commands_by_technique["T1059"] == [chosen_t1059]
@@ -247,9 +246,7 @@ def test_llm_reply_outside_pool_falls_back_to_deterministic() -> None:
     assert produced.origin is TranslationSource.AI_GENERATED
     assert produced.abilities is not None
     # Every proposed command comes from the pool, never the hallucinated strings.
-    pool_commands = {
-        e["command"] for tech in ("T1190", "T1059") for e in _pool_for(tech)
-    }
+    pool_commands = {e["command"] for tech in ("T1190", "T1059") for e in _pool_for(tech)}
     for ability in produced.abilities.abilities:
         for executor in ability.executors:
             assert executor.command in pool_commands
@@ -275,15 +272,15 @@ class _CurationLikeOperationalizer:
         return TranslationSource.HUMAN_CURATION
 
     def operationalize(self, campaign: str, flow: FlowView) -> ProducedOperationalization:
-        from app.services.environment.operationalizer import _infer_services
         from app.services.containment import container_for_ip, is_internal_ip, parse_command
-        from app.services.environment.operationalization import TargetHost
         from app.services.emulation.views import (
             Stage2AbilityView,
             Stage2AdversaryView,
             Stage2ExecutorView,
             Stage2Output,
         )
+        from app.services.environment.operationalization import TargetHost
+        from app.services.environment.operationalizer import _infer_services
 
         ability_views: list[Stage2AbilityView] = []
         ordering: list[str] = []
@@ -374,7 +371,9 @@ def _consume(produced: ProducedOperationalization) -> dict[str, Any]:
     return {
         "campaign_id": produced.campaign_id,
         "platform": produced.parameters.platform,
-        "techniques": [a.technique_id for a in (produced.abilities.abilities if produced.abilities else [])],
+        "techniques": [
+            a.technique_id for a in (produced.abilities.abilities if produced.abilities else [])
+        ],
         "ordering": list(produced.abilities.ordering) if produced.abilities else [],
         "containers": sorted(h.container for h in produced.parameters.hosts if h.container),
         "service_descriptions": sorted(s.description for s in produced.parameters.services),
@@ -399,9 +398,7 @@ def test_ai_and_curation_artifacts_are_structurally_equivalent() -> None:
 
     # Same concrete type and same set of model fields (no extra/missing fields).
     assert type(ai_produced) is type(curation_produced) is ProducedOperationalization
-    assert set(ProducedOperationalization.model_fields) == set(
-        type(curation_produced).model_fields
-    )
+    assert set(ProducedOperationalization.model_fields) == set(type(curation_produced).model_fields)
     assert set(type(ai_produced.parameters).model_fields) == set(
         type(curation_produced.parameters).model_fields
     )
@@ -447,9 +444,7 @@ def _techniques_session(tmp_path: Any):
     from app.db.session import create_db_engine
     from app.models.domain import StixCampaign, StixCampaignTechnique, StixPackage
 
-    engine = create_db_engine(
-        Settings(database_url=f"sqlite:///{(tmp_path / 'op.db').as_posix()}")
-    )
+    engine = create_db_engine(Settings(database_url=f"sqlite:///{(tmp_path / 'op.db').as_posix()}"))
     import_models()
     Base.metadata.create_all(bind=engine)
     session = Session(bind=engine, expire_on_commit=False)

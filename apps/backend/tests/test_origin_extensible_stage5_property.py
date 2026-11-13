@@ -52,26 +52,23 @@ de origin **não depende** de nenhum deles. Hypothesis roda ≥100 iterações.
 from __future__ import annotations
 
 import inspect
-import shutil
-import tempfile
-from pathlib import Path
 
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
-from tests._curated_db import CaseDb, db_put
 from app.models.enums import FlowOrigin, TranslationSource
+from app.services.containment.isolation import ContainerNetworkInfo
 from app.services.environment.operationalization import (
-    TargetHost,
     EnvironmentParameters,
-    EnvironmentPlatform,
+    TargetHost,
 )
 from app.services.environment.provisioner import (
-    ProvisionedEnvironment,
     CurationEnvironmentProvisioner,
-    IsolationSummary,
     EnvironmentProvisioner,
+    IsolationSummary,
+    ProvisionedEnvironment,
 )
+from tests._curated_db import CaseDb
 
 # Reuso dos fakes/semeadores da suíte de exemplo do Estágio 5 (sem rede, sem
 # daemon Docker, sem IA) — a mesma fonte das fixtures pedidas pela task 7.5.
@@ -83,11 +80,8 @@ from tests.test_provisioner_stage5 import (
     FakeInspector,
     _healthy_state_inspector,
     _isolated_inspector,
-    _params,
     _seed_case,
 )
-from app.services.containment.isolation import ContainerNetworkInfo
-
 
 # ---------------------------------------------------------------------------
 # Stub ``gerado_ia`` — satisfaz ``EnvironmentProvisioner`` sem herança explícita.
@@ -130,7 +124,7 @@ class _StubGeradoIa:
     def deprovision(self, environment: ProvisionedEnvironment) -> None:
         _ = environment
 
-    def prepare(self, campaign: str):  # noqa: ANN201 - compat. Estágio 4 (não usada aqui)
+    def prepare(self, campaign: str):
         # Mantida apenas para a conformidade estrutural com a costura (o Protocol
         # declara ``prepare`` por compat. do Estágio 4). A extensibilidade do
         # Estágio 5 exercita ``provision``; esta operação não é usada no teste.
@@ -151,9 +145,7 @@ _CONTAINER = st.sampled_from(["nginx", "flask", "kali", "caldera", "mysql"])
 @st.composite
 def _cenario(draw) -> tuple[list[str], bool, bool]:
     """(contêineres-target únicos, isolar?, caldera disponível?)."""
-    containers = draw(
-        st.lists(_CONTAINER, min_size=0, max_size=4, unique=True)
-    )
+    containers = draw(st.lists(_CONTAINER, min_size=0, max_size=4, unique=True))
     isolar = draw(st.booleans())
     caldera_ok = draw(st.booleans())
     return containers, isolar, caldera_ok

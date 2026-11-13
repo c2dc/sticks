@@ -31,12 +31,35 @@ _DOMAIN_TYPES: dict[str, tuple[str, str | None]] = {
 # STIX cyber observable / support objects stored as assets.
 _SUPPORT_TYPES: frozenset[str] = frozenset(
     {
-        "tool", "malware", "file", "process", "infrastructure", "vulnerability",
-        "mitigation", "directory", "url", "ipv4_addr", "ipv6_addr", "domain_name",
-        "email_addr", "email_message", "user_account", "windows_registry_key",
-        "network_traffic", "software", "artifact", "autonomous_system", "mutex",
-        "x509_certificate", "identity", "threat_actor", "intrusion_set",
-        "campaign", "indicator", "attack_pattern", "course_of_action",
+        "tool",
+        "malware",
+        "file",
+        "process",
+        "infrastructure",
+        "vulnerability",
+        "mitigation",
+        "directory",
+        "url",
+        "ipv4_addr",
+        "ipv6_addr",
+        "domain_name",
+        "email_addr",
+        "email_message",
+        "user_account",
+        "windows_registry_key",
+        "network_traffic",
+        "software",
+        "artifact",
+        "autonomous_system",
+        "mutex",
+        "x509_certificate",
+        "identity",
+        "threat_actor",
+        "intrusion_set",
+        "campaign",
+        "indicator",
+        "attack_pattern",
+        "course_of_action",
     }
 )
 
@@ -126,7 +149,11 @@ def parse_afb(raw: bytes, *, source_key: str) -> AttackFlow:
     latch_owner: dict[str, str] = {}
     for obj in objects:
         instance = obj.get("instance")
-        if isinstance(obj.get("id"), str) and obj["id"].endswith("_anchor") and instance in anchor_owner:
+        if (
+            isinstance(obj.get("id"), str)
+            and obj["id"].endswith("_anchor")
+            and instance in anchor_owner
+        ):
             for latch in obj.get("latches", []) or []:
                 if isinstance(latch, str):
                     latch_owner[latch] = anchor_owner[instance]
@@ -160,7 +187,7 @@ def parse_afb(raw: bytes, *, source_key: str) -> AttackFlow:
             continue  # flow, drawing objects, notes, text blocks
 
         stix_id = f"{stix_type}--{_stix_uuid(instance)}"
-        item = AttackFlowObject(id=stix_id, type=stix_type)  # type: ignore[arg-type]
+        item = AttackFlowObject(id=stix_id, type=stix_type)  # type: ignore[arg-type] -- stix_type is validated against the supported object types just above
         if stix_type == "attack-action":
             technique = _text(props.get("technique_id"))
             if technique is not None and not _TECHNIQUE_RE.match(technique):
@@ -173,7 +200,7 @@ def parse_afb(raw: bytes, *, source_key: str) -> AttackFlow:
             item.description = _text(props.get("description"))
             item.pattern = _text(props.get("pattern"))
         elif stix_type == "attack-operator":
-            item.operator = operator  # type: ignore[assignment]
+            item.operator = operator  # type: ignore[assignment] -- operator is a validated AND/OR literal at this point
         else:
             item.name = _text(props.get("name"))
             item.description = _text(props.get("description"))
@@ -188,7 +215,7 @@ def parse_afb(raw: bytes, *, source_key: str) -> AttackFlow:
         if source.type in CONTROL_TYPES and target.type in CONTROL_TYPES:
             if target.id not in source.effect_refs:
                 source.effect_refs.append(target.id)
-        elif source.type == "attack-action" and target.type == "attack-asset":
+        elif source.type == "attack-action" and target.type == "attack-asset":  # noqa: SIM102 -- merging into the elif condition would change which branch runs for attack-action
             if target.id not in source.asset_refs:
                 source.asset_refs.append(target.id)
 

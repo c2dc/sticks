@@ -394,9 +394,9 @@ def test_retrieve_degrades_to_empty_when_embedder_unavailable(
 
     assert hits == []
     assert session.executed_statements == [], "query skipped when embed fails"
-    assert any(
-        "camp-unavail" in record.getMessage() for record in caplog.records
-    ), "the skip must be recorded, naming the campaign"
+    assert any("camp-unavail" in record.getMessage() for record in caplog.records), (
+        "the skip must be recorded, naming the campaign"
+    )
 
 
 def test_retrieve_degrades_to_empty_when_session_execute_unavailable(
@@ -418,9 +418,7 @@ def test_retrieve_degrades_to_empty_when_session_execute_unavailable(
 
     assert hits == []
     assert embedder.calls == ["q"], "embedding ran before the query failed"
-    assert any(
-        "camp-db-down" in record.getMessage() for record in caplog.records
-    )
+    assert any("camp-db-down" in record.getMessage() for record in caplog.records)
 
 
 def test_retrieve_parameter_error_is_not_swallowed_as_unavailability() -> None:
@@ -455,9 +453,7 @@ def test_retrieve_missing_embedder_degrades_to_empty(
         hits = memory.retrieve(campaign_id="camp-no-embed", query="q", k=5)
 
     assert hits == []
-    assert any(
-        "camp-no-embed" in record.getMessage() for record in caplog.records
-    )
+    assert any("camp-no-embed" in record.getMessage() for record in caplog.records)
 
 
 # ---------------------------------------------------------------------------

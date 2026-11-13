@@ -20,12 +20,12 @@ from __future__ import annotations
 import datetime as dt
 
 from app.models.enums import AbilityResultStatus
+from app.services.emulation.views import Stage3AbilityResult
 from app.services.environment import (
+    ExecutionReport,
     SufficiencyMetrics,
     TechniqueMetric,
-    ExecutionReport,
 )
-from app.services.emulation.views import Stage3AbilityResult
 
 
 def test_metrica_tecnica_defaults() -> None:
@@ -98,7 +98,9 @@ def test_execution_report_requires_campaign_metrics_and_generated_at() -> None:
     generated_at = dt.datetime(2024, 1, 2, 3, 4, 5)
     report = ExecutionReport(
         campaign_id="apt-x",
-        metrics=SufficiencyMetrics(total_flow_techniques=1, successful_techniques=1, success_rate=1.0),
+        metrics=SufficiencyMetrics(
+            total_flow_techniques=1, successful_techniques=1, success_rate=1.0
+        ),
         generated_at=generated_at,
     )
     assert report.campaign_id == "apt-x"

@@ -3,8 +3,11 @@
 ``OllamaEmbedder`` calls ``POST {OLLAMA_BASE_URL}/api/embed`` with
 ``{"model": OLLAMA_EMBED_MODEL, "input": text}``, validates that the returned
 vector has ``embedding_dim`` entries (768 for ``nomic-embed-text``) and raises a
-clear :class:`EmbedderError` otherwise. It has a short timeout and no retry of
-its own, because :class:`~app.services.ai.memory.ExperienceMemory` already
+clear :class:`EmbedderError` otherwise. The request timeout defaults to 120 s (a cold
+model can take a while to load) and is configurable through
+``OLLAMA_EMBED_TIMEOUT`` (seconds) or the ``timeout`` argument; a missing,
+non-numeric or non-positive value falls back to the default. There is no retry
+of its own, because :class:`~app.services.ai.memory.ExperienceMemory` already
 retries storage three times.
 
 Error codes (``EmbedderError.code``):
@@ -20,8 +23,9 @@ need no network.
 
 from __future__ import annotations
 
+import math
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import httpx
 from pydantic import Field
@@ -30,7 +34,18 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 EMBEDDER_UNAVAILABLE = "embedder_unavailable"
 EMBEDDING_DIM_MISMATCH = "embedding_dim_mismatch"
 
-_DEFAULT_TIMEOUT_SECONDS = 15.0
+_DEFAULT_TIMEOUT_SECONDS = 120.0
+
+
+def _resolve_timeout(value: Any) -> float:
+    """Return ``value`` as a positive finite float, else the 120 s default."""
+    try:
+        seconds = float(value)
+    except (TypeError, ValueError):
+        return _DEFAULT_TIMEOUT_SECONDS
+    if not math.isfinite(seconds) or seconds <= 0:
+        return _DEFAULT_TIMEOUT_SECONDS
+    return seconds
 
 
 class EmbedderError(RuntimeError):
@@ -54,6 +69,8 @@ class OllamaEmbedderSettings(BaseSettings):
     base_url: str = Field(default="http://127.0.0.1:11434", alias="OLLAMA_BASE_URL")
     model: str = Field(default="nomic-embed-text", alias="OLLAMA_EMBED_MODEL")
     embedding_dim: int = Field(default=768, alias="AI_EMBEDDING_DIM")
+    # Kept as text so an invalid value never raises; see ``_resolve_timeout``.
+    timeout: str = Field(default="", alias="OLLAMA_EMBED_TIMEOUT")
 
 
 class OllamaEmbedder:
@@ -62,25 +79,53 @@ class OllamaEmbedder:
     def __init__(
         self,
         *,
-        base_url: Optional[str] = None,
-        model: Optional[str] = None,
-        embedding_dim: Optional[int] = None,
-        client: Optional[httpx.Client] = None,
-        timeout: float = _DEFAULT_TIMEOUT_SECONDS,
+        base_url: str | None = None,
+        model: str | None = None,
+        embedding_dim: int | None = None,
+        client: httpx.Client | None = None,
+        timeout: float | None = None,
     ) -> None:
         settings = OllamaEmbedderSettings()
         self._base_url = (base_url or settings.base_url).rstrip("/")
         self._model = model or settings.model
-        self._embedding_dim = (
-            embedding_dim if embedding_dim is not None else settings.embedding_dim
-        )
+        self._embedding_dim = embedding_dim if embedding_dim is not None else settings.embedding_dim
         self._client = client
-        self._timeout = timeout
+        self._timeout = _resolve_timeout(timeout if timeout is not None else settings.timeout)
+
+    def embed_many(self, texts: list[str]) -> list[list[float]]:
+        """Return one vector per text using ONE ``/api/embed`` call (``input`` list)."""
+        if not texts:
+            return []
+        body = self._post({"model": self._model, "input": list(texts)})
+        embeddings = body.get("embeddings") if isinstance(body, dict) else None
+        if not isinstance(embeddings, list) or len(embeddings) != len(texts):
+            raise EmbedderError(
+                EMBEDDER_UNAVAILABLE,
+                "Ollama response does not hold one vector per input.",
+            )
+        vectors = [self._extract_vector({"embeddings": [item]}) for item in embeddings]
+        for vector in vectors:
+            if len(vector) != self._embedding_dim:
+                raise EmbedderError(
+                    EMBEDDING_DIM_MISMATCH,
+                    f"expected {self._embedding_dim} dimensions, got {len(vector)}.",
+                )
+        return vectors
 
     def embed(self, text: str) -> list[float]:
         """Return the embedding vector for ``text`` or raise :class:`EmbedderError`."""
+        body = self._post({"model": self._model, "input": text})
+        vector = self._extract_vector(body)
+        if len(vector) != self._embedding_dim:
+            raise EmbedderError(
+                EMBEDDING_DIM_MISMATCH,
+                f"expected {self._embedding_dim} dimensions, got {len(vector)}.",
+            )
+        return vector
+
+    def _post(self, payload: dict[str, Any]) -> Any:
+        """POST ``payload`` to ``/api/embed`` and return the decoded JSON body."""
         url = f"{self._base_url}/api/embed"
-        payload = {"model": self._model, "input": text}
         try:
             if self._client is not None:
                 response = self._client.post(url, json=payload, timeout=self._timeout)
@@ -97,14 +142,7 @@ class OllamaEmbedder:
             raise EmbedderError(
                 EMBEDDER_UNAVAILABLE, "Ollama returned a non-JSON response."
             ) from exc
-
-        vector = self._extract_vector(body)
-        if len(vector) != self._embedding_dim:
-            raise EmbedderError(
-                EMBEDDING_DIM_MISMATCH,
-                f"expected {self._embedding_dim} dimensions, got {len(vector)}.",
-            )
-        return vector
+        return body
 
     @staticmethod
     def _extract_vector(body: Any) -> list[float]:
@@ -114,9 +152,7 @@ class OllamaEmbedder:
             or not embeddings
             or not isinstance(embeddings[0], list)
         ):
-            raise EmbedderError(
-                EMBEDDER_UNAVAILABLE, "Ollama response has no 'embeddings' vector."
-            )
+            raise EmbedderError(EMBEDDER_UNAVAILABLE, "Ollama response has no 'embeddings' vector.")
         try:
             return [float(value) for value in embeddings[0]]
         except (TypeError, ValueError) as exc:

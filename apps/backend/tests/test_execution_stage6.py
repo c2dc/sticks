@@ -27,7 +27,6 @@ _Requirements: 10.1, 10.2, 10.3, 13.1, 13.2, 13.3, 13.4, 13.5, 13.6, 13.7, 14.4,
 
 from __future__ import annotations
 
-import json
 import shutil
 import tempfile
 from collections.abc import Iterator
@@ -39,7 +38,6 @@ import pytest
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, sessionmaker
 
-from tests._curated_db import SessionSeeder, db_put
 from app.core.config import Settings
 from app.db.base import Base, import_models
 from app.db.session import create_db_engine
@@ -52,12 +50,12 @@ from app.services.caldera import (
     HEALTH_PATH,
     OPERATIONS_PATH,
     CalderaClient,
-    CalderaUnavailable,
 )
 from app.services.containment.isolation import (
     ContainerIsolationVerdict,
     IsolationResult,
 )
+from app.services.emulation.views import STAGE_EXECUTION
 from app.services.environment.execution import ExecutionStageService
 from app.services.operation.runner import (
     AbilityRunResult,
@@ -65,8 +63,7 @@ from app.services.operation.runner import (
     OperationRunResult,
     RunOutcome,
 )
-from app.services.emulation.views import STAGE_EXECUTION
-
+from tests._curated_db import SessionSeeder, db_put
 
 _SLUG = "shadowray"  # a curated slug (campaigns.curated row)
 
@@ -84,30 +81,41 @@ def _seed_case(
     with_adversary: bool = True,
 ) -> None:
     """Seed a minimal curated case with a single internal/local ability command."""
-    db_put(data_dir, "ability", slug, [
+    db_put(
+        data_dir,
+        "ability",
+        slug,
+        [
             {
                 "ability_id": f"{slug}-ab-1",
                 "name": "first",
                 "technique_id": "T1059",
-                "executors": [
-                    {"name": "sh", "platform": "linux", "command": command}
-                ],
+                "executors": [{"name": "sh", "platform": "linux", "command": command}],
             }
-        ])
+        ],
+    )
     if with_adversary:
-        db_put(data_dir, "adversary", slug, {
+        db_put(
+            data_dir,
+            "adversary",
+            slug,
+            {
                 "id": f"{slug}-adv",
                 "name": "Seed Adversary",
                 "description": "seed",
                 "atomic_ordering": [f"{slug}-ab-1"],
-            })
-    db_put(data_dir, "flow", slug, {
+            },
+        )
+    db_put(
+        data_dir,
+        "flow",
+        slug,
+        {
             "campaign_name": "Seed",
-            "structural_nodes": [
-                {"node_id": "n0", "technique_id": "T1059"}
-            ],
+            "structural_nodes": [{"node_id": "n0", "technique_id": "T1059"}],
             "metadata": {"total_techniques": 1},
-        })
+        },
+    )
 
 
 @pytest.fixture()
@@ -145,7 +153,7 @@ class RecordingRunner:
     """A fake ``OperationRunner`` that records calls and returns a fixed result."""
 
     result: OperationRunResult
-    calls: list[dict] = None  # type: ignore[assignment]
+    calls: list[dict] = None  # type: ignore[assignment] -- filled in by the fixture before use
 
     def __post_init__(self) -> None:
         self.calls = []
@@ -160,7 +168,7 @@ def _service_with(session: Session, data_dir: SessionSeeder, result: OperationRu
     runner = RecordingRunner(result=result)
     service = ExecutionStageService(
         session,
-        runner_factory=lambda _s: runner,  # type: ignore[arg-type,return-value]
+        runner_factory=lambda _s: runner,  # type: ignore[arg-type,return-value] -- test double stands in for the real collaborator
     )
     return service, runner
 
@@ -238,11 +246,15 @@ def test_executar_calls_runner_exactly_once(session: Session, data_dir: SessionS
 
 
 def _stage6_state(session: Session, campaign: str) -> StageState | None:
-    row = session.execute(
-        select(StageRun)
-        .where(StageRun.campaign_id == campaign)
-        .where(StageRun.stage == STAGE_EXECUTION)
-    ).scalars().first()
+    row = (
+        session.execute(
+            select(StageRun)
+            .where(StageRun.campaign_id == campaign)
+            .where(StageRun.stage == STAGE_EXECUTION)
+        )
+        .scalars()
+        .first()
+    )
     return row.state if row is not None else None
 
 
@@ -262,9 +274,7 @@ def test_execute_completed_concludes_stage6(session: Session, data_dir: SessionS
     assert _stage6_state(session, _SLUG) is StageState.COMPLETED
 
 
-def test_execute_not_confirmed_does_not_conclude(
-    session: Session, data_dir: SessionSeeder
-) -> None:
+def test_execute_not_confirmed_does_not_conclude(session: Session, data_dir: SessionSeeder) -> None:
     """NOT_CONFIRMED runs nothing and does not conclude Stage 6 (Req. 13.2)."""
     _seed_case(data_dir, _SLUG)
     not_confirmed = OperationRunResult(
@@ -298,7 +308,7 @@ def test_executar_containment_refused_surfaces_violations(
     refused = OperationRunResult(
         outcome=RunOutcome.CONTAINMENT_REFUSED,
         state=OperationState.NOT_STARTED,
-        containment=_Report(),  # type: ignore[arg-type]
+        containment=_Report(),  # type: ignore[arg-type] -- test double stands in for the real collaborator
         message="recusada por contenção",
     )
     service, _ = _service_with(session, data_dir, refused)
@@ -359,9 +369,7 @@ def test_execute_aborted_does_not_conclude(session: Session, data_dir: SessionSe
     assert _stage6_state(session, _SLUG) is None
 
 
-def test_executar_unknown_case_raises_keyerror(
-    session: Session, data_dir: SessionSeeder
-) -> None:
+def test_executar_unknown_case_raises_keyerror(session: Session, data_dir: SessionSeeder) -> None:
     """An unknown slug raises KeyError (mapped to 404 by the endpoint layer)."""
     service, _ = _service_with(session, data_dir, _completed_result())
     with pytest.raises(KeyError):
@@ -377,7 +385,7 @@ def test_executar_unknown_case_raises_keyerror(
 class _AllIsolated:
     """A verifier callable returning an approved IsolationResult."""
 
-    def __call__(self, containers, inspector):  # noqa: ANN001
+    def __call__(self, containers, inspector):
         return IsolationResult(
             passed=True,
             verdicts=tuple(
@@ -390,13 +398,11 @@ class _AllIsolated:
 class _NoneIsolated:
     """A verifier callable returning a failed IsolationResult (not isolated)."""
 
-    def __call__(self, containers, inspector):  # noqa: ANN001
+    def __call__(self, containers, inspector):
         return IsolationResult(
             passed=False,
             verdicts=tuple(
-                ContainerIsolationVerdict(
-                    container=c, isolated=False, reasons=("bridge externa",)
-                )
+                ContainerIsolationVerdict(container=c, isolated=False, reasons=("bridge externa",))
                 for c in (containers or ["nginx"])
             ),
         )
@@ -414,9 +420,7 @@ def _healthy_caldera() -> CalderaClient:
         if path == ADVERSARIES_PATH:
             return httpx.Response(200, json={"adversary_id": "a"})
         if path == OPERATIONS_PATH and request.method == "POST":
-            return httpx.Response(
-                200, json={"id": "op-1", "name": "n", "state": "running"}
-            )
+            return httpx.Response(200, json={"id": "op-1", "name": "n", "state": "running"})
         if path.startswith(OPERATIONS_PATH):  # GET poll
             return httpx.Response(
                 200,
@@ -526,10 +530,6 @@ def test_real_runner_happy_path_runs_persists_and_concludes(
     assert result.completed is True
     # The runner persisted one Operation, one AbilityResult and one audit row.
     assert session.execute(select(func.count()).select_from(Operation)).scalar() == 1
-    assert (
-        session.execute(select(func.count()).select_from(AbilityResult)).scalar() == 1
-    )
-    assert (
-        session.execute(select(func.count()).select_from(AuditLogEntry)).scalar() == 1
-    )
+    assert session.execute(select(func.count()).select_from(AbilityResult)).scalar() == 1
+    assert session.execute(select(func.count()).select_from(AuditLogEntry)).scalar() == 1
     assert _stage6_state(session, _SLUG) is StageState.COMPLETED

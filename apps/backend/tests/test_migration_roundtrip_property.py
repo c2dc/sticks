@@ -82,8 +82,8 @@ from sqlalchemy import (
     Table,
     Text,
     create_engine,
-    inspect,
     insert,
+    inspect,
     select,
 )
 from sqlalchemy.engine import Engine
@@ -171,16 +171,15 @@ def _run_migration_step(engine: Engine, step: str) -> None:
     never the project PostgreSQL.
     """
     func = getattr(_migration, step)
-    with engine.connect() as conn:
-        with conn.begin():
-            ctx = MigrationContext.configure(connection=conn)
-            op_proxy = Operations(ctx)
-            original_op = _migration.op
-            _migration.op = op_proxy
-            try:
-                func()
-            finally:
-                _migration.op = original_op
+    with engine.connect() as conn, conn.begin():
+        ctx = MigrationContext.configure(connection=conn)
+        op_proxy = Operations(ctx)
+        original_op = _migration.op
+        _migration.op = op_proxy
+        try:
+            func()
+        finally:
+            _migration.op = original_op
 
 
 def _dags_table_exists(engine: Engine) -> bool:

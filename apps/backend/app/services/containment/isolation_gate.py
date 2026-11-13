@@ -52,7 +52,7 @@ from __future__ import annotations
 
 import datetime as dt
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Optional, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 from app.services.containment.subnets import is_internal_ip
 
@@ -65,11 +65,11 @@ if TYPE_CHECKING:  # pragma: no cover - typing only, no import-time cost
     from app.services.environment.egress import EgressVerdict
 
 __all__ = [
-    "IsolationProof",
-    "IsolationEvent",
     "IsolationAuditSink",
-    "RecordingIsolationAuditSink",
+    "IsolationEvent",
+    "IsolationProof",
     "IsolationRequired",
+    "RecordingIsolationAuditSink",
     "isolate",
     "require_isolation",
     "validate_destination",
@@ -116,7 +116,7 @@ class IsolationProof:
     isolated: bool
     proven_at: dt.datetime = field(default_factory=_utcnow)
     targets: tuple[str, ...] = ()
-    reason: Optional[str] = None
+    reason: str | None = None
 
     @property
     def is_valid(self) -> bool:
@@ -194,7 +194,7 @@ class IsolationRequired(RuntimeError):
     ``run_id`` so the caller can surface a contained, auditable failure.
     """
 
-    def __init__(self, run_id: str, *, reason: Optional[str] = None) -> None:
+    def __init__(self, run_id: str, *, reason: str | None = None) -> None:
         message = (
             f"execution bloqueada: run {run_id!r} não possui prova de isolamento "
             f"válida (egresso externo não confirmadamente cortado)"
@@ -241,9 +241,9 @@ def validate_destination(destination: str) -> bool:
 def isolate(
     run_id: str,
     *,
-    egress_verdicts: "list[EgressVerdict]",
-    targets: Optional[list[str]] = None,
-    audit_sink: Optional[IsolationAuditSink] = None,
+    egress_verdicts: list[EgressVerdict],
+    targets: list[str] | None = None,
+    audit_sink: IsolationAuditSink | None = None,
 ) -> IsolationProof:
     """Cut external egress for a run, record an auditable event, return a proof.
 
@@ -284,13 +284,11 @@ def isolate(
     from app.services.environment.egress import egress_lost
 
     sink = audit_sink if audit_sink is not None else RecordingIsolationAuditSink()
-    covered = tuple(targets) if targets is not None else tuple(
-        v.container for v in egress_verdicts
-    )
+    covered = tuple(targets) if targets is not None else tuple(v.container for v in egress_verdicts)
 
     isolated = egress_lost(egress_verdicts)
     if isolated:
-        reason: Optional[str] = None
+        reason: str | None = None
         detail = (
             f"egresso externo cortado e verificado para {len(covered)} alvo(s); "
             f"rede interna preservada"
@@ -298,21 +296,15 @@ def isolate(
     else:
         # Compose the cause from the batch so the blocked transition is legible.
         offenders = [
-            v.reason or v.container
-            for v in egress_verdicts
-            if not (v.egress_lost and v.conclusive)
+            v.reason or v.container for v in egress_verdicts if not (v.egress_lost and v.conclusive)
         ]
         if not egress_verdicts:
             reason = "nenhum alvo verificado (fail-closed)"
         else:
-            reason = "egresso externo não confirmadamente cortado: " + "; ".join(
-                offenders
-            )
+            reason = "egresso externo não confirmadamente cortado: " + "; ".join(offenders)
         detail = f"isolamento NÃO confirmado — {reason}"
 
-    sink.record(
-        IsolationEvent(run_id=run_id, isolated=isolated, detail=detail)
-    )
+    sink.record(IsolationEvent(run_id=run_id, isolated=isolated, detail=detail))
 
     return IsolationProof(
         run_id=run_id,
@@ -322,7 +314,7 @@ def isolate(
     )
 
 
-def require_isolation(run_id: str, proof: Optional[IsolationProof]) -> IsolationProof:
+def require_isolation(run_id: str, proof: IsolationProof | None) -> IsolationProof:
     """Block ``execution`` unless the run holds a valid :class:`IsolationProof`.
 
     The guard ``execution`` calls before running any offensive command (Req. 4.4):
@@ -348,9 +340,7 @@ def require_isolation(run_id: str, proof: Optional[IsolationProof]) -> Isolation
     if proof.run_id != run_id:
         raise IsolationRequired(
             run_id,
-            reason=(
-                f"prova pertence a outro run ({proof.run_id!r})"
-            ),
+            reason=(f"prova pertence a outro run ({proof.run_id!r})"),
         )
     if not proof.is_valid:
         raise IsolationRequired(run_id, reason=proof.reason)

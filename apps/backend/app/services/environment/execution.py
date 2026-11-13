@@ -78,25 +78,24 @@ _Requirements: 10.1, 10.2, 10.3, 13.1, 13.2, 13.3, 13.4, 13.5, 13.6, 13.7, 14.4,
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable, Optional
 
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.models.enums import AbilityResultStatus, OperationState
 from app.services.caldera import CalderaUnavailable
+from app.services.containment import EmulationPreview, preview_abilities
 from app.services.curated_case_models import AbilityData, CaseData
 from app.services.curated_case_reader import build_case_from_db, is_curated
-from app.services.containment import EmulationPreview, preview_abilities
+from app.services.emulation.views import STAGE_EXECUTION
 from app.services.operation.runner import (
     OperationRunner,
     OperationRunResult,
     RunOutcome,
 )
 from app.services.session.session_state_service import SessionStateService
-from app.services.emulation.views import STAGE_EXECUTION
-
 
 # ---------------------------------------------------------------------------
 # Runner factory (injection — same pattern as ``api/emulation.py``)
@@ -129,11 +128,11 @@ class _RunnerAbility:
     """
 
     ability_id: str
-    name: Optional[str]
-    tactic: Optional[str]
-    technique_name: Optional[str]
-    technique_id: Optional[str]
-    description: Optional[str]
+    name: str | None
+    tactic: str | None
+    technique_name: str | None
+    technique_id: str | None
+    description: str | None
     executors: tuple[dict[str, object], ...]
 
 
@@ -158,7 +157,7 @@ def _runner_abilities(abilities: list[AbilityData]) -> list[_RunnerAbility]:
     ]
 
 
-def _adversary_payload(case: CaseData) -> Optional[dict[str, object]]:
+def _adversary_payload(case: CaseData) -> dict[str, object] | None:
     """Build the ``POST /api/v2/adversaries`` payload (v2 uses ``adversary_id``).
 
     Loading the Adversary — with its ``atomic_ordering`` — before the Operation is
@@ -198,11 +197,11 @@ class ExecutionAbilityResult(BaseModel):
         output: The command output (stdout/stderr), if collected.
     """
 
-    ability_id: Optional[str] = None
+    ability_id: str | None = None
     status: AbilityResultStatus = AbilityResultStatus.PENDING
-    command: Optional[str] = None
+    command: str | None = None
     target_container: str
-    output: Optional[str] = None
+    output: str | None = None
 
 
 class ExecutionResult(BaseModel):
@@ -242,8 +241,8 @@ class ExecutionResult(BaseModel):
     started: bool = False
     result: RunOutcome = RunOutcome.NOT_CONFIRMED
     state: OperationState = OperationState.NOT_STARTED
-    operation_id: Optional[int] = None
-    caldera_operation_id: Optional[str] = None
+    operation_id: int | None = None
+    caldera_operation_id: str | None = None
     total_success: int = 0
     total_failure: int = 0
     results: list[ExecutionAbilityResult] = Field(default_factory=list)
@@ -325,9 +324,7 @@ class ExecutionStageService:
 
     # -- execution (full REUSE of the OperationRunner, Req. 13.1) ------------
 
-    def execute(
-        self, campaign: str, *, confirmed: bool, complete: bool = True
-    ) -> ExecutionResult:
+    def execute(self, campaign: str, *, confirmed: bool, complete: bool = True) -> ExecutionResult:
         """Execute Stage 6 of Campaign ``campaign`` reusing the ``OperationRunner``.
 
         Resolves the Campaign's curated Abilities + Adversary, builds the
@@ -381,10 +378,7 @@ class ExecutionStageService:
         enables the completion (after the deprovisioning). ``ABORTED`` /
         ``NOT_CONFIRMED`` / gate refusal do **not** enable the completion.
         """
-        return (
-            result.result is RunOutcome.COMPLETED
-            and result.state is OperationState.FINISHED
-        )
+        return result.result is RunOutcome.COMPLETED and result.state is OperationState.FINISHED
 
     def complete_stage6(self, campaign: str) -> bool:
         """Mark Stage 6 ``completed`` through the single path; return whether it persisted.
@@ -489,9 +483,9 @@ class ExecutionStageService:
 
 
 __all__ = [
-    "RunnerFactory",
+    "CalderaUnavailable",
     "ExecutionAbilityResult",
     "ExecutionResult",
     "ExecutionStageService",
-    "CalderaUnavailable",
+    "RunnerFactory",
 ]

@@ -35,7 +35,7 @@ _Requirements: 2.3, 2.4, 8.3_
 
 from __future__ import annotations
 
-from typing import Callable
+from collections.abc import Callable
 
 from app.models.enums import EnvironmentPlatform, TranslationSource
 from app.services.ai.agents.env_agent import AiEnvironmentProvisioner
@@ -93,9 +93,7 @@ class _FakePipeline:
         on_log: Callable[[LogLine], None] = lambda _l: None,
     ) -> ProvisionedEnvironment:
         self.provision_calls.append(params)
-        line = LogLine(
-            step="verificar_isolamento", stream="info", text="fake pipeline line"
-        )
+        line = LogLine(step="verificar_isolamento", stream="info", text="fake pipeline line")
         self.logs.append(line)
         on_log(line)
         assert self._environment is not None
@@ -233,9 +231,7 @@ def test_provision_restamps_origin_and_preserves_ready_environment() -> None:
 
     # Every field the pipeline computed is preserved verbatim (only origin changed).
     expected = _ready_environment()
-    assert environment.model_dump(exclude={"origin"}) == expected.model_dump(
-        exclude={"origin"}
-    )
+    assert environment.model_dump(exclude={"origin"}) == expected.model_dump(exclude={"origin"})
     assert environment.health.approved is True
     assert environment.loaded_abilities is True
     assert environment.isolation.approved is True
@@ -290,15 +286,11 @@ def test_non_isolated_environment_stays_not_ready_and_restamped() -> None:
 
     # The per-container failure reason is preserved verbatim for the screen.
     assert environment.isolation.non_isolated[0].container == _CONTAINER
-    assert environment.isolation.verdicts[0].reasons == [
-        "attached to external bridge network"
-    ]
+    assert environment.isolation.verdicts[0].reasons == ["attached to external bridge network"]
 
     # Only the origin differs from what the pipeline returned.
     expected = _non_isolated_environment()
-    assert environment.model_dump(exclude={"origin"}) == expected.model_dump(
-        exclude={"origin"}
-    )
+    assert environment.model_dump(exclude={"origin"}) == expected.model_dump(exclude={"origin"})
 
 
 def test_isolation_is_the_only_failing_gate_that_blocks_completion() -> None:
@@ -392,9 +384,7 @@ def _params_with_hosts(count: int) -> EnvironmentParameters:
     return EnvironmentParameters(
         campaign_id=_SLUG,
         platform=EnvironmentPlatform.CONTAINER,
-        hosts=[
-            TargetHost(label=f"host_{i}", container=f"c{i}") for i in range(count)
-        ],
+        hosts=[TargetHost(label=f"host_{i}", container=f"c{i}") for i in range(count)],
         network_context=["internal lab segment"],
         origin=TranslationSource.HUMAN_CURATION,
     )

@@ -44,17 +44,13 @@ _Requirements: 4.1, 4.3, 4.5_
 
 from __future__ import annotations
 
-import json
-import shutil
-import tempfile
+from collections.abc import Mapping
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from tests._curated_db import CaseDb, db_put
 from app.services.containment.isolation import (
     ContainerNetworkInfo,
     ContainerNotFound,
@@ -71,7 +67,7 @@ from app.services.environment.operationalization import (
 from app.services.environment.provisioner import CurationEnvironmentProvisioner
 from app.services.environment.target_setup import ClassifiedCommand, SetupPhase
 from app.services.environment.topology_builder import HOST_CONTAINERS as _HOST_CONTAINERS
-
+from tests._curated_db import CaseDb, db_put
 
 _SLUG = "shadowray"
 _INTERNAL_NET = "caldera-kali-network"
@@ -217,8 +213,7 @@ class _FakeStateInspector:
         from app.services.environment.health import ContainerStateInfo
 
         self._states = {
-            c: ContainerStateInfo(name=c, running=True, health="healthy")
-            for c in containers
+            c: ContainerStateInfo(name=c, running=True, health="healthy") for c in containers
         }
 
     def get_container_state(self, container: str):
@@ -235,15 +230,11 @@ def _isolated_inspector(containers: list[str]) -> _FakeInspector:
     insp = _FakeInspector()
     insp.networks[_INTERNAL_NET] = NetworkInfo(name=_INTERNAL_NET, internal=True, subnets=())
     for c in containers:
-        insp.containers[c] = ContainerNetworkInfo(
-            name=c, network_names=(_INTERNAL_NET,), dns=()
-        )
+        insp.containers[c] = ContainerNetworkInfo(name=c, network_names=(_INTERNAL_NET,), dns=())
     return insp
 
 
-def _inspector_with_offenders(
-    containers: list[str], offenders: set[str]
-) -> _FakeInspector:
+def _inspector_with_offenders(containers: list[str], offenders: set[str]) -> _FakeInspector:
     """Inspector where ``offenders`` are attached to an external bridge (not isolated)."""
     insp = _FakeInspector()
     insp.networks[_INTERNAL_NET] = NetworkInfo(name=_INTERNAL_NET, internal=True, subnets=())
@@ -270,19 +261,27 @@ def _seed_case(data_dir: CaseDb, slug: str) -> None:
         },
     ]
     db_put(data_dir, "ability", slug, abilities)
-    db_put(data_dir, "adversary", slug, {
+    db_put(
+        data_dir,
+        "adversary",
+        slug,
+        {
             "id": f"{slug}-adv",
             "name": "Seed Adversary",
             "description": "seed",
             "atomic_ordering": [f"{slug}-ab-1"],
-        })
-    db_put(data_dir, "flow", slug, {
+        },
+    )
+    db_put(
+        data_dir,
+        "flow",
+        slug,
+        {
             "campaign_name": "Seed",
-            "structural_nodes": [
-                {"node_id": "n0", "technique_id": "T1190"}
-            ],
+            "structural_nodes": [{"node_id": "n0", "technique_id": "T1190"}],
             "metadata": {"total_techniques": 1},
-        })
+        },
+    )
 
 
 def _params(containers: list[str]) -> EnvironmentParameters:
@@ -326,9 +325,7 @@ def _provisioner(
 # ---------------------------------------------------------------------------
 
 _HOST_CHOICES = ["nginx", "db"]
-_hosts_strategy = st.lists(
-    st.sampled_from(_HOST_CHOICES), min_size=1, max_size=2, unique=True
-)
+_hosts_strategy = st.lists(st.sampled_from(_HOST_CHOICES), min_size=1, max_size=2, unique=True)
 # Which isolation scenario the gate faces.
 _scenario = st.sampled_from(["all_isolated", "some_non_isolated", "daemon_down"])
 # A per-host bitmask selecting which hosts are the non-isolated offenders (only
@@ -351,9 +348,7 @@ def test_isolation_gate_is_failclosed_precondition_of_completion(
     elif scenario == "daemon_down":
         inspector = _DaemonDownInspector()
     else:  # some_non_isolated
-        offenders = {
-            c for i, c in enumerate(containers) if (offender_mask >> i) & 1
-        }
+        offenders = {c for i, c in enumerate(containers) if (offender_mask >> i) & 1}
         if not offenders:  # guarantee at least one non-isolated target
             offenders = {containers[0]}
         inspector = _inspector_with_offenders(containers, offenders)
@@ -404,9 +399,7 @@ def test_completion_requires_the_isolation_gate_to_approve_all(
 
     tmp = CaseDb()
     try:
-        prov = _provisioner(
-            tmp, containers, _inspector_with_offenders(containers, offenders)
-        )
+        prov = _provisioner(tmp, containers, _inspector_with_offenders(containers, offenders))
         environment = prov.provision(_params(hosts))
     finally:
         tmp.dispose()

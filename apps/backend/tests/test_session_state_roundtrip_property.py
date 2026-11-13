@@ -74,7 +74,6 @@ from __future__ import annotations
 
 import tempfile
 from pathlib import Path
-from typing import Optional
 
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
@@ -310,7 +309,7 @@ def test_property8_session_state_roundtrips_structurally(
     # Feature: pipeline-ui, Property 8: Round-trip do Estado_de_Sessão.
     Validates: Requirements 9.1, 9.4
     """
-    current_campaign: Optional[str] = state["current_campaign"]
+    current_campaign: str | None = state["current_campaign"]
     completed_by_case: dict[str, set[int]] = state["completed_by_case"]
     operations_by_case: dict[str, list[dict]] = state["operations_by_case"]
 
@@ -361,7 +360,7 @@ def test_property8_session_state_roundtrips_structurally(
             # Same number of Operations, in the same (creation) order, all bound
             # to this case (association preserved — Req. 9.7).
             assert len(recovered_ops) == len(expected_ops)
-            for got_op, exp_op in zip(recovered_ops, expected_ops):
+            for got_op, exp_op in zip(recovered_ops, expected_ops, strict=False):
                 assert got_op.operation_id == exp_op["operation_id"]
                 assert got_op.campaign_id == campaign_id
                 assert got_op.state == exp_op["state"]
@@ -370,7 +369,7 @@ def test_property8_session_state_roundtrips_structurally(
 
                 # Same per-Ability results, in the same order, each field intact.
                 assert len(got_op.results) == len(exp_op["results"])
-                for got_res, exp_res in zip(got_op.results, exp_op["results"]):
+                for got_res, exp_res in zip(got_op.results, exp_op["results"], strict=False):
                     assert got_res.operation_id == exp_op["operation_id"]
                     assert got_res.ability_id == exp_res["ability_id"]
                     assert got_res.status == exp_res["status"]

@@ -58,6 +58,7 @@ export function StixIntelligenceDashboard({
 
   useEffect(() => {
     let active = true
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- resets the request state synchronously when the key changes, before the async fetch; deriving it during render would change the loading timing
     setLoading(true)
     setError(null)
     // Never keep stale counts around while (re)loading or on failure, so a

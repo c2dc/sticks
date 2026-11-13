@@ -65,13 +65,14 @@ Revises: c3d4e5f6a7b8
 Create Date: 2026-10-22 01:00:00.000000+00:00
 
 """
+
 from __future__ import annotations
 
 from typing import Sequence, Union
 
-from alembic import op
 import sqlalchemy as sa
 
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "d5e6f7a8b9c0"
@@ -123,9 +124,7 @@ def upgrade() -> None:
         sa.Column("description", sa.String(), nullable=False),
         sa.ForeignKeyConstraint(["package_id"], ["stix_packages.id"]),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint(
-            "package_id", "stix_type", name="uq_stix_type_counts_package_type"
-        ),
+        sa.UniqueConstraint("package_id", "stix_type", name="uq_stix_type_counts_package_type"),
     )
 
     # (3) stix_campaigns — one campaign of the bundle (design Model 3). FK
@@ -147,9 +146,7 @@ def upgrade() -> None:
         sa.Column("last_seen", sa.String(), nullable=True),
         sa.ForeignKeyConstraint(["package_id"], ["stix_packages.id"]),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint(
-            "package_id", "stix_id", name="uq_stix_campaigns_package_stix_id"
-        ),
+        sa.UniqueConstraint("package_id", "stix_id", name="uq_stix_campaigns_package_stix_id"),
     )
 
     # (4) stix_actors — one intrusion-set of the bundle (design Model 5). FK
@@ -162,9 +159,7 @@ def upgrade() -> None:
         sa.Column("name", sa.String(), nullable=False),
         sa.ForeignKeyConstraint(["package_id"], ["stix_packages.id"]),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint(
-            "package_id", "stix_id", name="uq_stix_actors_package_stix_id"
-        ),
+        sa.UniqueConstraint("package_id", "stix_id", name="uq_stix_actors_package_stix_id"),
     )
 
     # (5) stix_campaign_techniques — ATT&CK techniques a campaign uses (design

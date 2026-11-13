@@ -20,6 +20,19 @@ export interface OperationalizationCommand {
   executor: string
   platform: string
   source: string
+  /**
+   * Example only: `command` is the canonical template (placeholders kept) and
+   * this is the same command with the Atomic default values substituted. The
+   * agent adapts the values to each campaign's emulated environment.
+   */
+  resolved_command?: string
+  /** Placeholder name -> value substituted into `resolved_command`. */
+  arguments_used?: Record<string, string>
+  /**
+   * Placeholder names left intact because no usable default exists; includes
+   * `PathToAtomicsFolder`, which the agent decides per campaign.
+   */
+  unresolved_arguments?: string[]
 }
 
 /** A campaign technique with its (possibly empty) commands (backend `OperationalizationTechnique`). */

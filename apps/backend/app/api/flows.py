@@ -44,9 +44,7 @@ def list_flows(
     campaign: str = Path(..., description="Campaign id"),
     db: Session = Depends(get_db),
 ) -> FlowListResponse:
-    return FlowListResponse(
-        campaign_id=campaign, flows=FlowService(db).list_flows(campaign)
-    )
+    return FlowListResponse(campaign_id=campaign, flows=FlowService(db).list_flows(campaign))
 
 
 @router.get(

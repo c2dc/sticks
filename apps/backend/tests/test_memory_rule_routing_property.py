@@ -77,11 +77,12 @@ ou o ``LIMIT``, o resultado interpretado violaria a ordenação e o teste falhar
 from __future__ import annotations
 
 import hashlib
+import itertools
 import math
 import shutil
 import tempfile
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
@@ -94,8 +95,10 @@ from app.db.session import create_db_engine
 from app.models.domain import (
     Ability,
     Case,
-    ExperienceMemory as ExperienceMemoryRow,
     TechniqueCommand,
+)
+from app.models.domain import (
+    ExperienceMemory as ExperienceMemoryRow,
 )
 from app.services.ai.memory import ExperienceMemory
 from app.services.experience_memory_bootstrap import ExperienceMemoryBootstrap
@@ -161,7 +164,7 @@ class _FakeEmbedder:
     def embed(self, text: str) -> list[float]:
         vec: list[float] = []
         for dim in range(_EMBED_DIM):
-            component = hashlib.sha256(f"{dim}:{text}".encode("utf-8")).digest()[0]
+            component = hashlib.sha256(f"{dim}:{text}".encode()).digest()[0]
             vec.append((component / 127.5) - 1.0)
         # Guard against the all-zero vector (cosine distance is undefined for a
         # zero vector): nudge the first component so every vector has non-zero
@@ -177,7 +180,7 @@ def _cosine_distance(a: list[float], b: list[float]) -> float:
     Recomputed independently here so the ordering assertions do not trust the
     code under test to define its own expected order.
     """
-    dot = sum(x * y for x, y in zip(a, b))
+    dot = sum(x * y for x, y in zip(a, b, strict=False))
     na = math.sqrt(sum(x * x for x in a))
     nb = math.sqrt(sum(y * y for y in b))
     if na == 0.0 or nb == 0.0:
@@ -236,9 +239,7 @@ def _store_exact_command(
 # Strategies for Property 7 — a pool of classified knowledge items.
 # ---------------------------------------------------------------------------
 
-_technique_ids = st.builds(
-    lambda n: f"T{n:04d}", st.integers(min_value=1000, max_value=9999)
-)
+_technique_ids = st.builds(lambda n: f"T{n:04d}", st.integers(min_value=1000, max_value=9999))
 _executors = st.sampled_from(["sh", "powershell", "cmd"])
 _platforms = st.sampled_from(["linux", "windows", "macos"])
 _affinity_kinds = st.sampled_from(["command_affinity", "environment_affinity"])
@@ -337,9 +338,7 @@ def test_property7_memory_rule_routing_is_deterministic_by_data_type(
             vector_rows = session.execute(
                 select(func.count())
                 .select_from(ExperienceMemoryRow)
-                .where(
-                    ExperienceMemoryRow.meta["dedup_key"].as_string() == dedup_key
-                )
+                .where(ExperienceMemoryRow.meta["dedup_key"].as_string() == dedup_key)
             ).scalar_one()
             assert vector_rows == 1, (
                 "an associative item must land as exactly one experience_memory row"
@@ -390,10 +389,7 @@ def test_property7_memory_rule_routing_is_deterministic_by_data_type(
             {ExperienceMemory.content_dedup_key(i["content"]) for i in assoc_items}
         )
         assert relational_total == len(
-            {
-                (i["technique_id"], _command_hash(i["command"]))
-                for i in exact_items
-            }
+            {(i["technique_id"], _command_hash(i["command"])) for i in exact_items}
         )
     finally:
         _dispose(session, engine, db_path)
@@ -412,9 +408,7 @@ def _seed_curated_campaign(session: Session) -> None:
     concrete executors give the bootstrap command_affinity rows plus one
     environment_affinity per campaign.
     """
-    session.add(
-        Case(id="curated-demo", name="Curated Demo", description="seed for bootstrap")
-    )
+    session.add(Case(id="curated-demo", name="Curated Demo", description="seed for bootstrap"))
     session.add(
         Ability(
             ability_id="ab-1",
@@ -469,9 +463,7 @@ def test_ex_property8_bootstrap_is_idempotent_and_embeds_every_row() -> None:
         assert rows_after_first == first.inserted
 
         # Every stored row carries a non-null, non-empty embedding.
-        embeddings = (
-            session.execute(select(ExperienceMemoryRow.embedding)).scalars().all()
-        )
+        embeddings = session.execute(select(ExperienceMemoryRow.embedding)).scalars().all()
         assert embeddings, "bootstrap must have stored at least one row"
         for embedding in embeddings:
             assert embedding is not None
@@ -512,9 +504,7 @@ class _Row:
     the ``embedding`` the fake store orders by.
     """
 
-    def __init__(
-        self, *, campaign_id: str, content: str, embedding: list[float]
-    ) -> None:
+    def __init__(self, *, campaign_id: str, content: str, embedding: list[float]) -> None:
         self.campaign_id = campaign_id
         self.content = content
         self.embedding = embedding
@@ -529,7 +519,7 @@ class _ScalarResult:
     def __init__(self, rows: list[_Row]) -> None:
         self._rows = rows
 
-    def scalars(self) -> "_ScalarResult":
+    def scalars(self) -> _ScalarResult:
         return self
 
     def all(self) -> list[_Row]:
@@ -553,9 +543,9 @@ class _FakeVectorSession:
     def execute(self, stmt: Any) -> _ScalarResult:
         params = stmt.compile().params
 
-        excluded_campaign: Optional[str] = None
-        query_embedding: Optional[list[float]] = None
-        limit: Optional[int] = None
+        excluded_campaign: str | None = None
+        query_embedding: list[float] | None = None
+        limit: int | None = None
         for value in params.values():
             if isinstance(value, list):
                 query_embedding = value
@@ -618,23 +608,18 @@ def test_ex_property9_retrieve_orders_by_cosine_and_excludes_current_campaign() 
 
     # Ordered by ascending cosine distance (recomputed independently).
     query_vec = embedder.embed(query)
-    distances = [
-        _cosine_distance(embedder.embed(hit["content"]), query_vec) for hit in hits
-    ]
-    assert all(
-        earlier <= later + 1e-9
-        for earlier, later in zip(distances, distances[1:])
-    ), "returned rows are not in ascending cosine-distance order"
+    distances = [_cosine_distance(embedder.embed(hit["content"]), query_vec) for hit in hits]
+    assert all(earlier <= later + 1e-9 for earlier, later in itertools.pairwise(distances)), (
+        "returned rows are not in ascending cosine-distance order"
+    )
 
     # The result is exactly the top-k of the OTHER-campaign rows by cosine
     # distance, so nothing eligible was wrongly dropped nor excluded wrongly kept.
     eligible = [r for r in store_rows if r.campaign_id != running_campaign]
-    eligible_sorted = sorted(
-        eligible, key=lambda r: _cosine_distance(r.embedding, query_vec)
-    )
+    eligible_sorted = sorted(eligible, key=lambda r: _cosine_distance(r.embedding, query_vec))
     expected_len = min(k, len(eligible))
     assert len(hits) == expected_len
-    for hit, expected_row in zip(hits, eligible_sorted[:expected_len]):
+    for hit, expected_row in zip(hits, eligible_sorted[:expected_len], strict=False):
         hit_dist = _cosine_distance(embedder.embed(hit["content"]), query_vec)
         exp_dist = _cosine_distance(expected_row.embedding, query_vec)
         assert math.isclose(hit_dist, exp_dist, rel_tol=0.0, abs_tol=1e-9)

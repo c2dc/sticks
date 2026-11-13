@@ -59,6 +59,7 @@ _Requirements: 1.1, 4.2, 5.2_
 from __future__ import annotations
 
 import builtins
+import contextlib
 import datetime as dt
 import io
 import os
@@ -75,12 +76,10 @@ from app.core.config import Settings
 from app.db.base import Base, import_models
 from app.db.session import create_db_engine, get_db
 from app.main import create_app
-from app.models.domain import Ability, Adversary, Case, AttackFlowRow
+from app.models.domain import Ability, Adversary, AttackFlowRow, Case
 from app.models.enums import FlowOrigin, TranslationSource
 from tests._curated_db import CURATED_NAMES as CURATED_CASES
-
 from tests._stix_seed import ensure_stix_campaigns
-
 
 # ---------------------------------------------------------------------------
 # The two curated directories that the runtime must NEVER open during a request.
@@ -235,9 +234,7 @@ def _seed_campaign(session: Session) -> None:
             technique_id="T1190",
             technique_name="Exploit Public-Facing Application",
             tactic="initial-access",
-            executors=[
-                {"name": "sh", "platform": "linux", "command": _ABILITY_1_COMMAND}
-            ],
+            executors=[{"name": "sh", "platform": "linux", "command": _ABILITY_1_COMMAND}],
             translation_source=TranslationSource.HUMAN_CURATION,
         )
     )
@@ -249,9 +246,7 @@ def _seed_campaign(session: Session) -> None:
             technique_id="T1059",
             technique_name="Command and Scripting Interpreter",
             tactic="execution",
-            executors=[
-                {"name": "sh", "platform": "linux", "command": _ABILITY_2_COMMAND}
-            ],
+            executors=[{"name": "sh", "platform": "linux", "command": _ABILITY_2_COMMAND}],
             translation_source=TranslationSource.HUMAN_CURATION,
         )
     )
@@ -385,8 +380,7 @@ def test_request_paths_never_open_curated_data_directories(
 
     # The whole point: not one request opened a curated data file.
     assert breaches_empty(filesystem_probe), (
-        "the runtime opened a forbidden curated data file during a request: "
-        f"{filesystem_probe}"
+        f"the runtime opened a forbidden curated data file during a request: {filesystem_probe}"
     )
 
 
@@ -405,7 +399,7 @@ def test_probe_detects_a_forbidden_open(filesystem_probe: list[str]) -> None:
     """
     target = _DATA_ROOT / "api" / "does-not-exist.json"
     with pytest.raises(FileNotFoundError):
-        builtins.open(target)
+        builtins.open(target)  # noqa: SIM115 -- expected to raise; no file handle is ever created
 
     assert any(str(target.resolve()) == b for b in filesystem_probe), (
         "the probe must record an open under packages/cli/data/api"
@@ -460,8 +454,16 @@ def strict_data_probe(monkeypatch: pytest.MonkeyPatch) -> list[str]:
         monkeypatch.setattr(os, name, guarded)
 
     for method in (
-        "read_text", "read_bytes", "open", "glob", "rglob", "iterdir",
-        "exists", "is_file", "is_dir", "stat",
+        "read_text",
+        "read_bytes",
+        "open",
+        "glob",
+        "rglob",
+        "iterdir",
+        "exists",
+        "is_file",
+        "is_dir",
+        "stat",
     ):
         _wrap_path_method(method)
     for func in ("listdir", "scandir", "walk", "stat"):
@@ -514,9 +516,7 @@ def _seed_slug(session: Session, slug: str) -> None:
                 technique_id=_NODE_1["technique_id"] if index == 0 else _NODE_2["technique_id"],
                 technique_name="technique",
                 tactic="execution",
-                executors=[
-                    {"name": "sh", "platform": "linux", "command": f"echo {slug} {index}"}
-                ],
+                executors=[{"name": "sh", "platform": "linux", "command": f"echo {slug} {index}"}],
                 translation_source=TranslationSource.HUMAN_CURATION,
             )
         )
@@ -555,8 +555,12 @@ def all_curated_factory() -> Iterator[sessionmaker[Session]]:
     import_models()
     Base.metadata.create_all(bind=engine)
     factory: sessionmaker[Session] = sessionmaker(
-        bind=engine, autocommit=False, autoflush=False,
-        expire_on_commit=False, future=True, class_=Session,
+        bind=engine,
+        autocommit=False,
+        autoflush=False,
+        expire_on_commit=False,
+        future=True,
+        class_=Session,
     )
     session = factory()
     try:
@@ -629,14 +633,12 @@ def test_strict_probe_detects_every_access_style(strict_data_probe: list[str]) -
     """Sanity: the strict probe fires for open/read_text/glob/iterdir/listdir."""
     target = _DATA_ROOT / "api" / "missing.json"
     with pytest.raises(FileNotFoundError):
-        builtins.open(target)
+        builtins.open(target)  # noqa: SIM115 -- expected to raise; no file handle is ever created
     with pytest.raises(FileNotFoundError):
         target.read_text()
     list((_DATA_ROOT / "api").glob("*.json"))
-    try:
+    with contextlib.suppress(OSError):
         os.listdir(_DATA_ROOT / "dag")
-    except OSError:
-        pass
     kinds = {entry.split(":", 1)[0] for entry in strict_data_probe}
     assert {"builtins.open", "Path.read_text", "Path.glob", "os.listdir"} <= kinds
     strict_data_probe.clear()

@@ -14,7 +14,7 @@ from __future__ import annotations
 import logging
 from collections import defaultdict
 from collections.abc import Iterable, Sequence
-from typing import Any, Optional
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -35,9 +35,7 @@ _NO_CAMPAIGN = "__flow_retriever_no_campaign__"
 class FlowRetriever:
     """Finds corpus flows that may match a campaign."""
 
-    def __init__(
-        self, session: Session, *, memory: Optional[ExperienceMemory] = None
-    ) -> None:
+    def __init__(self, session: Session, *, memory: ExperienceMemory | None = None) -> None:
         self._session = session
         self._memory = memory
 
@@ -90,9 +88,7 @@ class FlowRetriever:
     def corpus_available(self) -> bool:
         """True when at least one documented (corpus) flow has been ingested."""
         row = self._session.execute(
-            select(AttackFlowRow.id)
-            .where(AttackFlowRow.origin == FlowOrigin.MITRE_CORPUS)
-            .limit(1)
+            select(AttackFlowRow.id).where(AttackFlowRow.origin == FlowOrigin.MITRE_CORPUS).limit(1)
         ).first()
         return row is not None
 
@@ -113,8 +109,7 @@ class FlowRetriever:
 
     def _flow_names(self, flow_ids: Sequence[int]) -> dict[int, str]:
         rows = self._session.execute(
-            select(AttackFlowRow.id, AttackFlowRow.label, AttackFlowRow.identifier)
-            .where(
+            select(AttackFlowRow.id, AttackFlowRow.label, AttackFlowRow.identifier).where(
                 AttackFlowRow.id.in_(flow_ids),
                 AttackFlowRow.origin == FlowOrigin.MITRE_CORPUS,
             )
@@ -128,13 +123,10 @@ class FlowRetriever:
         if self._memory is None or not description.strip():
             return {}
         try:
-            hits = self._memory.retrieve(
-                campaign_id=_NO_CAMPAIGN, query=description, k=k
-            )
-        except Exception as exc:  # noqa: BLE001 - degrade to relational only
+            hits = self._memory.retrieve(campaign_id=_NO_CAMPAIGN, query=description, k=k)
+        except Exception as exc:  # noqa: BLE001 -- degrade to relational only
             logger.warning(
-                "Flow vector retrieval skipped (%s: %s); using relational "
-                "candidates only.",
+                "Flow vector retrieval skipped (%s: %s); using relational candidates only.",
                 type(exc).__name__,
                 exc,
             )
@@ -143,11 +135,10 @@ class FlowRetriever:
         flow_hits = [
             h
             for h in hits
-            if isinstance(h.get("metadata"), dict)
-            and h["metadata"].get("kind") == "attack_flow"
+            if isinstance(h.get("metadata"), dict) and h["metadata"].get("kind") == "attack_flow"
         ]
         ids = self._resolve_hit_flow_ids(flow_hits)
-        return {flow_id: score for flow_id, score in ids}
+        return dict(ids)
 
     def _resolve_hit_flow_ids(
         self, hits: Sequence[dict[str, Any]]

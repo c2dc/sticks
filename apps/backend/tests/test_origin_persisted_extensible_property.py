@@ -65,7 +65,6 @@ from app.db.base import Base, import_models
 from app.db.session import create_db_engine
 from app.models.domain import Case, EnvironmentParametersRow
 
-
 # ---------------------------------------------------------------------------
 # Valores "futuros" exigidos pela Property 13 (lado persistência). São strings
 # cruas de propósito: o teste prova que o esquema gerado pelo ORM os aceita SEM
@@ -231,10 +230,7 @@ def test_property13_persisted_origin_extensible_without_migration(spec: dict) ->
         # qualquer alteração de esquema (Req. 16.4, 17.2).
         with engine.connect() as conn:
             stored = conn.execute(
-                text(
-                    "SELECT origin, platform FROM environment_parameters "
-                    "WHERE id = :id"
-                ),
+                text("SELECT origin, platform FROM environment_parameters WHERE id = :id"),
                 {"id": params_id},
             ).one()
         stored_origem, stored_plataforma = stored

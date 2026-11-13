@@ -62,68 +62,68 @@ _Requirements: 5.1, 5.4, 5.5, 5.7, 10.2_
 
 from __future__ import annotations
 
+import contextlib
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, Callable, Mapping, Optional, Protocol, Sequence, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 from pydantic import BaseModel, Field
-
-from app.models.enums import TranslationSource
 from sqlalchemy.orm import Session
 
+from app.models.enums import TranslationSource
+from app.services.containment import (
+    ContainerInspector,
+    IsolationResult,
+    inspect_isolation,
+)
 from app.services.curated_case_models import CaseData
 from app.services.curated_case_reader import (
     build_case_from_db,
     is_curated,
     list_curated_names,
 )
-from app.services.containment import (
-    ContainerInspector,
-    IsolationResult,
-    inspect_isolation,
-)
 from app.services.environment.compose_executor import (
+    CommandResult,
     ComposeExecutor,
     DockerComposeExecutor,
     LogLine,
-    CommandResult,
 )
 from app.services.environment.egress import (
     EGRESS_NETWORK,
     DockerEgressProber,
     DockerEgressWindow,
     EgressProber,
-    EgressWindow,
     EgressVerdict,
+    EgressWindow,
     attack_networks_for,
     attack_networks_with_ip_for,
     egress_lost,
-)
-from app.services.environment.operationalization import (
-    EnvironmentParameters,
-    EnvironmentPlatform,
-)
-from app.services.environment.vm_confirmation_gate import VmConfirmationRecord
-from app.services.environment.target_setup import (
-    DockerTargetSetup,
-    SetupPhase,
-    TargetSetup,
-    classify_commands,
 )
 from app.services.environment.health import (
     ContainerStateInspector,
     HealthSummary,
     inspect_health,
 )
+from app.services.environment.operationalization import (
+    EnvironmentParameters,
+    EnvironmentPlatform,
+)
+from app.services.environment.target_setup import (
+    DockerTargetSetup,
+    SetupPhase,
+    TargetSetup,
+    classify_commands,
+)
 from app.services.environment.topology_builder import (
     HOST_CONTAINERS,
     TopologyResponse,
-    compose_path,
     build_hosts,
-    build_networks,
-    target_container_names,
     build_mermaid,
+    build_networks,
+    compose_path,
+    target_container_names,
 )
-
+from app.services.environment.vm_confirmation_gate import VmConfirmationRecord
 
 # ---------------------------------------------------------------------------
 # Typed Stage 5 output DTOs (task 7.1)
@@ -176,7 +176,7 @@ class IsolationSummary(BaseModel):
     verdicts: list[ContainerVerdict] = Field(default_factory=list)
 
     @classmethod
-    def from_isolation_result(cls, result: IsolationResult) -> "IsolationSummary":
+    def from_isolation_result(cls, result: IsolationResult) -> IsolationSummary:
         """Convert the ``containment`` :class:`IsolationResult` into this summary.
 
         The Stage 5 seam reuses the ``containment`` package (single source of the
@@ -336,15 +336,15 @@ class ProvisionedEnvironment(BaseModel):
     campaign_id: str
     platform: EnvironmentPlatform = EnvironmentPlatform.CONTAINER
     target_containers: list[str] = Field(default_factory=list)
-    compose_file: Optional[str] = None
+    compose_file: str | None = None
     isolation: IsolationSummary = Field(default_factory=IsolationSummary)
     health: HealthSummary = Field(default_factory=HealthSummary)
     loaded_abilities: bool = False
     substages: SubStageSummary = Field(default_factory=SubStageSummary)
     vm_confirmation: VmConfirmationRecord = Field(default_factory=VmConfirmationRecord)
     origin: TranslationSource = TranslationSource.HUMAN_CURATION
-    failed_step: Optional[str] = None
-    error_message: Optional[str] = None
+    failed_step: str | None = None
+    error_message: str | None = None
 
     @property
     def ready(self) -> bool:
@@ -457,13 +457,13 @@ class _SubStageOutcome:
 
     summary: SubStageSummary
     loaded_abilities: bool = False
-    failed_step: Optional[str] = None
-    error_message: Optional[str] = None
+    failed_step: str | None = None
+    error_message: str | None = None
 
     @classmethod
     def failure(
         cls, failed_step: str, error_message: str, *, summary: SubStageSummary
-    ) -> "_SubStageOutcome":
+    ) -> _SubStageOutcome:
         """Build a failed outcome, carrying the partial summary and the cause."""
         return cls(
             summary=summary,
@@ -658,14 +658,14 @@ class CurationEnvironmentProvisioner:
     def __init__(
         self,
         *,
-        inspector: Optional[ContainerInspector] = None,
-        session_factory: Optional[Callable[[], Session]] = None,
-        caldera: Optional[CalderaLoader] = None,
-        compose_executor: Optional[ComposeExecutor] = None,
-        state_inspector: Optional[ContainerStateInspector] = None,
-        egress_window: Optional[EgressWindow] = None,
-        egress_prober: Optional[EgressProber] = None,
-        target_setup: Optional[TargetSetup] = None,
+        inspector: ContainerInspector | None = None,
+        session_factory: Callable[[], Session] | None = None,
+        caldera: CalderaLoader | None = None,
+        compose_executor: ComposeExecutor | None = None,
+        state_inspector: ContainerStateInspector | None = None,
+        egress_window: EgressWindow | None = None,
+        egress_prober: EgressProber | None = None,
+        target_setup: TargetSetup | None = None,
     ) -> None:
         """Assemble the curation provisioner with injectable dependencies.
 
@@ -732,7 +732,7 @@ class CurationEnvironmentProvisioner:
                 return list_curated_names(session).get(campaign, campaign)
             finally:
                 session.close()
-        except Exception:
+        except Exception:  # noqa: BLE001 -- display-name lookup falls back to the slug on any failure
             return campaign
 
     def origin(self) -> TranslationSource:
@@ -918,17 +918,12 @@ class CurationEnvironmentProvisioner:
         from app.services.caldera.ability_payload import build_caldera_ability_payloads
 
         def _normalize_executors(executors: Any) -> list[Any]:
-            return [
-                e.model_dump() if hasattr(e, "model_dump") else e
-                for e in executors
-            ]
+            return [e.model_dump() if hasattr(e, "model_dump") else e for e in executors]
 
-        return build_caldera_ability_payloads(
-            abilities, executor_normalizer=_normalize_executors
-        )
+        return build_caldera_ability_payloads(abilities, executor_normalizer=_normalize_executors)
 
     @staticmethod
-    def _adversary_payload(case: CaseData) -> Optional[Mapping[str, Any]]:
+    def _adversary_payload(case: CaseData) -> Mapping[str, Any] | None:
         """Build the ``POST /api/v2/adversaries`` payload (v2 ``adversary_id``).
 
         Without a curated Adversary, it returns ``None`` — Caldera receives no
@@ -967,7 +962,7 @@ class CurationEnvironmentProvisioner:
                 case = build_case_from_db(session, params.campaign_id)
             finally:
                 session.close()
-        except Exception:
+        except Exception:  # noqa: BLE001 -- database unavailable or unreadable: fail-closed
             # Database unavailable/unreadable: fail-closed.
             return False
         if not case.has_abilities:
@@ -984,15 +979,13 @@ class CurationEnvironmentProvisioner:
             adversary_payload = self._adversary_payload(case)
             if adversary_payload is not None:
                 caldera.load_adversary(adversary_payload)
-        except Exception:
+        except Exception:  # noqa: BLE001 -- Caldera unavailable or API error: fail-closed
             # Caldera unavailable/API error: fail-closed, Stage 5 does not
             # complete, but the provisioning still returns the topology/isolation.
             return False
         return True
 
-    def _host_targets(
-        self, params: EnvironmentParameters
-    ) -> list[tuple[Any, str]]:
+    def _host_targets(self, params: EnvironmentParameters) -> list[tuple[Any, str]]:
         """Pair each resolved host with its real lab container name.
 
         Mirrors :meth:`_target_containers`' resolution (the host's logical name —
@@ -1015,9 +1008,7 @@ class CurationEnvironmentProvisioner:
             pairs.append((host, name))
         return pairs
 
-    def _fail_safe(
-        self, container: str, *, on_log: Callable[[LogLine], None]
-    ) -> None:
+    def _fail_safe(self, container: str, *, on_log: Callable[[LogLine], None]) -> None:
         """Best-effort close of a host's egress window on a failure path (Req. 8.3).
 
         No error path of 5.1/5.2 may leave a target with egress open. This closes
@@ -1034,15 +1025,11 @@ class CurationEnvironmentProvisioner:
                 substage="5.1",
             )
         )
-        try:
+        # Swallow: the fail-safe must never raise over the original failure.
+        with contextlib.suppress(Exception):
             self._get_egress_window().close(container, on_log=on_log)
-        except Exception:
-            # Swallow: the fail-safe must never raise over the original failure.
-            pass
 
-    def _fail_safe_all(
-        self, containers: list[str], *, on_log: Callable[[LogLine], None]
-    ) -> None:
+    def _fail_safe_all(self, containers: list[str], *, on_log: Callable[[LogLine], None]) -> None:
         """Best-effort close every host's egress window (Req. 8.3, 8.4).
 
         Used when an unexpected exception escapes the per-host 5.1 loop: it closes
@@ -1057,7 +1044,7 @@ class CurationEnvironmentProvisioner:
         params: EnvironmentParameters,
         *,
         on_log: Callable[[LogLine], None],
-    ) -> "_SubStageOutcome":
+    ) -> _SubStageOutcome:
         """Run sub-stage 5.1 (Build online) then 5.2 (Runtime isolated) — Req. 1-5.
 
         Strict order (Req. 1.2, 1.3): 5.2 only begins once 5.1 has completed for
@@ -1101,14 +1088,16 @@ class CurationEnvironmentProvisioner:
                     self._fail_safe(container, on_log=on_log)
                     return _SubStageOutcome.failure(
                         "build_online",
-                        window.reason
-                        or f"falha ao abrir a janela de egresso de {container}",
+                        window.reason or f"falha ao abrir a janela de egresso de {container}",
                         summary=SubStageSummary(),
                     )
 
                 online = [c for c in classified if c.phase is SetupPhase.ONLINE]
                 applied = setup.apply(
-                    container, online, SetupPhase.ONLINE, on_log=on_log,
+                    container,
+                    online,
+                    SetupPhase.ONLINE,
+                    on_log=on_log,
                     best_effort=True,
                 )
                 closed = egress.close(container, on_log=on_log)
@@ -1127,11 +1116,10 @@ class CurationEnvironmentProvisioner:
                     self._fail_safe(container, on_log=on_log)
                     return _SubStageOutcome.failure(
                         "encerrar_egresso",
-                        closed.reason
-                        or f"falha ao encerrar a janela de egresso de {container}",
+                        closed.reason or f"falha ao encerrar a janela de egresso de {container}",
                         summary=SubStageSummary(),
                     )
-        except Exception as exc:  # pragma: no cover - defensive
+        except Exception as exc:  # noqa: BLE001 -- sub-stage failure is reported and the egress fail-safe runs
             self._fail_safe_all(containers, on_log=on_log)
             return _SubStageOutcome.failure(
                 "build_online",
@@ -1165,9 +1153,7 @@ class CurationEnvironmentProvisioner:
                             substage="5.2",
                         )
                     )
-                    result = executor.attach_network(
-                        container, network, on_log=on_log, ip=fixed_ip
-                    )
+                    result = executor.attach_network(container, network, on_log=on_log, ip=fixed_ip)
                     if result.code != 0:
                         self._fail_safe_all(containers, on_log=on_log)
                         return _SubStageOutcome.failure(
@@ -1176,7 +1162,7 @@ class CurationEnvironmentProvisioner:
                             f"{container!r} (code={result.code})",
                             summary=summary,
                         )
-        except Exception as exc:  # pragma: no cover - defensive
+        except Exception as exc:  # noqa: BLE001 -- sub-stage failure is reported and the egress fail-safe runs
             self._fail_safe_all(containers, on_log=on_log)
             return _SubStageOutcome.failure(
                 "reisolar",
@@ -1220,9 +1206,7 @@ class CurationEnvironmentProvisioner:
                     substage="5.2",
                 )
             )
-            return _SubStageOutcome.failure(
-                "verificar_egresso", cause, summary=summary
-            )
+            return _SubStageOutcome.failure("verificar_egresso", cause, summary=summary)
         summary = summary.model_copy(update={"egress_lost_verified": True})
 
         # setup_offline: apply the OFFLINE commands per host (Req. 3.3).
@@ -1238,14 +1222,16 @@ class CurationEnvironmentProvisioner:
                 )
             )
             applied = setup.apply(
-                container, offline, SetupPhase.OFFLINE, on_log=on_log,
+                container,
+                offline,
+                SetupPhase.OFFLINE,
+                on_log=on_log,
                 best_effort=True,
             )
             if applied.code != 0:
                 return _SubStageOutcome.failure(
                     "setup_offline",
-                    f"falha ao aplicar o setup offline de {container} "
-                    f"(code={applied.code})",
+                    f"falha ao aplicar o setup offline de {container} (code={applied.code})",
                     summary=summary,
                 )
         summary = summary.model_copy(update={"offline_applied": True})
@@ -1273,9 +1259,7 @@ class CurationEnvironmentProvisioner:
                     substage="5.2",
                 )
             )
-            return _SubStageOutcome.failure(
-                "carregar_abilities", cause, summary=summary
-            )
+            return _SubStageOutcome.failure("carregar_abilities", cause, summary=summary)
 
         return _SubStageOutcome(
             summary=summary,
@@ -1363,12 +1347,12 @@ class CurationEnvironmentProvisioner:
 
         def _output(
             *,
-            isolation: Optional[IsolationResult] = None,
-            health: Optional[HealthSummary] = None,
+            isolation: IsolationResult | None = None,
+            health: HealthSummary | None = None,
             loaded_abilities: bool = False,
-            substages: Optional[SubStageSummary] = None,
-            failed_step: Optional[str] = None,
-            error_message: Optional[str] = None,
+            substages: SubStageSummary | None = None,
+            failed_step: str | None = None,
+            error_message: str | None = None,
         ) -> ProvisionedEnvironment:
             """Build the typed output, filling the summaries not yet computed.
 
@@ -1398,9 +1382,7 @@ class CurationEnvironmentProvisioner:
             )
 
         # --- Step 1: subir_conteineres (docker compose up -d --wait) — Req. 3.1.
-        up_result = self._get_compose_executor().up(
-            compose_path(), on_log=on_log
-        )
+        up_result = self._get_compose_executor().up(compose_path(), on_log=on_log)
         if up_result.code != 0:
             cause = self._up_cause(up_result)
             return _output(failed_step="subir_conteineres", error_message=cause)
@@ -1409,9 +1391,7 @@ class CurationEnvironmentProvisioner:
         health = self._check_health(containers, on_log=on_log)
         if not health.approved:
             cause = self._health_cause(health)
-            return _output(
-                health=health, failed_step="aguardar_saude", error_message=cause
-            )
+            return _output(health=health, failed_step="aguardar_saude", error_message=cause)
 
         # --- Sub-stages 5.1 (Build online) / 5.2 (Runtime isolated) — Req. 1.1-1.5.
         #
@@ -1454,11 +1434,7 @@ class CurationEnvironmentProvisioner:
                     "falha ao carregar as Abilities no Caldera "
                     "(Caldera indisponível, erro de API ou artefato ausente)"
                 )
-                on_log(
-                    LogLine(
-                        step="carregar_abilities", stream="stderr", text=cause
-                    )
-                )
+                on_log(LogLine(step="carregar_abilities", stream="stderr", text=cause))
                 return _output(
                     health=health,
                     failed_step="carregar_abilities",
@@ -1489,11 +1465,7 @@ class CurationEnvironmentProvisioner:
         isolation = self._check_isolation(containers)
         if not isolation.passed:
             cause = self._isolation_cause(isolation)
-            on_log(
-                LogLine(
-                    step="verificar_isolamento", stream="stderr", text=cause
-                )
-            )
+            on_log(LogLine(step="verificar_isolamento", stream="stderr", text=cause))
             return _output(
                 isolation=isolation,
                 health=health,
@@ -1526,15 +1498,13 @@ class CurationEnvironmentProvisioner:
         consistency — Req. 7.5); in its absence (all in ``stdout``) it uses the
         last output line; with no line, it reports the exit code.
         """
-        stderr = [l.text for l in result.lines if l.stream == "stderr"]
+        stderr = [line.text for line in result.lines if line.stream == "stderr"]
         if stderr:
             last = stderr[-1]
         else:
-            output = [l.text for l in result.lines if l.stream in ("stdout", "stderr")]
+            output = [line.text for line in result.lines if line.stream in ("stdout", "stderr")]
             last = output[-1] if output else ""
-        prefix = (
-            f"falha ao subir os contêineres (código {result.code})"
-        )
+        prefix = f"falha ao subir os contêineres (código {result.code})"
         return f"{prefix}: {last}" if last else prefix
 
     def _check_health(
@@ -1577,13 +1547,8 @@ class CurationEnvironmentProvisioner:
         """
         unhealthy = health.unhealthy
         if not unhealthy:
-            return (
-                "nenhum contêiner-alvo a verificar; a saúde reprova "
-                "fail-closed (lista vazia)"
-            )
-        parts = [
-            f"{v.container} ({v.reason or 'não saudável'})" for v in unhealthy
-        ]
+            return "nenhum contêiner-alvo a verificar; a saúde reprova fail-closed (lista vazia)"
+        parts = [f"{v.container} ({v.reason or 'não saudável'})" for v in unhealthy]
         return "contêineres não saudáveis: " + "; ".join(parts)
 
     @staticmethod
@@ -1597,13 +1562,9 @@ class CurationEnvironmentProvisioner:
         non_isolated = [v for v in isolation.verdicts if not v.isolated]
         if not non_isolated:
             return (
-                "nenhum contêiner-alvo a verificar; o isolamento reprova "
-                "fail-closed (lista vazia)"
+                "nenhum contêiner-alvo a verificar; o isolamento reprova fail-closed (lista vazia)"
             )
-        parts = [
-            f"{v.container} ({'; '.join(v.reasons) or 'não isolado'})"
-            for v in non_isolated
-        ]
+        parts = [f"{v.container} ({'; '.join(v.reasons) or 'não isolado'})" for v in non_isolated]
         return "contêineres não isolados: " + "; ".join(parts)
 
     def _check_isolation(self, containers: list[str]) -> IsolationResult:
@@ -1626,9 +1587,7 @@ class CurationEnvironmentProvisioner:
 
             reason = "Docker Engine API indisponível; isolation não verificável"
             verdicts = tuple(
-                ContainerIsolationVerdict(
-                    container=c, isolated=False, reasons=(reason,)
-                )
+                ContainerIsolationVerdict(container=c, isolated=False, reasons=(reason,))
                 for c in containers
             )
             return IsolationResult(passed=False, verdicts=verdicts)
@@ -1704,9 +1663,7 @@ class CurationEnvironmentProvisioner:
         egress_cause = ""
         if hasattr(executor, "remove_network"):
             egress_result = executor.remove_network(EGRESS_NETWORK, on_log=on_log)
-            if egress_result.code != 0 and not self._network_already_gone(
-                egress_result
-            ):
+            if egress_result.code != 0 and not self._network_already_gone(egress_result):
                 egress_failed = True
                 egress_cause = self._egress_removal_cause(egress_result)
 
@@ -1766,17 +1723,14 @@ class CurationEnvironmentProvisioner:
         last output line and then to the bare exit code, so the report names what
         kept the ephemeral egress network provisioned.
         """
-        stderr = [l.text for l in result.lines if l.stream == "stderr"]
+        stderr = [line.text for line in result.lines if line.stream == "stderr"]
         if stderr:
             last = stderr[-1]
         else:
-            output = [
-                l.text for l in result.lines if l.stream in ("stdout", "stderr")
-            ]
+            output = [line.text for line in result.lines if line.stream in ("stdout", "stderr")]
             last = output[-1] if output else ""
         prefix = (
-            f"falha ao remover a rede de egresso efêmera {EGRESS_NETWORK!r} "
-            f"(código {result.code})"
+            f"falha ao remover a rede de egresso efêmera {EGRESS_NETWORK!r} (código {result.code})"
         )
         return f"{prefix}: {last}" if last else prefix
 
@@ -1789,13 +1743,11 @@ class CurationEnvironmentProvisioner:
         in ``stdout``) it uses the last output line; with no line, it reports only
         the exit code.
         """
-        stderr = [l.text for l in result.lines if l.stream == "stderr"]
+        stderr = [line.text for line in result.lines if line.stream == "stderr"]
         if stderr:
             last = stderr[-1]
         else:
-            output = [
-                l.text for l in result.lines if l.stream in ("stdout", "stderr")
-            ]
+            output = [line.text for line in result.lines if line.stream in ("stdout", "stderr")]
             last = output[-1] if output else ""
         prefix = f"falha ao deprovision os contêineres (código {result.code})"
         return f"{prefix}: {last}" if last else prefix
@@ -1845,18 +1797,18 @@ class CurationEnvironmentProvisioner:
 
 
 __all__ = [
+    "CalderaLoader",
     # typed Stage 5 output DTOs (task 7.1)
     "ContainerVerdict",
-    "IsolationSummary",
-    # Stage-5 sub-stage DTOs (task 6)
-    "EgressVerdictView",
-    "SubStageSummary",
-    "ProvisionedEnvironment",
+    "CurationEnvironmentProvisioner",
     # teardown result at the end of Stage 6 (task 8.4)
     "DeprovisioningResult",
+    # Stage-5 sub-stage DTOs (task 6)
+    "EgressVerdictView",
+    "EnvironmentProvisioner",
+    "IsolationSummary",
+    "ProvisionedEnvironment",
     # seam + compat. result (Stage 4) + curation
     "ProvisioningResult",
-    "CalderaLoader",
-    "EnvironmentProvisioner",
-    "CurationEnvironmentProvisioner",
+    "SubStageSummary",
 ]

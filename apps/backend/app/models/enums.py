@@ -83,6 +83,7 @@ class IngestStatus(str, enum.Enum):
     READY = "ready"
     FAILED = "failed"
 
+
 class EnvironmentPlatform(str, enum.Enum):
     """Environment platform — container today; VM admitted without redesign (Req. 17).
 

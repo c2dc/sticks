@@ -66,7 +66,6 @@ _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 9.7_
 from __future__ import annotations
 
 import datetime as dt
-from typing import Optional
 
 from pydantic import BaseModel, Field
 from sqlalchemy import select
@@ -80,7 +79,6 @@ from app.models.domain import (
     StageRun,
 )
 from app.models.enums import AbilityResultStatus, OperationState, StageState
-
 
 # ---------------------------------------------------------------------------
 # Typed views (Input/Output for the API / UI later — task 11.1)
@@ -103,15 +101,15 @@ class AbilityResultView(BaseModel):
     (Req. 2.5). The pre-existing ``command_output`` is unchanged.
     """
 
-    operation_id: Optional[int] = None
-    ability_id: Optional[str] = None
+    operation_id: int | None = None
+    ability_id: str | None = None
     status: AbilityResultStatus
-    command_output: Optional[str] = None
+    command_output: str | None = None
     # Additive per-Ability fields for Stage 6 live tracking (Req. 2.4). ``None``
     # when not yet collected — the UI shows "não disponível" (Req. 2.5).
-    command: Optional[str] = None
-    target_container: Optional[str] = None
-    attacker_host: Optional[str] = None
+    command: str | None = None
+    target_container: str | None = None
+    attacker_host: str | None = None
 
 
 class OperationResultView(BaseModel):
@@ -123,7 +121,7 @@ class OperationResultView(BaseModel):
     """
 
     operation_id: int
-    campaign_id: Optional[str] = None
+    campaign_id: str | None = None
     state: OperationState
     total_success: int = 0
     total_failure: int = 0
@@ -131,8 +129,8 @@ class OperationResultView(BaseModel):
     # path populates them from the persisted ``Operation`` so ``get_report`` can
     # derive the real total execution time (``finished_at - started_at``)
     # through a single read port. Absent instants stay ``None`` (Req. 4.3).
-    started_at: Optional[dt.datetime] = None
-    finished_at: Optional[dt.datetime] = None
+    started_at: dt.datetime | None = None
+    finished_at: dt.datetime | None = None
     results: list[AbilityResultView] = Field(default_factory=list)
 
 
@@ -176,17 +174,17 @@ class SessionStateView(BaseModel):
         ``restore_failed`` is ``True``.
     """
 
-    current_campaign: Optional[str] = None
+    current_campaign: str | None = None
     completed_stages_by_campaign: dict[str, list[int]] = Field(default_factory=dict)
-    updated_at: Optional[dt.datetime] = None
+    updated_at: dt.datetime | None = None
     exists: bool = False
     restore_failed: bool = False
-    message: Optional[str] = None
+    message: str | None = None
     # Persisted theme/language preferences (Req. 7.5, 8.5). ``None`` when nothing
     # was persisted yet (first visit) so the frontend falls back to its defaults
     # (Light Mode / pt-BR). Preferences are owned at the API layer; this field is
     # populated by the session-state endpoint, not by the service itself.
-    preferences: Optional[PreferencesView] = None
+    preferences: PreferencesView | None = None
 
 
 class StageCompletionResult(BaseModel):
@@ -221,7 +219,7 @@ class StageCompletionResult(BaseModel):
     campaign_id: str
     stage: int
     completed_stages_by_campaign: dict[str, list[int]] = Field(default_factory=dict)
-    message: Optional[str] = None
+    message: str | None = None
 
 
 # Message surfaced when the persisted state cannot be read (Req. 9.6). The API
@@ -389,7 +387,7 @@ class SessionStateService:
 
     # ---- writes (Req. 9.4) -----------------------------------------------
 
-    def set_current_case(self, slug: Optional[str]) -> SessionState:
+    def set_current_case(self, slug: str | None) -> SessionState:
         """Persist the current case (``current_campaign``) — Req. 9.4.
 
         Upserts the single ``session_state`` row (one session-state row is kept)
@@ -422,9 +420,7 @@ class SessionStateService:
         self._session.refresh(state)
         return state
 
-    def persist_stage_completion(
-        self, campaign_id: str, stage: int
-    ) -> StageCompletionResult:
+    def persist_stage_completion(self, campaign_id: str, stage: int) -> StageCompletionResult:
         """Persist the completion of a Stage, preserving prior state on failure.
 
         When the Researcher concludes a Stage of a case, that conclusion is the
@@ -519,7 +515,7 @@ class SessionStateService:
 
     # ---- helpers ----------------------------------------------------------
 
-    def _load_state_row(self) -> Optional[SessionState]:
+    def _load_state_row(self) -> SessionState | None:
         """Return the single persisted ``session_state`` row, or ``None``.
 
         Reads the lowest-``id`` row so behavior is deterministic even if more
@@ -556,11 +552,11 @@ class SessionStateService:
 
 
 __all__ = [
-    "SessionStateService",
-    "SessionStateView",
-    "OperationResultView",
-    "AbilityResultView",
-    "StageCompletionResult",
     "RESTORE_FAILED_MESSAGE",
     "SAVE_FAILED_MESSAGE",
+    "AbilityResultView",
+    "OperationResultView",
+    "SessionStateService",
+    "SessionStateView",
+    "StageCompletionResult",
 ]

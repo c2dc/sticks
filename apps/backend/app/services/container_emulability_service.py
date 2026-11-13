@@ -42,7 +42,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -80,7 +80,7 @@ class ContainerEmulability:
     campaign_id: str
     container_emulable: bool
     blocking_techniques: list[str] = field(default_factory=list)
-    row_id: Optional[int] = None
+    row_id: int | None = None
 
 
 class ContainerEmulabilityService:
@@ -191,9 +191,7 @@ class ContainerEmulabilityService:
 
         abilities = (
             self._session.execute(
-                select(AbilityRow.technique_id).where(
-                    AbilityRow.campaign_id == campaign_id
-                )
+                select(AbilityRow.technique_id).where(AbilityRow.campaign_id == campaign_id)
             )
             .scalars()
             .all()
@@ -206,9 +204,7 @@ class ContainerEmulabilityService:
                 techniques.add(cleaned)
         return sorted(techniques)
 
-    def _load_classification(
-        self, techniques: list[str]
-    ) -> dict[str, TechniqueEmulabilityKind]:
+    def _load_classification(self, techniques: list[str]) -> dict[str, TechniqueEmulabilityKind]:
         """Map each collected technique id to its ``TechniqueEmulability`` kind.
 
         Reads the :class:`TechniqueEmulability` rows for exactly the campaign's
@@ -281,6 +277,6 @@ class ContainerEmulabilityService:
 
 
 __all__ = [
-    "ContainerEmulabilityService",
     "ContainerEmulability",
+    "ContainerEmulabilityService",
 ]

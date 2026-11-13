@@ -124,7 +124,7 @@ describe("CampaignView — campaign selection (Req. 4.1, 6.1, 6.2)", () => {
     ).toBeInTheDocument()
 
     expect(onCompleted).toHaveBeenCalledTimes(1)
-    expect(onCompleted).toHaveBeenCalledWith("curada-1")
+    expect(onCompleted).toHaveBeenCalledWith("curada-1", "Curada1")
   })
 
   it("an overview failure surfaces an alert without completing the selection", async () => {

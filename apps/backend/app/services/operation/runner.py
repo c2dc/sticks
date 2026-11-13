@@ -73,8 +73,9 @@ from __future__ import annotations
 import datetime as dt
 import enum
 import time
-from dataclasses import dataclass, field
-from typing import Callable, Optional, Protocol, Sequence
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass
+from typing import ClassVar
 
 from sqlalchemy.orm import Session
 
@@ -85,8 +86,8 @@ from app.services.audit import AuditLogger, AuditPersistenceError
 from app.services.caldera import CalderaClient, OperationLink
 from app.services.caldera.ability_payload import build_caldera_ability_payloads
 from app.services.caldera.client import (
-    OperationStateResult,
     TERMINAL_OPERATION_STATES,
+    OperationStateResult,
 )
 from app.services.containment import (
     ContainerInspector,
@@ -106,7 +107,7 @@ ContainmentValidator = Callable[[Sequence[object]], OperationContainmentReport]
 
 # Type of the injected isolation verifier (task 4.4). It receives the list of
 # target container names and an optional inspector, returning an IsolationResult.
-IsolationVerifier = Callable[[list[str], Optional[ContainerInspector]], IsolationResult]
+IsolationVerifier = Callable[[list[str], ContainerInspector | None], IsolationResult]
 
 # Injection seams for the incremental collection loop (task 3.1). ``Clock``
 # returns a monotonically increasing time in seconds (used to measure the
@@ -415,7 +416,7 @@ class OperationRunner:
 
         abilities = list(abilities)
 
-        # --- Gate 2: containment of destinations (Req. 6.1, 6.2 — Property 1) 
+        # --- Gate 2: containment of destinations (Req. 6.1, 6.2 — Property 1)
         containment = self._validate_containment(abilities)
         if containment.refused:
             return OperationRunResult(
@@ -507,13 +508,11 @@ class OperationRunner:
         # chain (zero links) — the real-lab failure this fixes.
         self._caldera.load_abilities(self._ability_payloads(abilities))
         if adversary_payload is not None:
-            self._caldera.load_adversary(dict(adversary_payload))  # type: ignore[arg-type]
+            self._caldera.load_adversary(dict(adversary_payload))  # type: ignore[arg-type] -- payload is a validated mapping built from the adversary profile
 
         # Create the Operation with the `batch` planner and the `red` group,
         # matching the lab agent registration and sticks/lib/operation.py.
-        created = self._caldera.create_operation(
-            name, adversary_id, group="red", planner="batch"
-        )
+        created = self._caldera.create_operation(name, adversary_id, group="red", planner="batch")
         operation.caldera_operation_id = created.operation_id or None
         self._session.commit()
 
@@ -702,9 +701,7 @@ class OperationRunner:
                         ),
                     )
 
-            state_result: OperationStateResult = self._caldera.get_operation(
-                caldera_operation_id
-            )
+            state_result: OperationStateResult = self._caldera.get_operation(caldera_operation_id)
 
             # Reconcile this poll's links into the persisted rows. The audit seam
             # inside ``_reconcile`` may raise AuditPersistenceError (Req. 6.9): we
@@ -720,9 +717,7 @@ class OperationRunner:
                 # before the failing write (Req. 6.9). ``_reconcile`` attaches the
                 # results reconciled-and-audited so far to the exception; fall
                 # back to the last fully-reconciled poll if it is absent.
-                partials: tuple[AbilityRunResult, ...] = getattr(
-                    exc, "reconciled_results", latest
-                )
+                partials: tuple[AbilityRunResult, ...] = getattr(exc, "reconciled_results", latest)
                 success, failure = self._tally(partials)
                 return _CollectionResult(
                     ability_results=partials,
@@ -762,12 +757,8 @@ class OperationRunner:
     @staticmethod
     def _tally(results: Sequence[AbilityRunResult]) -> tuple[int, int]:
         """Count ``(sucesso, falha)`` across the per-Ability results."""
-        success = sum(
-            1 for r in results if r.status is AbilityResultStatus.SUCCESS
-        )
-        failure = sum(
-            1 for r in results if r.status is AbilityResultStatus.FAILURE
-        )
+        success = sum(1 for r in results if r.status is AbilityResultStatus.SUCCESS)
+        failure = sum(1 for r in results if r.status is AbilityResultStatus.FAILURE)
         return success, failure
 
     # -- incremental reconciliation (task 3.2) -------------------------------
@@ -780,7 +771,7 @@ class OperationRunner:
     #: never regresses a result that already reached a terminal state. The two
     #: terminal states (``sucesso``/``falha``) share the top rank: a terminal
     #: status is never overwritten by the other terminal status.
-    _STATUS_RANK: dict[AbilityResultStatus, int] = {
+    _STATUS_RANK: ClassVar[dict[AbilityResultStatus, int]] = {
         AbilityResultStatus.PENDING: 0,
         AbilityResultStatus.RUNNING: 1,
         AbilityResultStatus.SUCCESS: 2,
@@ -841,9 +832,7 @@ class OperationRunner:
             row.ability_id: row for row in existing if row.ability_id is not None
         }
         # Rows with no ability_id, consumed in order for ability-less links.
-        orphan_rows: list[AbilityResult] = [
-            row for row in existing if row.ability_id is None
-        ]
+        orphan_rows: list[AbilityResult] = [row for row in existing if row.ability_id is None]
 
         results: list[AbilityRunResult] = []
         for index, link in enumerate(links):
@@ -902,7 +891,7 @@ class OperationRunner:
                 try:
                     self._audit_command(operation_id=operation_id, result=result)
                 except AuditPersistenceError as exc:
-                    exc.reconciled_results = tuple(results)  # type: ignore[attr-defined]
+                    exc.reconciled_results = tuple(results)  # type: ignore[attr-defined] -- attribute attached dynamically so the caller can reconcile partial results
                     raise
 
             results.append(result)
@@ -1061,10 +1050,10 @@ class OperationRunner:
 
 
 __all__ = [
-    "OperationRunner",
-    "OperationRunResult",
     "AbilityRunResult",
-    "RunOutcome",
     "ContainmentValidator",
     "IsolationVerifier",
+    "OperationRunResult",
+    "OperationRunner",
+    "RunOutcome",
 ]

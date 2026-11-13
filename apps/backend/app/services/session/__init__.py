@@ -9,21 +9,21 @@ unchanged on a persist failure (``persist_stage_completion`` — Req. 9.3).
 """
 
 from app.services.session.session_state_service import (
-    AbilityResultView,
-    OperationResultView,
     RESTORE_FAILED_MESSAGE,
     SAVE_FAILED_MESSAGE,
+    AbilityResultView,
+    OperationResultView,
     SessionStateService,
     SessionStateView,
     StageCompletionResult,
 )
 
 __all__ = [
-    "SessionStateService",
-    "SessionStateView",
-    "OperationResultView",
-    "AbilityResultView",
-    "StageCompletionResult",
     "RESTORE_FAILED_MESSAGE",
     "SAVE_FAILED_MESSAGE",
+    "AbilityResultView",
+    "OperationResultView",
+    "SessionStateService",
+    "SessionStateView",
+    "StageCompletionResult",
 ]

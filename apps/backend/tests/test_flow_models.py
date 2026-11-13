@@ -35,7 +35,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.core.config import Settings
 from app.db.base import Base, import_models
 from app.db.session import create_db_engine
-from app.models.domain import Case, AttackFlowRow, StageRun
+from app.models.domain import AttackFlowRow, Case, StageRun
 from app.models.enums import FlowOrigin
 
 
@@ -95,7 +95,8 @@ def test_flow_origin_covers_exactly_three_members() -> None:
     assert {member.value for member in FlowOrigin} == {
         "human_curation",
         "ai_generated",
-        "mitre_corpus",    }
+        "mitre_corpus",
+    }
 
 
 def test_origin_flow_member_values() -> None:
@@ -243,9 +244,7 @@ def test_flow_persists_ai_generated_without_new_migration(
 # ---------------------------------------------------------------------------
 
 
-def test_stage_run_has_no_chosen_flow_id_column(
-    sqlite_engine: Engine, db_session: Session
-) -> None:
+def test_stage_run_has_no_chosen_flow_id_column(sqlite_engine: Engine, db_session: Session) -> None:
     """``stage_runs`` dropped the dead ``chosen_flow_id`` column; runs still persist."""
     columns = {col["name"] for col in inspect(sqlite_engine).get_columns("stage_runs")}
     assert "chosen_flow_id" not in columns

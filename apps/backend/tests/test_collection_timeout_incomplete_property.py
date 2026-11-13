@@ -118,9 +118,7 @@ def _ability_strategy() -> st.SearchStrategy[FakeAbility]:
         lambda uid, cmds: FakeAbility(
             ability_id=f"ability-{uid.hex[:8]}",
             name=f"T{1000 + (uid.int % 600)} - generated",
-            executors=tuple(
-                {"name": "sh", "platform": "linux", "command": cmd} for cmd in cmds
-            ),
+            executors=tuple({"name": "sh", "platform": "linux", "command": cmd} for cmd in cmds),
         ),
         st.uuids(),
         st.lists(st.sampled_from(_INTERNAL_COMMAND_TEMPLATES), min_size=1, max_size=2),
@@ -212,8 +210,7 @@ def _isolated_verifier(containers: list[str], _inspector: object) -> IsolationRe
     never-terminal snapshots) from the isolation branches.
     """
     verdicts = tuple(
-        ContainerIsolationVerdict(container=name, isolated=True, reasons=())
-        for name in containers
+        ContainerIsolationVerdict(container=name, isolated=True, reasons=()) for name in containers
     )
     return IsolationResult(passed=True, verdicts=verdicts)
 
@@ -291,9 +288,7 @@ def _count(session: Session, model: type) -> int:
 )
 @given(
     abilities=st.lists(_ability_strategy(), min_size=1, max_size=4),
-    link_statuses=st.lists(
-        st.sampled_from(_NON_TERMINAL_STATUS_CODES), min_size=1, max_size=6
-    ),
+    link_statuses=st.lists(st.sampled_from(_NON_TERMINAL_STATUS_CODES), min_size=1, max_size=6),
     collection_timeout=st.floats(min_value=1.0, max_value=120.0),
     campaign_id=st.sampled_from(["apt41_dust", "c0010", "shadowray", None]),
 )
@@ -378,8 +373,7 @@ def test_property3_timeout_without_terminal_marks_incomplete_and_preserves_parti
         # Every preserved partial is non-terminal (pendente / em_execucao) — the
         # bug fix must not fabricate terminal results on timeout.
         persisted_statuses = {
-            row.status
-            for row in session.execute(select(AbilityResult)).scalars().all()
+            row.status for row in session.execute(select(AbilityResult)).scalars().all()
         }
         assert persisted_statuses <= {
             AbilityResultStatus.PENDING,
@@ -389,8 +383,7 @@ def test_property3_timeout_without_terminal_marks_incomplete_and_preserves_parti
         # The loop actually polled Caldera (so the timeout branch was reached via
         # real observation, not a short-circuit).
         assert any(
-            r.method.upper() == "GET"
-            and r.url.path == f"{OPERATIONS_PATH}/{_CALDERA_OP_ID}"
+            r.method.upper() == "GET" and r.url.path == f"{OPERATIONS_PATH}/{_CALDERA_OP_ID}"
             for r in handler.requests
         )
     finally:

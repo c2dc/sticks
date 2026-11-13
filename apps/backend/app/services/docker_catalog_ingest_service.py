@@ -1,7 +1,7 @@
 """Docker image catalog ingestion — fetch Docker Hub, persist idempotently.
 
 This module ingests a curated, **text-only** catalog of Docker Hub image
-descriptions into the ``image_catalog`` table (design Component 4, Req. 5.1–5.3,
+descriptions into the ``image_catalog`` table (design Component 4, Req. 5.1-5.3,
 5.5). It mirrors the shape of
 :class:`~app.services.atomic_red_team_ingest_service.AtomicRedTeamIngestService`:
 a session-injected orchestrator with an injectable fetch boundary, so the fetch
@@ -43,11 +43,18 @@ Session-injected services.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
+import os
+import random
+import time
+import urllib.error
+import urllib.parse
 import urllib.request
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Iterable, Optional
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -100,7 +107,28 @@ class DockerCatalogFetchError(RuntimeError):
     the fetch failure and the already-persisted ``image_catalog`` is preserved
     unchanged (no ingest write is attempted). The originating exception is
     chained as ``__cause__``.
+
+    The original cause is preserved in the message and attributes: HTTP
+    ``status`` (when any), the request ``url`` path (no query string, no
+    secrets) and the ``message`` field of the response body.
     """
+
+    def __init__(
+        self,
+        text: str = "",
+        *,
+        status: int | None = None,
+        url: str = "",
+        message: str = "",
+        retryable: bool = False,
+        retry_after: float | None = None,
+    ) -> None:
+        super().__init__(text)
+        self.status = status
+        self.url = url
+        self.message = message
+        self.retryable = retryable
+        self.retry_after = retry_after
 
 
 @dataclass(frozen=True)
@@ -154,18 +182,122 @@ class DockerCatalogIngestSummary:
     vector_failures: int = 0
     capped: bool = False
     errors: list[str] = field(default_factory=list)
+    # Non-fatal fetch problems (a query failed but others delivered images).
+    warnings: list[dict[str, str]] = field(default_factory=list)
+
+
+#: Search terms used to find popular NON-official images relevant to the lab.
+#: The anonymous Hub API serves at most 200 results per query (offset limit),
+#: so a curated list of terms is used instead of one huge ``library`` query.
+CURATED_SEARCH_TERMS: tuple[str, ...] = (
+    "nginx",
+    "httpd",
+    "apache",
+    "python",
+    "node",
+    "redis",
+    "mysql",
+    "mariadb",
+    "postgres",
+    "mongodb",
+    "ubuntu",
+    "debian",
+    "alpine",
+    "centos",
+    "php",
+    "wordpress",
+    "tomcat",
+    "jenkins",
+    "grafana",
+    "elasticsearch",
+    "rabbitmq",
+    "dotnet",
+    "samba",
+    "openssh",
+    "ftp",
+    "vsftpd",
+    "proftpd",
+    "bind9",
+    "dns",
+    "openldap",
+    "smb",
+    "postfix",
+    "dovecot",
+    "drupal",
+    "joomla",
+    "gitlab",
+    "nextcloud",
+    "prometheus",
+    "kibana",
+    "logstash",
+    "memcached",
+    "couchdb",
+    "traefik",
+    "haproxy",
+    "squid",
+    "mosquitto",
+    "vault",
+    "consul",
+    "sonarqube",
+    "phpmyadmin",
+    "jupyter",
+    "metasploit",
+    "kali",
+)
+
+#: Environment variables read by the runner/fetcher (as the other project vars).
+MIN_IMAGES_ENV = "DOCKER_CATALOG_MIN_IMAGES"
+MIN_PULLS_ENV = "DOCKER_CATALOG_MIN_PULLS"
+DEFAULT_MIN_IMAGES = 150
+DEFAULT_MIN_PULLS = 100_000
+
+USER_AGENT = "sticks-ingest/1.0 (+https://github.com/c2dc/sticks)"
+
+_MAX_BACKOFF_SECONDS = 30.0
+_MAX_RETRY_AFTER_SECONDS = 60.0
+_RETRYABLE_STATUS = frozenset({429, 500, 502, 503, 504})
+_MAX_FAILED_QUERIES = 3
+
+
+def env_int(name: str, default: int) -> int:
+    """Non-negative int from the environment; ``default`` when unset/invalid."""
+    raw = os.environ.get(name, "").strip()
+    try:
+        value = int(raw)
+    except ValueError:
+        return default
+    return value if value >= 0 else default
+
+
+class _PaginationLimitReached(DockerCatalogFetchError):
+    """Anonymous pagination limit (HTTP 403): the normal end of a query."""
 
 
 class DockerHubCatalogFetcher:
     """Fetch strategy for the public Docker Hub API, text only, OUTSIDE the lab.
 
-    Lists repositories and reads each repository's text description via the
-    public Docker Hub REST API. It downloads **only text** (name, description,
-    declared OS/services) and NEVER pulls image layers (Req. 5.1). The fetch
-    runs in the application layer, never inside the contained lab.
+    Strategy (verified against the real API; the anonymous limit is 200 results
+    per query, so ``next`` is never followed):
 
-    Injectable: :class:`DockerCatalogIngestService` accepts a fetcher so tests
-    can double it with in-memory entries and no network access.
+    1. **Official images** from ``/v2/repositories/library/?page_size=100``,
+       queried twice (``ordering=name`` and ``ordering=-name``); the union by
+       name covers the whole official namespace (181 images at the time of
+       writing). The image reference is the plain name (``nginx``).
+    2. **Popular non-official images** from ``/v2/search/repositories/`` for a
+       curated list of lab-relevant terms (:data:`CURATED_SEARCH_TERMS`), pages
+       1-2 with ``page_size=100``; results below ``min_pull_count`` pulls or
+       without description are dropped. Entries are deduplicated by name.
+
+    All entries are cataloged as ``linux``: Docker Hub has no official Windows
+    images in the ``library`` namespace (Microsoft publishes on
+    ``mcr.microsoft.com``).
+
+    Robustness: HTTP 429/5xx and timeouts are retried (up to ``max_attempts``)
+    with exponential backoff plus jitter, honoring ``Retry-After`` /
+    ``x-ratelimit-reset``; the anonymous pagination 403 (or an empty page) ends a
+    query normally. A query failing unrecoverably is recorded in
+    :attr:`warnings` and the others continue; the fetch only raises
+    :class:`DockerCatalogFetchError` when no image was obtained at all.
     """
 
     def __init__(
@@ -174,70 +306,209 @@ class DockerHubCatalogFetcher:
         api_root: str = _DOCKER_HUB_API,
         timeout: float = 60.0,
         page_size: int = 100,
+        search_terms: Iterable[str] | None = None,
+        min_pull_count: int | None = None,
+        max_attempts: int = 4,
+        request_delay: float = 0.3,
+        sleep: Callable[[float], None] = time.sleep,
+        clock: Callable[[], float] = time.time,
     ) -> None:
         self._api_root = api_root.rstrip("/")
         self._timeout = timeout
-        self._page_size = page_size
+        self._page_size = min(max(page_size, 1), 100)
+        self._terms = tuple(search_terms) if search_terms is not None else CURATED_SEARCH_TERMS
+        self._min_pulls = (
+            min_pull_count
+            if min_pull_count is not None
+            else env_int(MIN_PULLS_ENV, DEFAULT_MIN_PULLS)
+        )
+        self._max_attempts = max(max_attempts, 1)
+        self._request_delay = request_delay
+        self._sleep = sleep
+        self._clock = clock
+        #: Non-fatal problems of the last fetch, as ``{"item", "reason"}``.
+        self.warnings: list[dict[str, str]] = []
+
+    # ---- public API --------------------------------------------------------
 
     def fetch_entries(self, *, max_images: int) -> Iterable[DockerCatalogEntry]:
         """Yield up to ``max_images`` text-only catalog entries from Docker Hub.
 
-        Pages the public ``/v2/search/repositories`` API, reading each result's
-        name and short description. Only text is retrieved; no image layers are
-        pulled (Req. 5.1). Raises :class:`DockerCatalogFetchError` if the API
-        cannot be reached, so the caller preserves the persisted catalog
-        (Req. 5.1 / 3.4).
+        Only text is retrieved; no image layers are pulled (Req. 5.1). Raises
+        :class:`DockerCatalogFetchError` (with status, URL and message) only
+        when a query failed and no image at all was obtained.
         """
+        self.warnings = []
+        seen: set[str] = set()
         produced = 0
-        page = 1
-        try:
-            while produced < max_images:
-                payload = self._get_json(
-                    f"{self._api_root}/v2/search/repositories/"
-                    f"?page_size={self._page_size}&page={page}&query=library"
-                )
-                results = payload.get("results")
-                if not isinstance(results, list) or not results:
-                    break
-                for result in results:
+        failures: list[DockerCatalogFetchError] = []
+
+        for label, urls, official in self._queries():
+            if produced >= max_images or len(failures) >= _MAX_FAILED_QUERIES:
+                break
+            try:
+                for result in self._iter_results(label, urls):
                     if produced >= max_images:
                         break
-                    entry = self._result_to_entry(result)
-                    if entry is None:
+                    entry = self._result_to_entry(result, official=official)
+                    if entry is None or entry.image in seen:
                         continue
+                    if not official and not self._is_popular(result):
+                        continue
+                    seen.add(entry.image)
                     produced += 1
                     yield entry
-                page += 1
-        except DockerCatalogFetchError:
-            raise
-        except Exception as exc:  # noqa: BLE001 - normalize into the fetch error
-            raise DockerCatalogFetchError(
-                f"could not fetch the Docker Hub catalog from {self._api_root}: "
-                f"{type(exc).__name__}: {exc}"
-            ) from exc
+            except DockerCatalogFetchError as exc:
+                failures.append(exc)
+                logger.warning("docker catalog query %s failed: %s", label, exc)
+                self.warnings.append({"item": label, "reason": str(exc)[:200]})
 
-    def _get_json(self, url: str) -> dict[str, Any]:
-        """GET ``url`` and parse a JSON object; text only, no layers (Req. 5.1)."""
-        request = urllib.request.Request(  # noqa: S310 - trusted public API root
-            url, headers={"Accept": "application/json"}
+        if failures and produced == 0:
+            raise failures[0]
+
+    # ---- queries -----------------------------------------------------------
+
+    def _queries(self) -> Iterable[tuple[str, list[str], bool]]:
+        """``(label, page urls, is_official)`` for every query, in order."""
+        for ordering in ("name", "-name"):
+            yield (
+                f"official ordering={ordering}",
+                [f"{self._api_root}/v2/repositories/library/?page_size=100&ordering={ordering}"],
+                True,
+            )
+        for term in self._terms:
+            yield (
+                f"search {term}",
+                [
+                    f"{self._api_root}/v2/search/repositories/"
+                    f"?page_size=100&page={page}&query={urllib.parse.quote(term)}"
+                    for page in (1, 2)
+                ],
+                False,
+            )
+
+    def _iter_results(self, label: str, urls: list[str]) -> Iterable[Any]:
+        """Results of every page of a query; an empty page / pagination 403 ends it."""
+        for index, url in enumerate(urls, start=1):
+            try:
+                payload = self._get_json(url, f"{label}, page {index}")
+            except _PaginationLimitReached:
+                return
+            results = payload.get("results")
+            if not isinstance(results, list) or not results:
+                return
+            yield from results
+            if len(results) < 100:
+                return
+
+    def _is_popular(self, result: Any) -> bool:
+        if not isinstance(result, dict):
+            return False
+        pulls = result.get("pull_count")
+        return isinstance(pulls, int) and pulls >= self._min_pulls
+
+    # ---- HTTP --------------------------------------------------------------
+
+    def _get_json(self, url: str, context: str) -> dict[str, Any]:
+        """GET ``url`` with retries; text only, no layers (Req. 5.1)."""
+        path = url.split(self._api_root, 1)[-1].split("?", 1)[0]
+        last: DockerCatalogFetchError | None = None
+        for attempt in range(1, self._max_attempts + 1):
+            self._sleep(self._request_delay)
+            wait: float | None = None
+            try:
+                return self._request(url, path, context)
+            except DockerCatalogFetchError as exc:
+                if isinstance(exc, _PaginationLimitReached) or not exc.retryable:
+                    raise
+                last, wait = exc, exc.retry_after
+            if attempt < self._max_attempts:
+                delay = wait if wait is not None else self._backoff(attempt)
+                self._sleep(min(delay, _MAX_RETRY_AFTER_SECONDS))
+        assert last is not None  # noqa: S101 -- type narrowing; the retry loop always sets last before reaching here
+        raise last
+
+    def _backoff(self, attempt: int) -> float:
+        base = min(2.0 ** (attempt - 1), _MAX_BACKOFF_SECONDS)
+        return base + random.uniform(0, base / 2)  # noqa: S311 -- retry jitter, not a security-sensitive value
+
+    def _request(self, url: str, path: str, context: str) -> dict[str, Any]:
+        request = urllib.request.Request(  # noqa: S310 -- trusted public API root
+            url, headers={"Accept": "application/json", "User-Agent": USER_AGENT}
         )
-        with urllib.request.urlopen(request, timeout=self._timeout) as response:  # noqa: S310
-            raw = response.read().decode("utf-8")
-        document = json.loads(raw)
+        try:
+            with urllib.request.urlopen(request, timeout=self._timeout) as response:  # noqa: S310 -- URL is built from the trusted public API root
+                raw = response.read().decode("utf-8")
+        except urllib.error.HTTPError as exc:
+            message = self._error_message(exc)
+            text = f"HTTP {exc.code} on {path} ({context})" + (f": {message}" if message else "")
+            if exc.code == 403 and "pagination" in message.lower():
+                raise _PaginationLimitReached(
+                    text, status=exc.code, url=path, message=message
+                ) from exc
+            raise DockerCatalogFetchError(
+                text,
+                status=exc.code,
+                url=path,
+                message=message,
+                retryable=exc.code in _RETRYABLE_STATUS,
+                retry_after=self._retry_after(exc.headers),
+            ) from exc
+        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+            raise DockerCatalogFetchError(
+                f"{type(exc).__name__} on {path} ({context}): {exc}",
+                url=path,
+                retryable=True,
+            ) from exc
+        try:
+            document = json.loads(raw)
+        except ValueError as exc:
+            raise DockerCatalogFetchError(f"invalid JSON on {path} ({context})", url=path) from exc
         if not isinstance(document, dict):
             raise DockerCatalogFetchError(
-                f"Docker Hub API at {url} did not return a JSON object."
+                f"Docker Hub API at {path} did not return a JSON object.", url=path
             )
         return document
 
     @staticmethod
-    def _result_to_entry(result: Any) -> Optional[DockerCatalogEntry]:
-        """Normalize one Docker Hub search result into a text-only entry.
+    def _error_message(exc: urllib.error.HTTPError) -> str:
+        try:
+            body = json.loads(exc.read().decode("utf-8"))
+        except Exception:  # noqa: BLE001 -- body is optional
+            return ""
+        if isinstance(body, dict):
+            for key in ("message", "detail", "errinfo"):
+                value = body.get(key)
+                if isinstance(value, str):
+                    return value[:200]
+        return ""
 
-        Reads the repository name and short description; defaults the target OS
-        to ``linux`` (the Docker Hub search API does not expose a reliable OS
-        facet for every result). Returns ``None`` for malformed results so one
-        bad entry never aborts the fetch.
+    def _retry_after(self, headers: Any) -> float | None:
+        """Seconds to wait from ``Retry-After`` / ``x-ratelimit-reset``, if present."""
+        if headers is None:
+            return None
+        value = headers.get("Retry-After")
+        if value is not None:
+            try:
+                return max(float(value), 0.0)
+            except ValueError:
+                return None
+        reset = headers.get("x-ratelimit-reset")
+        if reset is not None:
+            try:
+                number = float(reset)
+            except ValueError:
+                return None
+            # Either an epoch timestamp or a number of seconds.
+            return max(number - self._clock(), 0.0) if number > 1e9 else max(number, 0.0)
+        return None
+
+    @staticmethod
+    def _result_to_entry(result: Any, *, official: bool = False) -> DockerCatalogEntry | None:
+        """Normalize one Docker Hub result into a text-only entry.
+
+        Entries without a description are dropped (useless for semantic search).
+        The target OS is always ``linux`` (no official Windows images on the Hub).
         """
         if not isinstance(result, dict):
             return None
@@ -245,8 +516,8 @@ class DockerHubCatalogFetcher:
         if not isinstance(name, str) or not name.strip():
             return None
         description = result.get("short_description") or result.get("description") or ""
-        if not isinstance(description, str):
-            description = ""
+        if not isinstance(description, str) or not description.strip():
+            return None
         return DockerCatalogEntry(
             image=name.strip(),
             target_os=_TARGET_OS_LINUX,
@@ -261,7 +532,7 @@ class DockerCatalogIngestService:
     Session-injected; the Experience_Memory is injected so the best-effort
     embeddings share the request-scoped unit of work, and the fetcher is
     injectable so the fetch strategy can be doubled in tests. See the module
-    docstring for the full contract (Req. 5.1–5.3, 5.5).
+    docstring for the full contract (Req. 5.1-5.3, 5.5).
     """
 
     def __init__(
@@ -269,7 +540,7 @@ class DockerCatalogIngestService:
         session: Session,
         *,
         memory: ExperienceMemory,
-        fetcher: Optional[DockerHubCatalogFetcher] = None,
+        fetcher: DockerHubCatalogFetcher | None = None,
     ) -> None:
         self._session = session
         self._memory = memory
@@ -282,7 +553,7 @@ class DockerCatalogIngestService:
         *,
         max_images: int = _DEFAULT_MAX_IMAGES,
         max_text_bytes: int = _DEFAULT_MAX_TEXT_BYTES,
-        progress: Optional[ProgressCallback] = None,
+        progress: ProgressCallback | None = None,
     ) -> DockerCatalogIngestSummary:
         """Fetch, upsert and best-effort vectorize the Docker image catalog.
 
@@ -344,11 +615,10 @@ class DockerCatalogIngestService:
             vector_failures=vector_failures,
             capped=capped,
             errors=errors,
+            warnings=list(getattr(self._fetcher, "warnings", None) or []),
         )
 
-    def vectorize_missing(
-        self, progress: Optional[ProgressCallback] = None
-    ) -> tuple[int, list[str]]:
+    def vectorize_missing(self, progress: ProgressCallback | None = None) -> tuple[int, list[str]]:
         """Embed the stored catalog rows that have no embedding yet (no network).
 
         Returns ``(embeddings_stored, errors)``; failures are isolated per row
@@ -356,9 +626,7 @@ class DockerCatalogIngestService:
         """
         from app.models.domain import ImageCatalog
 
-        rows = self._session.execute(
-            select(ImageCatalog).order_by(ImageCatalog.id)
-        ).scalars().all()
+        rows = self._session.execute(select(ImageCatalog).order_by(ImageCatalog.id)).scalars().all()
         stored_count = 0
         errors: list[str] = []
         for index, row in enumerate(rows, start=1):
@@ -411,9 +679,7 @@ class DockerCatalogIngestService:
 
     # ---- vector persistence (best-effort) ----------------------------------
 
-    def _vectorize_entry(
-        self, entry: DockerCatalogEntry
-    ) -> tuple[bool, Optional[str]]:
+    def _vectorize_entry(self, entry: DockerCatalogEntry) -> tuple[bool, str | None]:
         """Best-effort embed ``description+services`` into the Vector_Store.
 
         Stores one associative row via :meth:`ExperienceMemory.store_affinity`
@@ -446,14 +712,12 @@ class DockerCatalogIngestService:
             )
             savepoint.commit()
             return stored, None
-        except Exception as exc:  # noqa: BLE001 - vectorization is best-effort
+        except Exception as exc:  # noqa: BLE001 -- vectorization is best-effort
             # The Vector_Store (embedder/pgvector/session) failed for this entry.
             # Roll back ONLY the savepoint so the relational row is preserved and
             # the ingest continues with the catalog intact (Req. 5.3).
-            try:
+            with contextlib.suppress(Exception):  # best-effort cleanup
                 savepoint.rollback()
-            except Exception:  # noqa: BLE001 - best-effort cleanup
-                pass
             message = (
                 f"vectorization skipped for image {entry.image!r} "
                 f"({entry.target_os}): {type(exc).__name__}: {exc}"
@@ -475,9 +739,13 @@ class DockerCatalogIngestService:
 
 
 __all__ = [
+    "CURATED_SEARCH_TERMS",
+    "DEFAULT_MIN_IMAGES",
+    "MIN_IMAGES_ENV",
     "DockerCatalogEntry",
     "DockerCatalogFetchError",
     "DockerCatalogIngestService",
     "DockerCatalogIngestSummary",
     "DockerHubCatalogFetcher",
+    "env_int",
 ]

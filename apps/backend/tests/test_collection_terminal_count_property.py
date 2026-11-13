@@ -108,9 +108,7 @@ def _abilities_strategy() -> st.SearchStrategy[list[FakeAbility]]:
             lambda uid: FakeAbility(
                 ability_id=f"loaded-{uid.hex[:8]}",
                 name=f"T{1000 + (uid.int % 600)} - generated",
-                executors=(
-                    {"name": "sh", "platform": "linux", "command": _INTERNAL_COMMAND},
-                ),
+                executors=({"name": "sh", "platform": "linux", "command": _INTERNAL_COMMAND},),
             ),
             st.uuids(),
         ),
@@ -211,25 +209,19 @@ class SequencedCaldera:
         if method == "POST" and path == ABILITIES_PATH:
             return httpx.Response(200, json=json.loads(request.content.decode("utf-8")))
         if method == "POST" and path == OPERATIONS_PATH:
-            return httpx.Response(
-                200, json={"id": "op-test", "name": "run", "state": "running"}
-            )
+            return httpx.Response(200, json={"id": "op-test", "name": "run", "state": "running"})
         if method == "GET" and path == f"{OPERATIONS_PATH}/op-test":
             index = self._polls
             self._polls += 1
             if index < self.num_non_terminal:
                 # Non-terminal snapshot with a partial chain (a prefix of the
                 # full terminal chain, with the still-running tail marked -3).
-                partial_len = (index * len(self.terminal_chain)) // max(
-                    1, self.num_non_terminal
-                )
+                partial_len = (index * len(self.terminal_chain)) // max(1, self.num_non_terminal)
                 partial = tuple(
                     _LinkSpec(ability_id=spec.ability_id, status_code=-3)
                     for spec in self.terminal_chain[:partial_len]
                 )
-                return httpx.Response(
-                    200, json=self._snapshot("running", partial)
-                )
+                return httpx.Response(200, json=self._snapshot("running", partial))
             # Terminal snapshot — the full chain of N collected links.
             return httpx.Response(
                 200, json=self._snapshot(self.terminal_state, self.terminal_chain)
@@ -240,8 +232,7 @@ class SequencedCaldera:
 def _isolated_verifier(containers: list[str], _inspector: object) -> IsolationResult:
     """Fake isolation verifier: every requested container is isolated."""
     verdicts = tuple(
-        ContainerIsolationVerdict(container=name, isolated=True, reasons=())
-        for name in containers
+        ContainerIsolationVerdict(container=name, isolated=True, reasons=()) for name in containers
     )
     return IsolationResult(passed=True, verdicts=verdicts)
 

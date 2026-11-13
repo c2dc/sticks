@@ -30,7 +30,7 @@ _Requirements: 1.1, 1.3, 1.4, 1.6, 2.1, 2.2, 2.3, 2.4, 4.6, 7.1, 9.2, 10.1, 10.3
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional, Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -113,9 +113,9 @@ class StixPersistenceService:
     def __init__(
         self,
         session: Session,
-        stix_service: Optional[StixService] = None,
+        stix_service: StixService | None = None,
         *,
-        vector_indexer: Optional[StixVectorIndexer] = None,
+        vector_indexer: StixVectorIndexer | None = None,
     ) -> None:
         self._session = session
         self._stix_service = stix_service if stix_service is not None else StixService()
@@ -160,7 +160,7 @@ class StixPersistenceService:
         + ``stix_actors`` + ``stix_actor_campaigns`` inside a single transaction,
         committing once (Req. 1.4).
 
-        The write is idempotent per ``version`` (Req. 2.1–2.4): when a
+        The write is idempotent per ``version`` (Req. 2.1-2.4): when a
         ``stix_packages`` row already exists for ``version`` it is reused (not
         duplicated), its ``downloaded_at`` is refreshed via :func:`_utcnow` and all
         derived child content for that package is cleared and re-inserted
@@ -394,15 +394,15 @@ class StixPersistenceService:
             ).delete(synchronize_session=False)
 
         # Then the package's direct children.
-        self._session.query(StixTypeCount).filter(
-            StixTypeCount.package_id == package_id
-        ).delete(synchronize_session=False)
-        self._session.query(StixCampaign).filter(
-            StixCampaign.package_id == package_id
-        ).delete(synchronize_session=False)
-        self._session.query(StixActor).filter(
-            StixActor.package_id == package_id
-        ).delete(synchronize_session=False)
+        self._session.query(StixTypeCount).filter(StixTypeCount.package_id == package_id).delete(
+            synchronize_session=False
+        )
+        self._session.query(StixCampaign).filter(StixCampaign.package_id == package_id).delete(
+            synchronize_session=False
+        )
+        self._session.query(StixActor).filter(StixActor.package_id == package_id).delete(
+            synchronize_session=False
+        )
 
     # ------------------------------------------------------------------
     # Bundle derivations (reusing the parse; following list_adversaries)
@@ -442,7 +442,7 @@ class StixPersistenceService:
             raw_name = obj.get("name")
             technique_name = raw_name if isinstance(raw_name, str) and raw_name else None
 
-            tactic: Optional[str] = None
+            tactic: str | None = None
             phases = obj.get("kill_chain_phases")
             if isinstance(phases, list):
                 for phase in phases:
@@ -529,12 +529,8 @@ class StixPersistenceService:
                 {
                     "external_id": StixService._extract_external_id(obj),
                     "aliases": aliases,
-                    "first_seen": raw_first_seen
-                    if isinstance(raw_first_seen, str)
-                    else None,
-                    "last_seen": raw_last_seen
-                    if isinstance(raw_last_seen, str)
-                    else None,
+                    "first_seen": raw_first_seen if isinstance(raw_first_seen, str) else None,
+                    "last_seen": raw_last_seen if isinstance(raw_last_seen, str) else None,
                 },
             )
 

@@ -30,8 +30,8 @@ from __future__ import annotations
 
 from app.models.enums import FlowOrigin
 from app.services.flow.generator import (
-    ProducedFlow,
     FlowGenerator,
+    ProducedFlow,
     StructuralModeling,
 )
 
@@ -48,9 +48,7 @@ class _StubGeradoIa:
     def origin(self) -> FlowOrigin:
         return FlowOrigin.AI_GENERATED
 
-    def generate(
-        self, campaign: str, modeling: StructuralModeling
-    ) -> list[ProducedFlow]:
+    def generate(self, campaign: str, modeling: StructuralModeling) -> list[ProducedFlow]:
         # Uma implementação real de IA derivaria o grafo de ``modeling``; o stub
         # apenas comprova que a assinatura de duas vias é honrada e devolve um
         # ProducedFlow com origin gerado_ia.

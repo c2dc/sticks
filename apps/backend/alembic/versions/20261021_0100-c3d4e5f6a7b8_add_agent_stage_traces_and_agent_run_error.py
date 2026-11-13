@@ -48,13 +48,14 @@ Revises: b2c3d4e5f6a7
 Create Date: 2026-10-21 01:00:00.000000+00:00
 
 """
+
 from __future__ import annotations
 
 from typing import Sequence, Union
 
-from alembic import op
 import sqlalchemy as sa
 
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "c3d4e5f6a7b8"
@@ -85,18 +86,14 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["stage_output_id"], ["agent_stage_outputs.id"]),
         sa.PrimaryKeyConstraint("id"),
         # 1:1: each stage output has at most one trace row.
-        sa.UniqueConstraint(
-            "stage_output_id", name="uq_agent_stage_traces_stage_output_id"
-        ),
+        sa.UniqueConstraint("stage_output_id", name="uq_agent_stage_traces_stage_output_id"),
     )
 
     # (2) Add the nullable ``agent_runs.error`` column (Req. 2.6, 2.7). Additive
     # and nullable with no server default, so existing rows get NULL and need no
     # backfill. Batch mode keeps the ALTER portable on SQLite.
     with op.batch_alter_table("agent_runs") as batch_op:
-        batch_op.add_column(
-            sa.Column(_RUN_ERROR_COLUMN, sa.Text(), nullable=True)
-        )
+        batch_op.add_column(sa.Column(_RUN_ERROR_COLUMN, sa.Text(), nullable=True))
 
 
 def downgrade() -> None:

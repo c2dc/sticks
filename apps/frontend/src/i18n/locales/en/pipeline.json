@@ -1,7 +1,7 @@
 {
   "stageView": {
-    "loading": "Loading stage data…",
-    "loadError": "Could not load this stage's data."
+    "loading": "Loading data…",
+    "loadError": "Could not load the data."
   },
   "baseStix": {
     "selected": "Selected base: v{{versao}}",
@@ -47,7 +47,7 @@
     "actors_other": "{{count}} actors",
     "noActors": "No actors attributed.",
     "notExtracted": "Select a campaign to extract and show its attributes.",
-    "completed": "Attributes extracted — Stage 2 completed.",
+    "completed": "Attributes extracted.",
     "failure": "Could not extract the attributes of the selected campaign.",
     "searchPlaceholder": "Search campaign by name...",
     "searchLabel": "Search campaign",
@@ -91,15 +91,16 @@
     "executionReport": "The offensive emulation ran against the targets and the real result was recorded.",
     "evaluationRationale": "Evaluator rationale",
     "speech": {
-      "flow": "I generated the attack flow for this campaign's techniques. Take a look: shall I proceed with this flow?",
-      "operationalization": "Here are the concrete commands available for each technique of this campaign. Review them, then start the emulation when you're ready.",
-      "environment": "Nice. I designed the isolated environment where the campaign will be emulated safely. Shall I proceed?",
-      "execution": "I ran the offensive emulation against the targets and recorded the real result.",
-      "evaluation": "I evaluated the execution result. Here is the evaluator's verdict."
+      "flow": "I generated the attack flow for the techniques of {{campaign}}. Take a look: shall I proceed with this flow?",
+      "operationalization": "Here are the concrete commands available for each technique of {{campaign}}. Review them, then start the emulation when you're ready.",
+      "environment": "Nice. I designed the isolated environment where {{campaign}} will be emulated safely. Shall I proceed?",
+      "execution": "I ran the offensive emulation of {{campaign}} against the targets and recorded the real result.",
+      "evaluation": "I evaluated the execution result of {{campaign}}. Here is the evaluator's verdict."
     }
   },
   "operationalization": {
     "title": "Operationalization",
+    "campaign": "Campaign: {{campaign}}",
     "description": "For each technique of the campaign, the Atomic Red Team commands that can emulate it.",
     "loading": "Loading the campaign commands…",
     "loadError": "Could not load the operationalization of this campaign.",
@@ -110,8 +111,19 @@
     "commandsLabel": "Commands for {{technique}}",
     "commandCount_one": "{{count}} command",
     "commandCount_other": "{{count}} commands",
-    "noCommands": "No Atomic Red Team command is available for this technique.",
+    "noCommands": "Atomic Red Team has no test for this technique.",
     "noCommandsPending": "No command found yet for this technique. The Atomic Red Team base is still loading, so commands may appear soon.",
+    "commandLabel": "Atomic Red Team command",
+    "copy": "Copy",
+    "copied": "Copied",
+    "copyFailed": "Could not copy",
+    "unresolvedArguments": "Unresolved arguments (kept as placeholders): {{names}}",
+    "argumentsUsed": "Arguments used",
+    "copyLabel": "Copy command for {{technique}}",
+    "copyExampleLabel": "Copy example for {{technique}}",
+    "exampleLabel": "Example with Atomic default values",
+    "exampleHint": "The agent adapts these values to the campaign environment.",
+    "templateSummary": "Original template",
     "executor": "Executor",
     "platform": "Platform",
     "source": "Source",
@@ -239,6 +251,8 @@
   },
   "flow": {
     "title": "Attack flow",
+    "diagramLabel": "Attack flow diagram",
+    "diagramSourceLabel": "Attack flow diagram source",
     "loading": "Loading the attack flow…",
     "error": "Could not load the attack flow.",
     "empty": "No attack flow has been generated for this campaign yet.",

@@ -42,7 +42,6 @@ from app.models.domain import Ability, TechniqueEmulability
 from app.models.enums import TechniqueEmulabilityKind
 from app.services.container_emulability_service import ContainerEmulabilityService
 
-
 # ---------------------------------------------------------------------------
 # Ephemeral session helper (fresh temp-file SQLite + ORM schema).
 # ---------------------------------------------------------------------------

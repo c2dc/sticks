@@ -17,7 +17,7 @@ Importing this module performs no I/O; the ORM import is lazy (Requirement 1.7).
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:  # pragma: no cover - typing only, no runtime import
     from sqlalchemy.orm import Session
@@ -39,7 +39,7 @@ _PROCESSING_KEYS = (
 )
 
 
-def _normalize_processing(processing: Optional[dict]) -> dict:
+def _normalize_processing(processing: dict | None) -> dict:
     """Return a processing dict with every known element present.
 
     Genuinely-absent elements are mapped to the explicit ``None`` sentinel (not
@@ -57,10 +57,10 @@ def _normalize_processing(processing: Optional[dict]) -> dict:
 
 
 def persist_stage_trace(
-    session: "Session",
-    stage_output: "AgentStageOutput",
-    trace: Optional[dict],
-) -> "Optional[AgentStageTrace]":
+    session: Session,
+    stage_output: AgentStageOutput,
+    trace: dict | None,
+) -> AgentStageTrace | None:
     """Write the single 1:1 ``agent_stage_traces`` row for ``stage_output``.
 
     Builds one :class:`~app.models.domain.AgentStageTrace` linked to the

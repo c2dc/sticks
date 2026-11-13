@@ -46,20 +46,14 @@ def _require(settings: SepinfSettings) -> None:
     # Order chosen so the key check is explicit (Requirement 7.5) while the other
     # two are covered by Requirement 7.6; each message is name-only.
     if not settings.api_key:
-        raise SepinfConfigError(
-            "SEPINF_API_KEY is not configured; set it in the environment."
-        )
+        raise SepinfConfigError("SEPINF_API_KEY is not configured; set it in the environment.")
     if not settings.base_url:
-        raise SepinfConfigError(
-            "SEPINF_BASE_URL is not configured; set it in the environment."
-        )
+        raise SepinfConfigError("SEPINF_BASE_URL is not configured; set it in the environment.")
     if not settings.model_id:
-        raise SepinfConfigError(
-            "SEPINF_MODEL_ID is not configured; set it in the environment."
-        )
+        raise SepinfConfigError("SEPINF_MODEL_ID is not configured; set it in the environment.")
 
 
-def make_chat_model(*, temperature: float = 0.0) -> "ChatOpenAI":
+def make_chat_model(*, temperature: float = 0.0) -> ChatOpenAI:
     """Lazy factory for the SEPINF chat model (OpenAI-compatible).
 
     Resolved lazily: no network call happens until the first agent node actually

@@ -40,7 +40,6 @@ _Requisitos: 6.8_
 from __future__ import annotations
 
 import datetime as dt
-from typing import Optional
 
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
@@ -64,7 +63,7 @@ class AuditPersistenceError(RuntimeError):
         *,
         command: str,
         target_container: str,
-        original: Optional[BaseException] = None,
+        original: BaseException | None = None,
     ) -> None:
         super().__init__(message)
         self.command = command
@@ -102,10 +101,10 @@ class AuditLogger:
         *,
         command: str,
         target_container: str,
-        result: Optional[str] = None,
-        operation_id: Optional[int] = None,
-        ability_id: Optional[str] = None,
-        recorded_at: Optional[dt.datetime] = None,
+        result: str | None = None,
+        operation_id: int | None = None,
+        ability_id: str | None = None,
+        recorded_at: dt.datetime | None = None,
     ) -> AuditLogEntry:
         """Persist exactly one ``AuditLogEntry`` for one executed command.
 

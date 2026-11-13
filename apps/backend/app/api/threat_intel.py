@@ -46,7 +46,7 @@ router = APIRouter(prefix="/api", tags=["threat-intel"])
 
 
 class ThreatIntelIngestResponse(BaseModel):
-    """The summary of a ``POST /api/threat-intel`` ingest (Req. 13.1–13.6).
+    """The summary of a ``POST /api/threat-intel`` ingest (Req. 13.1-13.6).
 
     Mirrors
     :class:`~app.services.threat_intel_ingest_service.ThreatIntelIngestSummary`:
@@ -59,9 +59,7 @@ class ThreatIntelIngestResponse(BaseModel):
         ...,
         description="Detected report format: 'structured' (STIX/JSON) or 'free_text'.",
     )
-    techniques: int = Field(
-        ..., description="Number of distinct ATT&CK techniques extracted."
-    )
+    techniques: int = Field(..., description="Number of distinct ATT&CK techniques extracted.")
     commands_parsed: int = Field(
         ..., description="Number of concrete commands extracted from the report."
     )
@@ -99,7 +97,7 @@ async def ingest_threat_intel(
     ),
     db: Session = Depends(get_db),
 ) -> ThreatIntelIngestResponse:
-    """Ingest an uploaded threat-intel report into the Command_Base (Req. 13.1–13.7).
+    """Ingest an uploaded threat-intel report into the Command_Base (Req. 13.1-13.7).
 
     Reads the ``UploadFile``, builds a
     :class:`~app.services.threat_intel_ingest_service.ThreatIntelReport` and

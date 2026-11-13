@@ -24,6 +24,7 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
+from _stix_seed import ensure_stix_campaigns
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -33,9 +34,10 @@ from app.db.session import create_db_engine, get_db
 from app.main import create_app
 from app.models.domain import AuditLogEntry, Operation
 from app.models.enums import OperationState
-from tests._curated_db import CURATED_NAMES as CURATED_CASES, seed_case_rows
+from tests._curated_db import CURATED_NAMES as CURATED_CASES
+from tests._curated_db import seed_case_rows
 
-from _stix_seed import ensure_stix_campaigns
+
 def _seed_curated_stix_campaigns(session_factory: sessionmaker[Session]) -> None:
     """Seed the persisted STIX campaigns the DB-backed guard validates against.
 
@@ -55,9 +57,6 @@ def _seed_curated_stix_campaigns(session_factory: sessionmaker[Session]) -> None
 # Mocked Caldera transports (no real network) — same contract as the sibling
 # suite's healthy chain, kept local so this file is self-contained.
 # ---------------------------------------------------------------------------
-
-
-
 
 
 @pytest.fixture(scope="module")
@@ -105,18 +104,14 @@ def session_factory() -> Iterator[sessionmaker[Session]]:
                         "name": "T1190 - first",
                         "technique_id": "T1190",
                         "tactic": "initial-access",
-                        "executors": [
-                            {"name": "sh", "platform": "linux", "command": "echo 1"}
-                        ],
+                        "executors": [{"name": "sh", "platform": "linux", "command": "echo 1"}],
                     },
                     {
                         "ability_id": f"{slug}-ab-2",
                         "name": "T1059 - second",
                         "technique_id": "T1059",
                         "tactic": "execution",
-                        "executors": [
-                            {"name": "sh", "platform": "linux", "command": "echo 2"}
-                        ],
+                        "executors": [{"name": "sh", "platform": "linux", "command": "echo 2"}],
                     },
                 ],
                 adversary={
@@ -230,8 +225,6 @@ def test_detail_campaign_unknown_slug_returns_404(
     assert resp.status_code == 404, resp.text
 
 
-
-
 # ===========================================================================
 # GET /api/campaigns/{campaign}/operation
 # ===========================================================================
@@ -289,9 +282,7 @@ def test_put_preferences_persists_theme_and_language(
     """``PUT /api/preferences`` persists the theme + language and echoes the
     stored values back (Req. 7.4, 8.4)."""
     client = _make_client(session_factory)
-    resp = client.put(
-        "/api/preferences", json={"theme": "dark", "language": "en"}
-    )
+    resp = client.put("/api/preferences", json={"theme": "dark", "language": "en"})
     assert resp.status_code == 200, resp.text
     assert resp.json() == {"theme": "dark", "language": "en"}
 
@@ -382,5 +373,3 @@ def test_get_audit_unknown_operation_returns_empty_trail(
     body = resp.json()
     assert body["operation_id"] == 999999
     assert body["records"] == []
-
-

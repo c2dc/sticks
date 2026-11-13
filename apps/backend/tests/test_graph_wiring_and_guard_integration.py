@@ -29,6 +29,8 @@ _Requirements: 1.7, 3.1, 3.2, 3.3, 3.6, 3.7_
 
 from __future__ import annotations
 
+import itertools
+
 import pytest
 from langgraph.checkpoint.memory import MemorySaver
 
@@ -104,14 +106,10 @@ def test_all_six_nodes_present(drawn_graph) -> None:
     node_ids = set(drawn_graph.nodes.keys())
 
     # Every expected stage node is present.
-    assert _EXPECTED_NODES <= node_ids, (
-        f"missing nodes: {_EXPECTED_NODES - node_ids}"
-    )
+    assert node_ids >= _EXPECTED_NODES, f"missing nodes: {_EXPECTED_NODES - node_ids}"
     # The non-sentinel nodes are exactly the six expected ones.
     real_nodes = node_ids - {_START, _END}
-    assert real_nodes == _EXPECTED_NODES, (
-        f"unexpected node set: {real_nodes!r}"
-    )
+    assert real_nodes == _EXPECTED_NODES, f"unexpected node set: {real_nodes!r}"
 
 
 # ===========================================================================
@@ -123,11 +121,7 @@ def test_all_six_nodes_present(drawn_graph) -> None:
 
 def _linear_edges(drawn_graph) -> dict[str, str]:
     """Map ``source -> target`` for the unconditional (linear) edges only."""
-    return {
-        edge.source: edge.target
-        for edge in drawn_graph.edges
-        if not edge.conditional
-    }
+    return {edge.source: edge.target for edge in drawn_graph.edges if not edge.conditional}
 
 
 def test_linear_edges_wired_in_sequence(drawn_graph) -> None:
@@ -141,12 +135,10 @@ def test_linear_edges_wired_in_sequence(drawn_graph) -> None:
 
     # START -> orchestrate, then each stage to the next up to execute -> evaluate.
     expected_chain = {_START: _NODE_ORDER[0]}
-    for earlier, later in zip(_NODE_ORDER, _NODE_ORDER[1:]):
+    for earlier, later in itertools.pairwise(_NODE_ORDER):
         expected_chain[earlier] = later
 
-    assert linear == expected_chain, (
-        f"linear edges deviate from the sequence: {linear!r}"
-    )
+    assert linear == expected_chain, f"linear edges deviate from the sequence: {linear!r}"
 
 
 def test_each_stage_has_exactly_one_outgoing_linear_edge(drawn_graph) -> None:
@@ -160,8 +152,7 @@ def test_each_stage_has_exactly_one_outgoing_linear_edge(drawn_graph) -> None:
     # one outgoing linear edge (evaluate's successors are all conditional).
     for stage in _NODE_ORDER[:-1]:
         assert outgoing_counts.get(stage) == 1, (
-            f"{stage} must have exactly one outgoing linear edge, "
-            f"got {outgoing_counts.get(stage)}"
+            f"{stage} must have exactly one outgoing linear edge, got {outgoing_counts.get(stage)}"
         )
 
 
@@ -231,9 +222,7 @@ def test_conditional_edges_fan_out_from_evaluate(drawn_graph) -> None:
     The improvement loop is the single conditional branch in the graph; it hangs
     off ``evaluate`` and nowhere else.
     """
-    conditional_sources = {
-        edge.source for edge in drawn_graph.edges if edge.conditional
-    }
+    conditional_sources = {edge.source for edge in drawn_graph.edges if edge.conditional}
     assert conditional_sources == {"evaluate"}
 
 
@@ -244,9 +233,7 @@ def test_conditional_edge_routes_to_four_targets(drawn_graph) -> None:
     loop terminus END — ``route_after_eval``'s ``finish`` key is mapped to END by
     ``build_graph`` (Req. 3.2, 3.3).
     """
-    conditional_targets = {
-        edge.target for edge in drawn_graph.edges if edge.conditional
-    }
+    conditional_targets = {edge.target for edge in drawn_graph.edges if edge.conditional}
 
     assert conditional_targets == _REFINE_TARGETS | {_END}, (
         f"conditional targets deviate: {conditional_targets!r}"
@@ -254,7 +241,7 @@ def test_conditional_edge_routes_to_four_targets(drawn_graph) -> None:
     # The loop terminus is present (the ``finish`` branch -> END).
     assert _END in conditional_targets
     # Each refine target is reachable from the conditional edge.
-    assert _REFINE_TARGETS <= conditional_targets
+    assert conditional_targets >= _REFINE_TARGETS
 
 
 # ===========================================================================
@@ -430,8 +417,5 @@ def test_context_query_key_precedence_and_ignores_removed_campaign_context():
     assert query({"context_query": " a ", "campaign_summary": "b"}, "c1") == "a"
     assert query({"campaign_summary": " b "}, "c1") == "b"
     # The removed ``campaign_context`` key must no longer influence the query.
-    assert (
-        query({"campaign_context": "legacy"}, "c1")
-        == "AI curation context for campaign c1"
-    )
+    assert query({"campaign_context": "legacy"}, "c1") == "AI curation context for campaign c1"
     assert query({}, "") == "AI curation context"

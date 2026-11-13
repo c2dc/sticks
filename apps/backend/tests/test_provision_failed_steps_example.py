@@ -30,14 +30,10 @@ _Requirements: 8.1, 8.2, 8.5_
 
 from __future__ import annotations
 
-import json
-import shutil
-import tempfile
+from collections.abc import Mapping
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
-from tests._curated_db import CaseDb, db_put
 from app.services.containment.isolation import (
     ContainerNetworkInfo,
     ContainerNotFound,
@@ -53,7 +49,7 @@ from app.services.environment.operationalization import (
 from app.services.environment.provisioner import CurationEnvironmentProvisioner
 from app.services.environment.target_setup import ClassifiedCommand, SetupPhase
 from app.services.environment.topology_builder import HOST_CONTAINERS as _HOST_CONTAINERS
-
+from tests._curated_db import CaseDb, db_put
 
 _SLUG = "shadowray"
 _NET = "caldera-kali-network"
@@ -81,9 +77,7 @@ class _FakeEgressWindow:
     open_fail: frozenset[str] = frozenset()
     close_fail: frozenset[str] = frozenset()
 
-    def open(
-        self, container: str, attack_networks: list[str], *, on_log
-    ) -> EgressWindowResult:
+    def open(self, container: str, attack_networks: list[str], *, on_log) -> EgressWindowResult:
         self.opened.append(container)
         on_log(LogLine(step="build_online", stream="info", text="open", substage="5.1"))
         if container in self.open_fail:
@@ -94,9 +88,7 @@ class _FakeEgressWindow:
 
     def close(self, container: str, *, on_log) -> EgressWindowResult:
         self.closed.append(container)
-        on_log(
-            LogLine(step="encerrar_egresso", stream="info", text="close", substage="5.1")
-        )
+        on_log(LogLine(step="encerrar_egresso", stream="info", text="close", substage="5.1"))
         if container in self.close_fail:
             return EgressWindowResult(
                 container=container, closed=False, reason="falha ao encerrar a janela"
@@ -212,8 +204,7 @@ class _FakeStateInspector:
         from app.services.environment.health import ContainerStateInfo
 
         self._states = {
-            c: ContainerStateInfo(name=c, running=True, health="healthy")
-            for c in containers
+            c: ContainerStateInfo(name=c, running=True, health="healthy") for c in containers
         }
 
     def get_container_state(self, container: str):
@@ -230,9 +221,7 @@ def _isolated_inspector(containers: list[str]) -> _FakeInspector:
     insp = _FakeInspector()
     insp.networks[_NET] = NetworkInfo(name=_NET, internal=True, subnets=())
     for c in containers:
-        insp.containers[c] = ContainerNetworkInfo(
-            name=c, network_names=(_NET,), dns=()
-        )
+        insp.containers[c] = ContainerNetworkInfo(name=c, network_names=(_NET,), dns=())
     return insp
 
 
@@ -241,9 +230,7 @@ def _non_isolated_inspector(containers: list[str]) -> _FakeInspector:
     insp = _FakeInspector()
     insp.networks[_NET] = NetworkInfo(name=_NET, internal=False, subnets=())
     for c in containers:
-        insp.containers[c] = ContainerNetworkInfo(
-            name=c, network_names=(_NET,), dns=()
-        )
+        insp.containers[c] = ContainerNetworkInfo(name=c, network_names=(_NET,), dns=())
     return insp
 
 
@@ -257,19 +244,27 @@ def _seed_case(data_dir: CaseDb, slug: str) -> None:
         },
     ]
     db_put(data_dir, "ability", slug, abilities)
-    db_put(data_dir, "adversary", slug, {
+    db_put(
+        data_dir,
+        "adversary",
+        slug,
+        {
             "id": f"{slug}-adv",
             "name": "Seed Adversary",
             "description": "seed",
             "atomic_ordering": [f"{slug}-ab-1"],
-        })
-    db_put(data_dir, "flow", slug, {
+        },
+    )
+    db_put(
+        data_dir,
+        "flow",
+        slug,
+        {
             "campaign_name": "Seed",
-            "structural_nodes": [
-                {"node_id": "n0", "technique_id": "T1190"}
-            ],
+            "structural_nodes": [{"node_id": "n0", "technique_id": "T1190"}],
             "metadata": {"total_techniques": 1},
-        })
+        },
+    )
 
 
 def _params() -> EnvironmentParameters:

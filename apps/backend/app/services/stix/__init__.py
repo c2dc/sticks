@@ -14,10 +14,10 @@ the service itself.
 """
 
 from app.services.stix.stix_service import (
-    TYPE_DESCRIPTIONS,
+    KNOWN_VERSIONS,
     ROTULO_TIPO,
     SLUG_TO_STIX,
-    KNOWN_VERSIONS,
+    TYPE_DESCRIPTIONS,
     AdversaryStix,
     BaseStixInfo,
     CampaignStix,
@@ -27,16 +27,16 @@ from app.services.stix.stix_service import (
 )
 
 __all__ = [
-    "StixService",
-    # Response models
-    "BaseStixInfo",
-    "TypeCount",
-    "DashboardStix",
-    "CampaignStix",
-    "AdversaryStix",
     # Backend-maintained constants
     "KNOWN_VERSIONS",
-    "TYPE_DESCRIPTIONS",
     "ROTULO_TIPO",
     "SLUG_TO_STIX",
+    "TYPE_DESCRIPTIONS",
+    "AdversaryStix",
+    # Response models
+    "BaseStixInfo",
+    "CampaignStix",
+    "DashboardStix",
+    "StixService",
+    "TypeCount",
 ]

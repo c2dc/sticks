@@ -132,16 +132,15 @@ def _run_migration_step(engine: Engine, step: str) -> None:
     shared DB.
     """
     func = getattr(_migration, step)
-    with engine.connect() as conn:
-        with conn.begin():
-            ctx = MigrationContext.configure(connection=conn)
-            op_proxy = Operations(ctx)
-            original_op = _migration.op
-            _migration.op = op_proxy
-            try:
-                func()
-            finally:
-                _migration.op = original_op
+    with engine.connect() as conn, conn.begin():
+        ctx = MigrationContext.configure(connection=conn)
+        op_proxy = Operations(ctx)
+        original_op = _migration.op
+        _migration.op = op_proxy
+        try:
+            func()
+        finally:
+            _migration.op = original_op
 
 
 # ---------------------------------------------------------------------------
@@ -204,9 +203,7 @@ def test_sqlite_upgrade_creates_then_downgrade_drops_the_five_tables() -> None:
 
         after_up = set(inspect(engine).get_table_names())
         # All five AI tables now exist (Req. 6.4 — the tables are created).
-        assert _AI_TABLES <= after_up, (
-            f"missing AI tables after upgrade: {_AI_TABLES - after_up}"
-        )
+        assert after_up >= _AI_TABLES, f"missing AI tables after upgrade: {_AI_TABLES - after_up}"
         # Upgrade created exactly these five tables and nothing else (the empty
         # DB started with no tables, so the delta is precisely the five).
         assert after_up - before == _AI_TABLES, (
@@ -215,9 +212,7 @@ def test_sqlite_upgrade_creates_then_downgrade_drops_the_five_tables() -> None:
 
         # The experience_memory.embedding column exists (the portable Vector type
         # compiles to a plain column off PostgreSQL, so the table round-trips).
-        emb_columns = {
-            c["name"] for c in inspect(engine).get_columns("experience_memory")
-        }
+        emb_columns = {c["name"] for c in inspect(engine).get_columns("experience_memory")}
         assert "embedding" in emb_columns
 
         # On SQLite the IVFFlat cosine index is PostgreSQL-only and must NOT be
@@ -263,9 +258,7 @@ def test_sqlite_upgrade_downgrade_upgrade_is_repeatable() -> None:
         # Re-apply: a clean downgrade must leave the DB able to upgrade again.
         _run_migration_step(engine, "upgrade")
         after = set(inspect(engine).get_table_names())
-        assert _AI_TABLES <= after, (
-            f"missing AI tables after re-upgrade: {_AI_TABLES - after}"
-        )
+        assert after >= _AI_TABLES, f"missing AI tables after re-upgrade: {_AI_TABLES - after}"
     finally:
         engine.dispose()
         try:
@@ -298,9 +291,9 @@ def test_postgresql_upgrade_enables_pgvector_idempotently() -> None:
 
     # The idempotent extension statement is present (case-insensitive, tolerant
     # of surrounding whitespace).
-    assert re.search(
-        r"create\s+extension\s+if\s+not\s+exists\s+vector", sql, re.IGNORECASE
-    ), f"idempotent CREATE EXTENSION IF NOT EXISTS vector not found in:\n{sql}"
+    assert re.search(r"create\s+extension\s+if\s+not\s+exists\s+vector", sql, re.IGNORECASE), (
+        f"idempotent CREATE EXTENSION IF NOT EXISTS vector not found in:\n{sql}"
+    )
 
     # It is emitted BEFORE the first CREATE TABLE (so a failure to enable the
     # extension aborts before any table is created — Req. 6.5).
@@ -323,9 +316,9 @@ def test_postgresql_upgrade_creates_vector_column_and_cosine_index() -> None:
 
     # The embedding column uses the real pgvector VECTOR type with the resolved
     # dimension (not a plain column as it would be off PostgreSQL).
-    assert re.search(
-        rf"embedding\s+VECTOR\(\s*{_EMBEDDING_DIM}\s*\)", sql, re.IGNORECASE
-    ), f"embedding VECTOR({_EMBEDDING_DIM}) column not found in:\n{sql}"
+    assert re.search(rf"embedding\s+VECTOR\(\s*{_EMBEDDING_DIM}\s*\)", sql, re.IGNORECASE), (
+        f"embedding VECTOR({_EMBEDDING_DIM}) column not found in:\n{sql}"
+    )
 
     # The IVFFlat cosine index backs RAG top-k (embedding <=> :q).
     assert _EMBEDDING_INDEX_NAME in sql, (
@@ -423,9 +416,7 @@ def test_migration_is_purely_additive_and_does_not_alter_the_origin_enum() -> No
         up_sql,
         re.IGNORECASE,
     )
-    assert origin_check is not None, (
-        f"agent_stage_outputs origin CHECK not found in:\n{up_sql}"
-    )
+    assert origin_check is not None, f"agent_stage_outputs origin CHECK not found in:\n{up_sql}"
     check_body = origin_check.group(1)
     # The pre-existing origin value already admitted by the enum is present and
     # unchanged — no new origin member is introduced.
@@ -436,8 +427,7 @@ def test_migration_is_purely_additive_and_does_not_alter_the_origin_enum() -> No
     # migration owns — it creates no table outside its own scope, so it cannot
     # shadow or redefine an existing table (such as an origin-bearing one).
     created_tables = {
-        m.group(1)
-        for m in re.finditer(r"create\s+table\s+(\w+)\s*\(", up_sql, re.IGNORECASE)
+        m.group(1) for m in re.finditer(r"create\s+table\s+(\w+)\s*\(", up_sql, re.IGNORECASE)
     }
     assert created_tables == _AI_TABLES, (
         f"upgrade created tables {created_tables}, expected exactly {_AI_TABLES}"

@@ -26,7 +26,6 @@ _Requirements: 1.4, 2.1, 2.2, 9.2_
 
 from __future__ import annotations
 
-import json
 import os
 import tempfile
 from pathlib import Path
@@ -48,7 +47,6 @@ from app.models.domain import (
 )
 from app.services.stix.stix_persistence_service import StixPersistenceService
 from app.services.stix.stix_service import KNOWN_VERSIONS, StixService
-
 
 # A known version, as in production. ``persist_bundle`` never downloads, so
 # there is no network egress.
@@ -97,18 +95,14 @@ def _example_bundle() -> dict:
                 "aliases": ["Shadow", "Ray"],
                 "first_seen": "2023-01-01T00:00:00.000Z",
                 "last_seen": "2023-06-01T00:00:00.000Z",
-                "external_references": [
-                    {"source_name": "mitre-attack", "external_id": "C0045"}
-                ],
+                "external_references": [{"source_name": "mitre-attack", "external_id": "C0045"}],
             },
             # --- plain campaign (non-curated external id) -------------------
             {
                 "type": "campaign",
                 "id": _CAMPAIGN_PLAIN_ID,
                 "name": "Plain Campaign",
-                "external_references": [
-                    {"source_name": "mitre-attack", "external_id": "C9001"}
-                ],
+                "external_references": [{"source_name": "mitre-attack", "external_id": "C9001"}],
             },
             # --- techniques (attack-patterns) -------------------------------
             {
@@ -116,9 +110,7 @@ def _example_bundle() -> dict:
                 "id": _PATTERN_A_ID,
                 "name": "Command and Scripting Interpreter",
                 "description": "Technique A description.",
-                "external_references": [
-                    {"source_name": "mitre-attack", "external_id": "T1059"}
-                ],
+                "external_references": [{"source_name": "mitre-attack", "external_id": "T1059"}],
                 "kill_chain_phases": [
                     {"kill_chain_name": "mitre-attack", "phase_name": "execution"}
                 ],
@@ -128,9 +120,7 @@ def _example_bundle() -> dict:
                 "id": _PATTERN_B_ID,
                 "name": "Remote Services",
                 "description": "Technique B description.",
-                "external_references": [
-                    {"source_name": "mitre-attack", "external_id": "T1021"}
-                ],
+                "external_references": [{"source_name": "mitre-attack", "external_id": "T1021"}],
                 "kill_chain_phases": [
                     {"kill_chain_name": "mitre-attack", "phase_name": "lateral-movement"}
                 ],
@@ -380,13 +370,13 @@ def test_persist_bundle_rolls_back_on_commit_failure_leaving_no_rows() -> None:
         def _boom() -> None:
             raise RuntimeError("simulated commit failure")
 
-        session.commit = _boom  # type: ignore[method-assign]
+        session.commit = _boom  # type: ignore[method-assign] -- test monkeypatches the method on the instance
 
         with pytest.raises(RuntimeError, match="simulated commit failure"):
             service.persist_bundle(_VERSION, bundle)
 
         # Restore a working commit so the verification queries can run cleanly.
-        del session.commit  # type: ignore[attr-defined]
+        del session.commit  # type: ignore[attr-defined] -- removes the instance override to restore the bound method
         session.rollback()
 
         # No partial package survives the failed write (Req. 9.2).

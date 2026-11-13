@@ -49,12 +49,14 @@ embeddings real, injetamos um ``_FakeEmbedder`` determinístico no
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import tempfile
 from pathlib import Path
 from typing import Any
 
 import pytest
+from _atomic_docs import documents_from_dir
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 from sqlalchemy import func, select
@@ -109,10 +111,8 @@ def _dispose(session: Session, engine: Any, db_path: Path) -> None:
     """Close the session, dispose the engine and remove the temp db file."""
     session.close()
     engine.dispose()
-    try:
+    with contextlib.suppress(OSError):
         db_path.unlink(missing_ok=True)
-    except OSError:
-        pass
 
 
 # ---------------------------------------------------------------------------
@@ -145,8 +145,8 @@ class _FakeFetcher:
     def __init__(self, atomics_dir: Path) -> None:
         self._atomics_dir = atomics_dir
 
-    def fetch_atomics_dir(self, *, ref: str, dest: Path) -> Path:
-        return self._atomics_dir
+    def fetch_documents(self, *, ref: str) -> list:
+        return documents_from_dir(self._atomics_dir)
 
 
 class _RaisingFetcher:
@@ -156,7 +156,7 @@ class _RaisingFetcher:
     before any write, leaving ``technique_commands`` unchanged.
     """
 
-    def fetch_atomics_dir(self, *, ref: str, dest: Path) -> Path:
+    def fetch_documents(self, *, ref: str) -> list:
         raise AtomicFetchError("simulated fetch failure", ref=ref)
 
 
@@ -211,9 +211,7 @@ def _normalize_command(command: str) -> str:
 
 def _command_hash(command: str) -> str:
     """Deterministic SHA-256 of the normalized command (idempotency key part)."""
-    return hashlib.sha256(
-        _normalize_command(command).encode("utf-8")
-    ).hexdigest()
+    return hashlib.sha256(_normalize_command(command).encode("utf-8")).hexdigest()
 
 
 # ---------------------------------------------------------------------------
@@ -226,9 +224,7 @@ def _command_hash(command: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _ingest_threat_intel(
-    session: Session, rows: list[dict[str, Any]]
-) -> None:
+def _ingest_threat_intel(session: Session, rows: list[dict[str, Any]]) -> None:
     """Persist ``technique_commands`` rows for the threat_intel source, idempotently.
 
     Replicates the service's check-before-insert on the
@@ -340,9 +336,7 @@ def _row_count(session: Session, source: str) -> int:
     )
 
 
-def _pairs_with_source(
-    session: Session, source: str
-) -> list[tuple[str, str, str]]:
+def _pairs_with_source(session: Session, source: str) -> list[tuple[str, str, str]]:
     """Return ``(technique_id, command_hash, source)`` triples for a source."""
     return [
         (r.technique_id, r.command_hash, r.source)
@@ -476,28 +470,28 @@ def test_orchestrator_rerun_of_atomic_source_does_not_duplicate_commands() -> No
         )
         fetcher = _FakeFetcher(atomics_dir)
         calls: list[str] = []
-        original = fetcher.fetch_atomics_dir
+        original = fetcher.fetch_documents
 
-        def _counting(*, ref: str, dest: Path) -> Path:
+        def _counting(*, ref: str) -> list:
             calls.append(ref)
-            return original(ref=ref, dest=dest)
+            return original(ref=ref)
 
-        fetcher.fetch_atomics_dir = _counting  # type: ignore[method-assign]
+        fetcher.fetch_documents = _counting  # type: ignore[method-assign] -- test monkeypatches the method on the instance
         factory = sessionmaker(bind=engine, expire_on_commit=False, future=True)
         orchestrator = IngestionOrchestrator(
             factory,
-            {
-                IngestSource.ATOMIC: AtomicSourceRunner(
-                    embedder=_FakeEmbedder(), fetcher=fetcher
-                )
-            },
+            {IngestSource.ATOMIC: AtomicSourceRunner(embedder=_FakeEmbedder(), fetcher=fetcher)},
         )
 
         def _counts() -> tuple[int, int]:
             with factory() as check:
                 return (
                     _row_count(check, "atomic_red_team"),
-                    int(check.execute(select(func.count()).select_from(ExperienceMemoryRow)).scalar_one()),
+                    int(
+                        check.execute(
+                            select(func.count()).select_from(ExperienceMemoryRow)
+                        ).scalar_one()
+                    ),
                 )
 
         orchestrator.run_source(IngestSource.ATOMIC)
@@ -548,9 +542,7 @@ def test_atomic_fetch_failure_leaves_technique_commands_unchanged_and_reports() 
         assert len(before) == 1
 
         memory = ExperienceMemory(session, embedder=_FakeEmbedder())
-        service = AtomicRedTeamIngestService(
-            session, memory=memory, fetcher=_RaisingFetcher()
-        )
+        service = AtomicRedTeamIngestService(session, memory=memory, fetcher=_RaisingFetcher())
 
         # The fetch failure is reported (raised), not swallowed.
         with pytest.raises(AtomicFetchError):
@@ -560,5 +552,43 @@ def test_atomic_fetch_failure_leaves_technique_commands_unchanged_and_reports() 
         after = _pairs_with_source(session, "atomic_red_team")
         assert after == before
         assert _row_count(session, "atomic_red_team") == 1
+    finally:
+        _dispose(session, engine, db_path)
+
+
+# ---------------------------------------------------------------------------
+# Deterministic (no Hypothesis) idempotency over a synthetic in-memory tarball.
+# ---------------------------------------------------------------------------
+
+
+def test_synthetic_tarball_ingested_twice_keeps_rows_and_counts_stable() -> None:
+    """Two ingests of the same tarball: same rows, ``expected_count`` == unique commands."""
+    from test_atomic_ingest import (
+        EXPECTED_UNIQUE,
+        FakeTransport,
+        build_tarball,
+        repo_members,
+    )
+
+    session, db_path, engine = _build_ephemeral_session()
+    try:
+        fetcher = AtomicRepoFetcher(
+            opener=FakeTransport(build_tarball(repo_members())), sleep=lambda _s: None
+        )
+        service = AtomicRedTeamIngestService(
+            session, memory=ExperienceMemory(session, embedder=_FakeEmbedder()), fetcher=fetcher
+        )
+
+        first = service.ingest(ref="master")
+        session.commit()
+        pairs = sorted(_pairs_with_source(session, "atomic_red_team"))
+        second = service.ingest(ref="master")
+        session.commit()
+
+        assert first.expected_count == second.expected_count == EXPECTED_UNIQUE
+        assert first.commands_inserted == EXPECTED_UNIQUE
+        assert (second.commands_inserted, second.affinities_inserted) == (0, 0)
+        assert sorted(_pairs_with_source(session, "atomic_red_team")) == pairs
+        assert len(pairs) == len(set(pairs)) == EXPECTED_UNIQUE
     finally:
         _dispose(session, engine, db_path)

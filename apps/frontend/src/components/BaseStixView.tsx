@@ -93,6 +93,7 @@ export function BaseStixView({
   // Confirm the selected base's bundle is on disk whenever the version changes.
   useEffect(() => {
     let active = true
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- resets the request state synchronously when the key changes, before the async fetch; deriving it during render would change the loading timing
     setLoadError(null)
     setResult(null)
 
@@ -129,6 +130,7 @@ export function BaseStixView({
   // overview around while (re)loading or on failure.
   useEffect(() => {
     let active = true
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- resets the request state synchronously when the key changes, before the async fetch; deriving it during render would change the loading timing
     setOverview(null)
     setOverviewError(null)
 
@@ -162,6 +164,7 @@ export function BaseStixView({
   // overview so a failure here keeps the overview intact.
   useEffect(() => {
     let active = true
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- resets the request state synchronously when the key changes, before the async fetch; deriving it during render would change the loading timing
     setAnalytics(null)
     setAnalyticsError(null)
 

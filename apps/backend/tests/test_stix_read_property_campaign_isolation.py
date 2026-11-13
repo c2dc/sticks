@@ -50,7 +50,6 @@ here touches the network nor an AI client.
 
 from __future__ import annotations
 
-import json
 import os
 import tempfile
 import uuid
@@ -66,7 +65,6 @@ from app.db.session import create_db_engine
 from app.services.stix.stix_package_read_service import StixPackageReadService
 from app.services.stix.stix_persistence_service import StixPersistenceService
 from app.services.stix.stix_service import StixService
-
 
 # ---------------------------------------------------------------------------
 # Ephemeral DB fixture: a SQLite engine on a temporary file with the full schema
@@ -302,9 +300,7 @@ def test_property5_campaign_overview_isolated_to_selected_package(
     session = factory()
     try:
         stix_service = StixService()
-        persistence = StixPersistenceService(
-            session=session, stix_service=stix_service
-        )
+        persistence = StixPersistenceService(session=session, stix_service=stix_service)
 
         # Persist BOTH versions into the SAME database.
         for version, world in ((VERSION_A, world_a), (VERSION_B, world_b)):

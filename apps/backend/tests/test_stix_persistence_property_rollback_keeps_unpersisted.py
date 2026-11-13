@@ -17,12 +17,12 @@ the six STIX tables built straight from the ORM.
 
 from __future__ import annotations
 
-import json
 import shutil
 import tempfile
 from pathlib import Path
 
 import pytest
+from _stix_fakes import FakeStixHttp
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 from sqlalchemy import create_engine
@@ -40,7 +40,6 @@ from app.models.domain import (
 from app.services.stix.stix_package_read_service import StixPackageReadService
 from app.services.stix.stix_persistence_service import StixPersistenceService
 from app.services.stix.stix_service import KNOWN_VERSIONS, StixService
-from _stix_fakes import FakeStixHttp
 
 # A single shared iteration budget so the property runs >= 100 examples.
 PROP_SETTINGS = settings(
@@ -177,7 +176,6 @@ def _valid_bundle(draw: st.DrawFn) -> list[dict]:
     return list(draw(st.permutations(objects)))
 
 
-
 # Feature: stix-base-persisted-state-and-file-cleanup, Property 2: Rollback preserva o arquivo e mantém não persistida
 @PROP_SETTINGS
 @given(objects=_valid_bundle(), entry_point=st.sampled_from(["download", "memory"]))
@@ -226,14 +224,13 @@ def test_property2_rollback_preserves_file_and_keeps_unpersisted(
             def _boom(*_args: object, **_kwargs: object) -> None:
                 raise RuntimeError("simulated write-phase failure")
 
-            service._write_derived_content = _boom  # type: ignore[method-assign]
+            service._write_derived_content = _boom  # type: ignore[method-assign] -- test monkeypatches the method on the instance
 
             with pytest.raises(RuntimeError, match="simulated write-phase failure"):
                 if entry_point == "download":
                     service.download_and_persist(version)
                 else:
                     service.persist_bundle(version, bundle)
-
 
             # The version is not persisted: no stix_packages row survives.
             session.rollback()

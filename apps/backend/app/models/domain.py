@@ -30,7 +30,7 @@ from __future__ import annotations
 import datetime as dt
 import os
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
@@ -38,7 +38,6 @@ from sqlalchemy import (
     Boolean,
     CheckConstraint,
     DateTime,
-    Enum as SAEnum,
     Float,
     ForeignKey,
     Index,
@@ -47,8 +46,12 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
-from sqlalchemy import text as sa_text
+from sqlalchemy import (
+    Enum as SAEnum,
+)
 from sqlalchemy import false as sa_false
+from sqlalchemy import text as sa_text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -56,11 +59,11 @@ from app.models.enums import (
     AbilityResultStatus,
     AgentRunStatus,
     AgentStage,
+    EnvironmentPlatform,
+    EvaluatorDecision,
     FlowOrigin,
     IngestSource,
     IngestStatus,
-    EnvironmentPlatform,
-    EvaluatorDecision,
     Language,
     OperationState,
     StageState,
@@ -115,7 +118,7 @@ def _embedding_dim() -> int:
         return _DEFAULT_EMBEDDING_DIM
 
 
-def _read_root_env_value(key: str) -> Optional[str]:
+def _read_root_env_value(key: str) -> str | None:
     """Read ``key`` from the repository-root ``.env`` without extra dependencies.
 
     Mirrors how :class:`app.services.ai.config.SepinfSettings` locates the root
@@ -173,7 +176,7 @@ class Case(Base):
     # slug: "shadowray", "apt41_dust", ...
     id: Mapped[str] = mapped_column(String, primary_key=True)
     name: Mapped[str] = mapped_column(String, nullable=False)  # "ShadowRay"
-    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
     translation_source: Mapped[TranslationSource] = mapped_column(
         _portable_enum(TranslationSource, "translation_source"),
         default=TranslationSource.HUMAN_CURATION,
@@ -222,7 +225,7 @@ class AttackFlowRow(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     # Nullable since migration f2a3b4c5d6e7: MITRE corpus flows do not belong
     # to a Sticks campaign.
-    campaign_id: Mapped[Optional[str]] = mapped_column(
+    campaign_id: Mapped[str | None] = mapped_column(
         String, ForeignKey("campaigns.id"), nullable=True
     )
     origin: Mapped[FlowOrigin] = mapped_column(
@@ -233,19 +236,19 @@ class AttackFlowRow(Base):
     # Corpus metadata (migration f2a3b4c5d6e7). ``source_key`` is the corpus
     # file name (idempotency key, partial UNIQUE index); ``source_sha`` is the
     # blob SHA from the tag listing.
-    source_key: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    source_sha: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    scope: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    source_key: Mapped[str | None] = mapped_column(String, nullable=True)
+    source_sha: Mapped[str | None] = mapped_column(String, nullable=True)
+    scope: Mapped[str | None] = mapped_column(String, nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
     has_cycles: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=sa_false(), nullable=False
     )
     # {kind, references[], similarity} for AI-produced flows.
-    provenance: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
+    provenance: Mapped[Any | None] = mapped_column(JSON, nullable=True)
     # readable attack flow identifier/version (Req. 4.4); for curation,
     # derived from the file (e.g. "human-curation-v1")
     identifier: Mapped[str] = mapped_column(String, nullable=False)
-    label: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    label: Mapped[str | None] = mapped_column(String, nullable=True)
     # graph content: {"structural_nodes": [...], "edges": [{"from","to"}]}
     content: Mapped[Any] = mapped_column(JSON, nullable=False)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime, nullable=False)
@@ -257,7 +260,7 @@ class StageRun(Base):
     __tablename__ = "stage_runs"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    campaign_id: Mapped[Optional[str]] = mapped_column(
+    campaign_id: Mapped[str | None] = mapped_column(
         String, ForeignKey("campaigns.id"), nullable=True
     )
     # Pipeline stage in the range 1..6 (plain Integer column, no range CHECK:
@@ -270,12 +273,10 @@ class StageRun(Base):
     )
     progress: Mapped[int] = mapped_column(Integer, default=0, nullable=False)  # 0..100
     # cause of the failure, when state == error
-    error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     # modeling step at which it failed (Stage 1)
-    failed_step: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    updated_at: Mapped[Optional[dt.datetime]] = mapped_column(
-        DateTime, nullable=True
-    )
+    failed_step: Mapped[str | None] = mapped_column(String, nullable=True)
+    updated_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
 
 
 class Ability(Base):
@@ -288,16 +289,16 @@ class Ability(Base):
 
     # uuid from the file
     ability_id: Mapped[str] = mapped_column(String, primary_key=True)
-    campaign_id: Mapped[Optional[str]] = mapped_column(
+    campaign_id: Mapped[str | None] = mapped_column(
         String, ForeignKey("campaigns.id"), nullable=True
     )
-    name: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # "T1102 - Web Service"
-    tactic: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    technique_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    technique_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    name: Mapped[str | None] = mapped_column(String, nullable=True)  # "T1102 - Web Service"
+    tactic: Mapped[str | None] = mapped_column(String, nullable=True)
+    technique_name: Mapped[str | None] = mapped_column(String, nullable=True)
+    technique_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
     # list of {name, platform, command}
-    executors: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
+    executors: Mapped[Any | None] = mapped_column(JSON, nullable=True)
     translation_source: Mapped[TranslationSource] = mapped_column(
         _portable_enum(TranslationSource, "translation_source"),
         default=TranslationSource.HUMAN_CURATION,
@@ -314,13 +315,13 @@ class Adversary(Base):
     __tablename__ = "adversaries"
 
     id: Mapped[str] = mapped_column(String, primary_key=True)  # id from the file
-    campaign_id: Mapped[Optional[str]] = mapped_column(
+    campaign_id: Mapped[str | None] = mapped_column(
         String, ForeignKey("campaigns.id"), nullable=True
     )
-    name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    name: Mapped[str | None] = mapped_column(String, nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
     # ordered list of ability_ids
-    atomic_ordering: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
+    atomic_ordering: Mapped[Any | None] = mapped_column(JSON, nullable=True)
     translation_source: Mapped[TranslationSource] = mapped_column(
         _portable_enum(TranslationSource, "translation_source"),
         default=TranslationSource.HUMAN_CURATION,
@@ -334,10 +335,10 @@ class Operation(Base):
     __tablename__ = "operations"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    campaign_id: Mapped[Optional[str]] = mapped_column(
+    campaign_id: Mapped[str | None] = mapped_column(
         String, ForeignKey("campaigns.id"), nullable=True
     )
-    caldera_operation_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    caldera_operation_id: Mapped[str | None] = mapped_column(String, nullable=True)
     state: Mapped[OperationState] = mapped_column(
         _portable_enum(OperationState, "operation_state"),
         default=OperationState.NOT_STARTED,
@@ -346,10 +347,8 @@ class Operation(Base):
     # aggregate (Req. 4.5)
     total_success: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     total_failure: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    started_at: Mapped[Optional[dt.datetime]] = mapped_column(DateTime, nullable=True)
-    finished_at: Mapped[Optional[dt.datetime]] = mapped_column(
-        DateTime, nullable=True
-    )
+    started_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
+    finished_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
 
 
 class AbilityResult(Base):
@@ -374,10 +373,10 @@ class AbilityResult(Base):
     __tablename__ = "ability_results"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    operation_id: Mapped[Optional[int]] = mapped_column(
+    operation_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("operations.id"), nullable=True
     )
-    ability_id: Mapped[Optional[str]] = mapped_column(
+    ability_id: Mapped[str | None] = mapped_column(
         String, ForeignKey("abilities.ability_id"), nullable=True
     )
     status: Mapped[AbilityResultStatus] = mapped_column(
@@ -386,13 +385,13 @@ class AbilityResult(Base):
         nullable=False,
     )
     # command stdout/stderr
-    command_output: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    command_output: Mapped[str | None] = mapped_column(Text, nullable=True)
     # concrete executed command of the link (Req. 2.4)
-    command: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    command: Mapped[str | None] = mapped_column(Text, nullable=True)
     # target container + IP, e.g. "nginx (192.168.20.30)" (Req. 2.4)
-    target_container: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    target_container: Mapped[str | None] = mapped_column(String, nullable=True)
     # attacker host (e.g. "kali"), via link.paw / agent (Req. 2.4)
-    attacker_host: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    attacker_host: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
 class AuditLogEntry(Base):
@@ -406,15 +405,15 @@ class AuditLogEntry(Base):
     __tablename__ = "audit"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    operation_id: Mapped[Optional[int]] = mapped_column(
+    operation_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("operations.id"), nullable=True
     )
-    ability_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    ability_id: Mapped[str | None] = mapped_column(String, nullable=True)
     # concrete executed command
     command: Mapped[str] = mapped_column(Text, nullable=False)
     # e.g. "nginx (192.168.20.30)"
     target_container: Mapped[str] = mapped_column(String, nullable=False)
-    result: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # success/failure + output
+    result: Mapped[str | None] = mapped_column(Text, nullable=True)  # success/failure + output
     recorded_at: Mapped[dt.datetime] = mapped_column(DateTime, nullable=False)
 
 
@@ -428,12 +427,10 @@ class SessionState(Base):
     __tablename__ = "session_state"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    current_campaign: Mapped[Optional[str]] = mapped_column(
+    current_campaign: Mapped[str | None] = mapped_column(
         String, ForeignKey("campaigns.id"), nullable=True
     )
-    updated_at: Mapped[Optional[dt.datetime]] = mapped_column(
-        DateTime, nullable=True
-    )
+    updated_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
 
 
 class UserPreferences(Base):
@@ -478,9 +475,7 @@ class EnvironmentParametersRow(Base):
     __tablename__ = "environment_parameters"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    campaign_id: Mapped[str] = mapped_column(
-        String, ForeignKey("campaigns.id"), nullable=False
-    )
+    campaign_id: Mapped[str] = mapped_column(String, ForeignKey("campaigns.id"), nullable=False)
     # The column type is derived from the consolidated ``EnvironmentPlatform``
     # (which already declares ``virtual_machine``), so the portable CHECK accepts
     # the VM from the first migration — no future migration (Req. 17.2). The
@@ -512,11 +507,9 @@ class ExecutionReport(Base):
     __tablename__ = "execution_reports"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    campaign_id: Mapped[str] = mapped_column(
-        String, ForeignKey("campaigns.id"), nullable=False
-    )
+    campaign_id: Mapped[str] = mapped_column(String, ForeignKey("campaigns.id"), nullable=False)
     # links to the executed Operation; nullable (a report can exist without an operation).
-    operation_id: Mapped[Optional[int]] = mapped_column(
+    operation_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("operations.id"), nullable=True
     )
     # ``SufficiencyMetrics`` serialized (Req. 15.8).
@@ -528,8 +521,8 @@ class ExecutionReport(Base):
     # environment was removed; ``remaining_resources`` lists the resources that
     # remained when the teardown failed. Both are nullable so legacy/pre-teardown
     # rows (and reports persisted before the environment was torn down) stay valid.
-    deprovisioned: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
-    remaining_resources: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
+    deprovisioned: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    remaining_resources: Mapped[Any | None] = mapped_column(JSON, nullable=True)
     generated_at: Mapped[dt.datetime] = mapped_column(DateTime, nullable=False)
 
 
@@ -571,9 +564,7 @@ class AgentRun(Base):
     __tablename__ = "agent_runs"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    campaign_id: Mapped[str] = mapped_column(
-        String, ForeignKey("campaigns.id"), nullable=False
-    )
+    campaign_id: Mapped[str] = mapped_column(String, ForeignKey("campaigns.id"), nullable=False)
     status: Mapped[AgentRunStatus] = mapped_column(
         _portable_enum(AgentRunStatus, "agent_run_status"),
         default=AgentRunStatus.PENDING,
@@ -581,25 +572,17 @@ class AgentRun(Base):
     )
     # Loop guard (default 3 — Req. 3.6) and the summary of the outcome.
     max_iterations: Mapped[int] = mapped_column(Integer, nullable=False)
-    iterations_used: Mapped[int] = mapped_column(
-        Integer, default=0, nullable=False
-    )
+    iterations_used: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     # LangGraph checkpoint thread key — non-null so the run is resumable.
     thread_id: Mapped[str] = mapped_column(String, nullable=False)
     # Overall verdict summary; nullable until the run reaches a terminal state.
-    final_verdict_success: Mapped[Optional[bool]] = mapped_column(
-        Boolean, nullable=True
-    )
+    final_verdict_success: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     # Structured failure cause written by ``_fail_run`` (failing stage + the
     # absent-input/cause message) and surfaced by the read endpoint (Req. 2.6,
     # 2.7). Additive and nullable so existing rows need no backfill.
-    error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    created_at: Mapped[dt.datetime] = mapped_column(
-        DateTime, default=_utcnow, nullable=False
-    )
-    updated_at: Mapped[dt.datetime] = mapped_column(
-        DateTime, default=_utcnow, nullable=False
-    )
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=_utcnow, nullable=False)
+    updated_at: Mapped[dt.datetime] = mapped_column(DateTime, default=_utcnow, nullable=False)
 
 
 class AgentIteration(Base):
@@ -616,20 +599,16 @@ class AgentIteration(Base):
     __tablename__ = "agent_iterations"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    run_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("agent_runs.id"), nullable=False
-    )
+    run_id: Mapped[int] = mapped_column(Integer, ForeignKey("agent_runs.id"), nullable=False)
     # 0-based iteration number within the run.
     index: Mapped[int] = mapped_column(Integer, nullable=False)
     # Which stage the evaluator refined into this iteration (null on first pass).
-    refined_stage: Mapped[Optional[AgentStage]] = mapped_column(
+    refined_stage: Mapped[AgentStage | None] = mapped_column(
         _portable_enum(AgentStage, "agent_stage"),
         nullable=True,
     )
-    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    created_at: Mapped[dt.datetime] = mapped_column(
-        DateTime, default=_utcnow, nullable=False
-    )
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=_utcnow, nullable=False)
 
 
 class AgentStageOutput(Base):
@@ -671,17 +650,15 @@ class AgentStageOutput(Base):
     # ProvisionedEnvironment).
     payload: Mapped[Any] = mapped_column(JSON, nullable=False)
     # Linked AI-origin AttackFlowRow row (when this is a flow stage output); nullable.
-    flow_id: Mapped[Optional[int]] = mapped_column(
+    flow_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("attack_flows.id"), nullable=True
     )
     # Linked EnvironmentParameters row (when this is an operationalization
     # output); nullable.
-    params_id: Mapped[Optional[int]] = mapped_column(
+    params_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("environment_parameters.id"), nullable=True
     )
-    created_at: Mapped[dt.datetime] = mapped_column(
-        DateTime, default=_utcnow, nullable=False
-    )
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=_utcnow, nullable=False)
 
 
 class AgentEvaluation(Base):
@@ -714,25 +691,21 @@ class AgentEvaluation(Base):
         Integer, ForeignKey("agent_iterations.id"), nullable=False
     )
     # Stage 6 execution report the evaluator read.
-    report_id: Mapped[Optional[int]] = mapped_column(
+    report_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("execution_reports.id"), nullable=True
     )
     success_rate: Mapped[float] = mapped_column(Float, nullable=False)
     procedural_coverage: Mapped[float] = mapped_column(Float, nullable=False)
     verdict_success: Mapped[bool] = mapped_column(Boolean, nullable=False)
     # Serialized list of the attack flow nodes that failed (drives the refine target).
-    failed_nodes: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
+    failed_nodes: Mapped[Any | None] = mapped_column(JSON, nullable=True)
     decision: Mapped[EvaluatorDecision] = mapped_column(
         _portable_enum(EvaluatorDecision, "evaluator_decision"),
         nullable=False,
     )
     # LLM-produced reasoning, bounded to 10,000 chars (Req. 11.9).
-    rationale: Mapped[str] = mapped_column(
-        String(_RATIONALE_MAX_LENGTH), nullable=False
-    )
-    created_at: Mapped[dt.datetime] = mapped_column(
-        DateTime, default=_utcnow, nullable=False
-    )
+    rationale: Mapped[str] = mapped_column(String(_RATIONALE_MAX_LENGTH), nullable=False)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=_utcnow, nullable=False)
 
 
 class ExperienceMemory(Base):
@@ -766,9 +739,7 @@ class ExperienceMemory(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    campaign_id: Mapped[str] = mapped_column(
-        String, ForeignKey("campaigns.id"), nullable=False
-    )
+    campaign_id: Mapped[str] = mapped_column(String, ForeignKey("campaigns.id"), nullable=False)
     stage: Mapped[AgentStage] = mapped_column(
         _portable_enum(AgentStage, "agent_stage"),
         nullable=False,
@@ -782,9 +753,7 @@ class ExperienceMemory(Base):
     embedding: Mapped[Any] = mapped_column(Vector(_embedding_dim()), nullable=False)
     # technique_id, verdict and metrics used to filter retrieval.
     meta: Mapped[Any] = mapped_column("metadata", JSON, nullable=True)
-    created_at: Mapped[dt.datetime] = mapped_column(
-        DateTime, default=_utcnow, nullable=False
-    )
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=_utcnow, nullable=False)
 
 
 class AgentStageTrace(Base):
@@ -827,9 +796,7 @@ class AgentStageTrace(Base):
     # Processing: llm_prompt, llm_response, reasoning, tools, repair_attempts,
     # and the environment fixed-vs-agent-decided + gate verdicts.
     processing: Mapped[Any] = mapped_column(JSON, nullable=False)
-    created_at: Mapped[dt.datetime] = mapped_column(
-        DateTime, default=_utcnow, nullable=False
-    )
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=_utcnow, nullable=False)
 
 
 # ---------------------------------------------------------------------------
@@ -881,9 +848,7 @@ class StixPackage(Base):
     name: Mapped[str] = mapped_column(String, nullable=False)
     # Naive-UTC download timestamp (project convention); refreshed on every
     # re-persistence of the same version.
-    downloaded_at: Mapped[dt.datetime] = mapped_column(
-        DateTime, default=_utcnow, nullable=False
-    )
+    downloaded_at: Mapped[dt.datetime] = mapped_column(DateTime, default=_utcnow, nullable=False)
 
 
 class StixTypeCount(Base):
@@ -898,15 +863,11 @@ class StixTypeCount(Base):
     __tablename__ = "stix_type_counts"
 
     __table_args__ = (
-        UniqueConstraint(
-            "package_id", "stix_type", name="uq_stix_type_counts_package_type"
-        ),
+        UniqueConstraint("package_id", "stix_type", name="uq_stix_type_counts_package_type"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    package_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("stix_packages.id"), nullable=False
-    )
+    package_id: Mapped[int] = mapped_column(Integer, ForeignKey("stix_packages.id"), nullable=False)
     # STIX object type, e.g. "attack-pattern".
     stix_type: Mapped[str] = mapped_column(String, nullable=False)
     # Human label for the type, e.g. "tecnicas".
@@ -931,32 +892,28 @@ class StixCampaign(Base):
     __tablename__ = "stix_campaigns"
 
     __table_args__ = (
-        UniqueConstraint(
-            "package_id", "stix_id", name="uq_stix_campaigns_package_stix_id"
-        ),
+        UniqueConstraint("package_id", "stix_id", name="uq_stix_campaigns_package_stix_id"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    package_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("stix_packages.id"), nullable=False
-    )
+    package_id: Mapped[int] = mapped_column(Integer, ForeignKey("stix_packages.id"), nullable=False)
     # STIX id of the campaign object.
     stix_id: Mapped[str] = mapped_column(String, nullable=False)
     # Campaign name; falls back to stix_id.
     name: Mapped[str] = mapped_column(String, nullable=False)
     # External id, e.g. "C0045".
-    external_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    external_id: Mapped[str | None] = mapped_column(String, nullable=True)
     # Free text persisted for future embeddings.
-    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
     # List of alias strings; persisted as JSON for future embeddings.
-    aliases: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
+    aliases: Mapped[Any | None] = mapped_column(JSON, nullable=True)
     # Curated flag: True iff curated_slug is not null (default False).
     curated: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     # Curated slug when the campaign is recognized; nullable.
-    curated_slug: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    curated_slug: Mapped[str | None] = mapped_column(String, nullable=True)
     # ISO timestamps carried over from the bundle; nullable.
-    first_seen: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    last_seen: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    first_seen: Mapped[str | None] = mapped_column(String, nullable=True)
+    last_seen: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
 class StixCampaignTechnique(Base):
@@ -983,10 +940,10 @@ class StixCampaignTechnique(Base):
     )
     # ATT&CK technique id, e.g. "T1059".
     technique_id: Mapped[str] = mapped_column(String, nullable=False)
-    technique_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    tactic: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    technique_name: Mapped[str | None] = mapped_column(String, nullable=True)
+    tactic: Mapped[str | None] = mapped_column(String, nullable=True)
     # Free text persisted for future embeddings.
-    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class StixActor(Base):
@@ -999,15 +956,11 @@ class StixActor(Base):
     __tablename__ = "stix_actors"
 
     __table_args__ = (
-        UniqueConstraint(
-            "package_id", "stix_id", name="uq_stix_actors_package_stix_id"
-        ),
+        UniqueConstraint("package_id", "stix_id", name="uq_stix_actors_package_stix_id"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    package_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("stix_packages.id"), nullable=False
-    )
+    package_id: Mapped[int] = mapped_column(Integer, ForeignKey("stix_packages.id"), nullable=False)
     stix_id: Mapped[str] = mapped_column(String, nullable=False)
     # Actor name; falls back to stix_id.
     name: Mapped[str] = mapped_column(String, nullable=False)
@@ -1032,9 +985,7 @@ class StixActorCampaign(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    actor_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("stix_actors.id"), nullable=False
-    )
+    actor_id: Mapped[int] = mapped_column(Integer, ForeignKey("stix_actors.id"), nullable=False)
     campaign_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("stix_campaigns.id"), nullable=False
     )
@@ -1107,8 +1058,14 @@ class TechniqueCommand(Base):
     source: Mapped[str] = mapped_column(String, nullable=False)
     # Deterministic hash of the normalized command (idempotency key component).
     command_hash: Mapped[str] = mapped_column(String, nullable=False)
-    created_at: Mapped[dt.datetime] = mapped_column(
-        DateTime, default=_utcnow, nullable=False
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=_utcnow, nullable=False)
+    # Atomic Red Team ``input_arguments`` of the test, normalized to
+    # ``{name: {"default", "description", "type"}}``. NULL when the row has no
+    # stored arguments (e.g. ingested before this column existed) (Req. 11.1).
+    # Ingestion stores ``{}`` for a test without arguments, so NULL means
+    # "not yet backfilled" and triggers a re-ingest (Req. 11.7).
+    input_arguments: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB().with_variant(JSON(), "sqlite"), nullable=True
     )
 
 
@@ -1171,12 +1128,10 @@ class ImageCatalog(Base):
     # Target OS the image is cataloged for: "linux" | "windows".
     target_os: Mapped[str] = mapped_column(String, nullable=False)
     # Optional services/ports the image covers; portable JSON, nullable.
-    services: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
+    services: Mapped[Any | None] = mapped_column(JSON, nullable=True)
     # Optional free-form notes about the image; nullable.
-    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    created_at: Mapped[dt.datetime] = mapped_column(
-        DateTime, default=_utcnow, nullable=False
-    )
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=_utcnow, nullable=False)
 
 
 # ---------------------------------------------------------------------------
@@ -1235,19 +1190,13 @@ class ProvisioningMap(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    campaign_id: Mapped[str] = mapped_column(
-        String, ForeignKey("campaigns.id"), nullable=False
-    )
+    campaign_id: Mapped[str] = mapped_column(String, ForeignKey("campaigns.id"), nullable=False)
     # Target OS derived for the campaign: "linux" | "windows".
     target_os: Mapped[str] = mapped_column(String, nullable=False)
     # Fixed inventory (images/services/topology derived); portable JSON.
     content: Mapped[Any] = mapped_column(JSON, nullable=False)
-    created_at: Mapped[dt.datetime] = mapped_column(
-        DateTime, default=_utcnow, nullable=False
-    )
-    updated_at: Mapped[dt.datetime] = mapped_column(
-        DateTime, default=_utcnow, nullable=False
-    )
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=_utcnow, nullable=False)
+    updated_at: Mapped[dt.datetime] = mapped_column(DateTime, default=_utcnow, nullable=False)
 
 
 # ---------------------------------------------------------------------------
@@ -1338,7 +1287,7 @@ class ContainerEmulability(Base):
     container_emulable: Mapped[bool] = mapped_column(Boolean, nullable=False)
     # Optional JSON list of the technique ids that block container emulation;
     # null/empty when the campaign is container-emulable (Req. 6.5).
-    blocking_techniques: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
+    blocking_techniques: Mapped[Any | None] = mapped_column(JSON, nullable=True)
 
 
 class AttackFlowObjectRow(Base):
@@ -1352,9 +1301,7 @@ class AttackFlowObjectRow(Base):
     __tablename__ = "attack_flow_objects"
 
     __table_args__ = (
-        UniqueConstraint(
-            "flow_id", "stix_id", name="uq_attack_flow_objects_flow_id_stix_id"
-        ),
+        UniqueConstraint("flow_id", "stix_id", name="uq_attack_flow_objects_flow_id_stix_id"),
         Index("ix_attack_flow_objects_technique_id", "technique_id"),
     )
 
@@ -1364,10 +1311,10 @@ class AttackFlowObjectRow(Base):
     )
     stix_id: Mapped[str] = mapped_column(String, nullable=False)
     type: Mapped[str] = mapped_column(String, nullable=False)
-    name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    technique_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    tactic_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    properties: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
+    name: Mapped[str | None] = mapped_column(String, nullable=True)
+    technique_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    tactic_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    properties: Mapped[Any | None] = mapped_column(JSON, nullable=True)
 
 
 class AttackFlowEdgeRow(Base):
@@ -1378,9 +1325,7 @@ class AttackFlowEdgeRow(Base):
 
     __tablename__ = "attack_flow_edges"
 
-    __table_args__ = (
-        Index("ix_attack_flow_edges_flow_id", "flow_id"),
-    )
+    __table_args__ = (Index("ix_attack_flow_edges_flow_id", "flow_id"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     flow_id: Mapped[int] = mapped_column(
@@ -1412,13 +1357,13 @@ class IngestSourceState(Base):
         default=IngestStatus.PENDING,
         nullable=False,
     )
-    loaded_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    embedded_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    expected_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    loaded_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    embedded_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    expected_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # Short failure cause, never containing secrets.
-    error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
     # List of {item, reason} for items skipped during ingestion.
-    skipped: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
-    started_at: Mapped[Optional[dt.datetime]] = mapped_column(DateTime, nullable=True)
-    finished_at: Mapped[Optional[dt.datetime]] = mapped_column(DateTime, nullable=True)
-    heartbeat_at: Mapped[Optional[dt.datetime]] = mapped_column(DateTime, nullable=True)
+    skipped: Mapped[Any | None] = mapped_column(JSON, nullable=True)
+    started_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
+    finished_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
+    heartbeat_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)

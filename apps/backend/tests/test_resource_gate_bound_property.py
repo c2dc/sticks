@@ -172,10 +172,8 @@ def test_property1_resource_gate_approves_iff_every_limit_holds(data) -> None:
 
     # Stable order containers -> RAM -> disk: the i-th reason names the i-th
     # exceeded limit's offending figure, and no reason names a limit that held.
-    for reason, figure in zip(verdict.reasons, expected):
-        assert figure in reason, (
-            f"reason {reason!r} must name the exceeded figure {figure!r}"
-        )
+    for reason, figure in zip(verdict.reasons, expected, strict=False):
+        assert figure in reason, f"reason {reason!r} must name the exceeded figure {figure!r}"
     assert len(verdict.reasons) == len(expected)
 
 

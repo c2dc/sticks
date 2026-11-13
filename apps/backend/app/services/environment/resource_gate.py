@@ -59,8 +59,9 @@ _Requirements: 3.1, 12.2_
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Optional, Protocol, Sequence, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 # ---------------------------------------------------------------------------
 # Limits / plan / verdict — the design §D contract (frozen dataclasses).
@@ -182,8 +183,7 @@ class ResourceGate:
             )
         if plan.ram_gb > self._limits.max_ram_gb:
             reasons.append(
-                f"RAM solicitada ({plan.ram_gb} GB) excede o limite de "
-                f"{self._limits.max_ram_gb} GB"
+                f"RAM solicitada ({plan.ram_gb} GB) excede o limite de {self._limits.max_ram_gb} GB"
             )
         if plan.disk_gb > self._limits.max_disk_gb:
             reasons.append(
@@ -268,7 +268,7 @@ class DockerSdkHostResourceInspector:
     the real client is only touched when :meth:`get_host_resources` actually runs.
     """
 
-    def __init__(self, client: Optional[object] = None) -> None:
+    def __init__(self, client: object | None = None) -> None:
         """Assemble the inspector, optionally with an already-built Docker client.
 
         Args:
@@ -280,7 +280,7 @@ class DockerSdkHostResourceInspector:
 
     def _get_client(self) -> object:
         if self._client is None:
-            import docker  # type: ignore[import-untyped]
+            import docker  # type: ignore[import-untyped] -- docker SDK ships without type stubs
 
             self._client = docker.from_env()
         return self._client
@@ -288,10 +288,10 @@ class DockerSdkHostResourceInspector:
     def get_host_resources(self) -> HostResources:
         """Read the host RAM/disk and running-container count from the daemon."""
         client = self._get_client()
-        info = client.info()  # type: ignore[attr-defined]
+        info = client.info()  # type: ignore[attr-defined] -- docker client is typed as object to keep the docker SDK optional
 
         mem_total_bytes = info.get("MemTotal", 0) or 0
-        total_ram_gb = float(mem_total_bytes) / (1024 ** 3)
+        total_ram_gb = float(mem_total_bytes) / (1024**3)
         running = int(info.get("ContainersRunning", 0) or 0)
 
         # The Docker ``info()`` does not expose a portable total-disk figure; it is
@@ -328,13 +328,13 @@ def build_resource_plan(targets: Sequence[ProposedTarget]) -> ResourcePlan:
 
 
 __all__ = [
+    "DockerSdkHostResourceInspector",
+    "HostResourceInspector",
+    "HostResources",
+    "ProposedTarget",
+    "ResourceGate",
+    "ResourceGateVerdict",
     "ResourceLimits",
     "ResourcePlan",
-    "ResourceGateVerdict",
-    "ResourceGate",
-    "ProposedTarget",
-    "HostResources",
-    "HostResourceInspector",
-    "DockerSdkHostResourceInspector",
     "build_resource_plan",
 ]

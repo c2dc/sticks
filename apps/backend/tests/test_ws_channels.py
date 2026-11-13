@@ -50,7 +50,6 @@ from app.models.enums import (
     OperationState,
 )
 
-
 # ---------------------------------------------------------------------------
 # Ephemeral SQLite engine / session factory (temp file, cleaned up)
 # ---------------------------------------------------------------------------
@@ -126,9 +125,9 @@ def test_removed_stages_channel_is_not_served(client: TestClient) -> None:
     """The legacy ``/ws/stages/{campaign}`` channel no longer exists (Req. 1.3)."""
     from starlette.websockets import WebSocketDisconnect
 
-    with pytest.raises(WebSocketDisconnect):
-        with client.websocket_connect("/ws/stages/shadowray"):
-            pass
+    with pytest.raises(WebSocketDisconnect), client.websocket_connect("/ws/stages/shadowray"):
+        pass
+
 
 # ---------------------------------------------------------------------------
 # WS /ws/operation/{operation}
@@ -181,9 +180,7 @@ def test_operation_channel_emits_per_ability_and_final_aggregate(
     finally:
         session.close()
 
-    with client.websocket_connect(
-        f"/ws/operation/{operation_id}?intervalo=0"
-    ) as ws:
+    with client.websocket_connect(f"/ws/operation/{operation_id}?intervalo=0") as ws:
         frame = ws.receive_json()
 
     assert frame["found"] is True
@@ -232,27 +229,21 @@ def test_operation_channel_pushes_while_running_then_stops_on_max_frames(
     finally:
         session.close()
 
-    with client.websocket_connect(
-        f"/ws/operation/{operation_id}?intervalo=0&max_frames=1"
-    ) as ws:
+    with client.websocket_connect(f"/ws/operation/{operation_id}?intervalo=0&max_frames=1") as ws:
         frame = ws.receive_json()
 
     assert frame["found"] is True
     assert frame["final"] is False
     assert frame["state"] == OperationState.RUNNING.value  # "running"
     assert frame["results"][0]["ability_id"] == "ability-run"
-    assert (
-        frame["results"][0]["status"] == AbilityResultStatus.RUNNING.value
-    )
+    assert frame["results"][0]["status"] == AbilityResultStatus.RUNNING.value
 
 
 def test_operation_channel_reports_not_found_for_missing_operation(
     client: TestClient,
 ) -> None:
     """A missing Operation id yields a single ``not_found`` frame and closes."""
-    with client.websocket_connect(
-        "/ws/operation/999999?intervalo=0"
-    ) as ws:
+    with client.websocket_connect("/ws/operation/999999?intervalo=0") as ws:
         frame = ws.receive_json()
 
     assert frame["operation_id"] == 999999

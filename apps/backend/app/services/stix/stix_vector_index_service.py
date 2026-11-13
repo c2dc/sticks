@@ -48,7 +48,6 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Optional
 
 from sqlalchemy.orm import Session
 
@@ -99,7 +98,7 @@ class StixVectorIndexService:
         session: Session,
         *,
         memory: ExperienceMemory,
-        read_service: Optional[StixPackageReadService] = None,
+        read_service: StixPackageReadService | None = None,
     ) -> None:
         self._session = session
         self._memory = memory
@@ -139,9 +138,7 @@ class StixVectorIndexService:
         indexed = 0
         skipped = 0
         for summary in summaries:
-            overview = self._read_service.campaign_overview(
-                version, summary.campaign_key
-            )
+            overview = self._read_service.campaign_overview(version, summary.campaign_key)
             content = self._build_content(version, overview)
             dedup_key = self._dedup_key(version, overview.stix_id)
             inserted = self._memory.store_affinity(
@@ -176,7 +173,7 @@ class StixVectorIndexService:
             skipped=skipped,
         )
 
-    def index_version_safe(self, version: str) -> Optional[StixIndexSummary]:
+    def index_version_safe(self, version: str) -> StixIndexSummary | None:
         """Index ``version``, degrading gracefully if the Vector_Store is down.
 
         Wraps :meth:`index_version` so the vector indexing never breaks the
@@ -196,7 +193,7 @@ class StixVectorIndexService:
                 version,
             )
             return None
-        except Exception as exc:  # noqa: BLE001 - degrade on any unavailability
+        except Exception as exc:  # noqa: BLE001 -- degrade on any unavailability
             logger.warning(
                 "STIX vector indexing skipped for v%s due to Vector_Store "
                 "unavailability (%s: %s); the relational data is unaffected.",

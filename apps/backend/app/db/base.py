@@ -29,4 +29,4 @@ def import_models() -> None:
     make the intent explicit. Safe to call before concrete models exist.
     """
     # Local import on purpose: keeps this module import-cycle free.
-    import app.models  # noqa: F401  (import for side effects / metadata registration)
+    import app.models  # noqa: F401 -- import for side effects / metadata registration

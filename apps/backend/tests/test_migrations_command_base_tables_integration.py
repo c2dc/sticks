@@ -67,9 +67,7 @@ _VERSIONS_DIR = Path(__file__).resolve().parents[1] / "alembic" / "versions"
 
 def _load_migration(module_name: str, filename: str) -> ModuleType:
     """Import a shipped migration module by its on-disk path."""
-    spec = importlib.util.spec_from_file_location(
-        module_name, _VERSIONS_DIR / filename
-    )
+    spec = importlib.util.spec_from_file_location(module_name, _VERSIONS_DIR / filename)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -146,16 +144,15 @@ def _run_migration_step(engine: Engine, module: ModuleType, step: str) -> None:
     temp SQLite connection, never any shared DB.
     """
     func = getattr(module, step)
-    with engine.connect() as conn:
-        with conn.begin():
-            ctx = MigrationContext.configure(connection=conn)
-            op_proxy = Operations(ctx)
-            original_op = module.op
-            module.op = op_proxy
-            try:
-                func()
-            finally:
-                module.op = original_op
+    with engine.connect() as conn, conn.begin():
+        ctx = MigrationContext.configure(connection=conn)
+        op_proxy = Operations(ctx)
+        original_op = module.op
+        module.op = op_proxy
+        try:
+            func()
+        finally:
+            module.op = original_op
 
 
 def _upgrade_batch(engine: Engine) -> None:
@@ -236,14 +233,13 @@ def test_sqlite_batch_upgrade_creates_then_downgrade_drops_three_tables() -> Non
         after_up = set(inspect(engine).get_table_names())
         # All three tables now exist (Req. 7.2 / 14.4 / 8.2 — the tables are
         # created).
-        assert _BATCH_TABLES <= after_up, (
+        assert after_up >= _BATCH_TABLES, (
             f"missing batch tables after upgrade: {_BATCH_TABLES - after_up}"
         )
         # The batch created exactly these three tables and nothing else (the
         # empty DB started with no tables, so the delta is precisely the three).
         assert after_up - before == _BATCH_TABLES, (
-            f"batch upgrade created unexpected tables: "
-            f"{after_up - before - _BATCH_TABLES}"
+            f"batch upgrade created unexpected tables: {after_up - before - _BATCH_TABLES}"
         )
 
         inspector = inspect(engine)
@@ -251,10 +247,7 @@ def test_sqlite_batch_upgrade_creates_then_downgrade_drops_three_tables() -> Non
         # Each table carries the UNIQUE constraint that is its idempotency key.
         for table_name, expected_columns in _EXPECTED_UNIQUE_CONSTRAINTS:
             unique_constraints = inspector.get_unique_constraints(table_name)
-            has_unique = any(
-                uc["column_names"] == expected_columns
-                for uc in unique_constraints
-            )
+            has_unique = any(uc["column_names"] == expected_columns for uc in unique_constraints)
             assert has_unique, (
                 f"{table_name} must carry a UNIQUE constraint on "
                 f"{expected_columns}; unique constraints found: "
@@ -311,7 +304,7 @@ def test_sqlite_batch_upgrade_downgrade_upgrade_is_repeatable() -> None:
         # Re-apply: a clean downgrade must leave the DB able to upgrade again.
         _upgrade_batch(engine)
         after = set(inspect(engine).get_table_names())
-        assert _BATCH_TABLES <= after, (
+        assert after >= _BATCH_TABLES, (
             f"missing batch tables after re-upgrade: {_BATCH_TABLES - after}"
         )
     finally:

@@ -66,9 +66,8 @@ def test_ensure_available_raises_typed_error_on_timeout() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         raise httpx.TimeoutException("simulated timeout", request=request)
 
-    with _client_with_handler(handler) as client:
-        with pytest.raises(CalderaUnavailable) as excinfo:
-            client.ensure_available()
+    with _client_with_handler(handler) as client, pytest.raises(CalderaUnavailable) as excinfo:
+        client.ensure_available()
 
     # Carries the URL and the 10s timeout for a precise 503 message.
     assert excinfo.value.url == "http://localhost:8888"

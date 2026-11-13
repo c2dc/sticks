@@ -16,15 +16,21 @@ Pure database access: no disk, no network, no AI.
 from __future__ import annotations
 
 import datetime as dt
-from typing import Any, Optional
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.domain import (
     Ability as AbilityModel,
+)
+from app.models.domain import (
     Adversary as AdversaryModel,
+)
+from app.models.domain import (
     AttackFlowRow,
+)
+from app.models.domain import (
     Case as CaseModel,
 )
 from app.models.enums import FlowOrigin
@@ -42,7 +48,7 @@ def utcnow() -> dt.datetime:
     return dt.datetime.now(dt.UTC).replace(tzinfo=None)
 
 
-def upsert_case_row(session: Session, campaign: str, label: Optional[str]) -> None:
+def upsert_case_row(session: Session, campaign: str, label: str | None) -> None:
     """Ensure the ``campaigns`` row exists to satisfy the ``attack_flows`` FK.
 
     Only fills ``name`` when the row is new (or has no name), so it never
@@ -63,7 +69,7 @@ def flow_data_from_content(content: Any) -> FlowData:
     return FlowData.model_validate(payload)
 
 
-def resolve_flow_data_from_db(session: Session, campaign: str) -> Optional[FlowData]:
+def resolve_flow_data_from_db(session: Session, campaign: str) -> FlowData | None:
     """Persisted flow of ``campaign`` as :class:`FlowData`, or ``None``.
 
     When several flows exist, the human-curation flow is preferred and, within an
@@ -107,7 +113,7 @@ def list_curated_names(session: Session) -> dict[str, str]:
         .where(CaseModel.curated.is_(True))
         .order_by(CaseModel.id)
     ).all()
-    return {slug: name for slug, name in rows}
+    return dict(rows)
 
 
 def is_curated(session: Session, slug: str) -> bool:
@@ -190,9 +196,9 @@ def build_case_from_db(session: Session, slug: str) -> CaseData:
 
 __all__ = [
     "build_case_from_db",
+    "flow_data_from_content",
     "is_curated",
     "list_curated_names",
-    "flow_data_from_content",
     "resolve_flow_data_from_db",
     "upsert_case_row",
     "utcnow",

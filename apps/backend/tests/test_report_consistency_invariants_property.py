@@ -36,7 +36,6 @@ _Requirements: 3.4_
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 from hypothesis import given, settings
 from hypothesis import strategies as st
@@ -58,7 +57,7 @@ class FakeAbilityResult:
     """A per-Ability result exposing exactly what ``_derive`` reads."""
 
     status: AbilityResultStatus
-    ability_id: Optional[str] = None
+    ability_id: str | None = None
 
 
 # The full status space, including the two NON-terminal states that must never
@@ -71,12 +70,8 @@ _ALL_STATUSES: tuple[AbilityResultStatus, ...] = (
     AbilityResultStatus.FAILURE,
 )
 
-_NON_TERMINAL_STATUSES = frozenset(
-    {AbilityResultStatus.PENDING, AbilityResultStatus.RUNNING}
-)
-_TERMINAL_STATUSES = frozenset(
-    {AbilityResultStatus.SUCCESS, AbilityResultStatus.FAILURE}
-)
+_NON_TERMINAL_STATUSES = frozenset({AbilityResultStatus.PENDING, AbilityResultStatus.RUNNING})
+_TERMINAL_STATUSES = frozenset({AbilityResultStatus.SUCCESS, AbilityResultStatus.FAILURE})
 
 
 def _ability_result_strategy() -> st.SearchStrategy[FakeAbilityResult]:
@@ -103,7 +98,7 @@ def _ability_result_strategy() -> st.SearchStrategy[FakeAbilityResult]:
 )
 def test_property4_final_report_consistency_invariants(
     results: list[FakeAbilityResult],
-    operation_id: Optional[int],
+    operation_id: int | None,
 ) -> None:
     """Property 4: the derived final report satisfies the four invariants.
 
@@ -126,9 +121,7 @@ def test_property4_final_report_consistency_invariants(
     view = builder._derive(operation_id=operation_id, results=results)
 
     total = len(results)
-    expected_success = sum(
-        1 for r in results if r.status is AbilityResultStatus.SUCCESS
-    )
+    expected_success = sum(1 for r in results if r.status is AbilityResultStatus.SUCCESS)
     expected_failure = total - expected_success
 
     # (b) sum of terminal buckets equals the campaign's total techniques.

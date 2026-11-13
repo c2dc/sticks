@@ -22,7 +22,6 @@ _Requirements: 5.4, 5.7, 10.2_
 from __future__ import annotations
 
 from pathlib import Path as FsPath
-from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -41,9 +40,9 @@ from app.services.containment.subnets import (
 # "target" = victim side (the hosts the campaign attacks).
 HOST_ROLES: dict[str, str] = {
     "caldera": "attacker",  # Red-team C2 (sticks-caldera-attacker)
-    "kali": "attacker",     # Offensive node (sticks-kali-attacker)
-    "nginx": "target",      # Web target / SUT-A (sticks-nginx-target)
-    "db": "target",         # Backend MariaDB target / SUT-B (sticks-mariadb-target)
+    "kali": "attacker",  # Offensive node (sticks-kali-attacker)
+    "nginx": "target",  # Web target / SUT-A (sticks-nginx-target)
+    "db": "target",  # Backend MariaDB target / SUT-B (sticks-mariadb-target)
 }
 
 # Human-facing container names (post-rename) for display. These are the SAME
@@ -97,7 +96,7 @@ class TopologyResponse(BaseModel):
     hosts: list[HostView]
     networks: list[NetworkView]
     mermaid: str
-    compose_file: Optional[str] = None
+    compose_file: str | None = None
 
 
 def ips_for_host(host: str) -> list[str]:
@@ -132,9 +131,7 @@ def target_container_names() -> list[str]:
     Stage 5 panel and the Stage 6 gate agree on the same contract.
     """
     return [
-        HOST_CONTAINERS.get(host, host)
-        for host, role in HOST_ROLES.items()
-        if role == "target"
+        HOST_CONTAINERS.get(host, host) for host, role in HOST_ROLES.items() if role == "target"
     ]
 
 
@@ -173,7 +170,6 @@ def build_mermaid(hosts: list[HostView], networks: list[NetworkView]) -> str:
     connect them — so a host that bridges two networks has one node with two edges,
     each annotated with the corresponding interface address.
     """
-    role_by_host = {h.name: h.role for h in hosts}
     ips_by_host = {h.name: h.ips for h in hosts}
 
     # Build the set of networks each host belongs to, with the IP for that net.
@@ -238,7 +234,7 @@ def build_mermaid(hosts: list[HostView], networks: list[NetworkView]) -> str:
     return "\n".join(lines)
 
 
-def compose_path() -> Optional[str]:
+def compose_path() -> str | None:
     """Best-effort path to the lab compose file, for display only."""
     # app/services/environment/topology_builder.py -> parents[3] = app/,
     # parents[5] = repo root (…/app/services/environment -> …/).
@@ -248,17 +244,17 @@ def compose_path() -> Optional[str]:
 
 
 __all__ = [
-    "HOST_ROLES",
     "HOST_CONTAINERS",
-    "target_container_names",
+    "HOST_ROLES",
     "NETWORK_MEMBERS",
     "HostView",
     "NetworkView",
     "TopologyResponse",
-    "ips_for_host",
-    "container_names",
     "build_hosts",
-    "build_networks",
     "build_mermaid",
+    "build_networks",
     "compose_path",
+    "container_names",
+    "ips_for_host",
+    "target_container_names",
 ]

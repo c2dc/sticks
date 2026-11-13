@@ -32,8 +32,6 @@ durante o desenvolvimento".
 
 from __future__ import annotations
 
-from typing import Optional
-
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
@@ -55,7 +53,7 @@ _REQUIRED_KEYS: frozenset[str] = frozenset(
 _NOT_AVAILABLE = "não disponível"
 
 
-def _ui_projection(value: Optional[str]) -> str:
+def _ui_projection(value: str | None) -> str:
     """Independent UI-projection oracle mirroring the frontend (Req. 2.5).
 
     For a per-Ability datum, resolve either the concrete non-empty value or the

@@ -36,7 +36,6 @@ from app.models.domain import Ability, AttackFlowRow, Case
 from app.models.enums import FlowOrigin, TranslationSource
 from tests._curated_db import CURATED_NAMES as CURATED_CASES
 
-
 # A curated slug used for topology: the DB-first flow resolution
 # only engages for a curated slug. The seeded display
 # name is deliberately different from the usual curated name so the
@@ -44,7 +43,7 @@ from tests._curated_db import CURATED_NAMES as CURATED_CASES
 _TOPOLOGY_SLUG = "shadowray"
 assert _TOPOLOGY_SLUG in CURATED_CASES, "the topology slug must be curated"
 _TOPOLOGY_DB_NAME = "DB-sourced ShadowRay"
-assert _TOPOLOGY_DB_NAME != CURATED_CASES[_TOPOLOGY_SLUG], (
+assert CURATED_CASES[_TOPOLOGY_SLUG] != _TOPOLOGY_DB_NAME, (
     "the DB name must differ from the usual curated name to prove sourcing"
 )
 
@@ -78,9 +77,7 @@ def _seed_topology_campaign(session: Session) -> None:
             technique_id="T1190",
             technique_name="Exploit Public-Facing Application",
             tactic="initial-access",
-            executors=[
-                {"name": "sh", "platform": "linux", "command": "echo topo"}
-            ],
+            executors=[{"name": "sh", "platform": "linux", "command": "echo topo"}],
             translation_source=TranslationSource.HUMAN_CURATION,
         )
     )

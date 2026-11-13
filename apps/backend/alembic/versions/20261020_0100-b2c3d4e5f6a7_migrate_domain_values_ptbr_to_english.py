@@ -88,13 +88,14 @@ Revises: a1b2c3d4e5f6
 Create Date: 2026-10-20 01:00:00.000000+00:00
 
 """
+
 from __future__ import annotations
 
 from typing import Sequence, Union
 
-from alembic import op
 import sqlalchemy as sa
 
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "b2c3d4e5f6a7"
@@ -187,9 +188,7 @@ _OUTCOME: tuple[tuple[str, str], ...] = (
 #     ``a1b2c3d4e5f6``; it is dropped before the UPDATE and re-created
 #     (English-only) after, inside the batch block.
 # ---------------------------------------------------------------------------
-_COLUMNS: tuple[
-    tuple[str, str, tuple[tuple[str, str], ...], bool, Union[str, None]], ...
-] = (
+_COLUMNS: tuple[tuple[str, str, tuple[tuple[str, str], ...], bool, Union[str, None]], ...] = (
     ("campaigns", "translation_source", _TRANSLATION_SOURCE, False, None),
     ("abilities", "translation_source", _TRANSLATION_SOURCE, False, None),
     ("adversaries", "translation_source", _TRANSLATION_SOURCE, False, None),
@@ -307,9 +306,7 @@ def _install_constraint(
     """
     with op.batch_alter_table(table) as batch_op:
         if check_name is not None:
-            batch_op.create_check_constraint(
-                check_name, _check_expr(column, dst_values)
-            )
+            batch_op.create_check_constraint(check_name, _check_expr(column, dst_values))
         else:
             batch_op.alter_column(
                 column,
@@ -318,9 +315,7 @@ def _install_constraint(
             )
 
 
-def _convert(
-    table: str, column: str, pairs: Sequence[tuple[str, str]]
-) -> None:
+def _convert(table: str, column: str, pairs: Sequence[tuple[str, str]]) -> None:
     """Rewrite every ``src`` value of ``table.column`` to ``dst`` in place.
 
     Uses a **parameterized** UPDATE (``sa.text`` bind params) per member so the
@@ -330,7 +325,7 @@ def _convert(
     bind = op.get_bind()
     for src, dst in pairs:
         bind.execute(
-            sa.text(f"UPDATE {table} SET {column} = :dst WHERE {column} = :src"),
+            sa.text(f"UPDATE {table} SET {column} = :dst WHERE {column} = :src"),  # noqa: S608 -- table and column names come from module constants; values are bound
             {"dst": dst, "src": src},
         )
 
@@ -350,11 +345,7 @@ def _migrate(forward: bool) -> None:
         english_values = [en for _ptbr, en in value_map]
 
         dst_values = english_values if forward else ptbr_values
-        pairs = (
-            [(p, e) for p, e in value_map]
-            if forward
-            else [(e, p) for p, e in value_map]
-        )
+        pairs = [(p, e) for p, e in value_map] if forward else [(e, p) for p, e in value_map]
 
         # (1) Open the constraint (drop named CHECK, or widen the VARCHAR bound
         # to hold BOTH sets during the in-place rewrite).

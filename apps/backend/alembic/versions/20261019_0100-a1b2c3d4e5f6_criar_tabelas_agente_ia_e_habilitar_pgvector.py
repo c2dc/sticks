@@ -69,16 +69,17 @@ Revises: d4e1f6a2c3b9
 Create Date: 2026-10-19 01:00:00.000000+00:00
 
 """
+
 from __future__ import annotations
 
 import os
 from pathlib import Path
 from typing import Optional, Sequence, Union
 
-from alembic import op
 import sqlalchemy as sa
 from pgvector.sqlalchemy import Vector
 
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "a1b2c3d4e5f6"
@@ -211,7 +212,7 @@ def upgrade() -> None:
     if is_pg:
         try:
             op.execute("CREATE EXTENSION IF NOT EXISTS vector")
-        except Exception as exc:  # noqa: BLE001 - re-raised with a clear message
+        except Exception as exc:
             raise RuntimeError(
                 "Migration aborted: the 'vector' (pgvector) extension could not "
                 "be enabled in the existing PostgreSQL database. The schema and "
@@ -248,9 +249,7 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(), nullable=False),
         sa.ForeignKeyConstraint(["run_id"], ["agent_runs.id"]),
         sa.PrimaryKeyConstraint("id"),
-        _enum_check(
-            "refined_stage", _AGENT_STAGE_VALUES, "ck_agent_iterations_refined_stage"
-        ),
+        _enum_check("refined_stage", _AGENT_STAGE_VALUES, "ck_agent_iterations_refined_stage"),
     )
 
     # (4) agent_stage_outputs — the per-stage agent artifact of an iteration
@@ -273,9 +272,7 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["params_id"], ["environment_parameters.id"]),
         sa.PrimaryKeyConstraint("id"),
         _enum_check("stage", _AGENT_STAGE_VALUES, "ck_agent_stage_outputs_stage"),
-        _enum_check(
-            "origin", _TRANSLATION_SOURCE_VALUES, "ck_agent_stage_outputs_origin"
-        ),
+        _enum_check("origin", _TRANSLATION_SOURCE_VALUES, "ck_agent_stage_outputs_origin"),
     )
 
     # (5) agent_evaluations — the evaluator's reading of the Stage 6 report

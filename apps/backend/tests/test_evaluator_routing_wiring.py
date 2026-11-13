@@ -38,6 +38,7 @@ _Requirements: 15.1, 15.2, 15.3, 15.4, 15.5, 15.6_
 
 from __future__ import annotations
 
+import contextlib
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -188,9 +189,7 @@ def test_flow_route_maps_to_flow_stage_agent() -> None:
         "verdict_success": False,
         "decision": EvaluatorDecision.REFINE.value,
     }
-    edge_key = route_after_eval(
-        _route_state(AgentStage.FLOW.value, evaluation)
-    )
+    edge_key = route_after_eval(_route_state(AgentStage.FLOW.value, evaluation))
 
     assert edge_key == "flow"
     assert edge_key in _REFINE_EDGE_KEYS
@@ -238,10 +237,8 @@ def session() -> Any:
     finally:
         sess.close()
         engine.dispose()
-        try:
+        with contextlib.suppress(OSError):
             db_path.unlink()
-        except OSError:
-            pass
 
 
 class _FakeGraph:
@@ -258,16 +255,10 @@ class _FakeGraph:
         return dict(self._final_state)
 
 
-def _install_fake_graph(
-    monkeypatch: pytest.MonkeyPatch, graph: _FakeGraph
-) -> None:
+def _install_fake_graph(monkeypatch: pytest.MonkeyPatch, graph: _FakeGraph) -> None:
     """Patch ``_build_graph`` so the service invokes ``graph`` and probes pass."""
-    monkeypatch.setattr(
-        AgentRunService, "_build_graph", lambda self: graph, raising=True
-    )
-    monkeypatch.setattr(
-        AgentRunService, "_require_dependencies", lambda self: None, raising=True
-    )
+    monkeypatch.setattr(AgentRunService, "_build_graph", lambda self: graph, raising=True)
+    monkeypatch.setattr(AgentRunService, "_require_dependencies", lambda self: None, raising=True)
 
 
 def _refining_final_state() -> dict:

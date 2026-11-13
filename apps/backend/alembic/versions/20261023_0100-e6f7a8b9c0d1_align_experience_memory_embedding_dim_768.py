@@ -46,14 +46,15 @@ Revises: d5e6f7a8b9c0
 Create Date: 2026-10-23 01:00:00.000000+00:00
 
 """
+
 from __future__ import annotations
 
 from typing import Sequence, Union
 
-from alembic import op
 import sqlalchemy as sa
 from pgvector.sqlalchemy import Vector
 
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "e6f7a8b9c0d1"

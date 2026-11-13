@@ -44,13 +44,14 @@ Revises: f7a8b9c0d1e2
 Create Date: 2026-10-25 01:00:00.000000+00:00
 
 """
+
 from __future__ import annotations
 
 from typing import Sequence, Union
 
-from alembic import op
 import sqlalchemy as sa
 
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "a8b9c0d1e2f3"

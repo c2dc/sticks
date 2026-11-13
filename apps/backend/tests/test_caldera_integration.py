@@ -70,7 +70,7 @@ class RouterHandler:
         self.requests: list[httpx.Request] = []
         self._routes: dict[tuple[str, str], object] = {}
 
-    def route(self, method: str, path: str, responder) -> "RouterHandler":
+    def route(self, method: str, path: str, responder) -> RouterHandler:
         """Register a responder (an ``httpx.Response`` or a callable)."""
         self._routes[(method.upper(), path)] = responder
         return self
@@ -165,9 +165,7 @@ def test_list_adversaries_contract() -> None:
         },
         {"adversary_id": "adv-2", "name": "C0010"},
     ]
-    handler = RouterHandler().route(
-        "GET", ADVERSARIES_PATH, httpx.Response(200, json=adversaries)
-    )
+    handler = RouterHandler().route("GET", ADVERSARIES_PATH, httpx.Response(200, json=adversaries))
 
     with _client(handler) as client:
         refs = client.list_adversaries()
@@ -185,9 +183,7 @@ def test_list_adversaries_contract() -> None:
 
 def test_adversary_exists_true_and_false() -> None:
     adversaries = [{"adversary_id": "adv-1"}, {"adversary_id": "adv-2"}]
-    handler = RouterHandler().route(
-        "GET", ADVERSARIES_PATH, httpx.Response(200, json=adversaries)
-    )
+    handler = RouterHandler().route("GET", ADVERSARIES_PATH, httpx.Response(200, json=adversaries))
 
     with _client(handler) as client:
         assert client.adversary_exists("adv-2") is True
@@ -201,9 +197,7 @@ def test_adversary_exists_true_and_false() -> None:
 
 def test_create_operation_contract_atomic_red_jitter() -> None:
     created = {"id": "op-99", "name": "APT41-DUST run", "state": "running"}
-    handler = RouterHandler().route(
-        "POST", OPERATIONS_PATH, httpx.Response(200, json=created)
-    )
+    handler = RouterHandler().route("POST", OPERATIONS_PATH, httpx.Response(200, json=created))
 
     with _client(handler) as client:
         op = client.create_operation(name="APT41-DUST run", adversary_id="adv-1")
@@ -333,9 +327,8 @@ def test_timeout_ensure_available_raises_unavailable() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         raise httpx.TimeoutException("no response", request=request)
 
-    with _client(handler) as client:
-        with pytest.raises(CalderaUnavailable) as excinfo:
-            client.ensure_available()
+    with _client(handler) as client, pytest.raises(CalderaUnavailable) as excinfo:
+        client.ensure_available()
 
     # The 10s window is reported on the typed error (mapped to 503 upstream).
     assert excinfo.value.timeout == 10.0
@@ -360,9 +353,8 @@ def test_timeout_on_v2_method_raises_unavailable() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         raise httpx.TimeoutException("no response", request=request)
 
-    with _client(handler) as client:
-        with pytest.raises(CalderaUnavailable):
-            client.list_adversaries()
+    with _client(handler) as client, pytest.raises(CalderaUnavailable):
+        client.list_adversaries()
 
 
 # ---------------------------------------------------------------------------
@@ -375,9 +367,8 @@ def test_non_2xx_on_create_operation_raises_api_error() -> None:
         "POST", OPERATIONS_PATH, httpx.Response(500, text="planner not found")
     )
 
-    with _client(handler) as client:
-        with pytest.raises(CalderaApiError) as excinfo:
-            client.create_operation(name="n", adversary_id="adv-1")
+    with _client(handler) as client, pytest.raises(CalderaApiError) as excinfo:
+        client.create_operation(name="n", adversary_id="adv-1")
 
     assert excinfo.value.status_code == 500
     assert excinfo.value.method == "POST"
@@ -386,12 +377,9 @@ def test_non_2xx_on_create_operation_raises_api_error() -> None:
 
 
 def test_non_2xx_on_list_adversaries_raises_api_error() -> None:
-    handler = RouterHandler().route(
-        "GET", ADVERSARIES_PATH, httpx.Response(403, text="forbidden")
-    )
+    handler = RouterHandler().route("GET", ADVERSARIES_PATH, httpx.Response(403, text="forbidden"))
 
-    with _client(handler) as client:
-        with pytest.raises(CalderaApiError) as excinfo:
-            client.list_adversaries()
+    with _client(handler) as client, pytest.raises(CalderaApiError) as excinfo:
+        client.list_adversaries()
 
     assert excinfo.value.status_code == 403

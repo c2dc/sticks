@@ -76,13 +76,9 @@ def _verdict_for(container: str, kind: _VerdictKind) -> EgressVerdict:
     fail-closed rule must still reprove.
     """
     if kind is _VerdictKind.LOST_CONCLUSIVE:
-        return EgressVerdict(
-            container=container, egress_lost=True, conclusive=True
-        )
+        return EgressVerdict(container=container, egress_lost=True, conclusive=True)
     if kind is _VerdictKind.PRESENT:
-        return EgressVerdict(
-            container=container, egress_lost=False, conclusive=True
-        )
+        return EgressVerdict(container=container, egress_lost=False, conclusive=True)
     # INCONCLUSIVE: conclusive=False, lost flag set to the perverse True.
     return EgressVerdict(container=container, egress_lost=True, conclusive=False)
 
@@ -166,9 +162,7 @@ _plans = st.lists(
 
 def _oracle_approves(kinds: list[_VerdictKind]) -> bool:
     """Independent oracle: approve iff non-empty and every kind is lost-conclusive."""
-    return bool(kinds) and all(
-        k is _VerdictKind.LOST_CONCLUSIVE for k in kinds
-    )
+    return bool(kinds) and all(k is _VerdictKind.LOST_CONCLUSIVE for k in kinds)
 
 
 @settings(max_examples=40)

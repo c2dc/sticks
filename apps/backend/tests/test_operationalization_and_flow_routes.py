@@ -237,9 +237,7 @@ def test_operationalization_unknown_campaign_404(
     client: TestClient, session_factory: sessionmaker[Session]
 ) -> None:
     _seed_campaign(session_factory)
-    resp = client.get(
-        f"/api/stix/bases/{_VERSION}/campaigns/does-not-exist/operationalization"
-    )
+    resp = client.get(f"/api/stix/bases/{_VERSION}/campaigns/does-not-exist/operationalization")
     assert resp.status_code == 404, resp.text
     assert resp.json()["detail"]["motivo"] == "campanha_nao_encontrada"
 
@@ -250,9 +248,24 @@ def test_operationalization_unknown_campaign_404(
 
 _LEGACY_CONTENT = {
     "structural_nodes": [
-        {"node_id": "n1", "technique_id": "T1059", "technique_name": "Scripting", "tactic": "execution"},
-        {"node_id": "n2", "technique_id": "T1105", "technique_name": "Transfer", "tactic": "command-and-control"},
-        {"node_id": "n3", "technique_id": "T1021", "technique_name": "Remote", "tactic": "lateral-movement"},
+        {
+            "node_id": "n1",
+            "technique_id": "T1059",
+            "technique_name": "Scripting",
+            "tactic": "execution",
+        },
+        {
+            "node_id": "n2",
+            "technique_id": "T1105",
+            "technique_name": "Transfer",
+            "tactic": "command-and-control",
+        },
+        {
+            "node_id": "n3",
+            "technique_id": "T1021",
+            "technique_name": "Remote",
+            "tactic": "lateral-movement",
+        },
     ],
     "edges": [
         {"from": "n1", "to": "n2"},
@@ -369,3 +382,84 @@ def test_get_attack_flow_by_id_serves_corpus_flow_and_404(
     assert body["has_cycles"] is True
 
     assert client.get("/api/attack-flows/99999").status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Resolved commands (Req. 11.3, 11.5, 11.6, 11.11)
+# ---------------------------------------------------------------------------
+
+
+def _add_command(
+    factory: sessionmaker[Session],
+    command: str,
+    arguments: dict | None,
+    command_hash: str,
+) -> None:
+    with factory() as session:
+        session.add(
+            TechniqueCommand(
+                technique_id="T1105",
+                command=command,
+                executor="sh",
+                platform="linux",
+                source="atomic_red_team",
+                command_hash=command_hash,
+                input_arguments=arguments,
+            )
+        )
+        session.commit()
+
+
+def test_operationalization_returns_resolved_command_and_keeps_original(
+    client: TestClient,
+    session_factory: sessionmaker[Session],
+) -> None:
+    _seed_campaign(session_factory)
+    original = "curl #{url} -o #{out} && echo #{out} #{missing} $PathToAtomicsFolder/x"
+    _add_command(
+        session_factory,
+        original,
+        {
+            "url": {"default": "http://h/#{out}"},
+            "out": {"default": "$PathToAtomicsFolder/o.bin"},
+            "missing": {"description": "no default"},
+        },
+        "h-args",
+    )
+
+    resp = client.get(_url())
+    assert resp.status_code == 200, resp.text
+    by_id = {t["technique_id"]: t for t in resp.json()["techniques"]}
+    [command] = by_id["T1105"]["commands"]
+
+    assert command["command"] == original  # original preserved
+    # Single pass: the ``#{out}`` inside a substituted default is NOT re-expanded.
+    assert command["resolved_command"] == (
+        "curl http://h/#{out} -o $PathToAtomicsFolder/o.bin && echo "
+        "$PathToAtomicsFolder/o.bin #{missing} $PathToAtomicsFolder/x"
+    )
+    assert command["arguments_used"] == {
+        "url": "http://h/#{out}",
+        "out": "$PathToAtomicsFolder/o.bin",
+    }
+    # Path_Argument is reported (once) after the placeholders/tokens in order of appearance.
+    assert command["unresolved_arguments"] == ["PathToAtomicsFolder", "missing"]
+
+
+def test_operationalization_row_without_arguments_lists_all_placeholders(
+    client: TestClient, session_factory: sessionmaker[Session]
+) -> None:
+    _seed_campaign(session_factory)
+    _add_command(session_factory, "run #{a} #{b} #{a}", None, "h-null")
+
+    body = client.get(_url()).json()
+    by_id = {t["technique_id"]: t for t in body["techniques"]}
+    [command] = by_id["T1105"]["commands"]
+
+    assert command["resolved_command"] == "run #{a} #{b} #{a}"
+    assert command["arguments_used"] == {}
+    assert command["unresolved_arguments"] == ["a", "b"]
+    # Commands without placeholders resolve to themselves with no pending names.
+    plain = {c["command"]: c for c in by_id["T1059"]["commands"]}["whoami"]
+    assert plain["resolved_command"] == "whoami"
+    assert plain["unresolved_arguments"] == []

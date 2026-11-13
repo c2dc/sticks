@@ -36,7 +36,8 @@ _Requirements: 2.1, 2.2_
 
 from __future__ import annotations
 
-from typing import Any, Callable, Optional, Sequence
+from collections.abc import Callable, Sequence
+from typing import Any
 
 # The fields copied verbatim from the ability source into the payload (same order
 # and set as the two original projections used).
@@ -90,7 +91,7 @@ def _derive_technique_name(ability: Any) -> str:
 def build_caldera_ability_payloads(
     abilities: Sequence[Any],
     *,
-    executor_normalizer: Optional[Callable[[Any], Any]] = None,
+    executor_normalizer: Callable[[Any], Any] | None = None,
 ) -> list[dict[str, Any]]:
     """Project ability objects into ``POST /api/v2/abilities`` payload dicts.
 
@@ -133,9 +134,7 @@ def build_caldera_ability_payloads(
         executors = getattr(ability, "executors", None)
         if executors:
             payload["executors"] = (
-                executor_normalizer(executors)
-                if executor_normalizer is not None
-                else executors
+                executor_normalizer(executors) if executor_normalizer is not None else executors
             )
 
         payloads.append(payload)

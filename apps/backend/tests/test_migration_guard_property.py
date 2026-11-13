@@ -58,6 +58,9 @@ NO Docker, NO network, NO shared DB — safe on any dev environment.
 
 from __future__ import annotations
 
+# Import the SHIPPED migration module so we drive its REAL upgrade() logic.
+# The filename is not a valid identifier, so load it by path via importlib.
+import importlib.util
 import tempfile
 from pathlib import Path
 
@@ -76,15 +79,11 @@ from sqlalchemy import (
     Table,
     Text,
     create_engine,
-    inspect,
     insert,
+    inspect,
     select,
 )
 from sqlalchemy.engine import Engine
-
-# Import the SHIPPED migration module so we drive its REAL upgrade() logic.
-# The filename is not a valid identifier, so load it by path via importlib.
-import importlib.util
 
 _MIGRATION_PATH = (
     Path(__file__).resolve().parents[1]
@@ -197,7 +196,7 @@ def _rows_with_at_least_one_out_of_range(draw: st.DrawFn) -> list[dict]:
     offending = draw(_row(_out_of_range_estagio))
     others = draw(st.lists(_row(_any_estagio), min_size=0, max_size=11))
     position = draw(st.integers(min_value=0, max_value=len(others)))
-    rows = others[:position] + [offending] + others[position:]
+    rows = [*others[:position], offending, *others[position:]]
     return rows
 
 
@@ -268,25 +267,24 @@ def test_property6_guard_aborts_without_altering_data(rows: list[dict]) -> None:
         before = _snapshot()
 
         # Sanity: the generator must have produced at least one offending row.
-        assert any(
-            row["estagio"] < 1 or row["estagio"] > 3 for row in rows
-        ), "generator must include at least one estagio outside 1..3"
+        assert any(row["estagio"] < 1 or row["estagio"] > 3 for row in rows), (
+            "generator must include at least one estagio outside 1..3"
+        )
 
         # Drive the migration's REAL upgrade() through Alembic's Operations proxy
         # bound to the ISOLATED temp engine. The guard query runs on
         # op.get_bind() against this connection, never the project DB. We expect
         # it to raise RuntimeError before any UPDATE/DDL.
-        with engine.connect() as conn:
-            with conn.begin():
-                ctx = MigrationContext.configure(connection=conn)
-                op_proxy = Operations(ctx)
-                original_op = _migration.op
-                _migration.op = op_proxy
-                try:
-                    with pytest.raises(RuntimeError):
-                        _migration.upgrade()
-                finally:
-                    _migration.op = original_op
+        with engine.connect() as conn, conn.begin():
+            ctx = MigrationContext.configure(connection=conn)
+            op_proxy = Operations(ctx)
+            original_op = _migration.op
+            _migration.op = op_proxy
+            try:
+                with pytest.raises(RuntimeError):
+                    _migration.upgrade()
+            finally:
+                _migration.op = original_op
 
         # (2) No row was altered: the table is identical to the pre-upgrade
         # snapshot (the guard ran before any UPDATE — Req. 2.6).
@@ -299,9 +297,7 @@ def test_property6_guard_aborts_without_altering_data(rows: list[dict]) -> None:
         inspector = inspect(engine)
         table_names = set(inspector.get_table_names())
         assert "dags" not in table_names
-        execucoes_columns = {
-            col["name"] for col in inspector.get_columns("execucoes_estagio")
-        }
+        execucoes_columns = {col["name"] for col in inspector.get_columns("execucoes_estagio")}
         assert "dag_escolhido_id" not in execucoes_columns
     finally:
         engine.dispose()

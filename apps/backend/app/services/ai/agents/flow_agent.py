@@ -37,11 +37,11 @@ from __future__ import annotations
 import json
 import logging
 import uuid
-from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any, Callable, Optional
+from collections.abc import Callable, Sequence
+from typing import TYPE_CHECKING, Any
 
 from app.models.enums import AgentStage, FlowOrigin, FlowProvenance
-from app.services.attack_flow.cycles import analyze_cycles, annotate_flow_cycles
+from app.services.attack_flow.cycles import annotate_flow_cycles
 from app.services.attack_flow.model import (
     AttackFlow,
     AttackFlowObject,
@@ -86,7 +86,7 @@ class FlowGenerationError(RuntimeError):
     failing agent node (``"flow"``) for the Run_Service's failure bookkeeping.
     """
 
-    def __init__(self, message: str, *, node: str = "flow", cause: Optional[str] = None) -> None:
+    def __init__(self, message: str, *, node: str = "flow", cause: str | None = None) -> None:
         super().__init__(message)
         self.node = node
         self.cause = cause
@@ -117,16 +117,16 @@ class FlowAgent:
         self,
         *,
         chat: Any = None,
-        memory: "Optional[ExperienceMemory]" = None,
-        attack_reader: Optional[Callable[..., dict]] = None,
-        command_lookup: Optional[Callable[[str], bool]] = None,
+        memory: ExperienceMemory | None = None,
+        attack_reader: Callable[..., dict] | None = None,
+        command_lookup: Callable[[str], bool] | None = None,
         retrieval_k: int = _DEFAULT_RETRIEVAL_K,
-        trace_sink: "Optional[list[dict]]" = None,
+        trace_sink: list[dict] | None = None,
         flow_retriever: Any = None,
-        corpus_flow_loader: Optional[Callable[[int], Optional[dict]]] = None,
-        operationalization: Optional[dict] = None,
-        command_ref_resolver: Optional[Callable[[str, Optional[str]], Optional[int]]] = None,
-        campaign_name: Optional[str] = None,
+        corpus_flow_loader: Callable[[int], dict | None] | None = None,
+        operationalization: dict | None = None,
+        command_ref_resolver: Callable[[str, str | None], int | None] | None = None,
+        campaign_name: str | None = None,
         campaign_aliases: Sequence[str] = (),
         campaign_description: str = "",
     ) -> None:
@@ -215,7 +215,7 @@ class FlowAgent:
         # ``exact``: copy the documented flow without calling the LLM. If the
         # flow cannot be loaded the decision is demoted to ``adapted`` so the
         # recorded provenance stays truthful.
-        corpus_flow: Optional[dict] = None
+        corpus_flow: dict | None = None
         if decision.kind is FlowProvenance.EXACT:
             corpus_flow = self._load_corpus_flow(decision.references[0])
             if corpus_flow is None:
@@ -232,9 +232,7 @@ class FlowAgent:
         decision_trace: dict[str, Any] = {**provenance, "reason": reason}
 
         if corpus_flow is not None:
-            produced = self._produce_exact(
-                campaign, corpus_flow, provenance, warnings
-            )
+            produced = self._produce_exact(campaign, corpus_flow, provenance, warnings)
             self._emit_trace(
                 modeling=modeling,
                 experience=[],
@@ -251,8 +249,7 @@ class FlowAgent:
 
         if self._chat is None:
             raise FlowGenerationError(
-                "FlowAgent requires a chat model to generate an attack flow; none was "
-                "injected.",
+                "FlowAgent requires a chat model to generate an attack flow; none was injected.",
                 node="flow",
                 cause="missing_chat_model",
             )
@@ -265,12 +262,12 @@ class FlowAgent:
         # First attempt, then at most one repair that re-prompts with the parse
         # error (Requirement 14.3). ``last_cause`` carries the most recent
         # parse-failure cause into the node error if the repair also fails.
-        last_cause: Optional[str] = None
-        repair_hint: Optional[str] = None
+        last_cause: str | None = None
+        repair_hint: str | None = None
         # Trace accumulators (appended to the sink at the end of the call, so the
         # single AgentTrace reflects every LLM pass incl. the repair).
-        last_messages: Optional[list[dict[str, str]]] = None
-        last_raw: Optional[str] = None
+        last_messages: list[dict[str, str]] | None = None
+        last_raw: str | None = None
         repair_hints: list[str] = []
         repair_attempts = 0
         tools_invoked: list[str] = ["experience_memory.retrieve"]
@@ -292,8 +289,11 @@ class FlowAgent:
                 try:
                     graph = self._parse_graph(raw)
                     content = self._assemble_content(
-                        graph, modeling, campaign=campaign,
-                        allowed_techniques=allowed, provenance=provenance,
+                        graph,
+                        modeling,
+                        campaign=campaign,
+                        allowed_techniques=allowed,
+                        provenance=provenance,
                         warnings=warnings,
                     )
                     self._validate_content(content)
@@ -305,8 +305,7 @@ class FlowAgent:
                     repair_hint = str(exc)
                     repair_hints.append(str(exc))
                     logger.warning(
-                        "FlowAgent parse/validation failed for campaign %s on "
-                        "attempt %d/%d (%s).",
+                        "FlowAgent parse/validation failed for campaign %s on attempt %d/%d (%s).",
                         campaign,
                         attempt + 1,
                         _MAX_REPAIR_ATTEMPTS + 1,
@@ -368,7 +367,7 @@ class FlowAgent:
 
     def _decide(
         self, campaign: str, modeling: StructuralModeling, techniques: list[str]
-    ) -> tuple[FlowDecision, Optional[str], list[Any]]:
+    ) -> tuple[FlowDecision, str | None, list[Any]]:
         """Retrieve candidates and classify the path (no LLM involved).
 
         Returns ``(decision, reason, candidates)``. ``reason`` is
@@ -386,7 +385,7 @@ class FlowAgent:
                     or self._modeling_summary(modeling),
                 )
                 corpus_ok = bool(candidates) or self._flow_retriever.corpus_available()
-            except Exception as exc:  # noqa: BLE001 - never let retrieval break generation
+            except Exception as exc:  # noqa: BLE001 -- never let retrieval break generation
                 logger.warning(
                     "FlowAgent corpus retrieval skipped for campaign %s (%s: %s); "
                     "taking the 'created' path.",
@@ -404,13 +403,13 @@ class FlowAgent:
         )
         return decision, reason, candidates
 
-    def _load_corpus_flow(self, flow_id: int) -> Optional[dict]:
+    def _load_corpus_flow(self, flow_id: int) -> dict | None:
         """Load ``{"label", "content"}`` of a documented flow; ``None`` if absent."""
         if self._corpus_flow_loader is None:
             return None
         try:
             loaded = self._corpus_flow_loader(flow_id)
-        except Exception as exc:  # noqa: BLE001 - degrade to the LLM path
+        except Exception as exc:  # noqa: BLE001 -- degrade to the LLM path
             logger.warning(
                 "FlowAgent could not load corpus flow %s (%s: %s).",
                 flow_id,
@@ -431,7 +430,7 @@ class FlowAgent:
                 continue
             try:
                 flow = AttackFlow.model_validate(loaded["content"])
-            except Exception:  # noqa: BLE001 - skip an unreadable reference
+            except Exception:  # noqa: BLE001, S112 -- skip an unreadable reference
                 continue
             by_id = {obj.id: obj for obj in flow.objects}
             actions = [
@@ -442,7 +441,8 @@ class FlowAgent:
             edges = [
                 {"de": by_id[src].technique_id or src, "para": by_id[dst].technique_id or dst}
                 for src, dst in flow.execution_edges()
-                if src in by_id and dst in by_id
+                if src in by_id
+                and dst in by_id
                 and by_id[src].type == "attack-action"
                 and by_id[dst].type == "attack-action"
             ]
@@ -458,7 +458,7 @@ class FlowAgent:
 
     # ----- command index / refs ----------------------------------------------
 
-    def _command_index(self) -> Optional[tuple[set[str], dict[str, Optional[int]]]]:
+    def _command_index(self) -> tuple[set[str], dict[str, int | None]] | None:
         """Techniques backed by the operationalization, and their ``command_ref``.
 
         ``None`` when no operationalization artifact was supplied (the caller
@@ -469,14 +469,18 @@ class FlowAgent:
             return None
         abilities = (op.get("abilities") or {}).get("abilities") or []
         backed: set[str] = set()
-        refs: dict[str, Optional[int]] = {}
+        refs: dict[str, int | None] = {}
         for ability in abilities:
             technique_id = ability.get("technique_id")
             if not isinstance(technique_id, str) or not technique_id:
                 continue
             for executor in ability.get("executors") or []:
                 command = executor.get("command")
-                direct = executor.get("id")
+                # Prefer the row id carried by the selection (the Final_Command
+                # no longer equals the stored template); keep ``id`` as legacy.
+                direct = executor.get("command_ref")
+                if not isinstance(direct, int):
+                    direct = executor.get("id")
                 if not (isinstance(command, str) and command.strip()) and not isinstance(
                     direct, int
                 ):
@@ -484,11 +488,11 @@ class FlowAgent:
                 backed.add(technique_id)
                 if refs.get(technique_id) is not None:
                     continue
-                ref: Optional[int] = direct if isinstance(direct, int) else None
+                ref: int | None = direct if isinstance(direct, int) else None
                 if ref is None and self._command_ref_resolver is not None:
                     try:
                         ref = self._command_ref_resolver(technique_id, command)
-                    except Exception as exc:  # noqa: BLE001 - ref is best-effort
+                    except Exception as exc:  # noqa: BLE001 -- ref is best-effort
                         logger.warning(
                             "FlowAgent command_ref lookup failed for %s (%s: %s).",
                             technique_id,
@@ -549,9 +553,9 @@ class FlowAgent:
         *,
         modeling: StructuralModeling,
         experience: list[dict[str, Any]],
-        attack_context: Optional[dict],
-        messages: Optional[list[dict[str, str]]],
-        raw: Optional[str],
+        attack_context: dict | None,
+        messages: list[dict[str, str]] | None,
+        raw: str | None,
         tools_invoked: list[str],
         repair_attempts: int,
         repair_hints: list[str],
@@ -584,7 +588,6 @@ class FlowAgent:
             }
         )
 
-
     # ----- collaborators ------------------------------------------------------
 
     def _retrieve_experience(
@@ -600,10 +603,8 @@ class FlowAgent:
             return []
         query = self._modeling_summary(modeling)
         try:
-            return self._memory.retrieve(
-                campaign_id=campaign, query=query, k=self._retrieval_k
-            )
-        except Exception as exc:  # noqa: BLE001 - never let RAG priming break generation
+            return self._memory.retrieve(campaign_id=campaign, query=query, k=self._retrieval_k)
+        except Exception as exc:  # noqa: BLE001 -- never let RAG priming break generation
             logger.warning(
                 "FlowAgent experience retrieval skipped for campaign %s "
                 "(%s: %s); continuing with an empty experience set.",
@@ -613,7 +614,7 @@ class FlowAgent:
             )
             return []
 
-    def _read_attack_context(self, campaign: str) -> Optional[dict]:
+    def _read_attack_context(self, campaign: str) -> dict | None:
         """Read the optional ATT&CK/STIX context via the injected reader tool.
 
         Tolerant: no reader injected, or any reader failure, yields ``None`` so
@@ -623,10 +624,9 @@ class FlowAgent:
             return None
         try:
             return self._attack(campaign)
-        except Exception as exc:  # noqa: BLE001 - optional context, never fatal
+        except Exception as exc:  # noqa: BLE001 -- optional context, never fatal
             logger.warning(
-                "FlowAgent ATT&CK context read skipped for campaign %s "
-                "(%s: %s).",
+                "FlowAgent ATT&CK context read skipped for campaign %s (%s: %s).",
                 campaign,
                 type(exc).__name__,
                 exc,
@@ -645,8 +645,7 @@ class FlowAgent:
         if isinstance(content, list):
             # Some chat models return a list of content parts; join the text ones.
             parts = [
-                part.get("text", "") if isinstance(part, dict) else str(part)
-                for part in content
+                part.get("text", "") if isinstance(part, dict) else str(part) for part in content
             ]
             return "".join(parts)
         return content if isinstance(content, str) else str(content)
@@ -658,10 +657,10 @@ class FlowAgent:
         campaign: str,
         modeling: StructuralModeling,
         experience: list[dict[str, Any]],
-        attack_context: Optional[dict],
+        attack_context: dict | None,
         *,
-        repair_hint: Optional[str] = None,
-        references: Optional[list[dict[str, Any]]] = None,
+        repair_hint: str | None = None,
+        references: list[dict[str, Any]] | None = None,
     ) -> list[dict[str, str]]:
         """Build the chat messages: a system contract + the modeling/RAG prompt.
 
@@ -697,9 +696,9 @@ class FlowAgent:
         campaign: str,
         modeling: StructuralModeling,
         experience: list[dict[str, Any]],
-        attack_context: Optional[dict],
+        attack_context: dict | None,
         *,
-        references: Optional[list[dict[str, Any]]] = None,
+        references: list[dict[str, Any]] | None = None,
     ) -> str:
         """Render the user prompt from the modeling + retrieved experience."""
         techniques = [
@@ -711,9 +710,7 @@ class FlowAgent:
             }
             for t in modeling.techniques
         ]
-        relationships = [
-            {"source": r.source, "target": r.target} for r in modeling.relationships
-        ]
+        relationships = [{"source": r.source, "target": r.target} for r in modeling.relationships]
         lines = [
             f"Campaign: {campaign}",
             "Structural Modeling techniques (Stage 1):",
@@ -732,14 +729,11 @@ class FlowAgent:
                 + json.dumps(allowed, ensure_ascii=False)
             )
         if references:
-            lines.append(
-                "Documented reference flows (adapt their ordering to this campaign):"
-            )
+            lines.append("Documented reference flows (adapt their ordering to this campaign):")
             lines.append(json.dumps(references, ensure_ascii=False))
         if experience:
             snippets = [
-                {"content": hit.get("content"), "outcome": hit.get("outcome")}
-                for hit in experience
+                {"content": hit.get("content"), "outcome": hit.get("outcome")} for hit in experience
             ]
             lines.append("Relevant experience from OTHER campaigns:")
             lines.append(json.dumps(snippets, ensure_ascii=False))
@@ -757,8 +751,10 @@ class FlowAgent:
     def _modeling_summary(modeling: StructuralModeling) -> str:
         """A compact text summary of the modeling used as the RAG query."""
         ids = [t.technique_id for t in modeling.techniques if t.technique_id]
-        return "attack flow planning for techniques: " + ", ".join(ids) if ids else (
-            "attack flow planning for an empty technique set"
+        return (
+            "attack flow planning for techniques: " + ", ".join(ids)
+            if ids
+            else ("attack flow planning for an empty technique set")
         )
 
     # ----- parsing / validation / assembly ------------------------------------
@@ -806,8 +802,8 @@ class FlowAgent:
         *,
         campaign: str = "",
         allowed_techniques: frozenset[str] = frozenset(),
-        provenance: Optional[dict] = None,
-        warnings: Optional[list[str]] = None,
+        provenance: dict | None = None,
+        warnings: list[str] | None = None,
     ) -> dict:
         """Assemble the persistable ``content`` in the curation-compatible format.
 
@@ -866,9 +862,7 @@ class FlowAgent:
                 raise _FlowParseError("each edge must have string 'de'/'para'")
             src, dst = src.strip(), dst.strip()
             if src not in node_by_id or dst not in node_by_id:
-                raise _FlowParseError(
-                    f"edge {src!r}->{dst!r} references an unknown node_id"
-                )
+                raise _FlowParseError(f"edge {src!r}->{dst!r} references an unknown node_id")
             if (src, dst) in seen_edges:
                 continue
             seen_edges.add((src, dst))
@@ -881,8 +875,7 @@ class FlowAgent:
         # acyclic execution view; a warning goes to the trace and no second LLM
         # call is made because of a cycle.
         object_ids = {
-            n["node_id"]: self._object_id(campaign, n["node_id"])
-            for n in structural_nodes
+            n["node_id"]: self._object_id(campaign, n["node_id"]) for n in structural_nodes
         }
         objects = [
             AttackFlowObject(
@@ -895,9 +888,7 @@ class FlowAgent:
             )
             for n in structural_nodes
         ]
-        start_refs = [
-            object_ids[n["node_id"]] for n in structural_nodes if not n["parent_nodes"]
-        ]
+        start_refs = [object_ids[n["node_id"]] for n in structural_nodes if not n["parent_nodes"]]
         if not start_refs and structural_nodes:
             start_refs = [object_ids[structural_nodes[0]["node_id"]]]
         flow = AttackFlow(
@@ -923,9 +914,7 @@ class FlowAgent:
         return "attack-action--" + str(uuid.uuid5(uuid.NAMESPACE_URL, key))
 
     @staticmethod
-    def _flow_content(
-        flow: AttackFlow, *, node_ids: Optional[dict[str, str]] = None
-    ) -> dict:
+    def _flow_content(flow: AttackFlow, *, node_ids: dict[str, str] | None = None) -> dict:
         """Persistable ``content``: the Attack Flow plus the legacy structural mirror.
 
         The Attack Flow keys (``flow_id``, ``objects``, ``cycles``,
@@ -1032,7 +1021,7 @@ class FlowAgent:
             seen.add(technique_id)
             try:
                 backed = self._command_lookup(technique_id)
-            except Exception as exc:  # noqa: BLE001 - never let the probe break generation
+            except Exception as exc:  # noqa: BLE001 -- never let the probe break generation
                 logger.warning(
                     "FlowAgent Command_Base gap probe failed for technique "
                     "%s (%s: %s); treating it as backed to avoid a false gap.",
@@ -1046,7 +1035,7 @@ class FlowAgent:
         return gaps
 
     @staticmethod
-    def _resolve_label(graph: dict[str, Any], attack_context: Optional[dict]) -> Optional[str]:
+    def _resolve_label(graph: dict[str, Any], attack_context: dict | None) -> str | None:
         """Best-effort readable label for the produced attack flow (optional field)."""
         if attack_context:
             attack = attack_context.get("attack")
@@ -1088,7 +1077,7 @@ class _FlowParseError(ValueError):
 # (Requirement 1.7).
 
 
-def _modeling_from_state(state: "AgentState") -> StructuralModeling:
+def _modeling_from_state(state: AgentState) -> StructuralModeling:
     """Reconstruct the :class:`StructuralModeling` (Stage 1) from the agent state.
 
     The attack flow (Stage 3) is derived from the Structural Modeling (Stage 1), so the
@@ -1105,7 +1094,7 @@ def _modeling_from_state(state: "AgentState") -> StructuralModeling:
     if isinstance(modeling, dict):
         try:
             return StructuralModeling.model_validate(modeling)
-        except Exception as exc:  # noqa: BLE001 - tolerate a malformed snapshot
+        except Exception as exc:  # noqa: BLE001 -- tolerate a malformed snapshot
             logger.warning(
                 "Could not parse the Structural Modeling from state (%s: %s); "
                 "proceeding with an empty modeling.",
@@ -1117,7 +1106,7 @@ def _modeling_from_state(state: "AgentState") -> StructuralModeling:
 
 def _attack_reader_for_session(
     session: Any,
-) -> Optional[Callable[..., dict]]:
+) -> Callable[..., dict] | None:
     """Build the DB-sourced ATT&CK base-context reader bound to ``session``.
 
     The attack flow agent's Agent_Input base context (identity/techniques/actors) comes
@@ -1142,7 +1131,7 @@ def _attack_reader_for_session(
 
 def _command_lookup_for_session(
     session: Any,
-) -> Optional[Callable[[str], bool]]:
+) -> Callable[[str], bool] | None:
     """Build the Command_Base gap probe (``has_command_for``) bound to ``session``.
 
     The attack flow agent flags a campaign technique as a gap when the Command_Base can
@@ -1216,7 +1205,7 @@ def _campaign_profile(session: Any, campaign_id: str) -> dict[str, Any]:
             .scalars()
             .all()
         )
-    except Exception as exc:  # noqa: BLE001 - profile is optional context
+    except Exception as exc:  # noqa: BLE001 -- profile is optional context
         logger.warning(
             "Flow node could not read the campaign profile (%s: %s).",
             type(exc).__name__,
@@ -1251,12 +1240,12 @@ def _flow_retriever_for_session(session: Any, memory: Any) -> Any:
 
 def _corpus_flow_loader_for_session(
     session: Any,
-) -> Optional[Callable[[int], Optional[dict]]]:
+) -> Callable[[int], dict | None] | None:
     """``flow_id -> {"label", "content"}`` over ``attack_flows`` (corpus only)."""
     if session is None:
         return None
 
-    def _load(flow_id: int) -> Optional[dict]:
+    def _load(flow_id: int) -> dict | None:
         from app.models.domain import AttackFlowRow
         from app.models.enums import FlowOrigin as _Origin
 
@@ -1270,19 +1259,17 @@ def _corpus_flow_loader_for_session(
 
 def _command_ref_resolver_for_session(
     session: Any,
-) -> Optional[Callable[[str, Optional[str]], Optional[int]]]:
+) -> Callable[[str, str | None], int | None] | None:
     """``(technique_id, command) -> technique_commands.id`` over the database."""
     if session is None:
         return None
 
-    def _resolve(technique_id: str, command: Optional[str]) -> Optional[int]:
+    def _resolve(technique_id: str, command: str | None) -> int | None:
         from sqlalchemy import select
 
         from app.models.domain import TechniqueCommand
 
-        stmt = select(TechniqueCommand.id).where(
-            TechniqueCommand.technique_id == technique_id
-        )
+        stmt = select(TechniqueCommand.id).where(TechniqueCommand.technique_id == technique_id)
         if command:
             stmt = stmt.where(TechniqueCommand.command == command)
         row = session.execute(stmt.order_by(TechniqueCommand.id).limit(1)).first()
@@ -1291,7 +1278,7 @@ def _command_ref_resolver_for_session(
     return _resolve
 
 
-def node(state: "AgentState", *, session: Any = None) -> dict:
+def node(state: AgentState, *, session: Any = None) -> dict:
     """LangGraph Stage 3 node: produce the AI attack flow and write ``artifacts.flow``.
 
     Builds an :class:`FlowAgent` with a lazily-resolved SEPINF chat model
@@ -1333,7 +1320,7 @@ def node(state: "AgentState", *, session: Any = None) -> dict:
             from app.services.ai.memory import ExperienceMemory
 
             memory = ExperienceMemory(resolved_session)
-        except Exception as exc:  # noqa: BLE001 - never let RAG setup break the run
+        except Exception as exc:  # noqa: BLE001 -- never let RAG setup break the run
             logger.warning(
                 "attack flow node could not build the experience memory (%s: %s); "
                 "continuing with an empty experience set.",
@@ -1406,13 +1393,13 @@ def node(state: "AgentState", *, session: Any = None) -> dict:
 
 
 def persist_flow_stage_output(
-    session: "Session",
+    session: Session,
     *,
     iteration_id: int,
     campaign_id: str,
     produced: ProducedFlow,
-    trace: "Optional[dict]" = None,
-) -> "AgentStageOutput":
+    trace: dict | None = None,
+) -> AgentStageOutput:
     """Persist a produced AI attack flow as an ``agent_stage_outputs`` row (Requirement 11.5).
 
     This is the Session-bound persistence hook the ``AgentRunService`` (tasks
@@ -1455,7 +1442,8 @@ def persist_flow_stage_output(
 
     from app.models.domain import AgentStageOutput, AttackFlowRow
     from app.models.enums import AgentStage, TranslationSource
-    from app.services.curated_case_reader import upsert_case_row, utcnow as _utcnow
+    from app.services.curated_case_reader import upsert_case_row
+    from app.services.curated_case_reader import utcnow as _utcnow
 
     # Persist the AI-origin AttackFlowRow row:
     # ensure the Case row exists (FK), then reconcile idempotently on

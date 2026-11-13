@@ -73,7 +73,6 @@ from __future__ import annotations
 
 import tempfile
 from pathlib import Path
-from typing import Optional
 
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
@@ -186,17 +185,13 @@ def _snapshot_stage_runs(session: Session) -> list[tuple]:
     ]
 
 
-def _snapshot_session_state(session: Session) -> Optional[tuple]:
+def _snapshot_session_state(session: Session) -> tuple | None:
     """Snapshot the single ``session_state`` row's mutable fields (or ``None``).
 
     Captures ``current_campaign`` and ``updated_at`` — the session-state fields
     ``persist_stage_completion`` bumps — so a partial write would change this.
     """
-    state = (
-        session.execute(select(SessionState).order_by(SessionState.id.asc()))
-        .scalars()
-        .first()
-    )
+    state = session.execute(select(SessionState).order_by(SessionState.id.asc())).scalars().first()
     if state is None:
         return None
     return (state.id, state.current_campaign, state.updated_at)
@@ -285,7 +280,7 @@ def test_property9_persist_failure_preserves_previous_state(
     # Feature: pipeline-ui, Property 9: Falha de persistência preserva o state anterior.
     Validates: Requirements 9.3
     """
-    current_campaign: Optional[str] = scenario["current_campaign"]
+    current_campaign: str | None = scenario["current_campaign"]
     completed_by_case: dict[str, set[int]] = scenario["completed_by_case"]
     fail_campaign_id: str = scenario["fail_campaign_id"]
     fail_stage: int = scenario["fail_stage"]
@@ -317,7 +312,7 @@ def test_property9_persist_failure_preserves_previous_state(
         assert service.get_completed_stages() == expected_completed
 
         # --- Inject a persist failure on the NEXT completion commit ----------
-        session.commit = _FailOnceCommit(session)  # type: ignore[method-assign]
+        session.commit = _FailOnceCommit(session)  # type: ignore[method-assign] -- test monkeypatches the method on the instance
 
         # --- Attempt to persist a new Stage completion (this must fail) ------
         result = service.persist_stage_completion(fail_campaign_id, fail_stage)

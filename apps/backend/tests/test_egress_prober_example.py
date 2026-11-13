@@ -27,8 +27,8 @@ _Requirements: 5.4, 5.5
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 from app.services.environment.compose_executor import CommandResult, LogLine
 from app.services.environment.egress import (
@@ -36,7 +36,6 @@ from app.services.environment.egress import (
     EgressVerdict,
     egress_lost,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fake ComposeExecutor recording exec_in calls (no Docker daemon, no shell)

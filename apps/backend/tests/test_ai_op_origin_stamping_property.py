@@ -61,8 +61,9 @@ network/Docker.
 from __future__ import annotations
 
 import tempfile
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
@@ -86,9 +87,7 @@ _GERADO_IA = "ai_generated"
 # Generators: an arbitrary Stage 3 FlowView + a fake Atomic Red Team command pool.
 # ---------------------------------------------------------------------------
 
-_slug_strategy = st.text(
-    alphabet="abcdefghijklmnopqrstuvwxyz0123456789-_", min_size=1, max_size=16
-)
+_slug_strategy = st.text(alphabet="abcdefghijklmnopqrstuvwxyz0123456789-_", min_size=1, max_size=16)
 
 # ATT&CK-style technique ids (e.g. ``T1059`` / ``T1059.001``).
 _technique_id_strategy = st.from_regex(r"T[0-9]{3,4}(\.[0-9]{3})?", fullmatch=True)
@@ -144,9 +143,7 @@ def _flow_and_lookup(draw: st.DrawFn) -> tuple[FlowView, Callable[[str], list[di
     pools: dict[str, list[dict]] = {}
     for node in nodes:
         if node.technique_id and node.technique_id not in pools:
-            pools[node.technique_id] = draw(
-                st.lists(_pool_entry_strategy, max_size=3)
-            )
+            pools[node.technique_id] = draw(st.lists(_pool_entry_strategy, max_size=3))
 
     def fake_atomic_lookup(technique_id: str) -> list[dict]:
         # Pure, in-memory: no disk, no network (Req.: avoid disk/network).

@@ -92,19 +92,19 @@ from alembic.operations import Operations
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 from sqlalchemy import (
+    JSON,
     Column,
     DateTime,
     Float,
     ForeignKey,
     Integer,
-    JSON,
     MetaData,
     String,
     Table,
     Text,
     create_engine,
-    inspect,
     insert,
+    inspect,
     select,
     text,
 )
@@ -211,23 +211,30 @@ def _build_pre_migration_schema(metadata: MetaData) -> None:
     migration's ``drop_constraint(check_name)`` finds them.
     """
     # --- Parent / referenced tables -------------------------------------
-    Table("campaigns", metadata, Column("id", String, primary_key=True),
-          *_build_enum_cols("campaigns"))
+    Table(
+        "campaigns",
+        metadata,
+        Column("id", String, primary_key=True),
+        *_build_enum_cols("campaigns"),
+    )
 
     Table(
-        "abilities", metadata,
+        "abilities",
+        metadata,
         Column("ability_id", String, primary_key=True),
         Column("campaign_id", String, ForeignKey("campaigns.id"), nullable=True),
         *_build_enum_cols("abilities"),
     )
     Table(
-        "adversaries", metadata,
+        "adversaries",
+        metadata,
         Column("id", String, primary_key=True),
         Column("campaign_id", String, ForeignKey("campaigns.id"), nullable=True),
         *_build_enum_cols("adversaries"),
     )
     Table(
-        "dags", metadata,
+        "dags",
+        metadata,
         Column("id", Integer, primary_key=True),
         Column("campaign_id", String, ForeignKey("campaigns.id"), nullable=False),
         Column("identifier", String, nullable=False),
@@ -236,7 +243,8 @@ def _build_pre_migration_schema(metadata: MetaData) -> None:
         *_build_enum_cols("dags"),
     )
     Table(
-        "environment_parameters", metadata,
+        "environment_parameters",
+        metadata,
         Column("id", Integer, primary_key=True),
         Column("campaign_id", String, ForeignKey("campaigns.id"), nullable=False),
         Column("content", JSON, nullable=False),
@@ -244,7 +252,8 @@ def _build_pre_migration_schema(metadata: MetaData) -> None:
         *_build_enum_cols("environment_parameters"),
     )
     Table(
-        "provisioned_environment", metadata,
+        "provisioned_environment",
+        metadata,
         Column("id", Integer, primary_key=True),
         Column("campaign_id", String, ForeignKey("campaigns.id"), nullable=False),
         Column("content", JSON, nullable=False),
@@ -253,7 +262,8 @@ def _build_pre_migration_schema(metadata: MetaData) -> None:
         *_build_enum_cols("provisioned_environment"),
     )
     Table(
-        "stage_runs", metadata,
+        "stage_runs",
+        metadata,
         Column("id", Integer, primary_key=True),
         Column("campaign_id", String, ForeignKey("campaigns.id"), nullable=True),
         Column("stage", Integer, nullable=False),
@@ -261,7 +271,8 @@ def _build_pre_migration_schema(metadata: MetaData) -> None:
         *_build_enum_cols("stage_runs"),
     )
     Table(
-        "operations", metadata,
+        "operations",
+        metadata,
         Column("id", Integer, primary_key=True),
         Column("campaign_id", String, ForeignKey("campaigns.id"), nullable=True),
         Column("total_success", Integer, nullable=False),
@@ -269,14 +280,16 @@ def _build_pre_migration_schema(metadata: MetaData) -> None:
         *_build_enum_cols("operations"),
     )
     Table(
-        "ability_results", metadata,
+        "ability_results",
+        metadata,
         Column("id", Integer, primary_key=True),
         Column("operation_id", Integer, ForeignKey("operations.id"), nullable=True),
         Column("ability_id", String, ForeignKey("abilities.ability_id"), nullable=True),
         *_build_enum_cols("ability_results"),
     )
     Table(
-        "preferences", metadata,
+        "preferences",
+        metadata,
         Column("id", Integer, primary_key=True),
         # language is deliberately NOT in _COLUMNS; keep it as a plain pt-BR
         # VARCHAR so we can assert it stays untouched by the migration.
@@ -286,7 +299,8 @@ def _build_pre_migration_schema(metadata: MetaData) -> None:
 
     # --- The five AI tables (named pt-BR CHECKs) ------------------------
     Table(
-        "agent_runs", metadata,
+        "agent_runs",
+        metadata,
         Column("id", Integer, primary_key=True),
         Column("campaign_id", String, ForeignKey("campaigns.id"), nullable=False),
         Column("max_iterations", Integer, nullable=False),
@@ -298,7 +312,8 @@ def _build_pre_migration_schema(metadata: MetaData) -> None:
         *_build_named_checks("agent_runs"),
     )
     Table(
-        "agent_iterations", metadata,
+        "agent_iterations",
+        metadata,
         Column("id", Integer, primary_key=True),
         Column("run_id", Integer, ForeignKey("agent_runs.id"), nullable=False),
         Column("index", Integer, nullable=False),
@@ -307,7 +322,8 @@ def _build_pre_migration_schema(metadata: MetaData) -> None:
         *_build_named_checks("agent_iterations"),
     )
     Table(
-        "agent_stage_outputs", metadata,
+        "agent_stage_outputs",
+        metadata,
         Column("id", Integer, primary_key=True),
         Column("iteration_id", Integer, ForeignKey("agent_iterations.id"), nullable=False),
         Column("payload", JSON, nullable=False),
@@ -316,7 +332,8 @@ def _build_pre_migration_schema(metadata: MetaData) -> None:
         *_build_named_checks("agent_stage_outputs"),
     )
     Table(
-        "agent_evaluations", metadata,
+        "agent_evaluations",
+        metadata,
         Column("id", Integer, primary_key=True),
         Column("iteration_id", Integer, ForeignKey("agent_iterations.id"), nullable=False),
         Column("success_rate", Float, nullable=False),
@@ -328,7 +345,8 @@ def _build_pre_migration_schema(metadata: MetaData) -> None:
         *_build_named_checks("agent_evaluations"),
     )
     Table(
-        "experience_memory", metadata,
+        "experience_memory",
+        metadata,
         Column("id", Integer, primary_key=True),
         Column("campaign_id", String, ForeignKey("campaigns.id"), nullable=False),
         Column("content", Text, nullable=False),
@@ -430,7 +448,7 @@ def _build_pre_migration_engine() -> tuple[Engine, Path, MetaData]:
     # enum column(s) (``translation_source``) are NOT NULL, so set them to a
     # valid pt-BR value. The id is the fixed slug the FK children reference.
     campaign_payload: dict = {"id": _CAMPAIGN_ID}
-    for (col, vmap, _nullable, _cn) in _enum_cols_for("campaigns"):
+    for col, vmap, _nullable, _cn in _enum_cols_for("campaigns"):
         campaign_payload[col] = _ptbr_values(vmap)[0]
     with engine.begin() as conn:
         conn.execute(insert(metadata.tables["campaigns"]), campaign_payload)
@@ -443,18 +461,15 @@ def _run_migration_step(engine: Engine, step: str) -> None:
     Operations proxy bound to the ISOLATED temp engine (``render_as_batch=True``
     so SQLite rebuilds the tables — the project's ``env.py`` contract)."""
     func = getattr(_migration, step)
-    with engine.connect() as conn:
-        with conn.begin():
-            ctx = MigrationContext.configure(
-                connection=conn, opts={"render_as_batch": True}
-            )
-            op_proxy = Operations(ctx)
-            original_op = _migration.op
-            _migration.op = op_proxy
-            try:
-                func()
-            finally:
-                _migration.op = original_op
+    with engine.connect() as conn, conn.begin():
+        ctx = MigrationContext.configure(connection=conn, opts={"render_as_batch": True})
+        op_proxy = Operations(ctx)
+        original_op = _migration.op
+        _migration.op = op_proxy
+        try:
+            func()
+        finally:
+            _migration.op = original_op
 
 
 def _row_payload(table: str, row_id, enum_values: dict[str, str]) -> dict:
@@ -504,6 +519,7 @@ def _row_count(engine: Engine, metadata: MetaData, table: str) -> int:
 # Generators — per enum-bearing table, a set of rows whose enum column(s) hold
 # arbitrary pt-BR values. For a nullable enum column we also allow NULL.
 # ---------------------------------------------------------------------------
+
 
 def _enum_value_strategy(value_map, nullable: bool):
     ptbr = st.sampled_from(_ptbr_values(value_map))
@@ -603,7 +619,7 @@ def test_property4_domain_value_roundtrip_is_lossless_identity(
         original_counts: dict[str, int] = {}
         for table in _TABLES:
             original_counts[table] = _row_count(engine, metadata, table)
-            for (col, _vmap, _nullable, _cn) in _enum_cols_for(table):
+            for col, _vmap, _nullable, _cn in _enum_cols_for(table):
                 original_enum[(table, col)] = _read_enum_column(engine, metadata, table, col)
 
         original_fks = _foreign_key_snapshot(engine)
@@ -616,13 +632,14 @@ def test_property4_domain_value_roundtrip_is_lossless_identity(
         for table in _TABLES:
             # Row count invariant across the upgrade (Req. 10.2).
             assert _row_count(engine, metadata, table) == original_counts[table]
-            for (col, vmap, nullable, check_name) in _enum_cols_for(table):
+            for col, vmap, nullable, check_name in _enum_cols_for(table):
                 english = set(_english_values(vmap))
                 ptbr = set(_ptbr_values(vmap))
-                present = {v for v in _read_enum_column(engine, metadata, table, col) if v is not None}
+                present = {
+                    v for v in _read_enum_column(engine, metadata, table, col) if v is not None
+                }
                 assert present <= english, (
-                    f"{table}.{col} holds non-English values after upgrade: "
-                    f"{present - english}"
+                    f"{table}.{col} holds non-English values after upgrade: {present - english}"
                 )
                 # Named-CHECK columns: assert the constraint admits exactly the
                 # English set (every English value inserts; every pt-BR value is
@@ -640,7 +657,7 @@ def test_property4_domain_value_roundtrip_is_lossless_identity(
         # original pt-BR value, row counts unchanged.
         for table in _TABLES:
             assert _row_count(engine, metadata, table) == original_counts[table]
-            for (col, _vmap, _nullable, _cn) in _enum_cols_for(table):
+            for col, _vmap, _nullable, _cn in _enum_cols_for(table):
                 restored = _read_enum_column(engine, metadata, table, col)
                 assert restored == original_enum[(table, col)], (
                     f"{table}.{col} not restored to original pt-BR after round-trip"
@@ -665,6 +682,7 @@ def test_property4_domain_value_roundtrip_is_lossless_identity(
 # ---------------------------------------------------------------------------
 # Assertion helpers
 # ---------------------------------------------------------------------------
+
 
 def _foreign_key_snapshot(engine: Engine) -> dict[str, set]:
     """Normalized FK set per table from the live schema (name-independent)."""
@@ -712,14 +730,12 @@ def _assert_check_admits_exactly(
         payload = _seed_payload_for_check(table, base_id + i, column, val)
         with engine.begin() as conn:
             conn.execute(insert(tbl), payload)
-            conn.execute(text(f"DELETE FROM {table} WHERE {_PK[table]} = :pk"),
-                         {"pk": base_id + i})
+            conn.execute(text(f"DELETE FROM {table} WHERE {_PK[table]} = :pk"), {"pk": base_id + i})  # noqa: S608 -- table and key names come from fixed test constants
     # pt-BR values (not English) are rejected by the English-only CHECK.
     for i, val in enumerate(sorted(ptbr - english)):
         payload = _seed_payload_for_check(table, base_id + 500 + i, column, val)
-        with pytest.raises(IntegrityError):
-            with engine.begin() as conn:
-                conn.execute(insert(tbl), payload)
+        with pytest.raises(IntegrityError), engine.begin() as conn:
+            conn.execute(insert(tbl), payload)
 
     _cleanup_probe_parents(engine, metadata, table)
 
@@ -736,7 +752,7 @@ def _ensure_probe_parents(engine: Engine, metadata: MetaData, table: str) -> Non
             runs = metadata.tables["agent_runs"]
             run_payload = dict(_NONENUM_DEFAULTS["agent_runs"])
             run_payload["id"] = _CHECK_PROBE_RUN_ID
-            for (col, vmap, _n, _cn) in _enum_cols_for("agent_runs"):
+            for col, vmap, _n, _cn in _enum_cols_for("agent_runs"):
                 run_payload[col] = _english_values(vmap)[0]
             conn.execute(insert(runs), run_payload)
         if table in ("agent_stage_outputs", "agent_evaluations"):
@@ -744,7 +760,7 @@ def _ensure_probe_parents(engine: Engine, metadata: MetaData, table: str) -> Non
             it_payload = dict(_NONENUM_DEFAULTS["agent_iterations"])
             it_payload["id"] = _CHECK_PROBE_ITERATION_ID
             it_payload["run_id"] = _CHECK_PROBE_RUN_ID
-            for (col, vmap, _n, _cn) in _enum_cols_for("agent_iterations"):
+            for col, vmap, _n, _cn in _enum_cols_for("agent_iterations"):
                 it_payload[col] = _english_values(vmap)[0]
             conn.execute(insert(iters), it_payload)
 
@@ -753,11 +769,12 @@ def _cleanup_probe_parents(engine: Engine, metadata: MetaData, table: str) -> No
     """Remove the probe FK parents so table content is left untouched."""
     with engine.begin() as conn:
         if table in ("agent_stage_outputs", "agent_evaluations"):
-            conn.execute(text("DELETE FROM agent_iterations WHERE id = :pk"),
-                         {"pk": _CHECK_PROBE_ITERATION_ID})
+            conn.execute(
+                text("DELETE FROM agent_iterations WHERE id = :pk"),
+                {"pk": _CHECK_PROBE_ITERATION_ID},
+            )
         if table in ("agent_iterations", "agent_stage_outputs", "agent_evaluations"):
-            conn.execute(text("DELETE FROM agent_runs WHERE id = :pk"),
-                         {"pk": _CHECK_PROBE_RUN_ID})
+            conn.execute(text("DELETE FROM agent_runs WHERE id = :pk"), {"pk": _CHECK_PROBE_RUN_ID})
 
 
 def _seed_payload_for_check(table: str, row_id: int, column: str, value: str) -> dict:
@@ -770,7 +787,7 @@ def _seed_payload_for_check(table: str, row_id: int, column: str, value: str) ->
     """
     payload = dict(_NONENUM_DEFAULTS[table])
     payload[_PK[table]] = row_id
-    for (col, vmap, nullable, _cn) in _enum_cols_for(table):
+    for col, vmap, _nullable, _cn in _enum_cols_for(table):
         payload[col] = value if col == column else _english_values(vmap)[0]
     if table in ("agent_stage_outputs", "agent_evaluations"):
         payload["iteration_id"] = _CHECK_PROBE_ITERATION_ID

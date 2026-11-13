@@ -17,6 +17,7 @@ from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+
 def _clamp(value: float, lower: float, upper: float) -> float:
     """Clamp ``value`` into the inclusive range ``[lower, upper]``."""
     return max(lower, min(value, upper))

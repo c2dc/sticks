@@ -11,7 +11,7 @@ this module performs no I/O (Requirement 1.7).
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:  # pragma: no cover - typing only, no runtime import
     from app.services.ai.state import AgentState
@@ -51,7 +51,7 @@ logger = logging.getLogger(__name__)
 
 
 def execute_node(
-    state: "AgentState",
+    state: AgentState,
     *,
     runner: Any = None,
     session: Any = None,
@@ -182,12 +182,12 @@ class _RunnerAbility:
 
     __slots__ = (
         "ability_id",
-        "name",
-        "tactic",
-        "technique_name",
-        "technique_id",
         "description",
         "executors",
+        "name",
+        "tactic",
+        "technique_id",
+        "technique_name",
     )
 
     def __init__(self, view: dict[str, Any]) -> None:
@@ -212,7 +212,7 @@ class _RunnerAbility:
 def _materialize_ai_abilities(
     session: Any,
     campaign_id: Any,
-    abilities: list["_RunnerAbility"],
+    abilities: list[_RunnerAbility],
 ) -> None:
     """Upsert the AI-generated abilities into ``abilities`` before Stage 6 writes.
 
@@ -295,7 +295,7 @@ def _materialize_ai_abilities(
 
 def _runner_inputs(
     operationalization: dict[str, Any],
-) -> tuple[list["_RunnerAbility"], str, Optional[dict[str, Any]]]:
+) -> tuple[list[_RunnerAbility], str, dict[str, Any] | None]:
     """Adapt the serialized AI operationalization into the runner's ``run`` inputs.
 
     The AI Stage 4 artifact is a serialized
@@ -332,17 +332,13 @@ def _runner_inputs(
 
     # Prefer the adversary's atomic ordering; fall back to the Stage2 ordering,
     # then to discovery order, keeping only ids we actually have an ability for.
-    ordering = (
-        adversary.get("atomic_ordering")
-        or stage2.get("ordering")
-        or order
-    )
+    ordering = adversary.get("atomic_ordering") or stage2.get("ordering") or order
     abilities = [by_id[aid] for aid in ordering if aid in by_id]
     if not abilities:
         abilities = [by_id[aid] for aid in order]
 
     adversary_id = adversary.get("id") or ""
-    adversary_payload: Optional[dict[str, Any]] = None
+    adversary_payload: dict[str, Any] | None = None
     if adversary_id:
         adversary_payload = {
             "adversary_id": adversary_id,
@@ -431,7 +427,7 @@ def _execution_result(result: Any) -> dict[str, Any]:
     }
 
 
-def _verdict_flag(verdict: Any, attribute: str) -> Optional[bool]:
+def _verdict_flag(verdict: Any, attribute: str) -> bool | None:
     """Read a containment/isolation pass flag off the live verdict (or a fake).
 
     Prefers the verdict object's ``@property`` aggregate (``allowed`` for
@@ -473,6 +469,7 @@ def _normalize(value: Any) -> Any:
         return [_normalize(item) for item in value]
     return value
 
+
 # --- orchestrate node (task 14.1) ---
 #
 # This section owns ONLY ``orchestrate_node`` (and its private helpers). The
@@ -503,7 +500,7 @@ _DEFAULT_MAX_ITERATIONS = 3
 
 
 def orchestrate_node(
-    state: "AgentState",
+    state: AgentState,
     *,
     memory: Any = None,
     session: Any = None,
@@ -575,7 +572,7 @@ def orchestrate_node(
 
 
 def _retrieve_experience(
-    state: "AgentState",
+    state: AgentState,
     campaign_id: str,
     *,
     memory: Any = None,
@@ -600,7 +597,7 @@ def _retrieve_experience(
             from app.services.ai.memory import ExperienceMemory
 
             resolved_memory = ExperienceMemory(resolved_session)
-        except Exception as exc:  # noqa: BLE001 - never let RAG setup break the run
+        except Exception as exc:  # noqa: BLE001 -- never let RAG setup break the run
             logger.warning(
                 "Orchestrator could not build the experience memory for campaign "
                 "%s (%s: %s); continuing with an empty experience set.",
@@ -614,7 +611,7 @@ def _retrieve_experience(
         from app.services.ai.config import get_sepinf_settings
 
         retrieval_k = get_sepinf_settings().retrieval_k
-    except Exception:  # noqa: BLE001 - fall back to the memory's own default k
+    except Exception:  # noqa: BLE001 -- fall back to the memory's own default k
         retrieval_k = 5
 
     try:
@@ -623,7 +620,7 @@ def _retrieve_experience(
             query=_context_query(state, campaign_id),
             k=retrieval_k,
         )
-    except Exception as exc:  # noqa: BLE001 - degrade to an empty experience set
+    except Exception as exc:  # noqa: BLE001 -- degrade to an empty experience set
         logger.warning(
             "Orchestrator experience retrieval skipped for campaign %s (%s: %s); "
             "continuing with an empty experience set.",
@@ -636,7 +633,7 @@ def _retrieve_experience(
     return list(hits) if hits else []
 
 
-def _resolve_max_iterations() -> tuple[int, Optional[str]]:
+def _resolve_max_iterations() -> tuple[int, str | None]:
     """Resolve ``max_iterations`` from config, defaulting to 3 (Req. 3.6, 3.7).
 
     Reads :attr:`SepinfSettings.max_iterations` and returns it when it is a valid
@@ -649,7 +646,7 @@ def _resolve_max_iterations() -> tuple[int, Optional[str]]:
         from app.services.ai.config import get_sepinf_settings
 
         configured: Any = get_sepinf_settings().max_iterations
-    except Exception as exc:  # noqa: BLE001 - missing/unreadable config -> default
+    except Exception as exc:  # noqa: BLE001 -- missing/unreadable config -> default
         warning = (
             f"max_iterations configuration could not be read ({type(exc).__name__}); "
             f"applying the default value of {_DEFAULT_MAX_ITERATIONS}."
@@ -677,7 +674,7 @@ def _resolve_max_iterations() -> tuple[int, Optional[str]]:
     return configured, None
 
 
-def _context_query(state: "AgentState", campaign_id: str) -> str:
+def _context_query(state: AgentState, campaign_id: str) -> str:
     """Build the RAG query that primes retrieval from the campaign context.
 
     Prefers an explicit ``context_query`` / ``campaign_summary`` seeded on the
@@ -686,7 +683,7 @@ def _context_query(state: "AgentState", campaign_id: str) -> str:
     a stable text handle for the cross-campaign similarity search.
     """
     for key in ("context_query", "campaign_summary"):
-        value = state.get(key)  # type: ignore[call-overload]
+        value = state.get(key)  # type: ignore[call-overload] -- state is a TypedDict and the key is a runtime string from a fixed tuple
         if isinstance(value, str) and value.strip():
             return value.strip()
     if campaign_id:
@@ -718,7 +715,7 @@ def _context_query(state: "AgentState", campaign_id: str) -> str:
 # spawns no subprocess and touches no database.
 
 
-def route_after_eval(state: "AgentState") -> str:
+def route_after_eval(state: AgentState) -> str:
     """Conditional-edge router: the improvement loop's guard (Req. 3.2-3.5).
 
     Called after the ``evaluate`` node to decide the loop's next hop. Returns one
@@ -779,7 +776,7 @@ def route_after_eval(state: "AgentState") -> str:
 # ``environment``).
 _REFINE_STAGE_EDGE_KEYS = {
     # Evaluator-written AgentStage values (semantic, number-free).
-   "flow": "flow",
+    "flow": "flow",
     "operationalization": "operationalize",
     "environment": "environment",
     # Already-canonical short edge keys (idempotent pass-through).
@@ -860,7 +857,7 @@ def build_graph(*, checkpointer, session: Any = None):
 
     from langgraph.graph import END, START, StateGraph
 
-    from app.services.ai.agents import flow_agent, env_agent, evaluator, op_agent
+    from app.services.ai.agents import env_agent, evaluator, flow_agent, op_agent
     from app.services.ai.state import AgentState
 
     g = StateGraph(AgentState)
@@ -874,14 +871,12 @@ def build_graph(*, checkpointer, session: Any = None):
         "orchestrate", partial(orchestrate_node, session=session)
     )  # seeds state + RAG retrieval (DB)
     g.add_node("flow", partial(flow_agent.node, session=session))  # flow agent (DB)
-    g.add_node(
-        "operationalize", partial(op_agent.node, session=session)
-    )  # Stage 4 agent (DB)
-    g.add_node("environment", env_agent.node)    # Stage 5 agent
+    g.add_node("operationalize", partial(op_agent.node, session=session))  # Stage 4 agent (DB)
+    g.add_node("environment", env_agent.node)  # Stage 5 agent
     g.add_node(
         "execute", partial(execute_node, session=session)
     )  # Stage 6 via existing OperationRunner
-    g.add_node("evaluate", evaluator.node)       # reads report, writes decision
+    g.add_node("evaluate", evaluator.node)  # reads report, writes decision
 
     # Linear edges: each stage has exactly one outgoing edge in sequence.
     g.add_edge(START, "orchestrate")

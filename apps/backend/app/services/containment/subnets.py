@@ -77,6 +77,7 @@ def container_for_ip(address: str) -> str | None:
     """
     return STATIC_IP_CONTAINERS.get(address)
 
+
 # Pre-parsed network objects for fast, allocation-free membership tests. These
 # are the parsed form of INTERNAL_SUBNET_CIDRS (the single source of the CIDR
 # strings) — nothing below re-types a CIDR literal.

@@ -6,7 +6,7 @@ no :class:`~app.services.environment.report.ExecutionReport`
 (:meth:`~app.services.environment.measurement.MeasurementService.consolidate`) e a ponte
 de produção por campaign
 (:meth:`~app.services.environment.measurement.MeasurementService.measure_from_campaign`) (Req.
-10.4–10.7, 15.1–15.7). A medição é **pura**: opera sobre o attack flow curated + os
+10.4-10.7, 15.1-15.7). A medição é **pura**: opera sobre o attack flow curated + os
 results por Ability + o mapa ``ability_id`` → ``technique_id`` em memória, sem
 rede, Docker ou IA, então os exemplos não precisam de banco nem de disco.
 
@@ -32,10 +32,9 @@ import datetime as dt
 
 from app.models.enums import AbilityResultStatus
 from app.services.curated_case_models import AbilityData, CaseData, FlowData, FlowNode
-from app.services.environment.measurement import MeasurementService, AbilityMeasurementResult
-from app.services.environment.report import SufficiencyMetrics
 from app.services.emulation.views import Stage3AbilityResult
-
+from app.services.environment.measurement import AbilityMeasurementResult, MeasurementService
+from app.services.environment.report import SufficiencyMetrics
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -47,11 +46,13 @@ def _flow(*nodes: FlowNode) -> FlowData:
 
 
 def _no(node_id: str, technique_id: str | None, **kwargs: object) -> FlowNode:
-    return FlowNode(node_id=node_id, technique_id=technique_id, **kwargs)  # type: ignore[arg-type]
+    return FlowNode(node_id=node_id, technique_id=technique_id, **kwargs)  # type: ignore[arg-type] -- test factory forwards loosely typed keyword arguments
 
 
-def _res(ability_id: str | None, status: AbilityResultStatus, **kwargs: object) -> AbilityMeasurementResult:
-    return AbilityMeasurementResult(ability_id=ability_id, status=status, **kwargs)  # type: ignore[arg-type]
+def _res(
+    ability_id: str | None, status: AbilityResultStatus, **kwargs: object
+) -> AbilityMeasurementResult:
+    return AbilityMeasurementResult(ability_id=ability_id, status=status, **kwargs)  # type: ignore[arg-type] -- test factory forwards loosely typed keyword arguments
 
 
 # ---------------------------------------------------------------------------
@@ -74,9 +75,7 @@ def test_success_rate_and_counts() -> None:
         _res("a4", AbilityResultStatus.FAILURE),
     ]
 
-    metrics = MeasurementService().measure(
-        results=results, flow=flow, technique_by_ability=mapa
-    )
+    metrics = MeasurementService().measure(results=results, flow=flow, technique_by_ability=mapa)
 
     assert metrics.total_flow_techniques == 4
     assert metrics.successful_techniques == 3
@@ -96,9 +95,7 @@ def test_success_rate_empty_flow_no_division_by_zero() -> None:
 
 
 def test_flow_none_zeroes_the_metrics() -> None:
-    metrics = MeasurementService().measure(
-        results=[], flow=None, technique_by_ability={}
-    )
+    metrics = MeasurementService().measure(results=[], flow=None, technique_by_ability={})
     assert metrics == SufficiencyMetrics()
 
 
@@ -121,9 +118,7 @@ def test_cobertura_procedural_proporcao_de_tentadas() -> None:
         _res("a3", AbilityResultStatus.RUNNING),  # tentada mas não concluída
     ]
 
-    metrics = MeasurementService().measure(
-        results=results, flow=flow, technique_by_ability=mapa
-    )
+    metrics = MeasurementService().measure(results=results, flow=flow, technique_by_ability=mapa)
 
     # 3 de 4 técnicas foram tentadas; a 4ª (T4) nunca foi.
     assert metrics.procedural_coverage == 0.75
@@ -159,9 +154,7 @@ def test_nos_falhos_registram_etapa_do_flow() -> None:
         _res("a2", AbilityResultStatus.FAILURE),
     ]
 
-    metrics = MeasurementService().measure(
-        results=results, flow=flow, technique_by_ability=mapa
-    )
+    metrics = MeasurementService().measure(results=results, flow=flow, technique_by_ability=mapa)
 
     assert metrics.failed_nodes == ["n2"]
     failure = next(m for m in metrics.per_technique if m.technique_id == "T2")
@@ -182,9 +175,7 @@ def test_failed_step_falls_back_to_tactic_then_none() -> None:
         _res("a1", AbilityResultStatus.FAILURE),
         _res("a2", AbilityResultStatus.FAILURE),
     ]
-    metrics = MeasurementService().measure(
-        results=results, flow=flow, technique_by_ability=mapa
-    )
+    metrics = MeasurementService().measure(results=results, flow=flow, technique_by_ability=mapa)
     etapas = {m.technique_id: m.failed_step for m in metrics.per_technique}
     assert etapas["T1"] == "execution"
     assert etapas["T2"] is None
@@ -198,9 +189,7 @@ def test_failure_and_success_in_same_technique_consolidates_success() -> None:
         _res("a1", AbilityResultStatus.FAILURE),
         _res("a1b", AbilityResultStatus.SUCCESS),
     ]
-    metrics = MeasurementService().measure(
-        results=results, flow=flow, technique_by_ability=mapa
-    )
+    metrics = MeasurementService().measure(results=results, flow=flow, technique_by_ability=mapa)
     assert metrics.successful_techniques == 1
     assert metrics.failed_nodes == []
     assert metrics.per_technique[0].status is AbilityResultStatus.SUCCESS
@@ -220,9 +209,7 @@ def test_tempo_por_tecnica_e_total() -> None:
         _res("a2", AbilityResultStatus.SUCCESS, execution_time_s=3.0),
     ]
 
-    metrics = MeasurementService().measure(
-        results=results, flow=flow, technique_by_ability=mapa
-    )
+    metrics = MeasurementService().measure(results=results, flow=flow, technique_by_ability=mapa)
 
     tempos = {m.technique_id: m.execution_time_s for m in metrics.per_technique}
     assert tempos["T1"] == 2.0  # 1.5 + 0.5 somados na técnica
@@ -238,9 +225,7 @@ def test_telemetry_per_technique_deduplicated() -> None:
         _res("a1b", AbilityResultStatus.SUCCESS, telemetry=("rede", "autenticacao")),
     ]
 
-    metrics = MeasurementService().measure(
-        results=results, flow=flow, technique_by_ability=mapa
-    )
+    metrics = MeasurementService().measure(results=results, flow=flow, technique_by_ability=mapa)
 
     technique = metrics.per_technique[0]
     assert technique.telemetry == ["processo", "rede", "autenticacao"]
@@ -258,9 +243,7 @@ def test_verdict_success_when_all_techniques_succeed() -> None:
         _res("a1", AbilityResultStatus.SUCCESS),
         _res("a2", AbilityResultStatus.SUCCESS),
     ]
-    metrics = MeasurementService().measure(
-        results=results, flow=flow, technique_by_ability=mapa
-    )
+    metrics = MeasurementService().measure(results=results, flow=flow, technique_by_ability=mapa)
     assert metrics.success_verdict is True
 
 
@@ -269,9 +252,7 @@ def test_verdict_failure_when_some_technique_not_success() -> None:
     mapa = {"a1": "T1", "a2": "T2"}
     # T2 nunca executada (não coberta) → não é success total.
     results = [_res("a1", AbilityResultStatus.SUCCESS)]
-    metrics = MeasurementService().measure(
-        results=results, flow=flow, technique_by_ability=mapa
-    )
+    metrics = MeasurementService().measure(results=results, flow=flow, technique_by_ability=mapa)
     assert metrics.successful_techniques == 1
     assert metrics.success_verdict is False
 
@@ -285,9 +266,7 @@ def test_ability_without_mapped_technique_is_ignored() -> None:
         _res("desconhecida", AbilityResultStatus.FAILURE),  # ability sem mapa → ignorada
         _res(None, AbilityResultStatus.FAILURE),  # ability_id None → ignorada
     ]
-    metrics = MeasurementService().measure(
-        results=results, flow=flow, technique_by_ability=mapa
-    )
+    metrics = MeasurementService().measure(results=results, flow=flow, technique_by_ability=mapa)
     assert metrics.successful_techniques == 1
     assert metrics.failed_nodes == []
     assert metrics.success_verdict is True
@@ -319,9 +298,7 @@ def test_consolidate_builds_report() -> None:
 
 
 def test_consolidate_default_generated_at_and_no_results() -> None:
-    report = MeasurementService().consolidate(
-        campaign_id="demo", metrics=SufficiencyMetrics()
-    )
+    report = MeasurementService().consolidate(campaign_id="demo", metrics=SufficiencyMetrics())
     assert isinstance(report.generated_at, dt.datetime)
     assert report.results == []
 

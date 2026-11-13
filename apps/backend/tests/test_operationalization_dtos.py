@@ -22,10 +22,10 @@ import enum
 
 from app.models.enums import TranslationSource
 from app.services.environment import (
-    TargetHost,
     EnvironmentParameters,
     EnvironmentPlatform,
     RequiredService,
+    TargetHost,
 )
 
 

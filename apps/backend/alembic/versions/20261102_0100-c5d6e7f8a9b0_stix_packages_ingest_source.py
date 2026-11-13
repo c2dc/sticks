@@ -25,6 +25,7 @@ from __future__ import annotations
 from typing import Sequence, Union
 
 import sqlalchemy as sa
+
 from alembic import op
 
 # revision identifiers, used by Alembic.
@@ -35,7 +36,7 @@ depends_on: Union[str, Sequence[str], None] = None
 
 _CHECK = "ck_ingest_source_state_source"
 _OLD_SOURCES: tuple[str, ...] = ("atomic", "docker_catalog", "attack_flow")
-_NEW_SOURCES: tuple[str, ...] = _OLD_SOURCES + ("stix_packages",)
+_NEW_SOURCES: tuple[str, ...] = (*_OLD_SOURCES, "stix_packages")
 _NEW_SOURCE = "stix_packages"
 
 

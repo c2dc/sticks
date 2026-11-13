@@ -48,29 +48,27 @@ from __future__ import annotations
 
 import datetime as dt
 import inspect
-from typing import Callable, Optional
+from collections.abc import Callable
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.models.domain import ExecutionReport as ExecutionReportRow
 from app.services.curated_case_models import CaseData
 from app.services.curated_case_reader import build_case_from_db, is_curated
+from app.services.emulation.views import Stage3AbilityResult
 from app.services.environment.execution import (
     ExecutionResult,
     ExecutionStageService,
     RunnerFactory,
 )
-from app.services.environment.measurement import MeasurementService, AbilityMeasurementResult
-from app.services.environment.operationalization import EnvironmentParameters
+from app.services.environment.measurement import AbilityMeasurementResult, MeasurementService
 from app.services.environment.provisioner import (
-    ProvisionedEnvironment,
     DeprovisioningResult,
     EnvironmentProvisioner,
+    ProvisionedEnvironment,
 )
 from app.services.environment.report import ExecutionReport
-from app.services.emulation.views import Stage3AbilityResult
-
 
 #: A persister for the execution's :class:`ExecutionReport`. It confirms the
 #: persistence (``True``) before completing Stage 6 (Req. 10.9). Injectable so
@@ -140,7 +138,7 @@ class DbReportSink:
     def __call__(
         self,
         report: ExecutionReport,
-        deprovisioning: Optional[DeprovisioningResult] = None,
+        deprovisioning: DeprovisioningResult | None = None,
     ) -> bool:
         """Persist ``report`` + the ``deprovisioning`` teardown; confirm on success.
 
@@ -152,14 +150,14 @@ class DbReportSink:
         try:
             self._persist(report, deprovisioning)
             return True
-        except Exception:  # defensive: a failed write blocks completion, not the flow
+        except Exception:  # noqa: BLE001 -- a failed write blocks completion, not the flow
             self._session.rollback()
             return False
 
     def _persist(
         self,
         report: ExecutionReport,
-        deprovisioning: Optional[DeprovisioningResult],
+        deprovisioning: DeprovisioningResult | None,
     ) -> None:
         """Write the ``execution_reports`` row from the report + the teardown.
 
@@ -176,13 +174,9 @@ class DbReportSink:
             metrics=report.metrics.model_dump(mode="json"),
             success_verdict=report.metrics.success_verdict,
             environment_deprovisioned=report.environment_deprovisioned,
-            deprovisioned=(
-                deprovisioning.deprovisioned if deprovisioning is not None else None
-            ),
+            deprovisioned=(deprovisioning.deprovisioned if deprovisioning is not None else None),
             remaining_resources=(
-                list(deprovisioning.remaining_resources)
-                if deprovisioning is not None
-                else None
+                list(deprovisioning.remaining_resources) if deprovisioning is not None else None
             ),
             generated_at=report.generated_at,
         )
@@ -246,7 +240,7 @@ class CompletionStage6Service:
         runner_factory: RunnerFactory,
         provisioner: EnvironmentProvisioner,
         report_sink: ReportSink,
-        measurement: Optional[MeasurementService] = None,
+        measurement: MeasurementService | None = None,
     ) -> None:
         """Assemble the Stage 6 completion seam.
 
@@ -282,9 +276,9 @@ class CompletionStage6Service:
         *,
         confirmed: bool,
         environment: ProvisionedEnvironment,
-        generated_at: Optional[dt.datetime] = None,
+        generated_at: dt.datetime | None = None,
     ) -> CompletionStage6Result:
-        """Run, measure, generate the report, **deprovision** and complete (Req. 10.8–10.9, 12).
+        """Run, measure, generate the report, **deprovision** and complete (Req. 10.8-10.9, 12).
 
         The flow, in the design order:
 
@@ -294,7 +288,7 @@ class CompletionStage6Service:
            does **not** complete the stage yet (Req. 10.9).
         2. Measures procedural sufficiency and consolidates the
            :class:`ExecutionReport` from the execution results + the curated attack flow,
-           on technique success **or** failure (Req. 10.4–10.7).
+           on technique success **or** failure (Req. 10.4-10.7).
         3. **ALWAYS** deprovisions the ``environment`` via
            :meth:`EnvironmentProvisioner.deprovision` — even when execution was
            refused/aborted or failed (Req. 10.8, 12.1); it stamps the result in
@@ -322,14 +316,10 @@ class CompletionStage6Service:
 
         # 1) Execution with DEFERRED completion (completion is decided here, after
         #    the deprovisioning — Req. 10.9).
-        execution = self._execution.execute(
-            campaign, confirmed=confirmed, complete=False
-        )
+        execution = self._execution.execute(campaign, confirmed=confirmed, complete=False)
 
         # 2) Measurement + report, on technique success OR failure (Req. 10.6, 10.7).
-        ability_results = [
-            AbilityMeasurementResult.from_execution(r) for r in execution.results
-        ]
+        ability_results = [AbilityMeasurementResult.from_execution(r) for r in execution.results]
         stage3_results = [
             Stage3AbilityResult(
                 ability_id=r.ability_id or "",
@@ -395,9 +385,7 @@ class CompletionStage6Service:
             return bool(self._report_sink(report, deprovisioning))
         return bool(self._report_sink(report))
 
-    def _deprovision(
-        self, environment: ProvisionedEnvironment
-    ) -> DeprovisioningResult:
+    def _deprovision(self, environment: ProvisionedEnvironment) -> DeprovisioningResult:
         """Call ``deprovision`` defensively — never brings down the flow.
 
         The deprovisioning is **always** attempted (Req. 10.8, 12.1). An
@@ -408,7 +396,7 @@ class CompletionStage6Service:
         """
         try:
             return self._provisioner.deprovision(environment)
-        except Exception as exc:  # defensive: teardown never brings down Stage 6
+        except Exception as exc:  # noqa: BLE001 -- teardown never brings down Stage 6
             return DeprovisioningResult(
                 deprovisioned=False,
                 remaining_resources=list(environment.target_containers),
@@ -435,8 +423,8 @@ class CompletionStage6Service:
 
 
 __all__ = [
-    "ReportSink",
-    "DbReportSink",
     "CompletionStage6Result",
     "CompletionStage6Service",
+    "DbReportSink",
+    "ReportSink",
 ]

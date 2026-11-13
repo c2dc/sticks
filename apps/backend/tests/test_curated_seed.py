@@ -24,10 +24,12 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Any, Iterator, Optional
+from typing import Any
 
 import pytest
+from _stix_fakes import FakeStixHttp, small_bundle
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
@@ -51,15 +53,14 @@ from app.seeds.apply import apply_curated_seed
 from app.services.curated_case_reader import build_case_from_db
 from app.services.ingestion.orchestrator import IngestionOrchestrator
 from app.services.ingestion.runners import (
+    STIX_VERSIONS_ENV,
     AtomicSourceRunner,
     AttackFlowSourceRunner,
     CuratedSeedSourceRunner,
     DockerCatalogSourceRunner,
-    STIX_VERSIONS_ENV,
     StixPackagesSourceRunner,
 )
 from app.services.stix.stix_service import KNOWN_VERSIONS, StixService
-from _stix_fakes import FakeStixHttp, small_bundle
 from tests.test_ingestion_orchestrator import (
     FakeAtomicFetcher,
     FakeCorpusFetcher,
@@ -135,9 +136,12 @@ def test_apply_on_empty_database_yields_expected_counts(db: SeedDb) -> None:
     assert db.counts() == EXPECTED
     assert summary.inserted == sum(EXPECTED.values())
     with db.factory() as session:
-        assert session.execute(
-            select(func.count()).select_from(Case).where(Case.curated.is_(True))
-        ).scalar_one() == 8
+        assert (
+            session.execute(
+                select(func.count()).select_from(Case).where(Case.curated.is_(True))
+            ).scalar_one()
+            == 8
+        )
         origins = set(session.execute(select(AttackFlowRow.origin)).scalars().all())
     assert origins == {FlowOrigin.HUMAN_CURATION}
 
@@ -160,13 +164,15 @@ def test_second_application_inserts_nothing_and_never_duplicates(db: SeedDb) -> 
 
 def test_manifest_matches_the_seed_files() -> None:
     cases = _cases()
-    assert tuple(sorted(c["campaign"]["id"] for c in cases)) == tuple(sorted(manifest.CAMPAIGN_SLUGS))
-    assert manifest.EXPECTED_COUNTS == {
+    assert tuple(sorted(c["campaign"]["id"] for c in cases)) == tuple(
+        sorted(manifest.CAMPAIGN_SLUGS)
+    )
+    assert {
         "campaigns": len(cases),
         "abilities": sum(len(c["abilities"]) for c in cases),
         "adversaries": len(cases),
         "attack_flows": len(cases),
-    }
+    } == manifest.EXPECTED_COUNTS
     assert manifest.EXPECTED_COUNTS == EXPECTED
 
 
@@ -261,6 +267,7 @@ def test_cross_campaign_ability_reference_is_resolved_globally(db: SeedDb) -> No
         ).scalar_one()
         assert shadow_id in adversary.atomic_ordering
 
+
 # (e) never overwrite AI / edited data --------------------------------------
 
 
@@ -305,12 +312,16 @@ def test_ai_and_edited_rows_are_left_intact(db: SeedDb) -> None:
         assert ai_flow.identifier == "ai-run-1"
         assert ai_flow.content == {"campaign_name": "ai"}
         # The seed's own flow for that campaign is added next to the AI one.
-        curated_flows = session.execute(
-            select(AttackFlowRow).where(
-                AttackFlowRow.campaign_id == slug,
-                AttackFlowRow.origin == FlowOrigin.HUMAN_CURATION,
+        curated_flows = (
+            session.execute(
+                select(AttackFlowRow).where(
+                    AttackFlowRow.campaign_id == slug,
+                    AttackFlowRow.origin == FlowOrigin.HUMAN_CURATION,
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         assert len(curated_flows) == 1
     counts = db.counts()
     assert counts["abilities"] == 108
@@ -329,7 +340,7 @@ class _RecordingCuratedRunner(CuratedSeedSourceRunner):
     def __init__(self, recorder: _Recorder) -> None:
         self._recorder = recorder
 
-    def run(self, session: Session, plan: Any, progress: Any) -> Optional[Any]:
+    def run(self, session: Session, plan: Any, progress: Any) -> Any | None:
         self._recorder.events.append("curated_seed")
         return super().run(session, plan, progress)
 
@@ -339,9 +350,9 @@ class _RecordingAtomicFetcher(FakeAtomicFetcher):
         super().__init__(atomics_dir)
         self._recorder = recorder
 
-    def fetch_atomics_dir(self, *, ref: str, dest: Path) -> Path:
+    def fetch_documents(self, *, ref: str) -> list:
         self._recorder.events.append("atomic")
-        return super().fetch_atomics_dir(ref=ref, dest=dest)
+        return super().fetch_documents(ref=ref)
 
 
 def _orchestrator(db: SeedDb, recorder: _Recorder) -> IngestionOrchestrator:
@@ -351,7 +362,8 @@ def _orchestrator(db: SeedDb, recorder: _Recorder) -> IngestionOrchestrator:
         {
             IngestSource.CURATED_SEED: _RecordingCuratedRunner(recorder),
             IngestSource.ATOMIC: AtomicSourceRunner(
-                embedder=embedder, fetcher=_RecordingAtomicFetcher(_write_atomics(db.tmp_dir), recorder)
+                embedder=embedder,
+                fetcher=_RecordingAtomicFetcher(_write_atomics(db.tmp_dir), recorder),
             ),
             IngestSource.DOCKER_CATALOG: DockerCatalogSourceRunner(
                 embedder=embedder, fetcher=FakeDockerFetcher(_entries())
@@ -466,10 +478,7 @@ def test_cli_applies_the_seed_without_printing_the_database_url(db: SeedDb) -> N
 
 def test_importing_app_main_does_not_read_the_seed_files() -> None:
     env = {**os.environ, "PIPELINE_UI_DATABASE_URL": "sqlite://"}
-    code = (
-        "import sys, app.main; "
-        f"print({LOADER_MODULE!r} in sys.modules)"
-    )
+    code = f"import sys, app.main; print({LOADER_MODULE!r} in sys.modules)"
     result = subprocess.run(
         [sys.executable, "-c", code],
         cwd=BACKEND_DIR,
@@ -558,7 +567,7 @@ class _FreshInstall:
                 .join(StixPackage, StixCampaign.package_id == StixPackage.id)
                 .where(StixPackage.version == version, StixCampaign.curated.is_(True))
             ).all()
-        return {external_id: slug for external_id, slug in rows}
+        return dict(rows)
 
     def persisted_versions(self) -> set[str]:
         with self.db.factory() as session:
@@ -595,7 +604,12 @@ def test_fresh_install_ends_ready_with_curated_stix_campaigns_in_both_versions(
             .where(AttackFlowRow.origin == FlowOrigin.HUMAN_CURATION)
         ).scalar_one()
     counts = db.counts()
-    assert (curated_cases, counts["abilities"], counts["adversaries"], curated_flows) == (8, 108, 8, 8)
+    assert (curated_cases, counts["abilities"], counts["adversaries"], curated_flows) == (
+        8,
+        108,
+        8,
+        8,
+    )
 
 
 def test_fresh_install_routes_are_coherent_and_second_run_all_is_silent(
@@ -622,7 +636,9 @@ def test_fresh_install_routes_are_coherent_and_second_run_all_is_silent(
     assert bases[manifest.CURATED_STIX_VERSION]["downloaded"] is True
     assert bases[NEWEST]["downloaded"] is True and bases[NEWEST]["selectable"] is True
     assert all("curated" not in base for base in bases.values())
-    assert bases[KNOWN_VERSIONS[0]]["downloaded"] is (KNOWN_VERSIONS[0] in {manifest.CURATED_STIX_VERSION, NEWEST})
+    assert bases[KNOWN_VERSIONS[0]]["downloaded"] is (
+        KNOWN_VERSIONS[0] in {manifest.CURATED_STIX_VERSION, NEWEST}
+    )
 
     for version in (manifest.CURATED_STIX_VERSION, NEWEST):
         response = client.get(f"/api/stix/bases/{version}/campaigns")
@@ -645,7 +661,9 @@ def test_fresh_install_routes_are_coherent_and_second_run_all_is_silent(
     applications: list[int] = []
     original_apply = apply_module.apply_curated_seed
     monkeypatch.setattr(
-        apply_module, "apply_curated_seed", lambda *a, **k: applications.append(1) or original_apply(*a, **k)
+        apply_module,
+        "apply_curated_seed",
+        lambda *a, **k: applications.append(1) or original_apply(*a, **k),
     )
 
     fresh.orchestrator.run_all()
@@ -683,7 +701,9 @@ def test_newest_version_network_failure_does_not_block_curated_version_or_seed(
 
     assert all(s.status == IngestStatus.READY for s in fresh.states().values())
     assert fresh.persisted_versions() == {manifest.CURATED_STIX_VERSION, NEWEST}
-    assert [c.rsplit("-", 1)[-1] for c in fresh.http.calls] == [f"{NEWEST}.json"]  # only what was missing
+    assert [c.rsplit("-", 1)[-1] for c in fresh.http.calls] == [
+        f"{NEWEST}.json"
+    ]  # only what was missing
     _assert_curated_stix_marking(fresh, NEWEST)
 
 
@@ -702,7 +722,9 @@ def test_offline_latest_lookup_still_installs_the_seed_required_version(
         db.factory,
         {
             IngestSource.STIX_PACKAGES: StixPackagesSourceRunner(
-                stix_service=StixService(http_client=http), latest_fetcher=offline, index_vectors=False
+                stix_service=StixService(http_client=http),
+                latest_fetcher=offline,
+                index_vectors=False,
             ),
             IngestSource.CURATED_SEED: CuratedSeedSourceRunner(),
         },
@@ -738,9 +760,14 @@ def test_campaign_and_ai_guards_use_the_seed_derived_version_and_accept_curated_
         for slug in manifest.CAMPAIGN_SLUGS:
             campaigns_api._known_campaign_or_404(slug, session, campaigns_api.CURATED_VERSION)
             # The AI run start performs the same guard, then an idempotent materialization.
-            assert CampaignMaterializer(session).materialize(slug, campaigns_api.CURATED_VERSION) == slug
+            assert (
+                CampaignMaterializer(session).materialize(slug, campaigns_api.CURATED_VERSION)
+                == slug
+            )
         session.commit()
         with pytest.raises(HTTPException) as unknown:
-            campaigns_api._known_campaign_or_404("not_a_campaign", session, campaigns_api.CURATED_VERSION)
+            campaigns_api._known_campaign_or_404(
+                "not_a_campaign", session, campaigns_api.CURATED_VERSION
+            )
         assert unknown.value.status_code == 404
     assert db.counts()["abilities"] == 108

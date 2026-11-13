@@ -9,7 +9,6 @@ Behavior is unchanged.
 from __future__ import annotations
 
 import datetime as dt
-from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -22,9 +21,12 @@ STAGE_EXECUTION: int = 6
 class Stage2ExecutorView(BaseModel):
     """A single executor of a curated Ability — the concrete command (Req. 3.2)."""
 
-    name: Optional[str] = None
-    platform: Optional[str] = None
-    command: Optional[str] = None
+    name: str | None = None
+    platform: str | None = None
+    command: str | None = None
+    # Id of the ``technique_commands`` row of the template this command came
+    # from; ``None`` when unknown (additive, Req. 12.10).
+    command_ref: int | None = None
 
 
 class Stage2AbilityView(BaseModel):
@@ -37,11 +39,11 @@ class Stage2AbilityView(BaseModel):
     """
 
     ability_id: str
-    name: Optional[str] = None
-    technique_id: Optional[str] = None
-    technique_name: Optional[str] = None
-    tactic: Optional[str] = None
-    description: Optional[str] = None
+    name: str | None = None
+    technique_id: str | None = None
+    technique_name: str | None = None
+    tactic: str | None = None
+    description: str | None = None
     executors: list[Stage2ExecutorView] = Field(default_factory=list)
     translation_source: TranslationSource = TranslationSource.HUMAN_CURATION
 
@@ -54,14 +56,14 @@ class Stage2AdversaryView(BaseModel):
     """
 
     id: str
-    name: Optional[str] = None
-    description: Optional[str] = None
+    name: str | None = None
+    description: str | None = None
     atomic_ordering: list[str] = Field(default_factory=list)
     translation_source: TranslationSource = TranslationSource.HUMAN_CURATION
 
 
 class Stage2Output(BaseModel):
-    """Stage 2 Output — the curated translation (Req. 3.2–3.5, 3.7, 3.8, 11.1).
+    """Stage 2 Output — the curated translation (Req. 3.2-3.5, 3.7, 3.8, 11.1).
 
     Holds the curated Abilities (each with the concrete command per executor),
     the ordering/dependencies (``atomic_ordering``), the Adversary grouping and
@@ -82,13 +84,13 @@ class Stage2Output(BaseModel):
 
     abilities: list[Stage2AbilityView] = Field(default_factory=list)
     ordering: list[str] = Field(default_factory=list)
-    adversary: Optional[Stage2AdversaryView] = None
+    adversary: Stage2AdversaryView | None = None
     translation_source: TranslationSource = TranslationSource.HUMAN_CURATION
     human_curation: bool = True
     has_abilities: bool = True
     has_adversary: bool = True
-    note: Optional[str] = None
-    adversary_note: Optional[str] = None
+    note: str | None = None
+    adversary_note: str | None = None
 
 
 class Stage3AbilityResult(BaseModel):
@@ -100,9 +102,9 @@ class Stage3AbilityResult(BaseModel):
     """
 
     ability_id: str
-    name: Optional[str] = None
+    name: str | None = None
     status: AbilityResultStatus = AbilityResultStatus.PENDING
-    command_output: Optional[str] = None
+    command_output: str | None = None
 
 
 class LogLineView(BaseModel):
@@ -128,7 +130,7 @@ class LogLineView(BaseModel):
     stream: str
     text: str
     at: dt.datetime
-    substage: Optional[str] = None
+    substage: str | None = None
 
 
 __all__ = [

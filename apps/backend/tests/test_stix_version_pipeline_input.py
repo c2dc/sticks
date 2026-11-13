@@ -13,7 +13,7 @@ Reprocessar a mesma ``version`` deve ser idempotente nos dois stores (Req. 10.2,
 10.5), e as versões persistidas devem ser apresentáveis como entradas
 selecionáveis (Req. 10.4).
 
-Estes são testes de **exemplo** (1–2 casos concretos, sem Hypothesis), seguindo
+Estes são testes de **exemplo** (1-2 casos concretos, sem Hypothesis), seguindo
 o padrão dos testes irmãos: uma ``Session`` SQLite efêmera (arquivo temporário +
 ``Base.metadata.create_all``) com um embedder determinístico falso injetado no
 :class:`~app.services.ai.memory.ExperienceMemory` (o SQLite não possui backend de
@@ -53,6 +53,8 @@ from app.db.base import Base, import_models
 from app.db.session import create_db_engine
 from app.models.domain import (
     ExperienceMemory as ExperienceMemoryRow,
+)
+from app.models.domain import (
     StixCampaign,
     StixCampaignTechnique,
     StixPackage,
@@ -60,7 +62,6 @@ from app.models.domain import (
 from app.services.ai.memory import ExperienceMemory
 from app.services.stix.stix_package_read_service import StixPackageReadService
 from app.services.stix.stix_vector_index_service import StixVectorIndexService
-
 
 # ---------------------------------------------------------------------------
 # Ephemeral DB fixture: a SQLite engine on a temporary file with the full
@@ -123,7 +124,7 @@ class _FakeEmbedder:
     def embed(self, text: str) -> list[float]:
         vec: list[float] = []
         for dim in range(_EMBED_DIM):
-            component = hashlib.sha256(f"{dim}:{text}".encode("utf-8")).digest()[0]
+            component = hashlib.sha256(f"{dim}:{text}".encode()).digest()[0]
             vec.append((component / 127.5) - 1.0)
         return vec
 
@@ -269,15 +270,11 @@ def test_reindexing_same_version_is_idempotent_in_both_stores(
     # --- Relational idempotency (Req. 10.2): one package per version, and the
     #     seeded campaigns are not duplicated. ---
     package_rows = session.execute(
-        select(func.count())
-        .select_from(StixPackage)
-        .where(StixPackage.version == version)
+        select(func.count()).select_from(StixPackage).where(StixPackage.version == version)
     ).scalar_one()
     assert package_rows == 1, "a version maps to exactly one persisted package"
 
-    campaign_rows = session.execute(
-        select(func.count()).select_from(StixCampaign)
-    ).scalar_one()
+    campaign_rows = session.execute(select(func.count()).select_from(StixCampaign)).scalar_one()
     assert campaign_rows == campaign_count, (
         "the relational campaigns of the version are not duplicated"
     )

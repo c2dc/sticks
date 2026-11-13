@@ -26,8 +26,9 @@ other Session-injected services (Req. 1.7).
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any, Optional, Sequence
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -58,7 +59,9 @@ class CommandSuggestion:
     source: str  # "atomic_red_team" | "threat_intel"
     exact: bool  # True = relational mapping; False = similarity
     # Primary key of the ``technique_commands`` row (exact suggestions only).
-    id: Optional[int] = None
+    id: int | None = None
+    # Atomic input arguments ``{name: {default, ...}}`` (exact batch lookup only).
+    input_arguments: dict[str, Any] | None = None
 
 
 class CommandBase:
@@ -69,17 +72,13 @@ class CommandBase:
     shares the request-scoped unit of work.
     """
 
-    def __init__(
-        self, session: Session, *, memory: Optional[ExperienceMemory] = None
-    ) -> None:
+    def __init__(self, session: Session, *, memory: ExperienceMemory | None = None) -> None:
         self._session = session
         self._memory = memory
 
     # ---- public API --------------------------------------------------------
 
-    def commands_for_technique(
-        self, technique_id: str, *, k: int = 5
-    ) -> list[CommandSuggestion]:
+    def commands_for_technique(self, technique_id: str, *, k: int = 5) -> list[CommandSuggestion]:
         """Return commands backing a technique: exact first, else by similarity.
 
         Reads the ``technique_commands`` rows mapped to ``technique_id`` and maps
@@ -134,6 +133,7 @@ class CommandBase:
                     source=row.source,
                     exact=True,
                     id=row.id,
+                    input_arguments=row.input_arguments,
                 )
             )
         return result
@@ -160,15 +160,15 @@ class CommandBase:
                 platform=row.platform,
                 source=row.source,
                 exact=True,
+                id=row.id,
+                input_arguments=row.input_arguments,
             )
             for row in rows
         ]
 
     # ---- similarity (vector) half ------------------------------------------
 
-    def _similar_commands(
-        self, technique_id: str, *, k: int
-    ) -> list[CommandSuggestion]:
+    def _similar_commands(self, technique_id: str, *, k: int) -> list[CommandSuggestion]:
         """Retrieve command affinities for the technique from Experience_Memory.
 
         Queries the Experience_Memory by the technique id and projects each hit
@@ -194,9 +194,7 @@ class CommandBase:
         return self._memory
 
     @staticmethod
-    def _hit_to_suggestion(
-        technique_id: str, hit: dict[str, Any]
-    ) -> Optional[CommandSuggestion]:
+    def _hit_to_suggestion(technique_id: str, hit: dict[str, Any]) -> CommandSuggestion | None:
         """Project a retrieval hit into a similarity :class:`CommandSuggestion`.
 
         Command affinities store the concrete command plus its executor/platform/

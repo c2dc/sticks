@@ -25,8 +25,6 @@ _Requirements: 8.3, 8.4, 17.1, 17.2_
 
 from __future__ import annotations
 
-from typing import Optional
-
 from pydantic import BaseModel, Field
 
 from app.models.enums import EnvironmentPlatform, TranslationSource
@@ -59,9 +57,9 @@ class TargetHost(BaseModel):
     """
 
     label: str
-    address: Optional[str] = None
-    container: Optional[str] = None
-    host_type: Optional[str] = None
+    address: str | None = None
+    container: str | None = None
+    host_type: str | None = None
     vulnerabilities: list[str] = Field(default_factory=list)
 
 
@@ -76,7 +74,7 @@ class RequiredService(BaseModel):
     """
 
     description: str
-    origin_technique: Optional[str] = None
+    origin_technique: str | None = None
 
 
 class EnvironmentParameters(BaseModel):
@@ -106,8 +104,8 @@ class EnvironmentParameters(BaseModel):
 
 
 __all__ = [
-    "EnvironmentPlatform",
-    "TargetHost",
-    "RequiredService",
     "EnvironmentParameters",
+    "EnvironmentPlatform",
+    "RequiredService",
+    "TargetHost",
 ]

@@ -32,7 +32,6 @@ from app.services.stix.stix_package_read_service import StixPackageReadService
 from app.services.stix.stix_persistence_service import StixPersistenceService
 from app.services.stix.stix_service import StixService
 
-
 _VERSION = "18.0"
 
 # Known per-type object counts for the *complete* fixture bundle. These are the
@@ -115,9 +114,7 @@ def _build_bundle(counts: dict[str, int]) -> dict:
                 # A "uses" edge campaign -> attack-pattern when both endpoints
                 # exist; otherwise a benign self-referencing edge that is still a
                 # valid relationship object for counting purposes.
-                index = len(
-                    [o for o in objects if o.get("type") == "relationship"]
-                )
+                index = len([o for o in objects if o.get("type") == "relationship"])
                 target = (
                     attack_pattern_ids[index % len(attack_pattern_ids)]
                     if attack_pattern_ids
@@ -151,12 +148,10 @@ def test_partial_then_resync_overview_counts_match_full_bundle(
     Validates: Requirements 1.3, 1.4
     """
     stix_service = StixService()
-    persistence = StixPersistenceService(
-        session=session, stix_service=stix_service
-    )
+    persistence = StixPersistenceService(session=session, stix_service=stix_service)
 
     # Partial persistence: one object of each counted type.
-    partial_counts = {stix_type: 1 for stix_type in _FULL_COUNTS}
+    partial_counts = dict.fromkeys(_FULL_COUNTS, 1)
     persistence.persist_bundle(_VERSION, _build_bundle(partial_counts))
 
     # Re-sync against the complete bundle through the same idempotent path.
@@ -168,9 +163,7 @@ def test_partial_then_resync_overview_counts_match_full_bundle(
     campaign_row_count = session.execute(
         select(func.count()).select_from(StixCampaign)
     ).scalar_one()
-    actor_row_count = session.execute(
-        select(func.count()).select_from(StixActor)
-    ).scalar_one()
+    actor_row_count = session.execute(select(func.count()).select_from(StixActor)).scalar_one()
 
     assert (
         overview.campaigns_total == _FULL_COUNTS["campaign"]

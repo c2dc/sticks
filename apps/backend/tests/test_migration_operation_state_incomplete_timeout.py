@@ -51,7 +51,6 @@ import importlib.util
 import tempfile
 from pathlib import Path
 
-import pytest
 from alembic.migration import MigrationContext
 from alembic.operations import Operations
 from sqlalchemy import (
@@ -162,19 +161,18 @@ def _run_migration_step(engine: Engine, step: str) -> None:
     column type.
     """
     func = getattr(_migration, step)
-    with engine.connect() as conn:
-        with conn.begin():
-            ctx = MigrationContext.configure(
-                connection=conn,
-                opts={"render_as_batch": True},
-            )
-            op_proxy = Operations(ctx)
-            original_op = _migration.op
-            _migration.op = op_proxy
-            try:
-                func()
-            finally:
-                _migration.op = original_op
+    with engine.connect() as conn, conn.begin():
+        ctx = MigrationContext.configure(
+            connection=conn,
+            opts={"render_as_batch": True},
+        )
+        op_proxy = Operations(ctx)
+        original_op = _migration.op
+        _migration.op = op_proxy
+        try:
+            func()
+        finally:
+            _migration.op = original_op
 
 
 def _state_column_length(engine: Engine) -> int:

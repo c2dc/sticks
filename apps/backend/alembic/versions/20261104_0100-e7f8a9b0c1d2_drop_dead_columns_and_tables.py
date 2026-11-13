@@ -33,6 +33,7 @@ from __future__ import annotations
 from typing import Sequence, Union
 
 import sqlalchemy as sa
+
 from alembic import op
 
 # revision identifiers, used by Alembic.
@@ -47,11 +48,9 @@ _DEAD_TABLE = "provisioned_environment"
 
 def upgrade() -> None:
     bind = op.get_bind()
-    row_count = bind.execute(sa.text(f"SELECT count(*) FROM {_DEAD_TABLE}")).scalar()
+    row_count = bind.execute(sa.text(f"SELECT count(*) FROM {_DEAD_TABLE}")).scalar()  # noqa: S608 -- table name is a module constant
     if row_count:
-        raise RuntimeError(
-            f"refusing to drop {_DEAD_TABLE}: it holds {row_count} row(s)"
-        )
+        raise RuntimeError(f"refusing to drop {_DEAD_TABLE}: it holds {row_count} row(s)")
 
     with op.batch_alter_table("stage_runs") as batch_op:
         batch_op.drop_column("chosen_flow_id")
@@ -80,9 +79,7 @@ def downgrade() -> None:
     with op.batch_alter_table("technique_emulability") as batch_op:
         batch_op.add_column(sa.Column("rationale", sa.Text(), nullable=True))
     with op.batch_alter_table("stix_versions") as batch_op:
-        batch_op.add_column(
-            sa.Column("curated_artifacts_path", sa.String(), nullable=True)
-        )
+        batch_op.add_column(sa.Column("curated_artifacts_path", sa.String(), nullable=True))
     with op.batch_alter_table("stage_runs") as batch_op:
         batch_op.add_column(sa.Column("chosen_flow_id", sa.Integer(), nullable=True))
     with op.batch_alter_table("stage_runs") as batch_op:

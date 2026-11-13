@@ -34,7 +34,8 @@ _Requirements: 2.1, 3.1, 4.1, 4.3, 5.1, 5.2, 5.3, 5.4, 7.1_
 
 from __future__ import annotations
 
-from typing import Callable, Optional, TypeVar
+from collections.abc import Callable
+from typing import TypeVar
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Request, Response, status
 from pydantic import BaseModel, Field
@@ -53,9 +54,10 @@ from app.services.stix.stix_package_read_service import (
 )
 from app.services.stix.stix_persistence_service import StixPackagePersistedResult
 from app.services.stix.stix_service import (
-    KNOWN_VERSIONS,
     BaseStixInfo,
     _semantic_version_key,
+    list_remote_versions,
+    version_is_known,
 )
 
 router = APIRouter(prefix="/api", tags=["stix"])
@@ -83,7 +85,7 @@ def _bundle_unavailable(mensagem: str) -> HTTPException:
 
 
 def _read_persisted(
-    db: Session,  # noqa: ARG001 - kept so every read route shares one signature
+    db: Session,
     version: str,
     read: Callable[[], ReadResult],
 ) -> ReadResult:
@@ -133,7 +135,7 @@ class CampaignListItem(StixCampaignSummary):
     lists the technique ids that block container emulation.
     """
 
-    container_emulable: Optional[bool] = None
+    container_emulable: bool | None = None
     blocking_techniques: list[str] = Field(default_factory=list)
 
 
@@ -172,16 +174,19 @@ def _annotate_container_emulability(
 def list_bases(db: Session = Depends(get_db)) -> BasesResponse:
     """List the ATT&CK Enterprise bases, newest→oldest (Req. 2.1, 5.5).
 
-    The listing is the maintained version index plus every version persisted in
-    the database (so an ingested version outside the index is still listed).
+    The listing is the upstream MITRE version index (cached ~1 h, short timeout;
+    ``KNOWN_VERSIONS`` as the offline fallback) plus every version persisted in
+    the database (so a persisted version is never hidden).
     ``downloaded`` / ``selectable`` / ``completed`` come from the **database**
     (``is_persisted`` — the single source of truth), never from disk.
-    READ-ONLY and side-effect free: no network egress.
+    READ-ONLY; the only network egress is the cached index lookup.
     """
     read_service = StixPackageReadService(db)
     persisted = set(read_service.list_persisted_versions())
     versions = sorted(
-        set(KNOWN_VERSIONS) | persisted, key=_semantic_version_key, reverse=True
+        set(list_remote_versions()) | persisted,
+        key=_semantic_version_key,
+        reverse=True,
     )
     items = [
         BaseListItem(
@@ -253,9 +258,7 @@ def get_campaign_overview(
         return _read_persisted(
             db,
             version,
-            lambda: StixPackageReadService(db).campaign_overview(
-                version, campaign_key
-            ),
+            lambda: StixPackageReadService(db).campaign_overview(version, campaign_key),
         )
     except CampaignNotFoundError as exc:
         raise HTTPException(
@@ -319,7 +322,7 @@ def download_base(
             actors_total=overview.actors_total,
         )
 
-    if version not in KNOWN_VERSIONS:
+    if not version_is_known(version):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail={
@@ -332,7 +335,7 @@ def download_base(
 
     orchestrator = get_orchestrator(request)
     runner = orchestrator.runner(IngestSource.STIX_PACKAGES)
-    runner.request_version(version)  # type: ignore[attr-defined]
+    runner.request_version(version)  # type: ignore[attr-defined] -- the runner is typed as the generic IngestRunner; request_version exists only on the STIX runner
     # ``ALREADY_RUNNING`` is fine: the running ingestion re-reads the requests
     # before it finishes.
     orchestrator.start(IngestSource.STIX_PACKAGES)

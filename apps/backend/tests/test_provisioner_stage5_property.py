@@ -38,16 +38,11 @@ _Requirements: 9.6, 9.7, 14.1, 14.2, 14.3_
 
 from __future__ import annotations
 
-import json
-import shutil
-import tempfile
 from dataclasses import dataclass, field
-from pathlib import Path
 
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
-from tests._curated_db import CaseDb, db_put
 from app.services.containment.isolation import (
     ContainerNetworkInfo,
     ContainerNotFound,
@@ -56,13 +51,13 @@ from app.services.containment.isolation import (
 )
 from app.services.containment.subnets import INTERNAL_NETWORK_SUBNETS
 from app.services.environment.compose_executor import CommandResult
+from app.services.environment.health import ContainerStateInfo
 from app.services.environment.operationalization import (
-    TargetHost,
     EnvironmentParameters,
+    TargetHost,
 )
 from app.services.environment.provisioner import CurationEnvironmentProvisioner
-from app.services.environment.health import ContainerStateInfo
-
+from tests._curated_db import CaseDb, db_put
 
 # ---------------------------------------------------------------------------
 # Fakes (no network, no Docker daemon, no AI) — same shape as the example tests
@@ -151,29 +146,40 @@ _EXTERNAL_BRIDGES = ("local-network", "bridge", "host")
 
 def _seed_case(data_dir: CaseDb, slug: str) -> None:
     """Seed a minimal curated case so ``provision`` can load the abilities."""
-    db_put(data_dir, "ability", slug, [
+    db_put(
+        data_dir,
+        "ability",
+        slug,
+        [
             {
                 "ability_id": f"{slug}-ab-1",
                 "name": "first",
                 "technique_id": "T1190",
-                "executors": [
-                    {"name": "sh", "platform": "linux", "command": "echo 1"}
-                ],
+                "executors": [{"name": "sh", "platform": "linux", "command": "echo 1"}],
             }
-        ])
-    db_put(data_dir, "adversary", slug, {
+        ],
+    )
+    db_put(
+        data_dir,
+        "adversary",
+        slug,
+        {
             "id": f"{slug}-adv",
             "name": "Seed Adversary",
             "description": "seed",
             "atomic_ordering": [f"{slug}-ab-1"],
-        })
-    db_put(data_dir, "flow", slug, {
+        },
+    )
+    db_put(
+        data_dir,
+        "flow",
+        slug,
+        {
             "campaign_name": "Seed",
-            "structural_nodes": [
-                {"node_id": "n0", "technique_id": "T1190"}
-            ],
+            "structural_nodes": [{"node_id": "n0", "technique_id": "T1190"}],
             "metadata": {"total_techniques": 1},
-        })
+        },
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -229,9 +235,7 @@ def _build_inspector(containers: list[GenContainer]) -> FakeInspector:
     short-circuits on the name), matching the real inspector behaviour.
     """
     inspector = FakeInspector()
-    inspector.networks[_NET] = NetworkInfo(
-        name=_NET, internal=True, subnets=(_NET_SUBNET,)
-    )
+    inspector.networks[_NET] = NetworkInfo(name=_NET, internal=True, subnets=(_NET_SUBNET,))
     for c in containers:
         network_names: tuple[str, ...] = (_NET,)
         dns: tuple[str, ...] = ("127.0.0.1",)
@@ -303,9 +307,7 @@ def test_property8_isolation_is_precondition_of_stage5(
             # Stage 5 does NOT conclude; offending set matches the oracle exactly.
             assert isolation.approved is False
             non_isolated = {v.container for v in isolation.non_isolated}
-            expected_offending = {
-                name for name, ok in expected_isolated.items() if not ok
-            }
+            expected_offending = {name for name, ok in expected_isolated.items() if not ok}
             assert non_isolated == expected_offending
             assert non_isolated  # at least one offender identified
             for verdict in isolation.non_isolated:

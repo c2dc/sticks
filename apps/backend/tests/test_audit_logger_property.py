@@ -89,12 +89,10 @@ result_strategy = st.one_of(
     st.text(alphabet="abcdefghijklmnop 0123456789", min_size=0, max_size=40),
 )
 
-command_record_strategy = st.tuples(
-    command_strategy, container_strategy, result_strategy
-)
+command_record_strategy = st.tuples(command_strategy, container_strategy, result_strategy)
 
 
-def _build_ephemeral_session() -> tuple[Session, "os.PathLike[str] | Path", object]:
+def _build_ephemeral_session() -> tuple[Session, os.PathLike[str] | Path, object]:
     """Create a fresh temp-file SQLite engine + schema and return a session.
 
     Mirrors the temp-file SQLite + ``Base.create_all`` pattern from
@@ -186,16 +184,14 @@ def test_property5_one_audit_entry_per_executed_command(
         assert counted == k
 
         # (b) No rows leaked to any other Operation id (fresh DB per example).
-        total = session.execute(
-            select(func.count()).select_from(AuditLogEntry)
-        ).scalar_one()
+        total = session.execute(select(func.count()).select_from(AuditLogEntry)).scalar_one()
         assert total == k
 
         # (c) read_trail returns exactly K rows, order-preserving, each matching
         #     the corresponding generated command/container/result.
         trail = logger.read_trail(operation_id)
         assert len(trail) == k
-        for (command, target_container, result), row in zip(records, trail):
+        for (command, target_container, result), row in zip(records, trail, strict=False):
             assert row.operation_id == operation_id
             assert row.command == command
             assert row.target_container == target_container

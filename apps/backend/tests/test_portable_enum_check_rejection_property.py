@@ -96,7 +96,7 @@ _ALL_VALID_VALUES = {m.value for e in _ENUMS.values() for m in e}
 _ALL_VALID_NAMES = {m.name for e in _ENUMS.values() for m in e}
 
 # A valid seed member for each enum (first declared member).
-_SEED_MEMBER = {name: list(e)[0] for name, e in _ENUMS.items()}
+_SEED_MEMBER = {name: next(iter(e)) for name, e in _ENUMS.items()}
 
 
 # ---------------------------------------------------------------------------
@@ -218,7 +218,7 @@ def test_property1_portable_enum_rejects_out_of_member_values(
         try:
             target = session.get(probe_cls, 1)
             assert target is not None
-            target.status = bad_value  # type: ignore[assignment]
+            target.status = bad_value  # type: ignore[assignment] -- deliberately invalid enum value to prove the CHECK constraint rejects it
             session.commit()
         except (StatementError, LookupError, ValueError):
             update_rejected = True
@@ -237,9 +237,7 @@ def test_property1_portable_enum_rejects_out_of_member_values(
         # ...and the raw value on disk is the seeded pt-BR value, with exactly
         # one row persisted (the rejected INSERT never landed) — Req. 11.3.
         with engine.connect() as conn:
-            stored = conn.execute(
-                text("SELECT status FROM probe WHERE id = 1")
-            ).scalar_one()
+            stored = conn.execute(text("SELECT status FROM probe WHERE id = 1")).scalar_one()
             count = conn.execute(text("SELECT COUNT(*) FROM probe")).scalar_one()
         assert stored == seed_member.value
         assert count == 1

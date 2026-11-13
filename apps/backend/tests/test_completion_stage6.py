@@ -30,7 +30,6 @@ _Requirements: 10.8, 10.9, 12.1, 12.2, 12.3_
 
 from __future__ import annotations
 
-import json
 import shutil
 import tempfile
 from collections.abc import Iterator
@@ -41,7 +40,6 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
-from tests._curated_db import SessionSeeder, db_put
 from app.core.config import Settings
 from app.db.base import Base, import_models
 from app.db.session import create_db_engine
@@ -53,10 +51,11 @@ from app.models.enums import (
     StageState,
     TranslationSource,
 )
+from app.services.emulation.views import STAGE_EXECUTION
 from app.services.environment.completion import CompletionStage6Service, DbReportSink
 from app.services.environment.provisioner import (
-    ProvisionedEnvironment,
     DeprovisioningResult,
+    ProvisionedEnvironment,
 )
 from app.services.environment.report import (
     ExecutionReport,
@@ -67,8 +66,7 @@ from app.services.operation.runner import (
     OperationRunResult,
     RunOutcome,
 )
-from app.services.emulation.views import STAGE_EXECUTION
-
+from tests._curated_db import SessionSeeder, db_put
 
 _SLUG = "shadowray"  # a curated slug (campaigns.curated row)
 
@@ -79,29 +77,40 @@ _SLUG = "shadowray"  # a curated slug (campaigns.curated row)
 
 
 def _seed_case(data_dir: SessionSeeder, slug: str, *, command: str = "cat /etc/passwd") -> None:
-    db_put(data_dir, "ability", slug, [
+    db_put(
+        data_dir,
+        "ability",
+        slug,
+        [
             {
                 "ability_id": f"{slug}-ab-1",
                 "name": "first",
                 "technique_id": "T1059",
-                "executors": [
-                    {"name": "sh", "platform": "linux", "command": command}
-                ],
+                "executors": [{"name": "sh", "platform": "linux", "command": command}],
             }
-        ])
-    db_put(data_dir, "adversary", slug, {
+        ],
+    )
+    db_put(
+        data_dir,
+        "adversary",
+        slug,
+        {
             "id": f"{slug}-adv",
             "name": "Seed Adversary",
             "description": "seed",
             "atomic_ordering": [f"{slug}-ab-1"],
-        })
-    db_put(data_dir, "flow", slug, {
+        },
+    )
+    db_put(
+        data_dir,
+        "flow",
+        slug,
+        {
             "campaign_name": "Seed",
-            "structural_nodes": [
-                {"node_id": "n0", "technique_id": "T1059"}
-            ],
+            "structural_nodes": [{"node_id": "n0", "technique_id": "T1059"}],
             "metadata": {"total_techniques": 1},
-        })
+        },
+    )
 
 
 @pytest.fixture()
@@ -162,9 +171,7 @@ class _RecordingProvisioner:
     def origin(self) -> TranslationSource:
         return TranslationSource.HUMAN_CURATION
 
-    def deprovision(
-        self, environment: ProvisionedEnvironment
-    ) -> DeprovisioningResult:
+    def deprovision(self, environment: ProvisionedEnvironment) -> DeprovisioningResult:
         self.torn_down.append(environment)
         if self.raise_exc:
             raise RuntimeError("docker daemon unreachable during teardown")
@@ -255,8 +262,8 @@ def _service(
 ) -> CompletionStage6Service:
     return CompletionStage6Service(
         session,
-        runner_factory=lambda _s: _FixedRunner(result=runner_result),  # type: ignore[arg-type,return-value]
-        provisioner=provisioner,  # type: ignore[arg-type]
+        runner_factory=lambda _s: _FixedRunner(result=runner_result),  # type: ignore[arg-type,return-value] -- test double stands in for the real collaborator
+        provisioner=provisioner,  # type: ignore[arg-type] -- test double stands in for the real collaborator
         report_sink=sink,
     )
 
@@ -279,9 +286,7 @@ def _stage6_state(session: Session, campaign: str) -> StageState | None:
 # ---------------------------------------------------------------------------
 
 
-def test_happy_path_tears_down_and_concludes(
-    session: Session, data_dir: SessionSeeder
-) -> None:
+def test_happy_path_tears_down_and_concludes(session: Session, data_dir: SessionSeeder) -> None:
     """COMPLETED+FINISHED -> teardown ran, report persisted, Stage 6 concluded.
     _Requirements: 10.8, 10.9, 12.1, 12.2_"""
     _seed_case(data_dir, _SLUG)
@@ -331,9 +336,7 @@ def test_aborted_execution_still_tears_down_but_does_not_conclude(
         sink=sink,
     )
 
-    result = service.execute_and_complete(
-        _SLUG, confirmed=True, environment=_environment()
-    )
+    result = service.execute_and_complete(_SLUG, confirmed=True, environment=_environment())
 
     # Teardown ran DESPITE the failed techniques (Req. 10.8, 12.1).
     assert len(provisioner.torn_down) == 1
@@ -359,9 +362,7 @@ def test_not_confirmed_still_tears_down(session: Session, data_dir: SessionSeede
         sink=sink,
     )
 
-    result = service.execute_and_complete(
-        _SLUG, confirmed=False, environment=_environment()
-    )
+    result = service.execute_and_complete(_SLUG, confirmed=False, environment=_environment())
 
     assert len(provisioner.torn_down) == 1
     assert result.completed is False
@@ -394,9 +395,7 @@ def test_teardown_failure_reports_remaining_resources_and_blocks_conclusion(
         sink=sink,
     )
 
-    result = service.execute_and_complete(
-        _SLUG, confirmed=True, environment=_environment()
-    )
+    result = service.execute_and_complete(_SLUG, confirmed=True, environment=_environment())
 
     # The remaining resources are identified (Req. 12.3).
     assert result.deprovisioning.deprovisioned is False
@@ -427,9 +426,7 @@ def test_teardown_exception_is_caught_and_reported(
         sink=sink,
     )
 
-    result = service.execute_and_complete(
-        _SLUG, confirmed=True, environment=_environment()
-    )
+    result = service.execute_and_complete(_SLUG, confirmed=True, environment=_environment())
 
     # The exception did not propagate; it became a reported failure with the
     # remaining resources identified (the environment's target containers).
@@ -446,9 +443,7 @@ def test_teardown_exception_is_caught_and_reported(
 # ---------------------------------------------------------------------------
 
 
-def test_unpersisted_report_blocks_conclusion(
-    session: Session, data_dir: SessionSeeder
-) -> None:
+def test_unpersisted_report_blocks_conclusion(session: Session, data_dir: SessionSeeder) -> None:
     """A report that fails to persist blocks conclusion despite success+teardown.
     _Requirements: 10.9_"""
     _seed_case(data_dir, _SLUG)
@@ -462,9 +457,7 @@ def test_unpersisted_report_blocks_conclusion(
         sink=sink,
     )
 
-    result = service.execute_and_complete(
-        _SLUG, confirmed=True, environment=_environment()
-    )
+    result = service.execute_and_complete(_SLUG, confirmed=True, environment=_environment())
 
     assert result.deprovisioning.deprovisioned is True
     assert result.report_persisted is False
@@ -489,9 +482,7 @@ def test_unknown_case_raises_keyerror(session: Session, data_dir: SessionSeeder)
         sink=sink,
     )
     with pytest.raises(KeyError):
-        service.execute_and_complete(
-            "does-not-exist", confirmed=True, environment=_environment()
-        )
+        service.execute_and_complete("does-not-exist", confirmed=True, environment=_environment())
 
 
 # ---------------------------------------------------------------------------
@@ -528,9 +519,7 @@ def _persisted_row(session: Session, campaign: str) -> ExecutionReportRow:
     """Read back the single persisted ``execution_reports`` row for ``campaign``."""
     row = (
         session.execute(
-            select(ExecutionReportRow).where(
-                ExecutionReportRow.campaign_id == campaign
-            )
+            select(ExecutionReportRow).where(ExecutionReportRow.campaign_id == campaign)
         )
         .scalars()
         .first()

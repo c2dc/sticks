@@ -32,7 +32,6 @@ from app.api.campaigns import _derive_total_time_s
 from app.models.enums import OperationState
 from app.services.session.session_state_service import OperationResultView
 
-
 # A bounded datetime window keeps the generated instants realistic while still
 # spanning a wide range; naive datetimes mirror what the Operation persists.
 _START_DATETIMES = st.datetimes(

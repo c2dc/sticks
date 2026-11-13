@@ -46,7 +46,6 @@ from app.services.campaign_materializer import (
 )
 from app.services.stix.stix_service import CURATED_VERSION
 
-
 # ---------------------------------------------------------------------------
 # Per-example ephemeral SQLite database (NOT a fixture: Hypothesis would reuse a
 # function-scoped fixture across every generated example, accumulating rows).
@@ -201,9 +200,7 @@ def test_materialize_is_idempotent_and_follows_campaign_key(
             session = factory()
             try:
                 materializer = CampaignMaterializer(session)
-                returned_ids.append(
-                    materializer.materialize(expected_key, CURATED_VERSION)
-                )
+                returned_ids.append(materializer.materialize(expected_key, CURATED_VERSION))
                 session.commit()
             finally:
                 session.close()
@@ -312,8 +309,6 @@ def test_materialize_raises_when_campaign_absent() -> None:
         session = factory()
         try:
             with pytest.raises(CampaignNotPersistedError):
-                CampaignMaterializer(session).materialize(
-                    "missing-key", CURATED_VERSION
-                )
+                CampaignMaterializer(session).materialize("missing-key", CURATED_VERSION)
         finally:
             session.close()

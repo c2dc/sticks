@@ -59,9 +59,7 @@ _MIGRATION_PATH = (
     / "versions"
     / "20261022_0100-d5e6f7a8b9c0_create_stix_package_persistence_tables.py"
 )
-_spec = importlib.util.spec_from_file_location(
-    "_migration_d5e6f7a8b9c0", _MIGRATION_PATH
-)
+_spec = importlib.util.spec_from_file_location("_migration_d5e6f7a8b9c0", _MIGRATION_PATH)
 assert _spec is not None and _spec.loader is not None
 _migration = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_migration)
@@ -122,16 +120,15 @@ def _run_migration_step(engine: Engine, step: str) -> None:
     shared DB.
     """
     func = getattr(_migration, step)
-    with engine.connect() as conn:
-        with conn.begin():
-            ctx = MigrationContext.configure(connection=conn)
-            op_proxy = Operations(ctx)
-            original_op = _migration.op
-            _migration.op = op_proxy
-            try:
-                func()
-            finally:
-                _migration.op = original_op
+    with engine.connect() as conn, conn.begin():
+        ctx = MigrationContext.configure(connection=conn)
+        op_proxy = Operations(ctx)
+        original_op = _migration.op
+        _migration.op = op_proxy
+        try:
+            func()
+        finally:
+            _migration.op = original_op
 
 
 # ===========================================================================
@@ -147,8 +144,7 @@ def test_migration_chains_onto_current_head() -> None:
     Validates: Requirements 10.2
     """
     assert _migration.revision == _EXPECTED_REVISION, (
-        f"migration revision is {_migration.revision!r}, "
-        f"expected {_EXPECTED_REVISION!r}"
+        f"migration revision is {_migration.revision!r}, expected {_EXPECTED_REVISION!r}"
     )
     assert _migration.down_revision == _EXPECTED_DOWN_REVISION, (
         f"migration down_revision is {_migration.down_revision!r}, "
@@ -184,7 +180,7 @@ def test_sqlite_upgrade_creates_then_downgrade_drops_the_six_tables() -> None:
 
         after_up = set(inspect(engine).get_table_names())
         # All six STIX tables now exist (Req. 10.1 — the tables are created).
-        assert _STIX_TABLES <= after_up, (
+        assert after_up >= _STIX_TABLES, (
             f"missing STIX tables after upgrade: {_STIX_TABLES - after_up}"
         )
         # Upgrade created exactly these six tables and nothing else (the empty
@@ -198,9 +194,7 @@ def test_sqlite_upgrade_creates_then_downgrade_drops_the_six_tables() -> None:
         # The idempotency key: ``stix_packages.version`` carries a UNIQUE
         # constraint (Req. 10.1 / design Model 1).
         unique_constraints = inspector.get_unique_constraints("stix_packages")
-        version_unique = any(
-            uc["column_names"] == ["version"] for uc in unique_constraints
-        )
+        version_unique = any(uc["column_names"] == ["version"] for uc in unique_constraints)
         assert version_unique, (
             "stix_packages.version must carry a UNIQUE constraint; "
             f"unique constraints found: {unique_constraints}"
@@ -252,7 +246,7 @@ def test_sqlite_upgrade_downgrade_upgrade_is_repeatable() -> None:
         # Re-apply: a clean downgrade must leave the DB able to upgrade again.
         _run_migration_step(engine, "upgrade")
         after = set(inspect(engine).get_table_names())
-        assert _STIX_TABLES <= after, (
+        assert after >= _STIX_TABLES, (
             f"missing STIX tables after re-upgrade: {_STIX_TABLES - after}"
         )
     finally:

@@ -35,6 +35,7 @@ dev = [
     "pytest>=8.2",
     "hypothesis>=6.100",
     "pytest-asyncio>=0.23",
+    "ruff==0.17.5",
 ]
 
 [tool.setuptools.packages.find]
@@ -55,3 +56,52 @@ addopts = "-ra -m \"not lab\""
 markers = [
     "lab: end-to-end test requiring the REAL lab Caldera + hardened Docker environment (task 15.3); deselected by default and additionally guarded by the PIPELINE_UI_LAB env var",
 ]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+# Generated/cache directories; the virtualenv is already excluded by Ruff's defaults.
+extend-exclude = [".hypothesis", ".pytest_cache", "*.egg-info"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes: unused imports/variables, undefined names
+    "W",    # pycodestyle warnings
+    "I",    # isort: import ordering (safe autofix)
+    "B",    # flake8-bugbear: likely bugs (mutable defaults, misused except)
+    "UP",   # pyupgrade for Python 3.11 (safe autofix)
+    "C4",   # flake8-comprehensions: behavior-preserving simplifications
+    "SIM",  # flake8-simplify: behavior-preserving simplifications
+    "BLE",  # blind `except Exception`; legitimate cases become justified suppressions
+    "S",    # bandit: basic security checks (urlopen, SQL strings, subprocess)
+    "PGH",  # pygrep-hooks: require a rule code on `noqa` / `type: ignore`
+    "RUF",  # Ruff-specific rules, including RUF100 (unused noqa)
+]
+# The formatter controls line width; long string literals stay as they are.
+ignore = [
+    "E501",
+    # UP042 would turn every ``(str, Enum)`` into ``StrEnum``, which changes ``str(member)``
+    # (``"Cls.MEMBER"`` -> the value); the enums are persisted and serialized, so the
+    # existing base classes stay to keep behavior identical.
+    "UP042",
+]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI declares dependencies and form/file parameters as default values; these calls
+# build immutable marker objects, so B008 is a false positive for them.
+extend-immutable-calls = [
+    "fastapi.Depends",
+    "fastapi.File",
+    "fastapi.Form",
+    "fastapi.Query",
+    "fastapi.Path",
+    "fastapi.Body",
+    "fastapi.Header",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# assert, fake secrets, fake temp paths in fixture data and fixed-argv subprocess runs are normal in tests.
+"tests/**" = ["S101", "S105", "S106", "S108", "S603"]
+# Historical migrations are immutable.
+"alembic/versions/**" = ["UP", "RUF012"]

@@ -220,8 +220,7 @@ def test_property11_canonical_projection_abilities_are_unique(
 
         # Core invariant (Req. 2.7): no ability_id appears more than once.
         assert len(projected_ids) == len(set(projected_ids)), (
-            "canonical projection duplicated an ability_id: "
-            f"{projected_ids}"
+            f"canonical projection duplicated an ability_id: {projected_ids}"
         )
 
         # Independent oracle: the distinct projected ability_ids are EXACTLY the

@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 
 import { useTheme } from "@/components/theme-provider"
 
@@ -18,9 +19,10 @@ export function MermaidDiagram({
   definition: string
   className?: string
 }) {
+  const { t } = useTranslation("pipeline")
   const { theme } = useTheme()
   const containerRef = useRef<HTMLDivElement>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState(false)
   // Mermaid node ids must be unique and start with a letter.
   const rawId = useId().replace(/[^a-zA-Z0-9]/g, "")
   const renderId = `mermaid-${rawId}`
@@ -40,11 +42,11 @@ export function MermaidDiagram({
         const { svg } = await mermaid.render(renderId, definition)
         if (!cancelled && containerRef.current) {
           containerRef.current.innerHTML = svg
-          setError(null)
+          setError(false)
         }
-      } catch (e) {
+      } catch {
         if (!cancelled) {
-          setError(e instanceof Error ? e.message : "Falha ao renderizar o diagrama.")
+          setError(true)
         }
       }
     }
@@ -58,11 +60,21 @@ export function MermaidDiagram({
   if (error) {
     // Graceful fallback: show the diagram source so the information is not lost.
     return (
-      <pre className="overflow-auto rounded-md bg-muted p-2 text-xs text-muted-foreground">
+      <pre
+        className="overflow-auto rounded-md bg-muted p-2 text-xs text-muted-foreground"
+        aria-label={t("flow.diagramSourceLabel")}
+      >
         {definition}
       </pre>
     )
   }
 
-  return <div ref={containerRef} className={className} aria-label="Diagrama de rede" />
+  return (
+    <div
+      ref={containerRef}
+      className={className}
+      role="img"
+      aria-label={t("flow.diagramLabel")}
+    />
+  )
 }

@@ -74,7 +74,7 @@ import os
 import tempfile
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import pytest
 
@@ -84,7 +84,6 @@ import pytest
 # package, LangGraph, the LLM client and the real Caldera client are imported
 # lazily inside the fixtures / test body.
 from tests._curated_db import CURATED_NAMES as CURATED_CASES
-
 
 # ---------------------------------------------------------------------------
 # The Ground_Truth_Benchmark: EXACTLY the 8 human-curated campaigns (Req. 10.7).
@@ -187,7 +186,7 @@ def output_dir() -> Iterator[Path]:
 
 def _utcnow() -> dt.datetime:
     """Naive-UTC timestamp, matching the models' ``_utcnow`` convention."""
-    return dt.datetime.now(dt.timezone.utc).replace(tzinfo=None)
+    return dt.datetime.now(dt.UTC).replace(tzinfo=None)
 
 
 def _human_baseline_coverage(session: Any, campaign_slug: str) -> dict[str, Any]:
@@ -211,7 +210,7 @@ def _human_baseline_coverage(session: Any, campaign_slug: str) -> dict[str, Any]
     }
 
 
-def _ai_run_final_metric(session: Any, run: Any) -> Optional[dict[str, Any]]:
+def _ai_run_final_metric(session: Any, run: Any) -> dict[str, Any] | None:
     """Read the AI run's Stage 6 procedural-sufficiency metric UNCHANGED (Req. 10.1).
 
     The evaluator records, per iteration, the Stage 6 numbers it keyed on into an
@@ -242,9 +241,7 @@ def _ai_run_final_metric(session: Any, run: Any) -> Optional[dict[str, Any]]:
     }
 
 
-def _persist_comparison(
-    output_dir: Path, comparison: dict[str, Any]
-) -> Path:
+def _persist_comparison(output_dir: Path, comparison: dict[str, Any]) -> Path:
     """Persist one per-run comparison result as a JSON artifact (Req. 10.7).
 
     There is no dedicated comparison table in the data model (the AI bookkeeping
@@ -309,7 +306,7 @@ def test_ai_curation_vs_ground_truth_and_persist_comparison(
     campaign_slug: str,
     session_factory: Any,
     output_dir: Path,
-    real_caldera: Any,  # noqa: ARG001 - availability gate (fixture side effect)
+    real_caldera: Any,
 ) -> None:
     """Run AI curation for a curated campaign, score it vs ground truth, persist.
 
@@ -372,9 +369,7 @@ def test_ai_curation_vs_ground_truth_and_persist_comparison(
         # 10.6) so the completed run still has a traceable comparison artifact.
         if ai_metric is not None:
             delta = ai_metric["procedural_coverage"] - baseline["procedural_coverage"]
-            meets_or_exceeds = (
-                ai_metric["procedural_coverage"] >= baseline["procedural_coverage"]
-            )
+            meets_or_exceeds = ai_metric["procedural_coverage"] >= baseline["procedural_coverage"]
         else:
             delta = None
             meets_or_exceeds = None
@@ -397,9 +392,7 @@ def test_ai_curation_vs_ground_truth_and_persist_comparison(
 
         # The comparison artifact was persisted and round-trips (Req. 10.7): it
         # exists, links the persisted run, and names both scores under comparison.
-        assert artifact_path.exists(), (
-            "o resultado de comparação por corrida deve ser persistido"
-        )
+        assert artifact_path.exists(), "o resultado de comparação por corrida deve ser persistido"
         persisted = json.loads(artifact_path.read_text(encoding="utf-8"))
         assert persisted["run_id"] == run.id
         assert persisted["campaign_id"] == campaign_slug

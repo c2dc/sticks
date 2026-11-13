@@ -35,7 +35,7 @@ _Requirements: 14.6, 14.7, 14.8_
 
 from __future__ import annotations
 
-from typing import Callable
+from collections.abc import Callable
 
 from app.models.enums import EnvironmentPlatform, TranslationSource
 from app.services.ai.agents.env_agent import AiEnvironmentProvisioner

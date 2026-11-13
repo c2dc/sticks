@@ -114,9 +114,7 @@ def _ability_strategy() -> st.SearchStrategy[FakeAbility]:
         lambda uid, cmds: FakeAbility(
             ability_id=f"ability-{uid.hex[:8]}",
             name=f"T{1000 + (uid.int % 600)} - generated",
-            executors=tuple(
-                {"name": "sh", "platform": "linux", "command": cmd} for cmd in cmds
-            ),
+            executors=tuple({"name": "sh", "platform": "linux", "command": cmd} for cmd in cmds),
         ),
         st.uuids(),
         st.lists(st.sampled_from(_INTERNAL_COMMAND_TEMPLATES), min_size=1, max_size=3),
@@ -159,9 +157,7 @@ class RecordingCaldera:
             # Echo the posted ability back (ids round-trip).
             return httpx.Response(200, json=json.loads(request.content.decode("utf-8")))
         if method == "POST" and path == OPERATIONS_PATH:
-            return httpx.Response(
-                200, json={"id": "op-test", "name": "run", "state": "running"}
-            )
+            return httpx.Response(200, json={"id": "op-test", "name": "run", "state": "running"})
         if method == "GET" and path == f"{OPERATIONS_PATH}/op-test":
             # A single finished (status 0 -> SUCCESS) link so the Operation runs
             # to completion and persists rows on the positive path.
@@ -192,8 +188,7 @@ def _isolated_verifier(containers: list[str], _inspector: object) -> IsolationRe
     variable (confirmation) from the isolation gate too.
     """
     verdicts = tuple(
-        ContainerIsolationVerdict(container=name, isolated=True, reasons=())
-        for name in containers
+        ContainerIsolationVerdict(container=name, isolated=True, reasons=()) for name in containers
     )
     return IsolationResult(passed=True, verdicts=verdicts)
 
@@ -289,7 +284,7 @@ def test_property6_unconfirmed_request_changes_nothing(
             campaign_id=campaign_id,
             abilities=abilities,
             adversary_id=adversary_id,
-            confirmed=confirmed,  # type: ignore[arg-type]
+            confirmed=confirmed,  # type: ignore[arg-type] -- generated value may be deliberately invalid
         )
 
         # Outcome: not confirmed, state returns to the prior (NOT_STARTED) state.

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Any, Optional
+from typing import Any
 
 _VERSION_IN_URL = re.compile(r"enterprise-attack-(\d+(?:\.\d+)+)\.json$")
 
@@ -31,15 +31,15 @@ class FakeStixHttp:
 
     def __init__(
         self,
-        bundles: Optional[dict[str, Any]] = None,
+        bundles: dict[str, Any] | None = None,
         *,
-        fail_versions: Optional[set[str]] = None,
+        fail_versions: set[str] | None = None,
     ) -> None:
         self.bundles: dict[str, Any] = dict(bundles or {})
         self.fail_versions: set[str] = set(fail_versions or ())
         self.calls: list[str] = []
 
-    def get(self, url: str, timeout: Optional[float] = None) -> FakeStixResponse:
+    def get(self, url: str, timeout: float | None = None) -> FakeStixResponse:
         self.calls.append(url)
         match = _VERSION_IN_URL.search(url)
         version = match.group(1) if match else None
@@ -61,17 +61,13 @@ def small_bundle(campaign_name: str = "Alpha Campaign") -> dict:
                 "type": "campaign",
                 "id": "campaign--00000000-0000-0000-0000-000000000001",
                 "name": campaign_name,
-                "external_references": [
-                    {"source_name": "mitre-attack", "external_id": "C9001"}
-                ],
+                "external_references": [{"source_name": "mitre-attack", "external_id": "C9001"}],
             },
             {
                 "type": "attack-pattern",
                 "id": "attack-pattern--00000000-0000-0000-0000-00000000000a",
                 "name": "Command and Scripting Interpreter",
-                "external_references": [
-                    {"source_name": "mitre-attack", "external_id": "T1059"}
-                ],
+                "external_references": [{"source_name": "mitre-attack", "external_id": "T1059"}],
                 "kill_chain_phases": [
                     {"kill_chain_name": "mitre-attack", "phase_name": "execution"}
                 ],

@@ -13,8 +13,6 @@ _Requirements: 7.4, 8.4_
 
 from __future__ import annotations
 
-from typing import Optional
-
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -34,8 +32,8 @@ class PreferencesUpdate(BaseModel):
     independently; omitted fields keep their persisted value.
     """
 
-    theme: Optional[Theme] = None
-    language: Optional[Language] = None
+    theme: Theme | None = None
+    language: Language | None = None
 
 
 class PreferencesResponse(BaseModel):
@@ -51,9 +49,7 @@ def _get_or_create_preferences(db: Session) -> UserPreferences:
     One preferences row is kept (lowest ``id`` wins for determinism), mirroring
     the single-row upsert contract used for the session state.
     """
-    prefs = db.execute(
-        select(UserPreferences).order_by(UserPreferences.id.asc())
-    ).scalars().first()
+    prefs = db.execute(select(UserPreferences).order_by(UserPreferences.id.asc())).scalars().first()
     if prefs is None:
         prefs = UserPreferences(theme=Theme.LIGHT, language=Language.PT_BR)
         db.add(prefs)

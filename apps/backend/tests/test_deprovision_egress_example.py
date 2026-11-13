@@ -35,8 +35,8 @@ _Requirements: 10.2, 10.3_
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Callable
+from collections.abc import Callable
+from dataclasses import dataclass
 
 from app.models.enums import TranslationSource
 from app.services.environment.compose_executor import (
@@ -49,7 +49,6 @@ from app.services.environment.provisioner import (
     CurationEnvironmentProvisioner,
     ProvisionedEnvironment,
 )
-
 
 _COMPOSE_FILE = "/lab/docker-compose.yml"
 _TARGETS = ["sticks-nginx-target", "sticks-mariadb-target"]
@@ -124,19 +123,13 @@ class _RecordingComposeExecutor:
         return CommandResult(code=code, lines=lines)
 
     # --- operations exercised here ---
-    def down(
-        self, compose_file: str, *, on_log: Callable[[LogLine], None]
-    ) -> CommandResult:
+    def down(self, compose_file: str, *, on_log: Callable[[LogLine], None]) -> CommandResult:
         self.calls.append(_Call(op="down", arg=compose_file))
         return self._emit("desprovisionar", self.down_code, self._down_lines, on_log)
 
-    def remove_network(
-        self, network: str, *, on_log: Callable[[LogLine], None]
-    ) -> CommandResult:
+    def remove_network(self, network: str, *, on_log: Callable[[LogLine], None]) -> CommandResult:
         self.calls.append(_Call(op="remove_network", arg=network))
-        return self._emit(
-            "remove_network", self.remove_code, self._remove_lines, on_log
-        )
+        return self._emit("remove_network", self.remove_code, self._remove_lines, on_log)
 
     # --- rest of the protocol surface (not exercised here) ---
     def up(
@@ -177,9 +170,7 @@ class _LegacyComposeExecutor:
     ) -> CommandResult:  # pragma: no cover - not exercised
         return CommandResult(code=0, lines=[])
 
-    def down(
-        self, compose_file: str, *, on_log: Callable[[LogLine], None]
-    ) -> CommandResult:
+    def down(self, compose_file: str, *, on_log: Callable[[LogLine], None]) -> CommandResult:
         self.down_calls.append(compose_file)
         line = LogLine(step="desprovisionar", stream="stdout", text="Container removed")
         on_log(line)

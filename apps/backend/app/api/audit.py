@@ -13,7 +13,6 @@ _Requirements: 7.4, 8.4_
 from __future__ import annotations
 
 import datetime as dt
-from typing import Optional
 
 from fastapi import APIRouter, Depends, Path
 from pydantic import BaseModel, ConfigDict, Field
@@ -34,11 +33,11 @@ class AuditEntryResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    operation_id: Optional[int] = None
-    ability_id: Optional[str] = None
+    operation_id: int | None = None
+    ability_id: str | None = None
     command: str
     target_container: str
-    result: Optional[str] = None
+    result: str | None = None
     recorded_at: dt.datetime
 
 

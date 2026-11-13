@@ -50,7 +50,7 @@ from __future__ import annotations
 import json
 import tempfile
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
@@ -63,9 +63,11 @@ from app.models.enums import FlowOrigin, TranslationSource
 from app.services.ai.agents.flow_agent import FlowAgent
 from app.services.ai.agents.op_agent import AiOperationalizer
 from app.services.flow.flow_view import FlowEdgeView, FlowNodeView, FlowView
-from app.services.flow.generator import ProducedFlow, StructuralModeling
-from app.services.flow.generator import RelationshipElement, TechniqueElement
-
+from app.services.flow.generator import (
+    ProducedFlow,
+    StructuralModeling,
+    TechniqueElement,
+)
 
 # ---------------------------------------------------------------------------
 # Ephemeral SQLite Session (same shape as the sibling AI property/unit tests).
@@ -201,7 +203,7 @@ def _has_cycle(node_ids: set[str], edges: list[dict[str, str]]) -> bool:
     An independent check (not the agent's own) so the acyclicity assertion is a
     genuine property check over the produced content, not a tautology.
     """
-    indegree: dict[str, int] = {nid: 0 for nid in node_ids}
+    indegree: dict[str, int] = dict.fromkeys(node_ids, 0)
     adjacency: dict[str, list[str]] = {nid: [] for nid in node_ids}
     for edge in edges:
         adjacency[edge["de"]].append(edge["para"])
@@ -261,9 +263,8 @@ def test_property18_flow_invariants_acyclic_subset_gaps_no_invented_command(
     node_techniques = [n["technique_id"] for n in nodes]
 
     # The injected Command_Base gap probe: True iff the technique is backed.
-    command_lookup: Callable[[str], bool] = lambda technique_id: backing.get(
-        technique_id, False
-    )
+    def command_lookup(technique_id: str) -> bool:
+        return backing.get(technique_id, False)
 
     factory, _db_tmp = _make_session_factory()
     session = factory()
@@ -295,9 +296,7 @@ def test_property18_flow_invariants_acyclic_subset_gaps_no_invented_command(
         assert set(produced_node_techniques) <= campaign_techniques
 
         # (c) gaps == exactly the node techniques with no backing command.
-        expected_gaps = {
-            tech for tech in node_techniques if not backing.get(tech, False)
-        }
+        expected_gaps = {tech for tech in node_techniques if not backing.get(tech, False)}
         assert set(flow.gaps) == expected_gaps
         # Every gap is a genuine campaign-technique node (never fabricated).
         assert set(flow.gaps) <= set(produced_node_techniques)
@@ -372,14 +371,10 @@ def test_ex_property20_operationalized_commands_reference_existing_flow_nodes() 
 
     flow_chat = _GraphChat(nodes, edges)
     flow_agent = FlowAgent(chat=flow_chat)
-    produced = flow_agent.generate(
-        campaign, _modeling_for(["T1190", "T1059"])
-    )
+    produced = flow_agent.generate(campaign, _modeling_for(["T1190", "T1059"]))
     assert len(produced) == 1
     flow_view = _flow_view_from_produced(campaign, produced[0])
-    flow_node_techniques = {
-        node.technique_id for node in flow_view.nodes if node.technique_id
-    }
+    flow_node_techniques = {node.technique_id for node in flow_view.nodes if node.technique_id}
 
     # A lab-internal IP so the host-derivation resolves without any I/O.
     internal_ip = "192.168.20.30"
@@ -459,9 +454,7 @@ class _FakeExperienceMemory:
         self._hits = hits
         self.calls: list[dict[str, Any]] = []
 
-    def retrieve(
-        self, *, campaign_id: str, query: str, k: int = 5
-    ) -> list[dict[str, Any]]:
+    def retrieve(self, *, campaign_id: str, query: str, k: int = 5) -> list[dict[str, Any]]:
         self.calls.append({"campaign_id": campaign_id, "query": query, "k": k})
         return list(self._hits)
 
@@ -560,7 +553,5 @@ def test_ex_property6_agent_input_composes_overview_and_retrieved_experience() -
     assert agent_input["retrieved_experience"] == retrieved
 
     # The modeling (Stage 1 identity + techniques) is also carried.
-    modeling_techniques = [
-        t["technique_id"] for t in agent_input["modeling"]["techniques"]
-    ]
+    modeling_techniques = [t["technique_id"] for t in agent_input["modeling"]["techniques"]]
     assert modeling_techniques == techniques

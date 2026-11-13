@@ -29,15 +29,18 @@ directly against both copies of ``_ability_payloads``:
 
 from __future__ import annotations
 
-from typing import Any, Callable
+import copy
+from collections.abc import Callable
+from typing import Any
 
 import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
+from app.models.domain import Ability as OrmAbility
+from app.services.emulation.views import Stage2AbilityView
 from app.services.environment.provisioner import CurationEnvironmentProvisioner
 from app.services.operation.runner import OperationRunner
-from app.services.emulation.views import Stage2AbilityView
 
 # The two duplicated projections under test. Both are static methods, so each can be
 # invoked directly on a sequence of ability objects. Parametrizing across both proves the
@@ -243,9 +246,6 @@ def test_property_provisioner_bug_condition_yields_non_empty_technique_name(
 # **Validates: Requirements 3.1, 3.2, 3.3**
 # =========================================================================================
 
-import copy
-
-from app.models.domain import Ability as OrmAbility
 
 # The fields the preservation assertion must find projected identically (design Preservation
 # Requirements). ``ability_id`` and ``executors`` are copied under their own conditions in the

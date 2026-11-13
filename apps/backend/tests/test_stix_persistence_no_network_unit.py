@@ -24,7 +24,6 @@ from app.db.session import create_db_engine
 from app.services.stix.stix_persistence_service import StixPersistenceService
 from app.services.stix.stix_service import StixService
 
-
 # ---------------------------------------------------------------------------
 # A fake http client whose ``get`` fails loudly if ever invoked, while
 # recording that it was called. Reaching it would mean a network egress fired.
@@ -98,9 +97,7 @@ def _build_bundle() -> dict:
                 "type": "attack-pattern",
                 "id": "attack-pattern--00000000-0000-0000-0000-000000000000",
                 "name": "Example Technique",
-                "external_references": [
-                    {"source_name": "mitre-attack", "external_id": "T1059"}
-                ],
+                "external_references": [{"source_name": "mitre-attack", "external_id": "T1059"}],
                 "kill_chain_phases": [
                     {"kill_chain_name": "mitre-attack", "phase_name": "execution"}
                 ],

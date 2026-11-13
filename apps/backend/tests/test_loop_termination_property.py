@@ -234,8 +234,7 @@ def test_property3_improvement_loop_terminates(
     # finish key — the only path the conditional edge maps to END.
     assert router_decisions, "the router must have been consulted at least once"
     assert router_decisions[-1] == _FINISH, (
-        "the loop must end by routing to END (finish), got "
-        f"{router_decisions[-1]!r}"
+        f"the loop must end by routing to END (finish), got {router_decisions[-1]!r}"
     )
 
     # Every router decision is one of the four registered edge keys — the real
@@ -260,18 +259,14 @@ def test_property3_improvement_loop_terminates(
     )
     # At least one pass always runs (Req. 3.5: 1..max_iterations iterations) and
     # the guard caps the count at max_iterations even for an all-failing stream.
-    assert 1 <= passes <= max_iterations, (
-        f"iterations {passes} must be within 1..{max_iterations}"
-    )
+    assert 1 <= passes <= max_iterations, f"iterations {passes} must be within 1..{max_iterations}"
 
     # --- The guard fired exactly when it should (Req. 3.4, 3.5). ---
     # Independently reconstruct the verdict each candidate pass WOULD see (the
     # evaluate node cycles the stream), over the whole admissible range the guard
     # allows (1..max_iterations passes → 0-based indices 0..max_iterations-1).
     candidate_verdicts = [verdicts[i % len(verdicts)] for i in range(max_iterations)]
-    first_pass_index = next(
-        (i for i, v in enumerate(candidate_verdicts) if v), None
-    )
+    first_pass_index = next((i for i, v in enumerate(candidate_verdicts) if v), None)
     if first_pass_index is not None:
         # A verdict passes at 0-based index `first_pass_index` WITHIN the bound →
         # route_after_eval returns finish on that pass, so the loop runs exactly

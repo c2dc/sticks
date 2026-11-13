@@ -39,48 +39,44 @@ _Requirements: 8.1, 8.2, 8.4_
 from __future__ import annotations
 
 from collections.abc import Iterator
-from pathlib import Path
 
 import pytest
-
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from sqlalchemy import select
-
-from tests._curated_db import CaseDb, SessionSeeder
 from app.models.domain import StageRun
 from app.models.enums import StageState, TranslationSource
+from app.services.emulation.views import STAGE_EXECUTION
 from app.services.environment.completion import CompletionStage6Service
 from app.services.environment.operationalization import EnvironmentPlatform
 from app.services.environment.provisioner import CurationEnvironmentProvisioner
 from app.services.operation.runner import OperationRunResult, RunOutcome
-from app.services.emulation.views import STAGE_EXECUTION
+from tests._curated_db import CaseDb, SessionSeeder
+
+# Reuso do runner/sink *fakes* e do helper de result da costura de conclusão.
+# A *fixture* ``session`` (SQLite efêmera) e ``data_dir`` são autodescobertas
+# pelo pytest a partir do módulo irmão quando importadas aqui.
+from tests.test_completion_stage6 import (  # noqa: F401 -- fixtures via import
+    _completed_result,
+    _FixedRunner,
+    _MemorySink,
+    data_dir,
+    session,
+)
 
 # Reuso dos *fakes*/helpers do teste de ``provision`` (sem redefinir).
 from tests.test_provisioner_stage5 import (
     _C1,
     _C2,
-    _resolver,
     _SLUG,
     FakeCaldera,
     FakeComposeExecutor,
     _healthy_state_inspector,
     _isolated_inspector,
     _params,
+    _resolver,
     _seed_case,
 )
-
-# Reuso do runner/sink *fakes* e do helper de result da costura de conclusão.
-# A *fixture* ``session`` (SQLite efêmera) e ``data_dir`` são autodescobertas
-# pelo pytest a partir do módulo irmão quando importadas aqui.
-from tests.test_completion_stage6 import (  # noqa: F401 — fixtures via import
-    _FixedRunner,
-    _MemorySink,
-    _completed_result,
-    data_dir,
-    session,
-)
-
 
 _CONTAINERS = [_C1, _C2]
 
@@ -122,8 +118,8 @@ def _real_provisioner(
 
 
 def _completion_service(
-    session: Session,
-    data_dir: SessionSeeder,
+    session: Session,  # noqa: F811 -- pytest fixture imported from test_completion_stage6; the parameter requests it
+    data_dir: SessionSeeder,  # noqa: F811 -- pytest fixture imported from test_completion_stage6; the parameter requests it
     *,
     provisioner: CurationEnvironmentProvisioner,
     runner_result: OperationRunResult,
@@ -140,7 +136,7 @@ def _completion_service(
     _seed_case(data_dir, _SLUG)
     return CompletionStage6Service(
         session,
-        runner_factory=lambda _s: _FixedRunner(result=runner_result),  # type: ignore[arg-type,return-value]
+        runner_factory=lambda _s: _FixedRunner(result=runner_result),  # type: ignore[arg-type,return-value] -- test double stands in for the real collaborator
         provisioner=provisioner,
         report_sink=sink,
     )
@@ -153,7 +149,9 @@ def _completion_service(
 
 
 def test_e2e_provision_execute_deprovision_success(
-    session: Session, data_dir: SessionSeeder, case_db: CaseDb
+    session: Session,  # noqa: F811 -- pytest fixture imported from test_completion_stage6; the parameter requests it
+    data_dir: SessionSeeder,  # noqa: F811 -- pytest fixture imported from test_completion_stage6; the parameter requests it
+    case_db: CaseDb,
 ) -> None:
     """Laço completo: compose up (provisão) + compose down (teardown) ok.
 
@@ -227,7 +225,9 @@ def test_e2e_provision_execute_deprovision_success(
 
 
 def test_e2e_teardown_failure_reports_remaining_resources(
-    session: Session, data_dir: SessionSeeder, case_db: CaseDb
+    session: Session,  # noqa: F811 -- pytest fixture imported from test_completion_stage6; the parameter requests it
+    data_dir: SessionSeeder,  # noqa: F811 -- pytest fixture imported from test_completion_stage6; the parameter requests it
+    case_db: CaseDb,
 ) -> None:
     """Compose up ok, compose down failure → recursos remanescentes + não conclui.
 

@@ -59,9 +59,7 @@ _VERSIONS_DIR = Path(__file__).resolve().parents[1] / "alembic" / "versions"
 
 def _load_migration(module_name: str, filename: str) -> ModuleType:
     """Import a shipped migration module by its on-disk path."""
-    spec = importlib.util.spec_from_file_location(
-        module_name, _VERSIONS_DIR / filename
-    )
+    spec = importlib.util.spec_from_file_location(module_name, _VERSIONS_DIR / filename)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -77,9 +75,7 @@ _MIGRATION_EMULABILITY = _load_migration(
 _ENUM_RENAME_HEAD = "c0d1e2f3a4b5"
 
 # The two tables this migration owns.
-_EMULABILITY_TABLES: frozenset[str] = frozenset(
-    {"technique_emulability", "container_emulability"}
-)
+_EMULABILITY_TABLES: frozenset[str] = frozenset({"technique_emulability", "container_emulability"})
 
 
 # ---------------------------------------------------------------------------
@@ -115,16 +111,15 @@ def _run_migration_step(engine: Engine, step: str) -> None:
     default).
     """
     func = getattr(_MIGRATION_EMULABILITY, step)
-    with engine.connect() as conn:
-        with conn.begin():
-            ctx = MigrationContext.configure(connection=conn)
-            op_proxy = Operations(ctx)
-            original_op = _MIGRATION_EMULABILITY.op
-            _MIGRATION_EMULABILITY.op = op_proxy
-            try:
-                func()
-            finally:
-                _MIGRATION_EMULABILITY.op = original_op
+    with engine.connect() as conn, conn.begin():
+        ctx = MigrationContext.configure(connection=conn)
+        op_proxy = Operations(ctx)
+        original_op = _MIGRATION_EMULABILITY.op
+        _MIGRATION_EMULABILITY.op = op_proxy
+        try:
+            func()
+        finally:
+            _MIGRATION_EMULABILITY.op = original_op
 
 
 # ===========================================================================
@@ -170,8 +165,7 @@ def test_sqlite_upgrade_creates_then_downgrade_drops_emulability_tables() -> Non
         # Precondition: neither table exists yet.
         before = set(inspect(engine).get_table_names())
         assert _EMULABILITY_TABLES.isdisjoint(before), (
-            f"emulability tables already present before upgrade: "
-            f"{_EMULABILITY_TABLES & before}"
+            f"emulability tables already present before upgrade: {_EMULABILITY_TABLES & before}"
         )
 
         # Drive the REAL upgrade.
@@ -180,8 +174,7 @@ def test_sqlite_upgrade_creates_then_downgrade_drops_emulability_tables() -> Non
         after_up = set(inspect(engine).get_table_names())
         # The migration created exactly these two tables and nothing else.
         assert after_up - before == _EMULABILITY_TABLES, (
-            f"upgrade created unexpected tables: "
-            f"{after_up - before - _EMULABILITY_TABLES}"
+            f"upgrade created unexpected tables: {after_up - before - _EMULABILITY_TABLES}"
         )
 
         inspector = inspect(engine)
@@ -194,9 +187,7 @@ def test_sqlite_upgrade_creates_then_downgrade_drops_emulability_tables() -> Non
         )
 
         # container_emulability carries the UNIQUE(campaign_id) idempotency key.
-        unique_constraints = inspector.get_unique_constraints(
-            "container_emulability"
-        )
+        unique_constraints = inspector.get_unique_constraints("container_emulability")
         has_campaign_unique = any(
             uc["column_names"] == ["campaign_id"] for uc in unique_constraints
         )
@@ -241,8 +232,7 @@ def test_sqlite_upgrade_creates_then_downgrade_drops_emulability_tables() -> Non
         # Clean up∘down identity (Req. 9.3): both tables are gone and the schema
         # is the pre-upgrade empty schema.
         assert _EMULABILITY_TABLES.isdisjoint(after_down), (
-            f"emulability tables survived downgrade: "
-            f"{_EMULABILITY_TABLES & after_down}"
+            f"emulability tables survived downgrade: {_EMULABILITY_TABLES & after_down}"
         )
         assert after_down == before, (
             "downgrade did not restore the exact pre-upgrade schema "

@@ -28,18 +28,16 @@ _Requirements: 2.3, 3.4, 3.5_
 from __future__ import annotations
 
 import subprocess
-from collections.abc import Iterator
-from typing import Callable
+from collections.abc import Callable, Iterator
 
 import pytest
 
 from app.services.environment.compose_executor import (
+    LAB_SERVICES,
     ComposeExecutor,
     DockerComposeExecutor,
     LogLine,
-    LAB_SERVICES,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fake subprocess (no real process, no Docker daemon, no shell)
@@ -64,7 +62,7 @@ class _FakeStdout:
         self._iter = iter([f"{line}\n" for line in lines])
         self.closed = False
 
-    def __iter__(self) -> "_FakeStdout":
+    def __iter__(self) -> _FakeStdout:
         return self
 
     def __next__(self) -> str:
@@ -102,9 +100,7 @@ class _FakePopen:
         return self._codigo
 
 
-def _fake_popen_factory(
-    lines: list[str], code: int
-) -> Callable[..., _FakePopen]:
+def _fake_popen_factory(lines: list[str], code: int) -> Callable[..., _FakePopen]:
     """Fábrica de ``Popen`` falso ligando ``lines``/``code`` roteirizados."""
 
     def _factory(argv: list[str], **kwargs: object) -> _FakePopen:
@@ -143,7 +139,7 @@ def test_bring_up_success_routes_lines_in_order_with_code_zero(
 
     assert result.code == 0
     # As lines de stdout coletadas (fora a line "command") preservam a ordem.
-    stdout_texts = [l.text for l in coletor if l.stream == "stdout"]
+    stdout_texts = [line.text for line in coletor if line.stream == "stdout"]
     assert stdout_texts == output
     # ``result.lines`` espelha o que foi empurrado por ``on_log``.
     assert result.lines == coletor
@@ -163,7 +159,7 @@ def test_bring_up_failure_propagates_nonzero_exit_code(
 
     assert result.code == 1
     # Mesmo em failure, as lines emitidas são roteadas (para a tela/console).
-    assert [l.text for l in coletor if l.stream == "stdout"] == output
+    assert [line.text for line in coletor if line.stream == "stdout"] == output
 
 
 def test_bring_up_streaming_order_command_before_stdout(
@@ -178,14 +174,14 @@ def test_bring_up_streaming_order_command_before_stdout(
         "docker/docker-compose.yml", on_log=coletor.append
     )
 
-    fluxos = [l.stream for l in coletor]
+    fluxos = [line.stream for line in coletor]
     # Exatamente uma line de comando, e ela é a PRIMEIRA.
     assert fluxos[0] == "comando"
     assert fluxos.count("comando") == 1
     # Em seguida, as lines de stdout na ordem exata de emissão.
-    assert [l.text for l in coletor[1:]] == output
+    assert [line.text for line in coletor[1:]] == output
     # Toda a sequência é da step "subir_conteineres".
-    assert all(l.step == "subir_conteineres" for l in coletor)
+    assert all(line.step == "subir_conteineres" for line in coletor)
 
 
 def test_bring_up_argv_names_only_lab_services(
@@ -241,7 +237,7 @@ def test_bring_up_docker_absent_fail_closed_code_127(
     assert result.code == 127
     # A causa é reportada como uma line de stderr, após a line "comando".
     assert coletor[0].stream == "comando"
-    assert any(l.stream == "stderr" for l in coletor)
+    assert any(line.stream == "stderr" for line in coletor)
 
 
 # ---------------------------------------------------------------------------
@@ -339,9 +335,7 @@ def test_derrubar_nunca_inclui_rmi_preserva_imagem(
     grav = _GravadorPopen(code=0)
     monkeypatch.setattr(subprocess, "Popen", grav)
 
-    DockerComposeExecutor().down(
-        "docker/docker-compose.yml", on_log=coletor.append
-    )
+    DockerComposeExecutor().down("docker/docker-compose.yml", on_log=coletor.append)
 
     assert len(grav.argvs) == 1
     down = grav.argvs[0]
@@ -380,7 +374,7 @@ def test_caldera_engine_contract_pins_the_fixed_image() -> None:
     # A imagem registrada da engine é EXATAMENTE a pinada no mapa do lab —
     # construída uma vez a partir do fonte (`ops/docker/.docker/caldera`).
     assert CALDERA_ENGINE_IMAGE == "sticks-caldera-attacker:latest"
-    assert CALDERA_ENGINE_IMAGE == LAB_IMAGES[CALDERA_SERVICE]
+    assert LAB_IMAGES[CALDERA_SERVICE] == CALDERA_ENGINE_IMAGE
 
 
 def test_caldera_image_present_is_reused_never_rebuilt(
@@ -388,7 +382,6 @@ def test_caldera_image_present_is_reused_never_rebuilt(
 ) -> None:
     """Imagem da Caldera já construída -> reuso (``up --no-build``, sem ``build``).
     _Requirements: 12.2, 11.2_"""
-    from app.services.environment.compose_executor import CALDERA_ENGINE_IMAGE
 
     grav = _GravadorPopen(code=0)
     monkeypatch.setattr(subprocess, "Popen", grav)
@@ -438,9 +431,7 @@ def test_caldera_image_survives_teardown_for_reuse(
     grav = _GravadorPopen(code=0)
     monkeypatch.setattr(subprocess, "Popen", grav)
 
-    DockerComposeExecutor().down(
-        "docker/docker-compose.yml", on_log=coletor.append
-    )
+    DockerComposeExecutor().down("docker/docker-compose.yml", on_log=coletor.append)
 
     assert len(grav.argvs) == 1
     down = grav.argvs[0]

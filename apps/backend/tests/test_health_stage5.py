@@ -31,8 +31,6 @@ _Requirements: 5.1_
 
 from __future__ import annotations
 
-import pytest
-
 from app.services.environment.health import (
     ContainerStateInfo,
     ContainerStateInspector,
@@ -41,7 +39,6 @@ from app.services.environment.health import (
     HealthVerdict,
     check_health,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fake inspector (no Docker daemon, no network, pure in-memory)
@@ -95,19 +92,13 @@ def test_all_healthy_approved() -> None:
             "caldera-attacker": ContainerStateInfo(
                 name="caldera-attacker", running=True, health="healthy"
             ),
-            "nginx-target": ContainerStateInfo(
-                name="nginx-target", running=True, health="healthy"
-            ),
+            "nginx-target": ContainerStateInfo(name="nginx-target", running=True, health="healthy"),
             # Serviço sem healthcheck: running basta, healthy=None.
-            "kali-attacker": ContainerStateInfo(
-                name="kali-attacker", running=True, health=None
-            ),
+            "kali-attacker": ContainerStateInfo(name="kali-attacker", running=True, health=None),
         }
     )
 
-    resumo = check_health(
-        ["caldera-attacker", "nginx-target", "kali-attacker"], inspector
-    )
+    resumo = check_health(["caldera-attacker", "nginx-target", "kali-attacker"], inspector)
 
     assert resumo.approved is True
     assert resumo.unhealthy == []
@@ -124,9 +115,7 @@ def test_one_not_running_fails_with_reason() -> None:
             "caldera-attacker": ContainerStateInfo(
                 name="caldera-attacker", running=True, health="healthy"
             ),
-            "nginx-target": ContainerStateInfo(
-                name="nginx-target", running=False, health=None
-            ),
+            "nginx-target": ContainerStateInfo(name="nginx-target", running=False, health=None),
         }
     )
 
@@ -173,9 +162,7 @@ def test_without_healthcheck_health_none_does_not_fail() -> None:
     _Requirements: 5.1_"""
     inspector = FakeStateInspector(
         {
-            "kali-attacker": ContainerStateInfo(
-                name="kali-attacker", running=True, health=None
-            ),
+            "kali-attacker": ContainerStateInfo(name="kali-attacker", running=True, health=None),
         }
     )
 

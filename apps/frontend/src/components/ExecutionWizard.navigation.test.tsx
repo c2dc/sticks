@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import { screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 
@@ -36,8 +36,8 @@ vi.mock("@/components/BaseStixView", async () => {
       onCompletionChange?: (ok: boolean) => void
     }) => {
       // Start with version 18.0 chosen (the Researcher picked it in the base list).
-      ue(() => { onVersionSelected?.("18.0") }, []) // eslint-disable-line
-      ue(() => { onCompletionChange?.(true) }, [version]) // eslint-disable-line
+      ue(() => { onVersionSelected?.("18.0") }, [])
+      ue(() => { onCompletionChange?.(true) }, [version])
       return (
         <div data-testid="base-stix-view">
           <span data-testid="base-version">{version ?? "no-version"}</span>

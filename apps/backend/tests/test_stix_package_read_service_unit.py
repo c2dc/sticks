@@ -57,7 +57,6 @@ from app.services.stix.stix_package_read_service import (
     StixPackageReadService,
 )
 
-
 # ---------------------------------------------------------------------------
 # Ephemeral DB fixture: a SQLite engine on a temporary file with the full
 # schema via Base.metadata.create_all (same pattern as
@@ -170,9 +169,7 @@ def test_package_overview_from_seeded_rows(session: Session) -> None:
     assert overview.downloaded_at == downloaded_at.isoformat() + "Z"
 
     # The counts list mirrors every seeded type-count row.
-    returned = {
-        (c.stix_type, c.label, c.count, c.description) for c in overview.counts
-    }
+    returned = {(c.stix_type, c.label, c.count, c.description) for c in overview.counts}
     assert returned == set(type_counts)
 
     # Totals: campaigns/actors from child rows; the rest from per-type counts.
@@ -321,12 +318,8 @@ def test_campaign_overview_happy_path_no_leakage(session: Session) -> None:
     )
 
     # Actors: one attributed to the target, one to the other.
-    target_actor = StixActor(
-        package_id=package.id, stix_id="intrusion-set--t", name="Target Actor"
-    )
-    other_actor = StixActor(
-        package_id=package.id, stix_id="intrusion-set--o", name="Other Actor"
-    )
+    target_actor = StixActor(package_id=package.id, stix_id="intrusion-set--t", name="Target Actor")
+    other_actor = StixActor(package_id=package.id, stix_id="intrusion-set--o", name="Other Actor")
     session.add_all([target_actor, other_actor])
     session.flush()
     session.add_all(
@@ -337,9 +330,7 @@ def test_campaign_overview_happy_path_no_leakage(session: Session) -> None:
     )
     session.commit()
 
-    overview = StixPackageReadService(session).campaign_overview(
-        "18.0", "target-campaign"
-    )
+    overview = StixPackageReadService(session).campaign_overview("18.0", "target-campaign")
 
     # Identity + aliases of the target campaign.
     assert overview.campaign_key == "target-campaign"
@@ -355,9 +346,7 @@ def test_campaign_overview_happy_path_no_leakage(session: Session) -> None:
     assert {t.technique_id for t in overview.techniques} == {"T1059", "T1071"}
 
     # Only the target's actor (no leakage of the other campaign's actor).
-    assert [(a.stix_id, a.name) for a in overview.actors] == [
-        ("intrusion-set--t", "Target Actor")
-    ]
+    assert [(a.stix_id, a.name) for a in overview.actors] == [("intrusion-set--t", "Target Actor")]
 
 
 # ---------------------------------------------------------------------------

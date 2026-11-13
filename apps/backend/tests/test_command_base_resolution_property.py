@@ -38,6 +38,7 @@ conjunto de comandos para uma técnica porque ambos passam pela mesma
 
 from __future__ import annotations
 
+import contextlib
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -52,7 +53,6 @@ from app.db.session import create_db_engine
 from app.models.domain import TechniqueCommand
 from app.services.ai.memory import ExperienceMemory
 from app.services.command_base import CommandBase, CommandSuggestion
-
 
 # ---------------------------------------------------------------------------
 # Ephemeral session helper (fresh temp-file SQLite + ORM schema per example).
@@ -126,12 +126,10 @@ class _FakeMemory(ExperienceMemory):
 
     def __init__(self, hits_by_technique: dict[str, list[dict[str, Any]]]) -> None:
         # No session/embedder needed: retrieve is fully overridden.
-        super().__init__(session=None, embedder=_FakeEmbedder())  # type: ignore[arg-type]
+        super().__init__(session=None, embedder=_FakeEmbedder())  # type: ignore[arg-type] -- test double stands in for the real collaborator
         self._hits_by_technique = hits_by_technique
 
-    def retrieve(
-        self, *, campaign_id: str, query: str, k: int = 5
-    ) -> list[dict[str, Any]]:
+    def retrieve(self, *, campaign_id: str, query: str, k: int = 5) -> list[dict[str, Any]]:
         return list(self._hits_by_technique.get(query, []))[:k]
 
 
@@ -266,9 +264,7 @@ def test_command_base_resolves_exact_then_similarity(data: st.DataObject) -> Non
             # Technique WITH exact rows → ONLY exact suggestions (Req. 7.4, 12.1).
             assert suggestions, "expected exact suggestions for a mapped technique"
             assert all(s.exact is True for s in suggestions)
-            assert {s.command for s in suggestions} == {
-                r["command"] for r in exact_rows
-            }
+            assert {s.command for s in suggestions} == {r["command"] for r in exact_rows}
             assert all(s.technique_id == technique_id for s in suggestions)
             # has_command_for is True whenever a backing command exists.
             assert command_base.has_command_for(technique_id) is True
@@ -282,10 +278,8 @@ def test_command_base_resolves_exact_then_similarity(data: st.DataObject) -> Non
             assert command_base.has_command_for(technique_id) is bool(similarity_hits)
     finally:
         _dispose(session, engine)
-        try:
+        with contextlib.suppress(OSError):
             db_path.unlink(missing_ok=True)
-        except OSError:
-            pass
 
 
 # ---------------------------------------------------------------------------
@@ -332,10 +326,8 @@ def test_flow_and_op_agents_obtain_same_command_set() -> None:
         assert all(s.exact is True for s in flow_agent_commands)
     finally:
         _dispose(session, engine)
-        try:
+        with contextlib.suppress(OSError):
             db_path.unlink(missing_ok=True)
-        except OSError:
-            pass
 
 
 # ---------------------------------------------------------------------------
@@ -347,9 +339,7 @@ def test_flow_and_op_agents_obtain_same_command_set() -> None:
 class _ExplodingMemory(_FakeMemory):
     """Memory double that fails the test if the vector half is ever consulted."""
 
-    def retrieve(
-        self, *, campaign_id: str, query: str, k: int = 5
-    ) -> list[dict[str, Any]]:
+    def retrieve(self, *, campaign_id: str, query: str, k: int = 5) -> list[dict[str, Any]]:
         raise AssertionError("exact_commands_for must not consult ExperienceMemory")
 
 
@@ -360,19 +350,43 @@ def test_exact_commands_for_batch_is_exact_ordered_and_memory_free() -> None:
             session,
             "T1059",
             [
-                {"command": "b-first", "executor": "sh", "platform": "linux", "source": "atomic_red_team"},
-                {"command": "a-second", "executor": "sh", "platform": "linux", "source": "atomic_red_team"},
+                {
+                    "command": "b-first",
+                    "executor": "sh",
+                    "platform": "linux",
+                    "source": "atomic_red_team",
+                },
+                {
+                    "command": "a-second",
+                    "executor": "sh",
+                    "platform": "linux",
+                    "source": "atomic_red_team",
+                },
             ],
         )
         _seed_exact(
             session,
             "T1003",
-            [{"command": "dump", "executor": "cmd", "platform": "windows", "source": "atomic_red_team"}],
+            [
+                {
+                    "command": "dump",
+                    "executor": "cmd",
+                    "platform": "windows",
+                    "source": "atomic_red_team",
+                }
+            ],
         )
         _seed_exact(
             session,
             "T9999",
-            [{"command": "outside", "executor": "sh", "platform": "linux", "source": "atomic_red_team"}],
+            [
+                {
+                    "command": "outside",
+                    "executor": "sh",
+                    "platform": "linux",
+                    "source": "atomic_red_team",
+                }
+            ],
         )
         command_base = CommandBase(session, memory=_ExplodingMemory({}))
 
@@ -389,7 +403,5 @@ def test_exact_commands_for_batch_is_exact_ordered_and_memory_free() -> None:
         assert command_base.exact_commands_for([]) == {}
     finally:
         _dispose(session, engine)
-        try:
+        with contextlib.suppress(OSError):
             db_path.unlink(missing_ok=True)
-        except OSError:
-            pass

@@ -55,9 +55,11 @@ degrades to an empty experience set when the memory is unreachable (Requirement
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import logging
-from typing import Any, Optional, Protocol, runtime_checkable
+from collections.abc import Sequence
+from typing import Any, Protocol, runtime_checkable
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -155,7 +157,7 @@ class ExperienceMemory:
     fine-tuning, no model-weight modification (Requirement 5.6).
     """
 
-    def __init__(self, session: Session, *, embedder: Optional[Embedder] = None):
+    def __init__(self, session: Session, *, embedder: Embedder | None = None):
         self._session = session
         self._embedder = embedder
 
@@ -169,14 +171,11 @@ class ExperienceMemory:
         """
         if self._embedder is None:
             raise ValueError(
-                "ExperienceMemory requires an 'embedder' to embed text; none "
-                "was injected."
+                "ExperienceMemory requires an 'embedder' to embed text; none was injected."
             )
         return self._embedder
 
-    def retrieve(
-        self, *, campaign_id: str, query: str, k: int = 5
-    ) -> list[dict[str, Any]]:
+    def retrieve(self, *, campaign_id: str, query: str, k: int = 5) -> list[dict[str, Any]]:
         """Cosine-similarity top-k over pgvector, excluding the current campaign.
 
         Embeds ``query`` and returns at most ``k`` past curation snippets ordered
@@ -213,9 +212,7 @@ class ExperienceMemory:
             stmt = (
                 select(ExperienceMemoryRow)
                 .where(ExperienceMemoryRow.campaign_id != campaign_id)
-                .order_by(
-                    ExperienceMemoryRow.embedding.cosine_distance(query_embedding)
-                )
+                .order_by(ExperienceMemoryRow.embedding.cosine_distance(query_embedding))
                 .limit(k)
             )
             rows = self._session.execute(stmt).scalars().all()
@@ -224,7 +221,7 @@ class ExperienceMemory:
             # A caller/embedder-provided out-of-range signal is a real error and
             # must not be swallowed as an availability degradation.
             raise
-        except Exception as exc:  # noqa: BLE001 - degrade on any unavailability
+        except Exception as exc:  # noqa: BLE001 -- degrade on any unavailability
             # The experience memory (embedder/pgvector/session) is unreachable:
             # continue with an empty experience set and record the skip so the
             # run proceeds without RAG priming (Requirement 5.7).
@@ -255,17 +252,16 @@ class ExperienceMemory:
         ``report`` and ``evaluation`` so the outcome record is preserved
         (Requirement 5.2).
         """
-        last_exc: Optional[Exception] = None
+        last_exc: Exception | None = None
 
         for attempt in range(1, _STORE_MAX_ATTEMPTS + 1):
             try:
                 self._store_once(campaign_id, report, evaluation)
                 return
-            except Exception as exc:  # noqa: BLE001 - retry on any store failure
+            except Exception as exc:  # noqa: BLE001 -- retry on any store failure
                 last_exc = exc
                 logger.warning(
-                    "Storing curation outcome for campaign %s failed on attempt "
-                    "%d/%d (%s: %s).",
+                    "Storing curation outcome for campaign %s failed on attempt %d/%d (%s: %s).",
                     campaign_id,
                     attempt,
                     _STORE_MAX_ATTEMPTS,
@@ -274,10 +270,8 @@ class ExperienceMemory:
                 )
                 # Roll back the aborted unit of work so the next attempt starts
                 # from a clean session state rather than a poisoned transaction.
-                try:
+                with contextlib.suppress(Exception):  # best-effort cleanup
                     self._session.rollback()
-                except Exception:  # noqa: BLE001 - best-effort cleanup
-                    pass
 
         # All retries exhausted: report the failure while preserving the
         # original outcome record on the exception (Requirement 5.2).
@@ -321,11 +315,11 @@ class ExperienceMemory:
         *,
         kind: str,
         content: str,
-        metadata: Optional[dict[str, Any]] = None,
-        campaign_id: Optional[str] = None,
+        metadata: dict[str, Any] | None = None,
+        campaign_id: str | None = None,
         stage: Any = None,
         outcome: str = "success",
-        dedup_key: Optional[str] = None,
+        dedup_key: str | None = None,
     ) -> bool:
         """Store one associative-knowledge row in ``experience_memory`` (idempotent).
 
@@ -350,9 +344,7 @@ class ExperienceMemory:
         ``metadata`` alongside ``kind`` and ``dedup_key``.
         """
         if kind not in AFFINITY_KINDS:
-            raise ValueError(
-                f"store_affinity kind={kind!r} is not one of {AFFINITY_KINDS}."
-            )
+            raise ValueError(f"store_affinity kind={kind!r} is not one of {AFFINITY_KINDS}.")
 
         resolved_key = dedup_key or self.content_dedup_key(content)
 
@@ -385,6 +377,74 @@ class ExperienceMemory:
         )
         self._session.flush()
         return True
+
+    def store_affinities(
+        self,
+        *,
+        kind: str,
+        entries: Sequence[tuple[str, dict[str, Any], str]],
+        campaign_id: str | None = None,
+        stage: Any = None,
+        outcome: str = "success",
+    ) -> int:
+        """Batch form of :meth:`store_affinity`; returns the number of rows inserted.
+
+        ``entries`` are ``(content, metadata, dedup_key)`` tuples. Entries whose
+        ``dedup_key`` is already stored (or repeated inside the batch) are
+        skipped, the remaining contents are embedded with ONE ``embed_many``
+        call when the injected embedder offers it (else one ``embed`` per text)
+        and inserted with a single flush. Any embedder error propagates before
+        anything is added, so a failed batch leaves the session untouched and the
+        caller may retry the entries one by one with :meth:`store_affinity`.
+        """
+        if kind not in AFFINITY_KINDS:
+            raise ValueError(f"store_affinities kind={kind!r} is not one of {AFFINITY_KINDS}.")
+        if not entries:
+            return 0
+
+        from app.models.domain import ExperienceMemory as ExperienceMemoryRow
+
+        keys = [key for _, _, key in entries]
+        stored = {
+            key
+            for (key,) in self._session.execute(
+                select(ExperienceMemoryRow.meta["dedup_key"].as_string()).where(
+                    ExperienceMemoryRow.meta["dedup_key"].as_string().in_(keys)
+                )
+            )
+        }
+        pending: list[tuple[str, dict[str, Any], str]] = []
+        for content, metadata, key in entries:
+            if key in stored:
+                continue
+            stored.add(key)
+            pending.append((content, metadata, key))
+        if not pending:
+            return 0
+
+        embedder = self._resolve_embedder()
+        texts = [content for content, _, _ in pending]
+        many = getattr(embedder, "embed_many", None)
+        vectors = many(texts) if callable(many) else [embedder.embed(t) for t in texts]
+        if len(vectors) != len(pending):
+            raise ValueError("embedder returned a different number of vectors.")
+
+        resolved_campaign = campaign_id or _AFFINITY_CAMPAIGN_ID
+        self._ensure_affinity_campaign(resolved_campaign)
+        resolved_stage = self._resolve_affinity_stage(stage)
+        self._session.add_all(
+            ExperienceMemoryRow(
+                campaign_id=resolved_campaign,
+                stage=resolved_stage,
+                outcome=outcome,
+                content=content,
+                embedding=vector,
+                meta={**metadata, "kind": kind, "dedup_key": key},
+            )
+            for (content, metadata, key), vector in zip(pending, vectors, strict=False)
+        )
+        self._session.flush()
+        return len(pending)
 
     @staticmethod
     def content_dedup_key(content: str) -> str:
@@ -521,14 +581,10 @@ class ExperienceMemory:
         return AgentStage.OPERATIONALIZATION
 
     @staticmethod
-    def _build_metadata(
-        report: dict[str, Any], evaluation: dict[str, Any]
-    ) -> dict[str, Any]:
+    def _build_metadata(report: dict[str, Any], evaluation: dict[str, Any]) -> dict[str, Any]:
         """Assemble the retrieval-filtering metadata (technique, verdict, metrics)."""
         return {
-            "verdict_success": report.get(
-                "verdict_success", report.get("success_verdict")
-            ),
+            "verdict_success": report.get("verdict_success", report.get("success_verdict")),
             "metrics": report.get("metrics"),
             "decision": evaluation.get("decision"),
         }

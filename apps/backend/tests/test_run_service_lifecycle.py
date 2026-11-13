@@ -36,6 +36,7 @@ _Requirements: 4.2, 11.4, 11.7, 14.1, 14.2, 14.6_
 
 from __future__ import annotations
 
+import contextlib
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -109,10 +110,8 @@ def session() -> Any:
     finally:
         sess.close()
         engine.dispose()
-        try:
+        with contextlib.suppress(OSError):
             db_path.unlink()
-        except OSError:
-            pass
 
 
 # ---------------------------------------------------------------------------
@@ -147,21 +146,15 @@ class _SepinfTimeoutError(RuntimeError):
     """A SEPINF transport error carrying no ``node`` attribute (unreachable/timeout)."""
 
 
-def _install_fake_graph(
-    monkeypatch: pytest.MonkeyPatch, graph: _FakeGraph
-) -> None:
+def _install_fake_graph(monkeypatch: pytest.MonkeyPatch, graph: _FakeGraph) -> None:
     """Patch ``_build_graph`` so the service invokes ``graph`` and probes pass.
 
     The dependency-availability probe is replaced by a no-op so the test never
     needs a real checkpointer/pgvector; the lifecycle under test is the graph
     invocation and persistence, not the probe (covered elsewhere).
     """
-    monkeypatch.setattr(
-        AgentRunService, "_build_graph", lambda self: graph, raising=True
-    )
-    monkeypatch.setattr(
-        AgentRunService, "_require_dependencies", lambda self: None, raising=True
-    )
+    monkeypatch.setattr(AgentRunService, "_build_graph", lambda self: graph, raising=True)
+    monkeypatch.setattr(AgentRunService, "_require_dependencies", lambda self: None, raising=True)
 
 
 def _passing_final_state() -> dict:
@@ -193,9 +186,7 @@ def _aborted_final_state(max_iterations: int = 2) -> dict:
 # ===========================================================================
 
 
-def test_thread_id_is_non_empty(
-    session: Session, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_thread_id_is_non_empty(session: Session, monkeypatch: pytest.MonkeyPatch) -> None:
     """``start`` stamps every run with a non-empty ``thread_id`` (Req. 11.4)."""
     _install_fake_graph(monkeypatch, _FakeGraph(final_state=_passing_final_state()))
 
@@ -205,9 +196,7 @@ def test_thread_id_is_non_empty(
     assert run.thread_id != ""
 
 
-def test_thread_id_is_unique_across_runs(
-    session: Session, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_thread_id_is_unique_across_runs(session: Session, monkeypatch: pytest.MonkeyPatch) -> None:
     """Separate runs receive distinct ``thread_id`` values (Req. 4.2, 11.4)."""
     _install_fake_graph(monkeypatch, _FakeGraph(final_state=_passing_final_state()))
     svc = AgentRunService(session)
@@ -263,9 +252,7 @@ def test_start_marks_aborted_when_guard_stops_without_verdict(
     session: Session, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A loop stopped at the guard without a passing verdict is ABORTED (Req. 3.4)."""
-    _install_fake_graph(
-        monkeypatch, _FakeGraph(final_state=_aborted_final_state(max_iterations=2))
-    )
+    _install_fake_graph(monkeypatch, _FakeGraph(final_state=_aborted_final_state(max_iterations=2)))
 
     run = AgentRunService(session).start(_CAMPAIGN_ID, max_iterations=2)
 
@@ -302,23 +289,15 @@ def _op_artifact_final_state() -> dict:
     completed iteration; the rollback tests make that call raise.
     """
     state = _passing_final_state()
-    state["artifacts"] = {
-        "operationalization": {"origin": "ai_generated", "nodes": []}
-    }
+    state["artifacts"] = {"operationalization": {"origin": "ai_generated", "nodes": []}}
     return state
 
 
 def _count_rows(session: Session) -> tuple[int, int, int]:
     """Return (agent_iterations, agent_stage_outputs, agent_evaluations) counts."""
-    iterations = session.execute(
-        select(func.count()).select_from(AgentIteration)
-    ).scalar_one()
-    outputs = session.execute(
-        select(func.count()).select_from(AgentStageOutput)
-    ).scalar_one()
-    evaluations = session.execute(
-        select(func.count()).select_from(AgentEvaluation)
-    ).scalar_one()
+    iterations = session.execute(select(func.count()).select_from(AgentIteration)).scalar_one()
+    outputs = session.execute(select(func.count()).select_from(AgentStageOutput)).scalar_one()
+    evaluations = session.execute(select(func.count()).select_from(AgentEvaluation)).scalar_one()
     return iterations, outputs, evaluations
 
 
@@ -332,9 +311,7 @@ def test_partial_persistence_rolls_back_and_raises(
     forces the nested transaction to roll back so NO iteration / stage-output /
     evaluation rows survive, and a PersistenceError is raised.
     """
-    _install_fake_graph(
-        monkeypatch, _FakeGraph(final_state=_op_artifact_final_state())
-    )
+    _install_fake_graph(monkeypatch, _FakeGraph(final_state=_op_artifact_final_state()))
 
     from app.services.ai.agents import op_agent
 
@@ -359,17 +336,13 @@ def test_partial_persistence_leaves_no_evaluation_row(
     evaluation persist raise must roll BOTH of them back too (atomic iteration),
     leaving zero rows across all three tables (Req. 11.7).
     """
-    _install_fake_graph(
-        monkeypatch, _FakeGraph(final_state=_op_artifact_final_state())
-    )
+    _install_fake_graph(monkeypatch, _FakeGraph(final_state=_op_artifact_final_state()))
 
     from app.services.ai.agents import evaluator, op_agent
 
     # Let the stage output "persist" without error so the evaluation is the sole
     # failure point, proving the already-written rows are rolled back with it.
-    monkeypatch.setattr(
-        op_agent, "persist_stage_output", lambda *a, **k: None, raising=True
-    )
+    monkeypatch.setattr(op_agent, "persist_stage_output", lambda *a, **k: None, raising=True)
 
     def _boom(*_a: Any, **_k: Any) -> None:
         raise RuntimeError("simulated evaluation persistence failure")
@@ -418,9 +391,7 @@ def test_flow_generation_error_marks_run_failed_naming_node(
     """A FlowGenerationError names the failing node ``"flow"`` on FAILED (Req. 14.4)."""
     from app.services.ai.agents.flow_agent import FlowGenerationError
 
-    graph = _FakeGraph(
-        raises=FlowGenerationError("unparseable after one repair", node="flow")
-    )
+    graph = _FakeGraph(raises=FlowGenerationError("unparseable after one repair", node="flow"))
     _install_fake_graph(monkeypatch, graph)
 
     with pytest.raises(RunFailedError) as excinfo:

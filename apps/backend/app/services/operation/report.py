@@ -47,7 +47,7 @@ _Requirements: 3.4, 3.5_
 from __future__ import annotations
 
 import datetime as dt
-from typing import Optional, Sequence
+from collections.abc import Sequence
 
 from pydantic import BaseModel, Field
 from sqlalchemy import select
@@ -103,14 +103,14 @@ class ExecutionReportView(BaseModel):
             a terminal state (invariant d).
     """
 
-    operation_id: Optional[int] = None
+    operation_id: int | None = None
     total_techniques: int = 0
     total_success: int = 0
     total_failure: int = 0
     success_rate: float = 0.0
     success_verdict: bool = False
     failed_nodes: list[str] = Field(default_factory=list)
-    per_ability: list["AbilityReportEntry"] = Field(default_factory=list)
+    per_ability: list[AbilityReportEntry] = Field(default_factory=list)
 
 
 class AbilityReportEntry(BaseModel):
@@ -188,7 +188,7 @@ class ReportBuilder:
     def _derive(
         self,
         *,
-        operation_id: Optional[int],
+        operation_id: int | None,
         results: Sequence[AbilityResult],
     ) -> ExecutionReportView:
         """Derive the consistency-checked view from the per-Ability results.
@@ -217,9 +217,7 @@ class ReportBuilder:
             if result.status is AbilityResultStatus.SUCCESS:
                 total_success += 1
                 per_ability.append(
-                    AbilityReportEntry(
-                        ability_id=ability_id, status=AbilityResultStatus.SUCCESS
-                    )
+                    AbilityReportEntry(ability_id=ability_id, status=AbilityResultStatus.SUCCESS)
                 )
             else:
                 # Normalize non-success (incl. non-terminal) to ``falha`` so a
@@ -228,9 +226,7 @@ class ReportBuilder:
                 total_failure += 1
                 failed_nodes.append(ability_id)
                 per_ability.append(
-                    AbilityReportEntry(
-                        ability_id=ability_id, status=AbilityResultStatus.FAILURE
-                    )
+                    AbilityReportEntry(ability_id=ability_id, status=AbilityResultStatus.FAILURE)
                 )
 
         total = total_success + total_failure
@@ -254,7 +250,7 @@ class ReportBuilder:
 
     # -- persistence (Req. 3.5) ----------------------------------------------
 
-    def _load_results(self, operation_id: Optional[int]) -> list[AbilityResult]:
+    def _load_results(self, operation_id: int | None) -> list[AbilityResult]:
         """Load the Operation's persisted per-Ability results, in insertion order.
 
         Returns an empty list when the Operation has no id (not yet persisted),
@@ -279,19 +275,17 @@ class ReportBuilder:
         per campaign is maintained (latest-execution-wins upsert).
         """
         campaign_id = operation.campaign_id
-        assert campaign_id is not None  # guarded by the caller
+        assert campaign_id is not None  # guarded by the caller  # noqa: S101 -- type narrowing; guarded by the caller
 
         existing = list(
             self._session.execute(
-                select(ExecutionReport).where(
-                    ExecutionReport.campaign_id == campaign_id
-                )
+                select(ExecutionReport).where(ExecutionReport.campaign_id == campaign_id)
             )
             .scalars()
             .all()
         )
 
-        row: Optional[ExecutionReport] = None
+        row: ExecutionReport | None = None
         for candidate in existing:
             # Stale state (divergent operation_id/schema) is discarded, never
             # reused or merged (Req. 3.5).

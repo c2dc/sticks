@@ -51,6 +51,7 @@ from app.services.caldera import (
     OPERATIONS_PATH,
     CalderaClient,
 )
+from app.services.containment.command_parser import parse_command
 from app.services.containment.isolation import (
     ContainerNetworkInfo,
     ContainerNotFound,
@@ -64,9 +65,7 @@ from app.services.containment.subnet_validator import (
     validate_abilities,
     validate_commands,
 )
-from app.services.containment.command_parser import parse_command
 from app.services.operation.runner import OperationRunner, RunOutcome
-
 
 # ===========================================================================
 # Shared fixtures: duck-typed Ability and curated-style commands
@@ -93,9 +92,7 @@ def _ability(ability_id: str, name: str, *commands: str) -> FakeAbility:
     return FakeAbility(
         ability_id=ability_id,
         name=name,
-        executors=tuple(
-            {"name": "sh", "platform": "linux", "command": cmd} for cmd in commands
-        ),
+        executors=tuple({"name": "sh", "platform": "linux", "command": cmd} for cmd in commands),
     )
 
 
@@ -160,9 +157,7 @@ class TestExternalDestinationBlocksOperation:
             (CMD_EXTERNAL_PIP, "pypi.org"),
         ],
     )
-    def test_external_command_refuses_ability(
-        self, command: str, external_marker: str
-    ) -> None:
+    def test_external_command_refuses_ability(self, command: str, external_marker: str) -> None:
         """Each concrete external command refuses its Ability and names the offender.
 
         Validates: Requirements 6.1, 6.2
@@ -320,9 +315,7 @@ class TestDestinationClassification:
             (CMD_INTERNAL_WGET, "192.168.30.30"),
         ],
     )
-    def test_internal_destinations_classified_internal(
-        self, command: str, value: str
-    ) -> None:
+    def test_internal_destinations_classified_internal(self, command: str, value: str) -> None:
         """Concrete internal-subnet destinations classify as INTERNAL.
 
         Validates: Requirements 6.1, 6.2
@@ -339,9 +332,7 @@ class TestDestinationClassification:
             (CMD_EXTERNAL_GIT_CLONE, "github.com"),
         ],
     )
-    def test_external_destinations_classified_external(
-        self, command: str, value: str
-    ) -> None:
+    def test_external_destinations_classified_external(self, command: str, value: str) -> None:
         """Concrete external destinations (host or public IP) classify as EXTERNAL.
 
         Validates: Requirements 6.1, 6.2
@@ -385,9 +376,7 @@ class FakeInspector:
 _KALI_NGINX_NET = NetworkInfo(
     name="kali-nginx-network", internal=True, subnets=("192.168.20.0/24",)
 )
-_NGINX_DB_NET = NetworkInfo(
-    name="nginx-db-network", internal=True, subnets=("192.168.30.0/24",)
-)
+_NGINX_DB_NET = NetworkInfo(name="nginx-db-network", internal=True, subnets=("192.168.30.0/24",))
 
 
 def _isolated_inspector() -> FakeInspector:
@@ -536,9 +525,7 @@ class RecordingCaldera:
         if method == "POST" and path == ABILITIES_PATH:
             return httpx.Response(200, json=json.loads(request.content.decode("utf-8")))
         if method == "POST" and path == OPERATIONS_PATH:
-            return httpx.Response(
-                200, json={"id": "op-sec", "name": "run", "state": "running"}
-            )
+            return httpx.Response(200, json={"id": "op-sec", "name": "run", "state": "running"})
         if method == "GET" and path == f"{OPERATIONS_PATH}/op-sec":
             return httpx.Response(
                 200,
@@ -563,8 +550,7 @@ def _isolated_verifier(containers: list[str], _inspector: object):
     from app.services.containment.isolation import ContainerIsolationVerdict, IsolationResult
 
     verdicts = tuple(
-        ContainerIsolationVerdict(container=name, isolated=True, reasons=())
-        for name in containers
+        ContainerIsolationVerdict(container=name, isolated=True, reasons=()) for name in containers
     )
     return IsolationResult(passed=True, verdicts=verdicts)
 
@@ -655,9 +641,7 @@ class TestNoExecutionWithoutConfirmation:
         finally:
             caldera.close()
 
-    def test_cancelled_request_via_none_executes_nothing(
-        self, ephemeral_session
-    ) -> None:
+    def test_cancelled_request_via_none_executes_nothing(self, ephemeral_session) -> None:
         """A cancelled/absent confirmation (None) also executes nothing.
 
         The runner requires ``confirmed is True`` exactly, so a ``None``
@@ -674,7 +658,7 @@ class TestNoExecutionWithoutConfirmation:
                 campaign_id="apt41_dust",
                 abilities=[_ability("a1", "Recon", CMD_INTERNAL_CURL)],
                 adversary_id="adv-2",
-                confirmed=None,  # type: ignore[arg-type]
+                confirmed=None,  # type: ignore[arg-type] -- deliberately invalid value to prove the fail-closed gate
                 target_containers=["nginx"],
             )
             assert result.outcome is RunOutcome.NOT_CONFIRMED
@@ -684,9 +668,7 @@ class TestNoExecutionWithoutConfirmation:
         finally:
             caldera.close()
 
-    def test_explicit_confirmation_runs_the_operation(
-        self, ephemeral_session
-    ) -> None:
+    def test_explicit_confirmation_runs_the_operation(self, ephemeral_session) -> None:
         """confirmed=True (all other gates open) starts and runs the Operation.
 
         This proves the gate that blocked the negative cases is *confirmation

@@ -28,6 +28,7 @@ from __future__ import annotations
 from typing import Sequence, Union
 
 import sqlalchemy as sa
+
 from alembic import op
 
 # revision identifiers, used by Alembic.
@@ -45,7 +46,7 @@ _SEED_VERSION = "18.0"
 
 def upgrade() -> None:
     bind = op.get_bind()
-    rows = bind.execute(sa.text(f"SELECT version, curated FROM {_TABLE}")).all()
+    rows = bind.execute(sa.text(f"SELECT version, curated FROM {_TABLE}")).all()  # noqa: S608 -- table name is a module constant
     unexpected = [r for r in rows if not (r[0] == _SEED_VERSION and bool(r[1]))]
     if unexpected:
         raise RuntimeError(

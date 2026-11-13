@@ -49,9 +49,9 @@ class DestinationKind(str, enum.Enum):
     domain enums in :mod:`app.models.enums`.
     """
 
-    IP = "ip"          # bare IPv4 literal, e.g. 192.168.20.30
-    HOST = "host"      # hostname, e.g. nmap.org or the host part of user@host
-    URL = "url"        # full URL, e.g. http://192.168.20.30:5055/exec
+    IP = "ip"  # bare IPv4 literal, e.g. 192.168.20.30
+    HOST = "host"  # hostname, e.g. nmap.org or the host part of user@host
+    URL = "url"  # full URL, e.g. http://192.168.20.30:5055/exec
 
 
 @dataclass(frozen=True)
@@ -115,9 +115,7 @@ _URL_RE = re.compile(
 
 # ``user@host`` (host being an IP or hostname). Used for ssh/scp/rsync style
 # targets. Anchored so it is not confused with the userinfo of a matched URL.
-_USER_AT_HOST_RE = re.compile(
-    rf"(?P<user>[A-Za-z0-9._-]+)@(?P<host>{_IPV4}|{_HOSTNAME})"
-)
+_USER_AT_HOST_RE = re.compile(rf"(?P<user>[A-Za-z0-9._-]+)@(?P<host>{_IPV4}|{_HOSTNAME})")
 
 # Bare IPv4 anywhere in a token (e.g. ``http://192.168.20.30:5055`` already
 # handled by the URL rule; this catches ``ping 192.168.20.30`` style bare IPs).

@@ -22,8 +22,6 @@ couple of frames without waiting, and ``max_frames`` to bound the loop.
 
 from __future__ import annotations
 
-from typing import Optional
-
 from fastapi import APIRouter, WebSocket
 
 from app.ws.channels import (
@@ -51,7 +49,7 @@ async def ws_operation(
     websocket: WebSocket,
     operation: int,
     interval: float = OPERATION_PUSH_INTERVAL_SECONDS,
-    max_frames: Optional[int] = None,
+    max_frames: int | None = None,
 ) -> None:
     """Operation-progress channel for an Operation (Req. 4.3, 4.4, 4.5).
 

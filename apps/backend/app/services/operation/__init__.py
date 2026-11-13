@@ -32,7 +32,7 @@ __all__ = [
     "AbilityRunResult",
     "ContainmentValidator",
     "IsolationVerifier",
-    "OperationRunner",
     "OperationRunResult",
+    "OperationRunner",
     "RunOutcome",
 ]

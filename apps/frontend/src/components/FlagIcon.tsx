@@ -16,14 +16,15 @@ type FlagProps = {
   title?: string
 }
 
-/** Bandeira do Brasil (verde, losango amarelo, círculo azul). */
+/** Flag of Brazil (green field, yellow rhombus, blue circle). Decorative unless a title is given. */
 export function FlagBR({ className, title }: FlagProps) {
   return (
     <svg
       viewBox="0 0 30 21"
       className={className}
-      role="img"
-      aria-label={title ?? "Brasil"}
+      role={title ? "img" : undefined}
+      aria-label={title}
+      aria-hidden={title ? undefined : true}
     >
       {title ? <title>{title}</title> : null}
       <rect width="30" height="21" fill="#009b3a" />
@@ -39,7 +40,7 @@ export function FlagBR({ className, title }: FlagProps) {
   )
 }
 
-/** Bandeira dos Estados Unidos (13 listras, cantão azul com estrelas). */
+/** Flag of the United States (13 stripes, blue canton with stars). Decorative unless a title is given. */
 export function FlagUS({ className, title }: FlagProps) {
   const stripes = Array.from({ length: 13 }, (_, i) => (
     <rect
@@ -54,8 +55,9 @@ export function FlagUS({ className, title }: FlagProps) {
     <svg
       viewBox="0 0 30 21"
       className={className}
-      role="img"
-      aria-label={title ?? "Estados Unidos"}
+      role={title ? "img" : undefined}
+      aria-label={title}
+      aria-hidden={title ? undefined : true}
     >
       {title ? <title>{title}</title> : null}
       {stripes}

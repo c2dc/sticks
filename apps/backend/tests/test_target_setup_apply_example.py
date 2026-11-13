@@ -20,8 +20,8 @@ Docker daemon, no subprocess, no shell); the production
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Callable
+from collections.abc import Callable
+from dataclasses import dataclass
 
 from app.services.environment.compose_executor import CommandResult, LogLine
 from app.services.environment.target_setup import (
@@ -29,7 +29,6 @@ from app.services.environment.target_setup import (
     DockerTargetSetup,
     SetupPhase,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fake ComposeExecutor recording exec_in calls (no Docker daemon, no shell)
@@ -84,7 +83,7 @@ def _mixed_commands() -> list[ClassifiedCommand]:
         ClassifiedCommand("useradd -m attacker", SetupPhase.OFFLINE),
         ClassifiedCommand("pip3 install flask", SetupPhase.ONLINE),
         ClassifiedCommand("chmod +x /opt/payload.sh", SetupPhase.OFFLINE),
-        ClassifiedCommand('pgrep -x sshd || /usr/sbin/sshd &', SetupPhase.OFFLINE),
+        ClassifiedCommand("pgrep -x sshd || /usr/sbin/sshd &", SetupPhase.OFFLINE),
     ]
 
 
@@ -124,7 +123,7 @@ def test_apply_offline_runs_only_offline_commands_in_order() -> None:
     assert _texts(fake.calls) == [
         "useradd -m attacker",
         "chmod +x /opt/payload.sh",
-        'pgrep -x sshd || /usr/sbin/sshd &',
+        "pgrep -x sshd || /usr/sbin/sshd &",
     ]
 
 
@@ -133,9 +132,7 @@ def test_apply_wraps_each_command_as_bash_lc_argv() -> None:
     fake = _FakeComposeExecutor()
     setup = DockerTargetSetup(fake)
 
-    setup.apply(
-        "nginx-target", _mixed_commands(), SetupPhase.ONLINE, on_log=lambda _l: None
-    )
+    setup.apply("nginx-target", _mixed_commands(), SetupPhase.ONLINE, on_log=lambda _l: None)
 
     assert fake.calls[0].container == "nginx-target"
     assert fake.calls[0].argv == ["bash", "-lc", "apt-get install -y curl"]
@@ -162,9 +159,7 @@ def test_apply_empty_phase_is_success_with_no_exec() -> None:
     setup = DockerTargetSetup(fake)
 
     only_online = [ClassifiedCommand("apt-get update", SetupPhase.ONLINE)]
-    result = setup.apply(
-        "nginx-target", only_online, SetupPhase.OFFLINE, on_log=lambda _l: None
-    )
+    result = setup.apply("nginx-target", only_online, SetupPhase.OFFLINE, on_log=lambda _l: None)
 
     assert result.code == 0
     assert fake.calls == []

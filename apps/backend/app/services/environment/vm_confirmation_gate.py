@@ -49,15 +49,12 @@ _Requirements: 14.6, 14.7, 14.8_
 
 from __future__ import annotations
 
-from typing import Optional
-
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from app.services.environment.operationalization import (
     EnvironmentParameters,
     EnvironmentPlatform,
 )
-
 
 # pt-BR text surfaced to the Researcher when the gate is triggered (Req. 14.7).
 # The container provisioning is NOT blocked; this is a request for confirmation of
@@ -106,7 +103,7 @@ class VmConfirmationRecord(BaseModel):
     future_contract_not_executed: bool = False
     effective_platform: EnvironmentPlatform = EnvironmentPlatform.CONTAINER
     vms_provisioned: int = 0
-    message: Optional[str] = None
+    message: str | None = None
 
 
 def would_require_vm(params: EnvironmentParameters) -> bool:
@@ -186,7 +183,7 @@ class VmConfirmationGate:
 
 
 __all__ = [
-    "VmConfirmationRecord",
     "VmConfirmationGate",
+    "VmConfirmationRecord",
     "would_require_vm",
 ]

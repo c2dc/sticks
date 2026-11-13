@@ -51,7 +51,6 @@ from __future__ import annotations
 import datetime as dt
 import tempfile
 from pathlib import Path
-from typing import Optional
 
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
@@ -61,9 +60,8 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.core.config import Settings
 from app.db.base import Base, import_models
 from app.db.session import create_db_engine
-from app.models.domain import Case, AttackFlowRow
+from app.models.domain import AttackFlowRow, Case
 from app.models.enums import FlowOrigin
-
 
 # ---------------------------------------------------------------------------
 # Generators for an arbitrary, valid persisted attack flow.
@@ -95,9 +93,7 @@ _node_id_strategy = st.text(
 _structural_node_strategy = st.fixed_dictionaries(
     {
         "node_id": _node_id_strategy,
-        "technique_id": st.text(
-            alphabet="T0123456789", min_size=1, max_size=6
-        ),
+        "technique_id": st.text(alphabet="T0123456789", min_size=1, max_size=6),
         "technique_name": st.text(max_size=30),
         "tactic": st.text(max_size=20),
     }
@@ -191,7 +187,7 @@ def test_property8_flow_entity_roundtrips_for_any_origin(spec: dict) -> None:
     """
     origin: FlowOrigin = spec["origin"]
     identifier: str = spec["identifier"]
-    label: Optional[str] = spec["label"]
+    label: str | None = spec["label"]
     content: dict = spec["content"]
     created_at: dt.datetime = spec["created_at"]
 

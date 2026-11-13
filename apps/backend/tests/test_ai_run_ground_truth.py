@@ -256,9 +256,7 @@ def test_ground_truth_comparison_for_curated_campaign(
     run = _seed_completed_run_with_ai_outputs(db_session, _CURATED_CAMPAIGN)
 
     client = _make_client(session_factory)
-    resp = client.get(
-        f"/api/campaigns/{_CURATED_CAMPAIGN}/ai/runs/{run.id}/ground-truth"
-    )
+    resp = client.get(f"/api/campaigns/{_CURATED_CAMPAIGN}/ai/runs/{run.id}/ground-truth")
     assert resp.status_code == 200, resp.text
     body = resp.json()
 
@@ -307,9 +305,7 @@ def test_ground_truth_comparison_rejects_non_curated_campaign(
     run = _seed_completed_run_with_ai_outputs(db_session, _NON_CURATED_CAMPAIGN)
 
     client = _make_client(session_factory)
-    resp = client.get(
-        f"/api/campaigns/{_NON_CURATED_CAMPAIGN}/ai/runs/{run.id}/ground-truth"
-    )
+    resp = client.get(f"/api/campaigns/{_NON_CURATED_CAMPAIGN}/ai/runs/{run.id}/ground-truth")
     assert resp.status_code == 404, resp.text
     detail = resp.json()["detail"]
     assert detail["reason"] == "not_a_curated_campaign"
