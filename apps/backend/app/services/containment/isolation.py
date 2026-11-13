@@ -45,7 +45,7 @@ _Requirements: 6.3, 6.4_
 from __future__ import annotations
 
 import ipaddress
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
 
 from app.services.containment.subnets import is_internal_ip, is_internal_subnet
@@ -216,9 +216,7 @@ def _is_external_dns(server: str) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def _classify_container(
-    container: str, inspector: ContainerInspector
-) -> ContainerIsolationVerdict:
+def _classify_container(container: str, inspector: ContainerInspector) -> ContainerIsolationVerdict:
     """Classify a single container as isolated or not, with reasons.
 
     Pure with respect to Docker: all access goes through ``inspector``. Missing
@@ -253,16 +251,12 @@ def _classify_container(
             net = inspector.get_network_info(network_name)
         except NetworkNotFound:
             external_networks.append(network_name)
-            reasons.append(
-                f"rede '{network_name}' não encontrada na Docker Engine API"
-            )
+            reasons.append(f"rede '{network_name}' não encontrada na Docker Engine API")
             continue
 
         if not net.internal:
             external_networks.append(network_name)
-            reasons.append(
-                f"conectado à rede não-interna '{network_name}' (Internal=false)"
-            )
+            reasons.append(f"conectado à rede não-interna '{network_name}' (Internal=false)")
             continue
 
         # Cross-check: an internal-flagged network whose subnets are not among the
@@ -291,9 +285,7 @@ def _classify_container(
     )
 
 
-def verify_isolation(
-    containers: list[str], inspector: ContainerInspector
-) -> IsolationResult:
+def verify_isolation(containers: list[str], inspector: ContainerInspector) -> IsolationResult:
     """Verify that every target container is isolated (pre-flight, read-only).
 
     This is the pure entry point used by tests (task 4.5) and by the
@@ -363,13 +355,11 @@ class DockerSdkInspector:
 
     def get_container_network_info(self, container: str) -> ContainerNetworkInfo:
         try:
-            obj = self._client.containers.get(container)  # type: ignore[attr-defined]
+            obj = self._client.containers.get(container)  # type: ignore[attr-defined] -- docker client is typed as object to keep the docker SDK optional
         except Exception as exc:  # docker.errors.NotFound and friends
             raise ContainerNotFound(container) from exc
         attrs = getattr(obj, "attrs", {}) or {}
-        networks = (
-            attrs.get("NetworkSettings", {}).get("Networks", {}) or {}
-        )
+        networks = attrs.get("NetworkSettings", {}).get("Networks", {}) or {}
         host_config = attrs.get("HostConfig", {}) or {}
         dns = tuple(host_config.get("Dns", []) or [])
         return ContainerNetworkInfo(
@@ -380,16 +370,14 @@ class DockerSdkInspector:
 
     def get_network_info(self, network_name: str) -> NetworkInfo:
         try:
-            obj = self._client.networks.get(network_name)  # type: ignore[attr-defined]
+            obj = self._client.networks.get(network_name)  # type: ignore[attr-defined] -- docker client is typed as object to keep the docker SDK optional
         except Exception as exc:  # docker.errors.NotFound and friends
             raise NetworkNotFound(network_name) from exc
         attrs = getattr(obj, "attrs", {}) or {}
         internal = bool(attrs.get("Internal", False))
         ipam_config = (attrs.get("IPAM", {}) or {}).get("Config", []) or []
         subnets = tuple(
-            cfg.get("Subnet")
-            for cfg in ipam_config
-            if isinstance(cfg, dict) and cfg.get("Subnet")
+            cfg.get("Subnet") for cfg in ipam_config if isinstance(cfg, dict) and cfg.get("Subnet")
         )
         return NetworkInfo(
             name=getattr(obj, "name", network_name) or network_name,

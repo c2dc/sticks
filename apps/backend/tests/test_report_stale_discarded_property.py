@@ -87,9 +87,7 @@ class _ResultSpec:
 
 def _result_spec_strategy() -> st.SearchStrategy[_ResultSpec]:
     return st.builds(
-        lambda uid, status: _ResultSpec(
-            ability_id=f"ab-{uid.hex[:10]}", status=status
-        ),
+        lambda uid, status: _ResultSpec(ability_id=f"ab-{uid.hex[:10]}", status=status),
         st.uuids(),
         st.sampled_from(_ALL_STATUSES),
     )
@@ -284,12 +282,8 @@ def test_property5_stale_state_discarded_and_recomputed(
         # -- Expected recompute, derived ONLY from the current results. ------
         expected_terminals = [_expected_terminal(spec) for spec in current_results]
         expected_total = len(current_results)
-        expected_success = sum(
-            1 for s in expected_terminals if s is AbilityResultStatus.SUCCESS
-        )
-        expected_failure = sum(
-            1 for s in expected_terminals if s is AbilityResultStatus.FAILURE
-        )
+        expected_success = sum(1 for s in expected_terminals if s is AbilityResultStatus.SUCCESS)
+        expected_failure = sum(1 for s in expected_terminals if s is AbilityResultStatus.FAILURE)
         expected_failed_nodes = [
             spec.ability_id
             for spec in current_results
@@ -307,13 +301,9 @@ def test_property5_stale_state_discarded_and_recomputed(
         assert view.total_success == expected_success
         assert view.total_failure == expected_failure
         assert sorted(view.failed_nodes) == sorted(expected_failed_nodes)
-        expected_rate = (
-            (expected_success / expected_total) if expected_total else 0.0
-        )
+        expected_rate = (expected_success / expected_total) if expected_total else 0.0
         assert view.success_rate == expected_rate
-        assert view.success_verdict == (
-            expected_total > 0 and expected_rate >= 1.0
-        )
+        assert view.success_verdict == (expected_total > 0 and expected_rate >= 1.0)
 
         # Property 4 invariants still hold on the recomputed report.
         # (b) sum of terminal buckets == total techniques
@@ -332,9 +322,7 @@ def test_property5_stale_state_discarded_and_recomputed(
         # metrics — never the prior execution.
         assert _count(session, ExecutionReport) == 1
         remaining = session.execute(
-            select(ExecutionReport).where(
-                ExecutionReport.campaign_id == campaign_id
-            )
+            select(ExecutionReport).where(ExecutionReport.campaign_id == campaign_id)
         ).scalar_one()
         assert remaining.operation_id == current_operation.id
         # The stale row (prior operation) no longer exists — it was deleted, not

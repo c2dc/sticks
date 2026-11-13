@@ -25,17 +25,12 @@ _Requirements: 4.6, 6.3_
 
 from __future__ import annotations
 
-import json
-import shutil
-import tempfile
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any, Callable, Mapping
+from typing import Any
 
 import pytest
 
-from tests._curated_db import CaseDb, db_put
 from app.models.enums import TranslationSource
 from app.services.containment.isolation import (
     ContainerNetworkInfo,
@@ -50,6 +45,8 @@ from app.services.environment.compose_executor import (
 from app.services.environment.health import (
     ContainerStateInfo,
     ContainerStateNotFound,
+    HealthSummary,
+    HealthVerdict,
 )
 from app.services.environment.operationalization import (
     EnvironmentParameters,
@@ -64,9 +61,8 @@ from app.services.environment.provisioner import (
     ProvisionedEnvironment,
     SubStageSummary,
 )
-from app.services.environment.health import HealthSummary, HealthVerdict
 from app.services.environment.topology_builder import HOST_CONTAINERS as _HOST_CONTAINERS
-
+from tests._curated_db import CaseDb, db_put
 
 # ---------------------------------------------------------------------------
 # Fakes (no network, no Docker daemon, no AI) — mirror the package conventions.
@@ -194,19 +190,27 @@ def _seed_case(data_dir: CaseDb, slug: str) -> None:
         },
     ]
     db_put(data_dir, "ability", slug, abilities)
-    db_put(data_dir, "adversary", slug, {
+    db_put(
+        data_dir,
+        "adversary",
+        slug,
+        {
             "id": f"{slug}-adv",
             "name": "Seed Adversary",
             "description": "seed",
             "atomic_ordering": [f"{slug}-ab-2", f"{slug}-ab-1"],
-        })
-    db_put(data_dir, "flow", slug, {
+        },
+    )
+    db_put(
+        data_dir,
+        "flow",
+        slug,
+        {
             "campaign_name": "Seed",
-            "structural_nodes": [
-                {"node_id": "n0", "technique_id": "T1190"}
-            ],
+            "structural_nodes": [{"node_id": "n0", "technique_id": "T1190"}],
             "metadata": {"total_techniques": 1},
-        })
+        },
+    )
 
 
 @pytest.fixture()
@@ -258,7 +262,7 @@ def test_provision_inherited_lines_have_no_substage(data_dir: CaseDb) -> None:
 
     # All emitted lines belong to the inherited steps -> no sub-stage marker.
     assert lines  # the pipeline emitted at least one line
-    assert all(l.substage is None for l in lines)
+    assert all(line.substage is None for line in lines)
 
 
 # ---------------------------------------------------------------------------
@@ -304,8 +308,7 @@ def _env(
         health=HealthSummary(
             approved=health_ok,
             verdicts=[
-                HealthVerdict(container=c, running=True, healthy=health_ok)
-                for c in (_C1, _C2)
+                HealthVerdict(container=c, running=True, healthy=health_ok) for c in (_C1, _C2)
             ],
         ),
         loaded_abilities=abilities_ok,

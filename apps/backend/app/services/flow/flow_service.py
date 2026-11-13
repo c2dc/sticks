@@ -13,7 +13,7 @@ from __future__ import annotations
 import datetime as dt
 import re
 import uuid
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 from sqlalchemy import select
@@ -43,8 +43,8 @@ class FlowReference(BaseModel):
     """A corpus flow referenced by the provenance of a campaign flow."""
 
     id: int
-    label: Optional[str] = None
-    source_key: Optional[str] = None
+    label: str | None = None
+    source_key: str | None = None
 
 
 class FlowProvenanceView(BaseModel):
@@ -58,23 +58,23 @@ class FlowProvenanceView(BaseModel):
 
 class FlowSummary(BaseModel):
     id: int
-    campaign_id: Optional[str] = None
+    campaign_id: str | None = None
     origin: FlowOrigin
     identifier: str
-    label: Optional[str] = None
-    scope: Optional[str] = None
+    label: str | None = None
+    scope: str | None = None
     has_cycles: bool = False
-    provenance: Optional[FlowProvenanceView] = None
+    provenance: FlowProvenanceView | None = None
     created_at: dt.datetime
 
 
 class FlowNodeView(BaseModel):
     node_id: str
     type: str
-    name: Optional[str] = None
-    technique_id: Optional[str] = None
-    tactic_id: Optional[str] = None
-    command_ref: Optional[int] = None
+    name: str | None = None
+    technique_id: str | None = None
+    tactic_id: str | None = None
+    command_ref: int | None = None
 
 
 class FlowEdgeView(BaseModel):
@@ -84,7 +84,7 @@ class FlowEdgeView(BaseModel):
 
 
 class FlowDetail(FlowSummary):
-    description: Optional[str] = None
+    description: str | None = None
     nodes: list[FlowNodeView] = Field(default_factory=list)
     edges: list[FlowEdgeView] = Field(default_factory=list)
     mermaid: str = ""
@@ -125,7 +125,7 @@ def flow_from_content(
     name: str = "",
     description: str = "",
     scope: str = "",
-    provenance: Optional[dict[str, Any]] = None,
+    provenance: dict[str, Any] | None = None,
 ) -> AttackFlow:
     """Build an :class:`AttackFlow` from stored ``content`` (current or legacy).
 
@@ -185,7 +185,9 @@ def _node_label(obj: AttackFlowObject) -> str:
     elif obj.type == "attack-condition":
         text = obj.name or obj.pattern or "condition"
     else:
-        text = f"{obj.technique_id} {obj.name}".strip() if obj.technique_id else (obj.name or obj.id)
+        text = (
+            f"{obj.technique_id} {obj.name}".strip() if obj.technique_id else (obj.name or obj.id)
+        )
     return _MERMAID_UNSAFE.sub("", text)[:80] or "node"
 
 
@@ -236,21 +238,21 @@ class FlowService:
         )
         return [self._summary(row) for row in rows]
 
-    def get_flow(self, campaign: str, flow_id: int) -> Optional[FlowDetail]:
+    def get_flow(self, campaign: str, flow_id: int) -> FlowDetail | None:
         """Flow of the campaign, or ``None`` if missing / of another campaign."""
         row = self._session.get(AttackFlowRow, flow_id)
         if row is None or row.campaign_id != campaign:
             return None
         return self._detail(row)
 
-    def get_corpus_flow(self, flow_id: int) -> Optional[FlowDetail]:
+    def get_corpus_flow(self, flow_id: int) -> FlowDetail | None:
         """Flow by id regardless of campaign (reference shown in provenance)."""
         row = self._session.get(AttackFlowRow, flow_id)
         return self._detail(row) if row is not None else None
 
     # ---- internals ---------------------------------------------------------
 
-    def _provenance(self, raw: Any) -> Optional[FlowProvenanceView]:
+    def _provenance(self, raw: Any) -> FlowProvenanceView | None:
         if not isinstance(raw, dict) or not raw.get("kind"):
             return None
         try:
@@ -302,7 +304,10 @@ class FlowService:
                 scope=row.scope or "",
             )
         except ValueError:
-            flow = AttackFlow(flow_id=f"attack-flow--{uuid.uuid5(_LEGACY_NAMESPACE, str(row.id))}", name=row.label or "")
+            flow = AttackFlow(
+                flow_id=f"attack-flow--{uuid.uuid5(_LEGACY_NAMESPACE, str(row.id))}",
+                name=row.label or "",
+            )
         back = {(s, d) for s, d in flow.back_edges}
         nodes = [
             FlowNodeView(
@@ -317,8 +322,7 @@ class FlowService:
             if o.type in CONTROL_TYPES
         ]
         edges = [
-            FlowEdgeView(source=s, target=d, is_back_edge=(s, d) in back)
-            for s, d in flow.edges()
+            FlowEdgeView(source=s, target=d, is_back_edge=(s, d) in back) for s, d in flow.edges()
         ]
         summary = self._summary(row)
         data = summary.model_dump()

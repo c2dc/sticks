@@ -1,7 +1,10 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
+import { Check, Copy } from "lucide-react"
 
+import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { campaignDisplayName } from "@/lib/campaign"
 import {
   getOperationalization,
   type AtomicStatus,
@@ -11,6 +14,12 @@ import {
 
 /** Interval (ms) between rereads while the Atomic Red Team base is not ready. */
 export const ATOMIC_POLL_INTERVAL_MS = 3000
+
+/** Id of the screen title, referenced by the region landmark. */
+const TITLE_ID = "operationalization-title"
+
+/** How long (ms) the copy button keeps its "copied" feedback. */
+const COPY_FEEDBACK_MS = 2000
 
 /**
  * OperationalizationScreen — for EACH technique of the selected campaign, lists
@@ -25,9 +34,12 @@ export const ATOMIC_POLL_INTERVAL_MS = 3000
 export function OperationalizationScreen({
   version,
   campaignKey,
+  campaignName,
 }: {
   version: string
   campaignKey: string
+  /** Readable campaign name; falls back to a humanized key. */
+  campaignName?: string
 }) {
   const { t } = useTranslation("pipeline")
   const [listing, setListing] = useState<OperationalizationListing | null>(null)
@@ -38,6 +50,7 @@ export function OperationalizationScreen({
   // Initial load, restarted whenever the version or campaign changes.
   useEffect(() => {
     let active = true
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- resets the request state synchronously when the key changes, before the async fetch; deriving it during render would change the loading timing
     setListing(null)
     setLoadError(false)
     getOperationalization(version, campaignKey)
@@ -88,9 +101,18 @@ export function OperationalizationScreen({
   }
 
   return (
-    <Card data-testid="operationalization-screen">
+    <Card
+      data-testid="operationalization-screen"
+      role="region"
+      aria-labelledby={TITLE_ID}
+    >
       <CardHeader>
-        <CardTitle>{t("operationalization.title")}</CardTitle>
+        <CardTitle id={TITLE_ID}>{t("operationalization.title")}</CardTitle>
+        <p className="text-sm font-medium" data-testid="operationalization-campaign">
+          {t("operationalization.campaign", {
+            campaign: campaignDisplayName(campaignName, campaignKey),
+          })}
+        </p>
         <CardDescription>{t("operationalization.description")}</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
@@ -212,9 +234,66 @@ function TechniqueItem({
               key={command.id ?? `${technique.technique_id}-${index}`}
               className="flex flex-col gap-1 rounded-md bg-muted/40 p-2"
             >
-              <pre className="overflow-x-auto whitespace-pre-wrap break-words font-mono text-xs">
-                {command.command}
-              </pre>
+              {isExample(command) ? (
+                <>
+                  <div className="flex flex-col gap-0.5" data-testid="example-label">
+                    <span className="text-xs font-medium">
+                      {t("operationalization.exampleLabel")}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {t("operationalization.exampleHint")}
+                    </span>
+                  </div>
+                  <CommandBlock
+                    command={command.resolved_command as string}
+                    technique={technique.technique_id}
+                    example
+                  />
+                  <details className="text-xs" data-testid="template-details">
+                    <summary className="cursor-pointer text-muted-foreground">
+                      {t("operationalization.templateSummary")}
+                    </summary>
+                    <pre
+                      // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- keyboard-focusable scrollable region so keyboard users can scroll long commands (WCAG 2.1.1)
+                      tabIndex={0}
+                      className="mt-1 overflow-x-auto whitespace-pre-wrap break-words font-mono text-xs"
+                    >
+                      {command.command}
+                    </pre>
+                  </details>
+                </>
+              ) : (
+                <CommandBlock
+                  command={command.resolved_command || command.command}
+                  technique={technique.technique_id}
+                />
+              )}
+              {(command.unresolved_arguments?.length ?? 0) > 0 && (
+                <p
+                  role="status"
+                  className="text-xs text-amber-700 dark:text-amber-400"
+                  data-testid="unresolved-arguments"
+                >
+                  {t("operationalization.unresolvedArguments", {
+                    names: command.unresolved_arguments?.join(", "),
+                  })}
+                </p>
+              )}
+              {Object.keys(command.arguments_used ?? {}).length > 0 && (
+                <details className="text-xs" data-testid="arguments-used">
+                  <summary className="cursor-pointer text-muted-foreground">
+                    {t("operationalization.argumentsUsed")}
+                  </summary>
+                  <dl className="mt-1 flex flex-col gap-1">
+                    {Object.entries(command.arguments_used ?? {}).map(([name, value]) => (
+                      <div key={name} className="flex gap-2">
+                        <dt className="font-mono">{name}:</dt>
+                        <dd className="min-w-0 break-words font-mono">{value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </details>
+              )}
               <dl className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
                 <div className="flex gap-1">
                   <dt>{t("operationalization.executor")}:</dt>
@@ -234,5 +313,81 @@ function TechniqueItem({
         </ul>
       )}
     </li>
+  )
+}
+
+/** True when the resolved example differs from the canonical template. */
+function isExample(command: { command: string; resolved_command?: string }): boolean {
+  return Boolean(command.resolved_command) && command.resolved_command !== command.command
+}
+
+/**
+ * One command in a `<pre>` that wraps long lines, breaks long words and scrolls
+ * horizontally when it still overflows, plus a copy-to-clipboard button
+ * (Req. 10.7). The `<pre>` is focusable so keyboard users can scroll it.
+ */
+export function CommandBlock({
+  command,
+  technique,
+  example = false,
+}: {
+  command: string
+  technique: string
+  /** True when `command` is an example with Atomic default values, not the template. */
+  example?: boolean
+}) {
+  const { t } = useTranslation("pipeline")
+  const [feedback, setFeedback] = useState<"copied" | "failed" | null>(null)
+  const timer = useRef<number | undefined>(undefined)
+
+  useEffect(() => () => window.clearTimeout(timer.current), [])
+
+  const copy = async () => {
+    let next: "copied" | "failed" = "copied"
+    try {
+      await navigator.clipboard.writeText(command)
+    } catch {
+      next = "failed"
+    }
+    setFeedback(next)
+    window.clearTimeout(timer.current)
+    timer.current = window.setTimeout(() => setFeedback(null), COPY_FEEDBACK_MS)
+  }
+
+  return (
+    <div className="flex items-start gap-2">
+      <pre
+        // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- keyboard-focusable scrollable region so keyboard users can scroll long commands (WCAG 2.1.1)
+        tabIndex={0}
+        aria-label={t("operationalization.commandLabel")}
+        className="min-w-0 flex-1 overflow-x-auto whitespace-pre-wrap break-words font-mono text-xs"
+      >
+        {command}
+      </pre>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        onClick={() => void copy()}
+        aria-label={t(
+          example ? "operationalization.copyExampleLabel" : "operationalization.copyLabel",
+          { technique },
+        )}
+        data-testid="copy-command"
+      >
+        {feedback === "copied" ? (
+          <Check className="size-4" aria-hidden />
+        ) : (
+          <Copy className="size-4" aria-hidden />
+        )}
+        <span aria-live="polite">
+          {feedback === "copied"
+            ? t("operationalization.copied")
+            : feedback === "failed"
+              ? t("operationalization.copyFailed")
+              : t("operationalization.copy")}
+        </span>
+      </Button>
+    </div>
   )
 }

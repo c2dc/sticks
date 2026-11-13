@@ -63,11 +63,11 @@ from alembic.operations import Operations
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 from sqlalchemy import (
+    JSON,
     Column,
     DateTime,
     ForeignKey,
     Integer,
-    JSON,
     MetaData,
     String,
     Table,
@@ -201,16 +201,15 @@ def _run_migration_step(engine: Engine, step: str) -> None:
     PostgreSQL.
     """
     func = getattr(_migration, step)
-    with engine.connect() as conn:
-        with conn.begin():
-            ctx = MigrationContext.configure(connection=conn)
-            op_proxy = Operations(ctx)
-            original_op = _migration.op
-            _migration.op = op_proxy
-            try:
-                func()
-            finally:
-                _migration.op = original_op
+    with engine.connect() as conn, conn.begin():
+        ctx = MigrationContext.configure(connection=conn)
+        op_proxy = Operations(ctx)
+        original_op = _migration.op
+        _migration.op = op_proxy
+        try:
+            func()
+        finally:
+            _migration.op = original_op
 
 
 def _read_rows(engine: Engine, execucoes: Table) -> dict[int, dict]:
@@ -354,7 +353,7 @@ def _rows_with_at_least_one_out_of_range(draw: st.DrawFn) -> list[dict]:
     offending = draw(_guard_row(_out_of_range_estagio))
     others = draw(st.lists(_guard_row(_any_estagio), min_size=0, max_size=11))
     position = draw(st.integers(min_value=0, max_value=len(others)))
-    return others[:position] + [offending] + others[position:]
+    return [*others[:position], offending, *others[position:]]
 
 
 def _seed_rows(engine: Engine, execucoes: Table, rows: list[dict]) -> dict[int, dict]:
@@ -410,7 +409,7 @@ def test_property11_upgrade_remaps_preserves_provisions_and_roundtrips(
         # (a) expected n→n+1 remap, computed here — NOT read from the migration.
         oracle_map = {n: n + 1 for n in range(1, 6)}
         # Guard against a wrong shipped map by comparing to the oracle.
-        assert _UPGRADE_MAP == oracle_map, (
+        assert oracle_map == _UPGRADE_MAP, (
             f"migração mapeia {_UPGRADE_MAP}, esperado n→n+1 {oracle_map}"
         )
         expected_remap: dict[int, dict] = {
@@ -471,18 +470,13 @@ def test_property11_upgrade_remaps_preserves_provisions_and_roundtrips(
         # (2a) Exactly one base-selection row per caso with OLD-1 'concluido'
         #      (Req. 1.5), and none for any caso without it.
         assert set(base_by_caso.keys()) == casos_base, (
-            f"casos with base selection {set(base_by_caso.keys())} != "
-            f"expected casos {casos_base}"
+            f"casos with base selection {set(base_by_caso.keys())} != expected casos {casos_base}"
         )
         for caso_id, count in base_by_caso.items():
-            assert count == 1, (
-                f"caso={caso_id} should have exactly 1 base selection, "
-                f"has {count}"
-            )
+            assert count == 1, f"caso={caso_id} should have exactly 1 base selection, has {count}"
         for caso_id in set(_CASE_IDS) - casos_base:
             assert caso_id not in base_by_caso, (
-                f"caso={caso_id} had no OLD-1 concluido but gained a base "
-                "selection"
+                f"caso={caso_id} had no OLD-1 concluido but gained a base selection"
             )
 
         # ---- (3) up ∘ down is identity over execucoes_estagio (Req. 1.2) ----
@@ -538,25 +532,24 @@ def test_property11_guard_aborts_without_altering_data(rows: list[dict]) -> None
         count_before = len(seeded)
 
         # Sanity: the generator must have produced >= 1 offending row.
-        assert any(
-            row["estagio"] < 1 or row["estagio"] > 5 for row in rows
-        ), "generator must include at least one estagio outside 1..5"
+        assert any(row["estagio"] < 1 or row["estagio"] > 5 for row in rows), (
+            "generator must include at least one estagio outside 1..5"
+        )
 
         before = _read_rows(engine, execucoes)
 
         # Drive the REAL upgrade() — expect it to raise RuntimeError before any
         # UPDATE/INSERT/CREATE TABLE (the guard runs first — Req. 1.2, 1.5).
-        with engine.connect() as conn:
-            with conn.begin():
-                ctx = MigrationContext.configure(connection=conn)
-                op_proxy = Operations(ctx)
-                original_op = _migration.op
-                _migration.op = op_proxy
-                try:
-                    with pytest.raises(RuntimeError):
-                        _migration.upgrade()
-                finally:
-                    _migration.op = original_op
+        with engine.connect() as conn, conn.begin():
+            ctx = MigrationContext.configure(connection=conn)
+            op_proxy = Operations(ctx)
+            original_op = _migration.op
+            _migration.op = op_proxy
+            try:
+                with pytest.raises(RuntimeError):
+                    _migration.upgrade()
+            finally:
+                _migration.op = original_op
 
         # (1) No row altered: the table is identical to the pre-upgrade snapshot
         # (the guard ran before any UPDATE).

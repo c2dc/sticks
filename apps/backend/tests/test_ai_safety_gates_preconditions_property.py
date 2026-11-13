@@ -62,10 +62,11 @@ _Requirements: 8.2, 8.3, 8.5_
 
 from __future__ import annotations
 
+import contextlib
 import os
 import tempfile
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 import httpx
 from hypothesis import HealthCheck, given, settings
@@ -143,9 +144,7 @@ class _RecordingCaldera:
         if method == "POST" and path == ADVERSARIES_PATH:
             return httpx.Response(200, json={"adversary_id": "adv"})
         if method == "POST" and path == OPERATIONS_PATH:
-            return httpx.Response(
-                200, json={"id": "op-ai", "name": "n", "state": "running"}
-            )
+            return httpx.Response(200, json={"id": "op-ai", "name": "n", "state": "running"})
         if method == "GET" and path.startswith(OPERATIONS_PATH):  # poll
             return httpx.Response(
                 200,
@@ -177,23 +176,20 @@ class _ConfigurableVerifier:
     def __init__(self, *, isolated_all: bool) -> None:
         self._isolated_all = isolated_all
 
-    def __call__(self, containers, inspector):  # noqa: ANN001
+    def __call__(self, containers, inspector):
         names = list(containers) if containers else []
         if self._isolated_all:
             return IsolationResult(
                 passed=True,
                 verdicts=tuple(
-                    ContainerIsolationVerdict(container=c, isolated=True, reasons=())
-                    for c in names
+                    ContainerIsolationVerdict(container=c, isolated=True, reasons=()) for c in names
                 ),
             )
         offenders = names or ["nginx"]
         return IsolationResult(
             passed=False,
             verdicts=tuple(
-                ContainerIsolationVerdict(
-                    container=c, isolated=False, reasons=("bridge externa",)
-                )
+                ContainerIsolationVerdict(container=c, isolated=False, reasons=("bridge externa",))
                 for c in offenders
             ),
         )
@@ -417,10 +413,8 @@ def test_property2_no_execution_with_external_or_unisolated(
         engine.dispose()
         if db_path.exists():
             os.remove(db_path)
-        try:
+        with contextlib.suppress(OSError):
             os.rmdir(db_path.parent)
-        except OSError:
-            pass
 
 
 # ---------------------------------------------------------------------------
@@ -479,7 +473,5 @@ def test_property2_internal_and_isolated_executes_with_one_audit_per_command(
         engine.dispose()
         if db_path.exists():
             os.remove(db_path)
-        try:
+        with contextlib.suppress(OSError):
             os.rmdir(db_path.parent)
-        except OSError:
-            pass

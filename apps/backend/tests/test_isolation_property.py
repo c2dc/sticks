@@ -180,9 +180,9 @@ def _container_strategy() -> st.SearchStrategy[GenContainer]:
             min_size=0,
             max_size=2,
         ).map(tuple),
-        dns=st.lists(
-            st.sampled_from(_ACCEPTABLE_DNS + _EXTERNAL_DNS), min_size=0, max_size=3
-        ).map(tuple),
+        dns=st.lists(st.sampled_from(_ACCEPTABLE_DNS + _EXTERNAL_DNS), min_size=0, max_size=3).map(
+            tuple
+        ),
     )
 
 
@@ -208,9 +208,7 @@ def _expected_isolated(container: GenContainer) -> bool:
     a known external bridge name, every custom network is internal=True with an
     internal subnet (or no declared subnet), and no external DNS.
     """
-    all_attachments = list(container.bridge_names) + [
-        n.name for n in container.custom_networks
-    ]
+    all_attachments = list(container.bridge_names) + [n.name for n in container.custom_networks]
     # Rule 1: attached to at least one network.
     if not all_attachments:
         return False
@@ -228,20 +226,14 @@ def _expected_isolated(container: GenContainer) -> bool:
             return False
 
     # Rule 3: no external DNS.
-    for server in container.dns:
-        if server in _EXTERNAL_DNS:
-            return False
-
-    return True
+    return all(server not in _EXTERNAL_DNS for server in container.dns)
 
 
 def _build_inspector(containers: list[GenContainer]) -> FakeInspector:
     """Populate a FakeInspector from generated containers (bridges stay unregistered)."""
     inspector = FakeInspector()
     for c in containers:
-        network_names = tuple(c.bridge_names) + tuple(
-            n.name for n in c.custom_networks
-        )
+        network_names = tuple(c.bridge_names) + tuple(n.name for n in c.custom_networks)
         inspector.containers[c.name] = ContainerNetworkInfo(
             name=c.name, network_names=network_names, dns=c.dns
         )
@@ -296,9 +288,7 @@ def test_property2_isolation_passes_iff_all_isolated(
     if not expected_all:
         assert result.passed is False
         offending_names = {v.container for v in result.offending}
-        expected_offending = {
-            name for name, ok in expected_isolated.items() if not ok
-        }
+        expected_offending = {name for name, ok in expected_isolated.items() if not ok}
         assert offending_names == expected_offending
         assert offending_names  # at least one offender identified
         for verdict in result.offending:

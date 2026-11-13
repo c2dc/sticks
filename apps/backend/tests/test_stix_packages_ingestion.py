@@ -18,10 +18,11 @@ from __future__ import annotations
 
 import shutil
 import tempfile
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Iterator
 
 import pytest
+from _stix_fakes import FakeStixHttp, small_bundle
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -30,14 +31,13 @@ from app.db.base import Base, import_models
 from app.db.session import create_db_engine
 from app.models.domain import StixCampaign, StixPackage
 from app.models.enums import IngestSource, IngestStatus
-from app.services.ingestion.orchestrator import IngestionOrchestrator, SOURCE_ORDER
+from app.services.ingestion.orchestrator import SOURCE_ORDER, IngestionOrchestrator
 from app.services.ingestion.runners import (
     STIX_VERSIONS_ENV,
     StixPackagesSourceRunner,
     build_default_runners,
 )
 from app.services.stix.stix_service import KNOWN_VERSIONS, StixService
-from _stix_fakes import FakeStixHttp, small_bundle
 
 LATEST = KNOWN_VERSIONS[0]
 
@@ -90,9 +90,7 @@ def _state(orchestrator: IngestionOrchestrator):
 
 def test_stix_packages_is_a_registered_source_with_default_runner() -> None:
     assert IngestSource.STIX_PACKAGES in SOURCE_ORDER
-    assert isinstance(
-        build_default_runners()[IngestSource.STIX_PACKAGES], StixPackagesSourceRunner
-    )
+    assert isinstance(build_default_runners()[IngestSource.STIX_PACKAGES], StixPackagesSourceRunner)
 
 
 def test_run_persists_configured_versions_and_is_idempotent(
@@ -305,7 +303,12 @@ def test_latest_enterprise_version_reads_the_upstream_index_format() -> None:
 
     index = {
         "collections": [
-            {"name": "Enterprise ATT&CK", "versions": [entry("enterprise-attack", v) for v in ("9.0", "19.2", "20.1", "20.0")]},
+            {
+                "name": "Enterprise ATT&CK",
+                "versions": [
+                    entry("enterprise-attack", v) for v in ("9.0", "19.2", "20.1", "20.0")
+                ],
+            },
             {"name": "ICS ATT&CK", "versions": [entry("ics-attack", "99.0")]},
             {"name": "Mobile ATT&CK", "versions": [entry("mobile-attack", "98.0")]},
         ]

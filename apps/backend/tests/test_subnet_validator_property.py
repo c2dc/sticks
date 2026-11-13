@@ -54,11 +54,7 @@ from app.services.containment.subnet_validator import (
 
 # Every host address available inside the three internal /24 subnets. Drawing
 # from this pool guarantees an internal destination by construction.
-_INTERNAL_IPS: list[str] = [
-    str(host)
-    for network in INTERNAL_SUBNETS
-    for host in network.hosts()
-]
+_INTERNAL_IPS: list[str] = [str(host) for network in INTERNAL_SUBNETS for host in network.hosts()]
 
 # A small set of external hostnames in the style of the curated commands.
 _EXTERNAL_HOSTNAMES: list[str] = [
@@ -89,12 +85,12 @@ internal_ip_strategy = st.sampled_from(_INTERNAL_IPS)
 # overlap the internal 172.20/21/22.0.0/24 subnets. A light guard filters out
 # the few non-global corners (e.g. broadcast) to keep the guarantee exact.
 _PUBLIC_IPV4_BLOCKS: tuple[ipaddress.IPv4Network, ...] = (
-    ipaddress.ip_network("8.8.8.0/24"),        # public DNS block
-    ipaddress.ip_network("203.0.113.0/24"),    # TEST-NET-3 (global for our test)
-    ipaddress.ip_network("198.51.100.0/24"),   # TEST-NET-2
-    ipaddress.ip_network("1.1.1.0/24"),        # public
-    ipaddress.ip_network("93.184.216.0/24"),   # example.com block
-    ipaddress.ip_network("151.101.0.0/24"),    # public CDN
+    ipaddress.ip_network("8.8.8.0/24"),  # public DNS block
+    ipaddress.ip_network("203.0.113.0/24"),  # TEST-NET-3 (global for our test)
+    ipaddress.ip_network("198.51.100.0/24"),  # TEST-NET-2
+    ipaddress.ip_network("1.1.1.0/24"),  # public
+    ipaddress.ip_network("93.184.216.0/24"),  # example.com block
+    ipaddress.ip_network("151.101.0.0/24"),  # public CDN
 )
 
 external_ip_strategy = (
@@ -218,8 +214,7 @@ class _Ability:
         self.ability_id = ability_id
         self.name = name
         self.executors = [
-            {"name": "sh", "platform": "linux", "command": command}
-            for command in commands
+            {"name": "sh", "platform": "linux", "command": command} for command in commands
         ]
 
 

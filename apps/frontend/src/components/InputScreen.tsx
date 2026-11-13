@@ -31,7 +31,7 @@ export function InputScreen({
   onVersionSelected: (version: string) => void
   onBaseCompletionChange: (completed: boolean) => void
   /** Called with the chosen `campaign_key` once its overview has loaded. */
-  onCampaignSelected: (campaignKey: string) => void
+  onCampaignSelected: (campaignKey: string, campaignName?: string) => void
   /** True once a campaign is selected and its overview loaded. */
   campaignReady: boolean
   /** Explicit advance to the operationalization screen (the Next button). */
@@ -132,7 +132,6 @@ function StepRow({
       className={cn("flex flex-col gap-2 transition-opacity", disabled && "opacity-60")}
       data-section="input-panel"
       data-index={index}
-      aria-disabled={disabled}
     >
       <div className="flex items-center gap-2">
         <span

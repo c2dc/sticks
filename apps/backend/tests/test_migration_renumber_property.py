@@ -59,9 +59,11 @@ shared DB — safe on any dev environment.
 
 from __future__ import annotations
 
+# Import the SHIPPED migration module so we drive its REAL upgrade() logic.
+# The filename is not a valid identifier, so load it by path via importlib.
+import importlib.util
 import tempfile
 from pathlib import Path
-from typing import Optional
 
 from alembic.migration import MigrationContext
 from alembic.operations import Operations
@@ -81,10 +83,6 @@ from sqlalchemy import (
     select,
 )
 from sqlalchemy.engine import Engine
-
-# Import the SHIPPED migration module so we drive its REAL upgrade() logic.
-# The filename is not a valid identifier, so load it by path via importlib.
-import importlib.util
 
 _MIGRATION_PATH = (
     Path(__file__).resolve().parents[1]
@@ -214,8 +212,7 @@ def test_property4_upgrade_renumber_shifts_and_preserves(rows: list[dict]) -> No
         # Independent oracle: the expected post-upgrade row per id — only
         # ``estagio`` shifts by +1; every other field is untouched (Req. 2.2).
         expected: dict[int, dict] = {
-            rid: {**payload, "estagio": payload["estagio"] + 1}
-            for rid, payload in seeded.items()
+            rid: {**payload, "estagio": payload["estagio"] + 1} for rid, payload in seeded.items()
         }
 
         # Drive the migration's REAL upgrade() through Alembic's Operations proxy
@@ -227,16 +224,15 @@ def test_property4_upgrade_renumber_shifts_and_preserves(rows: list[dict]) -> No
         # to our isolated MigrationContext so every ``op.*`` call in upgrade()
         # resolves against the temp connection (the global proxy would otherwise
         # have no bound context outside an alembic run).
-        with engine.connect() as conn:
-            with conn.begin():
-                ctx = MigrationContext.configure(connection=conn)
-                op_proxy = Operations(ctx)
-                original_op = _migration.op
-                _migration.op = op_proxy
-                try:
-                    _migration.upgrade()
-                finally:
-                    _migration.op = original_op
+        with engine.connect() as conn, conn.begin():
+            ctx = MigrationContext.configure(connection=conn)
+            op_proxy = Operations(ctx)
+            original_op = _migration.op
+            _migration.op = op_proxy
+            try:
+                _migration.upgrade()
+            finally:
+                _migration.op = original_op
 
         # Read every row back and compare to the independent oracle, per id.
         with engine.connect() as conn:

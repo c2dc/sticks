@@ -88,9 +88,7 @@ _STATUS_CHOICES: tuple[AbilityResultStatus, ...] = tuple(AbilityResultStatus)
 # the ids distinct; ``min_size=1`` ensures a non-trivial order (the empty case
 # is covered by an explicit example test below).
 _atomic_ordering_strategy = st.lists(
-    st.text(
-        alphabet="abcdefghijklmnopqrstuvwxyz0123456789-", min_size=1, max_size=16
-    ),
+    st.text(alphabet="abcdefghijklmnopqrstuvwxyz0123456789-", min_size=1, max_size=16),
     min_size=1,
     max_size=12,
     unique=True,
@@ -222,9 +220,7 @@ def test_property10_atomic_ordering_is_preserved(data: st.DataObject) -> None:
 
     session, db_path, engine = _build_ephemeral_session()
     try:
-        operation_id = _seed_in_atomic_order(
-            session, _CAMPAIGN_ID, ordering, payloads
-        )
+        operation_id = _seed_in_atomic_order(session, _CAMPAIGN_ID, ordering, payloads)
 
         service = SessionStateService(session)
         views = service.get_operation_results(_CAMPAIGN_ID)
@@ -243,12 +239,10 @@ def test_property10_atomic_ordering_is_preserved(data: st.DataObject) -> None:
         # (2) Each ability's own payload travelled with its position: the result
         # at index i is the one for ``ordering[i]`` (ordering is not just a
         # coincidental permutation that happens to carry the wrong statuses).
-        for presented, expected_id in zip(view.results, ordering):
+        for presented, expected_id in zip(view.results, ordering, strict=False):
             assert presented.ability_id == expected_id
             assert presented.status == payloads[expected_id]["status"]
-            assert presented.command_output == payloads[expected_id][
-                "command_output"
-            ]
+            assert presented.command_output == payloads[expected_id]["command_output"]
     finally:
         session.close()
         engine.dispose()

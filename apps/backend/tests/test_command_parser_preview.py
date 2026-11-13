@@ -33,10 +33,8 @@ import copy
 
 import pytest
 
-from tests._shadowray_abilities import SHADOWRAY_ABILITIES
 from app.services.containment.command_parser import (
     CommandDestinations,
-    Destination,
     DestinationKind,
     extract_destinations,
     parse_command,
@@ -54,7 +52,7 @@ from app.services.containment.subnet_validator import (
     DestinationClass,
     validate_commands,
 )
-
+from tests._shadowray_abilities import SHADOWRAY_ABILITIES
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -161,7 +159,7 @@ def test_nested_double_ssh_yields_both_hosts() -> None:
         "-o UserKnownHostsFile=/dev/null attacker@192.168.20.30 "
         "'ip -brief a; ip r; ip neigh; hostname -I; "
         'sshpass -p "Passw0rd" ssh -T -o StrictHostKeyChecking=no '
-        '-o UserKnownHostsFile=/dev/null attacker@192.168.30.40 '
+        "-o UserKnownHostsFile=/dev/null attacker@192.168.30.40 "
         '"ip -brief a; ip r; ip neigh; hostname -I"\''
     )
     parsed = parse_command(command)
@@ -201,7 +199,7 @@ def test_git_clone_scp_style_user_at_host() -> None:
         "cat /etc/passwd",
         "cat /etc/shadow",
         "echo 'mining crypto'",
-        "echo \"END OF SHADOWRAY\"",
+        'echo "END OF SHADOWRAY"',
         "id",
         "hostname -I",
     ],
@@ -267,7 +265,7 @@ def test_preview_nested_double_ssh_resolves_nginx_and_db() -> None:
     """The nested ssh (192.168.20.30 -> 192.168.30.40) resolves to nginx AND db."""
     command = (
         "sshpass -p 'Passw0rd' ssh attacker@192.168.20.30 "
-        "'sshpass -p \"Passw0rd\" ssh attacker@192.168.30.40 \"hostname -I\"'"
+        '\'sshpass -p "Passw0rd" ssh attacker@192.168.30.40 "hostname -I"\''
     )
     preview = preview_commands([command])
     cmd = preview.commands[0]
@@ -285,7 +283,9 @@ def test_preview_flags_external_destination() -> None:
     """A ``wget https://nmap.org/...`` sets ``has_external`` on the destination,
     command, ability and full emulation preview, with no lab container."""
     preview = preview_commands(
-        ["sshpass -p 'Passw0rd' ssh attacker@192.168.20.30 wget https://nmap.org/dist/nmap-7.98.tgz"],
+        [
+            "sshpass -p 'Passw0rd' ssh attacker@192.168.20.30 wget https://nmap.org/dist/nmap-7.98.tgz"
+        ],
         ability_id="8130dba3-f51c-57d2-9d49-78e9b0bb3c4b",
         ability_name="T1068 - Exploitation for Privilege Escalation",
     )
@@ -364,7 +364,7 @@ def test_preview_ability_from_object_like() -> None:
     class _Ability:
         ability_id = "8130dba3-f51c-57d2-9d49-78e9b0bb3c4b"
         name = "T1068 - Exploitation for Privilege Escalation"
-        executors = [
+        executors = [  # noqa: RUF012 -- test double attribute, read-only
             {
                 "name": "sh",
                 "platform": "linux",
@@ -385,7 +385,7 @@ def test_preview_ability_with_no_executors_has_no_commands() -> None:
     class _Ability:
         ability_id = "empty"
         name = "Empty"
-        executors: list = []
+        executors: list = []  # noqa: RUF012 -- test double attribute, read-only
 
     preview = preview_ability(_Ability())
     assert preview.commands == []
@@ -471,11 +471,6 @@ def test_preview_real_shadowray_operation() -> None:
 
     # Local abilities (T1496.001 'echo', END OF SHADOWRAY 'echo') render a local
     # target instead of crashing on an empty destination list.
-    local_previews = [
-        cmd
-        for a in emulation.abilities
-        for cmd in a.commands
-        if cmd.is_local
-    ]
+    local_previews = [cmd for a in emulation.abilities for cmd in a.commands if cmd.is_local]
     assert local_previews  # at least the two echo-only abilities
     assert all(cmd.target_labels == [DEFAULT_LOCAL_TARGET] for cmd in local_previews)

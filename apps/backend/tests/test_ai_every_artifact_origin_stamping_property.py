@@ -135,16 +135,10 @@ class _FakeGraph:
         return dict(self._final_state)
 
 
-def _install_fake_graph(
-    monkeypatch: pytest.MonkeyPatch, graph: _FakeGraph
-) -> None:
+def _install_fake_graph(monkeypatch: pytest.MonkeyPatch, graph: _FakeGraph) -> None:
     """Patch ``_build_graph`` so the service invokes ``graph`` and probes pass."""
-    monkeypatch.setattr(
-        AgentRunService, "_build_graph", lambda self: graph, raising=True
-    )
-    monkeypatch.setattr(
-        AgentRunService, "_require_dependencies", lambda self: None, raising=True
-    )
+    monkeypatch.setattr(AgentRunService, "_build_graph", lambda self: graph, raising=True)
+    monkeypatch.setattr(AgentRunService, "_require_dependencies", lambda self: None, raising=True)
 
 
 # ---------------------------------------------------------------------------
@@ -152,9 +146,7 @@ def _install_fake_graph(
 # opaque environment artifact, in the serialized shape the final state carries.
 # ---------------------------------------------------------------------------
 
-_slug_strategy = st.text(
-    alphabet="abcdefghijklmnopqrstuvwxyz0123456789-_", min_size=1, max_size=16
-)
+_slug_strategy = st.text(alphabet="abcdefghijklmnopqrstuvwxyz0123456789-_", min_size=1, max_size=16)
 _technique_id_strategy = st.from_regex(r"T[0-9]{3,4}(\.[0-9]{3})?", fullmatch=True)
 
 
@@ -246,9 +238,7 @@ def _run_final_state(draw: st.DrawFn) -> tuple[dict, int, bool]:
     if include_flow:
         artifacts["flow"] = _produced_flow_payload(_CAMPAIGN_ID)
     if include_op:
-        artifacts["operationalization"] = draw(
-            _operationalization_payload(_CAMPAIGN_ID)
-        )
+        artifacts["operationalization"] = draw(_operationalization_payload(_CAMPAIGN_ID))
     if include_env:
         # The env persistence hook requires the operationalization-derived
         # params linkage only when present; the hook itself reads the opaque
@@ -303,9 +293,7 @@ def test_property5_every_persisted_stage_output_is_ai_generated(
     try:
         _install_fake_graph(monkeypatch, _FakeGraph(final_state=final_state))
 
-        run = AgentRunService(session).start(
-            _CAMPAIGN_ID, max_iterations=max_iterations
-        )
+        run = AgentRunService(session).start(_CAMPAIGN_ID, max_iterations=max_iterations)
 
         # The Run persisted its completed iteration; read the raw origin value of
         # every agent_stage_outputs row straight off the database (not the ORM's
@@ -313,17 +301,12 @@ def test_property5_every_persisted_stage_output_is_ai_generated(
         # The read goes through the service's own Session so it sees the rows the
         # Run flushed within its still-open unit of work (``start`` flushes but
         # does not commit — the transaction boundary belongs to the caller).
-        origins = (
-            session.execute(text("SELECT origin FROM agent_stage_outputs"))
-            .scalars()
-            .all()
-        )
+        origins = session.execute(text("SELECT origin FROM agent_stage_outputs")).scalars().all()
 
         # The Run always carries at least one artifact, so it always wrote at
         # least one stage-output row to assert on.
         assert origins, (
-            "expected the Run to persist at least one agent_stage_outputs row "
-            f"(run id={run.id})"
+            f"expected the Run to persist at least one agent_stage_outputs row (run id={run.id})"
         )
         # EVERY persisted row carries the AI-generated origin (Req. 3.2).
         assert all(origin == _AI_GENERATED for origin in origins), (

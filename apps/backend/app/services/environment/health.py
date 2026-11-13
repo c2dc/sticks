@@ -59,10 +59,9 @@ _Requirements: 5.1, 9.2_
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 from pydantic import BaseModel, Field
-
 
 # ---------------------------------------------------------------------------
 # Read-only state/health inspector seam + data carrier (mockable)
@@ -93,7 +92,7 @@ class ContainerStateInfo:
 
     name: str
     running: bool = False
-    health: Optional[str] = None
+    health: str | None = None
 
 
 class ContainerStateNotFound(LookupError):
@@ -151,8 +150,8 @@ class HealthVerdict(BaseModel):
 
     container: str
     running: bool = False
-    healthy: Optional[bool] = None
-    reason: Optional[str] = None
+    healthy: bool | None = None
+    reason: str | None = None
 
     @property
     def approved(self) -> bool:
@@ -196,9 +195,7 @@ class HealthSummary(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-def _classify_container(
-    container: str, inspector: ContainerStateInspector
-) -> HealthVerdict:
+def _classify_container(container: str, inspector: ContainerStateInspector) -> HealthVerdict:
     """Classify a single container as healthy or not, with the reason.
 
     Pure with respect to Docker: all access goes through the ``inspector``. A
@@ -241,9 +238,7 @@ def _classify_container(
     )
 
 
-def check_health(
-    containers: list[str], inspector: ContainerStateInspector
-) -> HealthSummary:
+def check_health(containers: list[str], inspector: ContainerStateInspector) -> HealthSummary:
     """Verify that all target containers are healthy (read-only, pure).
 
     Pure entry point used by the tests and by the ``await_health`` step of the
@@ -292,7 +287,7 @@ class DockerSdkStateInspector:
         self._client = client
 
     @classmethod
-    def from_env(cls) -> "DockerSdkStateInspector":
+    def from_env(cls) -> DockerSdkStateInspector:
         """Build an inspector from the Docker environment (read-only use).
 
         Imports ``docker`` lazily; raises ``RuntimeError`` with a clear message if
@@ -302,15 +297,11 @@ class DockerSdkStateInspector:
         try:
             import docker  # local import: keeps the module importable without docker
         except ImportError as exc:  # pragma: no cover - declared dependency
-            raise RuntimeError(
-                "docker SDK unavailable; cannot inspect health"
-            ) from exc
+            raise RuntimeError("docker SDK unavailable; cannot inspect health") from exc
         try:
             client = docker.from_env()
         except Exception as exc:  # pragma: no cover - needs a real daemon
-            raise RuntimeError(
-                "Docker Engine API unavailable; cannot inspect health"
-            ) from exc
+            raise RuntimeError("Docker Engine API unavailable; cannot inspect health") from exc
         return cls(client)
 
     def get_container_state(self, container: str) -> ContainerStateInfo:
@@ -321,7 +312,7 @@ class DockerSdkStateInspector:
         Req. 5.1).
         """
         try:
-            obj = self._client.containers.get(container)  # type: ignore[attr-defined]
+            obj = self._client.containers.get(container)  # type: ignore[attr-defined] -- docker client is typed as object to keep the docker SDK optional
         except Exception as exc:  # docker.errors.NotFound and the like
             raise ContainerStateNotFound(container) from exc
         attrs = getattr(obj, "attrs", {}) or {}
@@ -367,11 +358,11 @@ def inspect_health(
 
 __all__ = [
     "ContainerStateInfo",
-    "ContainerStateNotFound",
     "ContainerStateInspector",
-    "HealthVerdict",
-    "HealthSummary",
-    "check_health",
+    "ContainerStateNotFound",
     "DockerSdkStateInspector",
+    "HealthSummary",
+    "HealthVerdict",
+    "check_health",
     "inspect_health",
 ]

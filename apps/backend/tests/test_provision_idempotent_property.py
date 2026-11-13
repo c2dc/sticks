@@ -56,17 +56,13 @@ _Requirements: 7.1, 7.2, 7.3, 7.4_
 
 from __future__ import annotations
 
-import json
-import shutil
-import tempfile
+from collections.abc import Mapping
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from tests._curated_db import CaseDb, db_put
 from app.services.containment.isolation import (
     ContainerNetworkInfo,
     ContainerNotFound,
@@ -87,7 +83,7 @@ from app.services.environment.operationalization import (
 from app.services.environment.provisioner import CurationEnvironmentProvisioner
 from app.services.environment.target_setup import ClassifiedCommand, SetupPhase
 from app.services.environment.topology_builder import HOST_CONTAINERS as _HOST_CONTAINERS
-
+from tests._curated_db import CaseDb, db_put
 
 _SLUG = "shadowray"
 _INTERNAL_NET = "caldera-kali-network"
@@ -117,9 +113,7 @@ class _NetworkState:
     history: list[dict[str, frozenset[str]]] = field(default_factory=list)
 
     def _snapshot(self) -> None:
-        self.history.append(
-            {c: frozenset(nets) for c, nets in self.attached.items()}
-        )
+        self.history.append({c: frozenset(nets) for c, nets in self.attached.items()})
 
     def attach(self, container: str, network: str) -> int:
         """Attach ``network`` to ``container`` — idempotent no-op if already there."""
@@ -150,23 +144,15 @@ class _StatefulEgressWindow:
 
     state: _NetworkState
 
-    def open(
-        self, container: str, attack_networks: list[str], *, on_log
-    ) -> EgressWindowResult:
-        on_log(
-            LogLine(step="build_online", stream="info", text="open", substage="5.1")
-        )
+    def open(self, container: str, attack_networks: list[str], *, on_log) -> EgressWindowResult:
+        on_log(LogLine(step="build_online", stream="info", text="open", substage="5.1"))
         for network in attack_networks:
             self.state.detach(container, network)
         self.state.attach(container, EGRESS_NETWORK)
         return EgressWindowResult(container=container, opened=True)
 
     def close(self, container: str, *, on_log) -> EgressWindowResult:
-        on_log(
-            LogLine(
-                step="encerrar_egresso", stream="info", text="close", substage="5.1"
-            )
-        )
+        on_log(LogLine(step="encerrar_egresso", stream="info", text="close", substage="5.1"))
         self.state.detach(container, EGRESS_NETWORK)
         return EgressWindowResult(container=container, closed=True)
 
@@ -287,8 +273,7 @@ class _FakeStateInspector:
         from app.services.environment.health import ContainerStateInfo
 
         self._states = {
-            c: ContainerStateInfo(name=c, running=True, health="healthy")
-            for c in containers
+            c: ContainerStateInfo(name=c, running=True, health="healthy") for c in containers
         }
 
     def get_container_state(self, container: str):
@@ -302,13 +287,9 @@ class _FakeStateInspector:
 
 def _isolated_inspector(containers: list[str]) -> _FakeInspector:
     insp = _FakeInspector()
-    insp.networks[_INTERNAL_NET] = NetworkInfo(
-        name=_INTERNAL_NET, internal=True, subnets=()
-    )
+    insp.networks[_INTERNAL_NET] = NetworkInfo(name=_INTERNAL_NET, internal=True, subnets=())
     for c in containers:
-        insp.containers[c] = ContainerNetworkInfo(
-            name=c, network_names=(_INTERNAL_NET,), dns=()
-        )
+        insp.containers[c] = ContainerNetworkInfo(name=c, network_names=(_INTERNAL_NET,), dns=())
     return insp
 
 
@@ -322,19 +303,27 @@ def _seed_case(data_dir: CaseDb, slug: str) -> None:
         },
     ]
     db_put(data_dir, "ability", slug, abilities)
-    db_put(data_dir, "adversary", slug, {
+    db_put(
+        data_dir,
+        "adversary",
+        slug,
+        {
             "id": f"{slug}-adv",
             "name": "Seed Adversary",
             "description": "seed",
             "atomic_ordering": [f"{slug}-ab-1"],
-        })
-    db_put(data_dir, "flow", slug, {
+        },
+    )
+    db_put(
+        data_dir,
+        "flow",
+        slug,
+        {
             "campaign_name": "Seed",
-            "structural_nodes": [
-                {"node_id": "n0", "technique_id": "T1190"}
-            ],
+            "structural_nodes": [{"node_id": "n0", "technique_id": "T1190"}],
             "metadata": {"total_techniques": 1},
-        })
+        },
+    )
 
 
 def _params(containers: list[str], *, label_salt: int = 0) -> EnvironmentParameters:
@@ -384,9 +373,7 @@ def _assert_invariant_over_history(state: _NetworkState) -> None:
 # ---------------------------------------------------------------------------
 
 _HOST_CHOICES = ["nginx", "db"]
-_hosts_strategy = st.lists(
-    st.sampled_from(_HOST_CHOICES), min_size=1, max_size=2, unique=True
-)
+_hosts_strategy = st.lists(st.sampled_from(_HOST_CHOICES), min_size=1, max_size=2, unique=True)
 # Number of provision runs over the same fakes (first + at least one re-run).
 _reruns_strategy = st.integers(min_value=2, max_value=6)
 # A cosmetic salt for the host labels — widens the example space only.

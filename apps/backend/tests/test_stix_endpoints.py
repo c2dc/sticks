@@ -18,11 +18,13 @@ touches the network or any bundle file.
 
 from __future__ import annotations
 
+import itertools
 import tempfile
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Iterator
 
 import pytest
+from _stix_fakes import FakeStixHttp, small_bundle
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, sessionmaker
@@ -31,10 +33,6 @@ from app.core.config import Settings
 from app.db.base import Base, import_models
 from app.db.session import create_db_engine, get_db
 from app.main import create_app
-from app.models.enums import IngestSource, IngestStatus
-from app.services.ingestion.orchestrator import IngestionOrchestrator
-from app.services.ingestion.runners import StixPackagesSourceRunner
-from _stix_fakes import FakeStixHttp, small_bundle
 from app.models.domain import (
     StixActor,
     StixActorCampaign,
@@ -43,10 +41,15 @@ from app.models.domain import (
     StixPackage,
     StixTypeCount,
 )
+from app.models.enums import IngestSource, IngestStatus
+from app.services.ingestion.orchestrator import IngestionOrchestrator
+from app.services.ingestion.runners import StixPackagesSourceRunner
 from app.services.stix.stix_service import (
     KNOWN_VERSIONS,
     StixService,
+    StixVersionCatalog,
     _semantic_version_key,
+    set_version_catalog,
 )
 
 
@@ -114,7 +117,7 @@ def test_get_bases_200_ordered_and_all_not_downloaded(client: TestClient) -> Non
 
     # Strictly descending by semantic version (newest first).
     keys = [_semantic_version_key(b["version"]) for b in bases]
-    for anterior, proximo in zip(keys, keys[1:]):
+    for anterior, proximo in itertools.pairwise(keys):
         assert anterior > proximo, f"ordem decrescente violada: {anterior} !> {proximo}"
 
     # Fresh database: nothing downloaded.
@@ -223,9 +226,7 @@ def _seed_persisted_package(session_factory: sessionmaker[Session]) -> str:
         )
         session.add(actor)
         session.flush()
-        session.add(
-            StixActorCampaign(actor_id=actor.id, campaign_id=campaign.id)
-        )
+        session.add(StixActorCampaign(actor_id=actor.id, campaign_id=campaign.id))
 
         session.commit()
     finally:
@@ -276,9 +277,7 @@ def test_get_campaign_overview_persisted_version_200(
 ) -> None:
     """``GET /campaigns/{key}/overview`` returns the campaign's DB-backed view."""
     version = _seed_persisted_package(session_factory)
-    resp = client.get(
-        f"/api/stix/bases/{version}/campaigns/example-campaign/overview"
-    )
+    resp = client.get(f"/api/stix/bases/{version}/campaigns/example-campaign/overview")
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert body["campaign_key"] == "example-campaign"
@@ -294,9 +293,7 @@ def test_get_campaign_overview_unknown_key_404(
     """An unknown ``campaign_key`` on a persisted version is 404
     ``campanha_nao_encontrada``."""
     version = _seed_persisted_package(session_factory)
-    resp = client.get(
-        f"/api/stix/bases/{version}/campaigns/does-not-exist/overview"
-    )
+    resp = client.get(f"/api/stix/bases/{version}/campaigns/does-not-exist/overview")
     assert resp.status_code == 404, resp.text
     detail = resp.json()["detail"]
     assert detail["motivo"] == "campanha_nao_encontrada"
@@ -375,8 +372,6 @@ def test_get_analytics_persisted_version_200_rankings_and_totals(
     assert technique["campaigns_total"] == 1
 
 
-
-
 def test_analytics_version_not_persisted_422(client: TestClient) -> None:
     """``GET /analytics`` of a not-persisted version is 422 ``bundle_indisponivel``."""
     resp = client.get(f"/api/stix/bases/{KNOWN_VERSIONS[0]}/analytics")
@@ -388,9 +383,7 @@ def test_analytics_version_not_persisted_422(client: TestClient) -> None:
 
 def test_campaign_overview_version_not_persisted_422(client: TestClient) -> None:
     """The campaign overview of a not-persisted version is 422, never a file read."""
-    resp = client.get(
-        f"/api/stix/bases/{KNOWN_VERSIONS[0]}/campaigns/shadowray/overview"
-    )
+    resp = client.get(f"/api/stix/bases/{KNOWN_VERSIONS[0]}/campaigns/shadowray/overview")
     assert resp.status_code == 422, resp.text
     assert resp.json()["detail"]["motivo"] == "bundle_indisponivel"
 
@@ -415,9 +408,7 @@ def ingest_client(
         required_versions=[],
         index_vectors=False,
     )
-    orchestrator = IngestionOrchestrator(
-        session_factory, {IngestSource.STIX_PACKAGES: runner}
-    )
+    orchestrator = IngestionOrchestrator(session_factory, {IngestSource.STIX_PACKAGES: runner})
 
     def _get_db_override() -> Iterator[Session]:
         db = session_factory()
@@ -451,9 +442,12 @@ def test_download_runs_ingestion_in_background_and_persists(
 
     orchestrator.join(10)
     with session_factory() as session:
-        assert session.execute(
-            select(func.count()).select_from(StixPackage).where(StixPackage.version == _VERSION)
-        ).scalar_one() == 1
+        assert (
+            session.execute(
+                select(func.count()).select_from(StixPackage).where(StixPackage.version == _VERSION)
+            ).scalar_one()
+            == 1
+        )
     listed = {b["version"]: b for b in client.get("/api/stix/bases").json()["bases"]}
     assert listed[_VERSION]["downloaded"] is True
     assert listed[_VERSION]["selectable"] is True
@@ -546,9 +540,7 @@ def test_bases_completed_is_true_only_for_persisted_versions(
     after = {b["version"]: b for b in client.get("/api/stix/bases").json()["bases"]}
     assert after[version]["completed"] is True
     assert after[version]["completed"] == after[version]["downloaded"]
-    assert all(
-        b["completed"] is False for v, b in after.items() if v != version
-    )
+    assert all(b["completed"] is False for v, b in after.items() if v != version)
 
 
 def test_campaigns_listing_carries_container_emulability_fields(
@@ -577,3 +569,140 @@ def test_campaigns_listing_carries_container_emulability_fields(
     assert marked["campaign_key"] == "example-campaign"
     assert marked["container_emulable"] is False
     assert marked["blocking_techniques"] == ["T1059"]
+
+
+# ---------------------------------------------------------------------------
+# Version list from the (fake) upstream index (task 38.3). No network: the
+# process-wide catalog gets an injected fetcher; the conftest restores it.
+# ---------------------------------------------------------------------------
+
+
+def _fake_catalog(*versions: str, error: Exception | None = None) -> StixVersionCatalog:
+    def _fetcher(timeout: float):
+        if error is not None:
+            raise error
+        return {
+            "collections": [
+                {
+                    "name": "Enterprise ATT&CK",
+                    "versions": [
+                        {
+                            "version": v,
+                            "url": "https://example.invalid/enterprise-attack/"
+                            f"enterprise-attack-{v}.json",
+                            "modified": "2025-01-01T00:00:00.000Z",
+                        }
+                        for v in versions
+                    ],
+                }
+            ]
+        }
+
+    catalog = StixVersionCatalog(_fetcher)
+    set_version_catalog(catalog)
+    return catalog
+
+
+def test_bases_listing_from_the_index_puts_the_newest_first_and_keeps_the_contract(
+    client: TestClient,
+) -> None:
+    _fake_catalog("19.1", "21.0", "20.1")
+
+    bases = client.get("/api/stix/bases").json()["bases"]
+
+    assert [b["version"] for b in bases] == ["21.0", "20.1", "19.1"]
+    for base in bases:
+        assert {"version", "name", "downloaded", "selectable", "completed"} <= set(base)
+        assert "curated" not in base
+        assert base["downloaded"] is base["selectable"] is base["completed"] is False
+
+
+def test_bases_listing_never_hides_a_persisted_version_missing_from_the_index(
+    client: TestClient, session_factory: sessionmaker[Session]
+) -> None:
+    _fake_catalog("21.0", "20.1")
+    with session_factory() as session:
+        session.add(StixPackage(version="18.0", name="Enterprise ATT&CK v18.0"))
+        session.commit()
+
+    listed = {b["version"]: b for b in client.get("/api/stix/bases").json()["bases"]}
+
+    assert list(listed) == ["21.0", "20.1", "18.0"]
+    assert listed["18.0"]["downloaded"] is True
+    assert listed["18.0"]["completed"] is True
+    assert listed["21.0"]["downloaded"] is False
+
+
+def test_bases_listing_offline_falls_back_to_known_versions(client: TestClient) -> None:
+    _fake_catalog(error=OSError("offline"))
+
+    bases = client.get("/api/stix/bases").json()["bases"]
+
+    assert {b["version"] for b in bases} == set(KNOWN_VERSIONS)
+    assert bases[0]["version"] == "20.1"
+
+
+def test_bases_listing_uses_the_cache_between_requests(client: TestClient) -> None:
+    calls: list[float] = []
+
+    def _fetcher(timeout: float):
+        calls.append(timeout)
+        return {"collections": []}
+
+    set_version_catalog(StixVersionCatalog(_fetcher))
+    client.get("/api/stix/bases")
+    client.get("/api/stix/bases")
+
+    assert len(calls) == 1  # empty index: negative cache, not one query per request
+
+
+def test_download_accepts_a_version_listed_by_the_index(
+    ingest_client: tuple[TestClient, FakeStixHttp, IngestionOrchestrator],
+    session_factory: sessionmaker[Session],
+) -> None:
+    client, http, orchestrator = ingest_client
+    _fake_catalog("21.0", "20.1")
+    assert "21.0" not in KNOWN_VERSIONS
+    http.bundles["21.0"] = small_bundle()
+
+    resp = client.post("/api/stix/bases/21.0/download")
+
+    assert resp.status_code == 202, resp.text
+    orchestrator.join(10)
+    with session_factory() as session:
+        assert set(session.execute(select(StixPackage.version)).scalars()) == {"21.0"}
+
+
+def test_download_rejects_versions_outside_the_index_with_422(
+    ingest_client: tuple[TestClient, FakeStixHttp, IngestionOrchestrator],
+    session_factory: sessionmaker[Session],
+) -> None:
+    client, http, _orchestrator = ingest_client
+    _fake_catalog("21.0", "20.1")
+
+    # Not in the index; "19.2" is only in the offline fallback, which applies
+    # only while the index is unavailable.
+    for version in ("99.9", "19.2"):
+        resp = client.post(f"/api/stix/bases/{version}/download")
+        assert resp.status_code == 422, resp.text
+        assert resp.json()["detail"]["motivo"] == "falha_download"
+
+    assert http.calls == []
+    with session_factory() as session:
+        assert session.execute(select(func.count()).select_from(StixPackage)).scalar_one() == 0
+
+
+def test_download_offline_accepts_fallback_versions_and_rejects_the_rest(
+    ingest_client: tuple[TestClient, FakeStixHttp, IngestionOrchestrator],
+) -> None:
+    client, http, orchestrator = ingest_client
+    _fake_catalog(error=OSError("offline"))
+    http.bundles["19.2"] = small_bundle()
+
+    assert client.post("/api/stix/bases/19.2/download").status_code == 202
+    orchestrator.join(10)
+    rejected = client.post("/api/stix/bases/99.9/download")
+
+    assert rejected.status_code == 422, rejected.text
+    assert rejected.json()["detail"]["motivo"] == "falha_download"
+    assert len(http.calls) == 1

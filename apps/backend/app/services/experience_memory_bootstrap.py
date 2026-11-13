@@ -98,9 +98,7 @@ class ExperienceMemoryBootstrap:
         skipped = 0
 
         campaigns = (
-            self._session.execute(select(CampaignRow).order_by(CampaignRow.id))
-            .scalars()
-            .all()
+            self._session.execute(select(CampaignRow).order_by(CampaignRow.id)).scalars().all()
         )
         for campaign in campaigns:
             ins, skp = self._bootstrap_campaign(campaign.id)
@@ -129,9 +127,9 @@ class ExperienceMemoryBootstrap:
             )
             if key
         }
-        campaign_ids = self._session.execute(
-            select(CampaignRow.id).order_by(CampaignRow.id)
-        ).scalars().all()
+        campaign_ids = (
+            self._session.execute(select(CampaignRow.id).order_by(CampaignRow.id)).scalars().all()
+        )
         missing = 0
         for campaign_id in campaign_ids:
             for _kind, content, _metadata in self._derive_entries(campaign_id):
@@ -175,10 +173,7 @@ class ExperienceMemoryBootstrap:
                 technique_id = self._clean(ability.technique_id) or "unknown"
                 tool = self._clean(executor.get("name")) or "unknown"
                 platform = self._clean(executor.get("platform")) or "unknown"
-                content = (
-                    f"technique {technique_id} executor {tool} "
-                    f"platform {platform}: {command}"
-                )
+                content = f"technique {technique_id} executor {tool} platform {platform}: {command}"
                 entries.append(
                     (
                         "command_affinity",

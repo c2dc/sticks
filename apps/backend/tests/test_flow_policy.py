@@ -118,9 +118,7 @@ def test_decision_is_independent_of_input_order() -> None:
     baseline = classify_flow_path("N", aliases, frozenset({"T1", "T2", "T3"}), candidates)
     for perm in itertools.permutations(candidates):
         for alias_perm in itertools.permutations(aliases):
-            got = classify_flow_path(
-                "N", alias_perm, frozenset({"T3", "T1", "T2"}), list(perm)
-            )
+            got = classify_flow_path("N", alias_perm, frozenset({"T3", "T1", "T2"}), list(perm))
             assert got == baseline
 
 

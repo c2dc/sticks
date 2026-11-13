@@ -5,7 +5,7 @@ report produced by the execute node (:func:`app.services.ai.graph.execute_node`)
 scores it against the existing **procedural-sufficiency metric**, and decides
 whether to ``FINISH`` the run or ``REFINE`` a stage and loop again.
 
-What the node does (Req. 1.5, 1.6, 8.6, 10.1–10.6):
+What the node does (Req. 1.5, 1.6, 8.6, 10.1-10.6):
 
 * Reads ``state["report"]`` — the serialized Stage 6
   :class:`~app.services.operation.runner.OperationRunResult`.
@@ -51,7 +51,8 @@ spawns no subprocess and touches no database.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Optional
+import contextlib
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:  # pragma: no cover - typing only, no runtime import
     from app.services.ai.memory import ExperienceMemory
@@ -86,9 +87,9 @@ _COMPLETED_OUTCOME = "concluida"
 
 
 def node(
-    state: "AgentState",
+    state: AgentState,
     *,
-    memory: "ExperienceMemory | None" = None,
+    memory: ExperienceMemory | None = None,
 ) -> dict:
     """LangGraph node: receive the execution result, decide REFINE vs FINISH.
 
@@ -200,10 +201,8 @@ def node(
         # Passing verdict → FINISH (Req. 10.2). The router then routes to END and
         # the Run_Service marks the run COMPLETED (Req. 3.2).
         evaluation["decision"] = EvaluatorDecision.FINISH.value
-        evaluation["rationale"] = _bounded(
-            _finish_rationale(report, evaluation)
-        )
-        refine_stage: Optional[str] = None
+        evaluation["rationale"] = _bounded(_finish_rationale(report, evaluation))
+        refine_stage: str | None = None
     else:
         # Failing verdict → REFINE (Req. 10.3). The bound is enforced by
         # route_after_eval (task 14.3), which turns a guard-hit REFINE into a
@@ -227,12 +226,12 @@ def node(
 
 
 def _refine_without_score(
-    state: "AgentState",
+    state: AgentState,
     *,
     report: Any,
     experience: list[dict[str, Any]],
     error: str,
-    memory: "ExperienceMemory | None",
+    memory: ExperienceMemory | None,
 ) -> dict:
     """Build the REFINE delta for a failed/blocked iteration (Req. 1.6, 8.6, 10.6).
 
@@ -266,7 +265,7 @@ def _refine_without_score(
     }
 
 
-def _report_read_error(report: Any) -> Optional[str]:
+def _report_read_error(report: Any) -> str | None:
     """Return an error indication when the Stage 6 report is absent/unreadable.
 
     Signals Req. 1.6 / 10.6: ``None`` means the report is a usable mapping;
@@ -276,16 +275,13 @@ def _report_read_error(report: Any) -> Optional[str]:
     if report is None:
         return "Relatório do Estágio 6 ausente: nenhuma execução foi registrada."
     if not isinstance(report, dict):
-        return (
-            "Relatório do Estágio 6 ilegível: formato inesperado "
-            f"({type(report).__name__})."
-        )
+        return f"Relatório do Estágio 6 ilegível: formato inesperado ({type(report).__name__})."
     if not report:
         return "Relatório do Estágio 6 vazio: nenhuma métrica disponível."
     return None
 
 
-def _gate_rejection_cause(report: dict[str, Any]) -> Optional[str]:
+def _gate_rejection_cause(report: dict[str, Any]) -> str | None:
     """Identify the safety gate that rejected the proposal, if any (Req. 8.6).
 
     Inspects the serialized runner ``outcome`` for one of the gate-rejection /
@@ -301,8 +297,8 @@ def _gate_rejection_cause(report: dict[str, Any]) -> Optional[str]:
 
 
 def _gate_rejection_cause_from(
-    execution_result: Optional[dict[str, Any]], report: dict[str, Any]
-) -> Optional[str]:
+    execution_result: dict[str, Any] | None, report: dict[str, Any]
+) -> str | None:
     """Identify a gate rejection from the execution result, else the report (task 4.1).
 
     When the ``execution`` phase handed the evaluator a structured execution
@@ -323,9 +319,7 @@ def _gate_rejection_cause_from(
     return _gate_rejection_cause(report)
 
 
-def _verdict_success_from(
-    execution_result: Optional[dict[str, Any]], report: dict[str, Any]
-) -> bool:
+def _verdict_success_from(execution_result: dict[str, Any] | None, report: dict[str, Any]) -> bool:
     """Read the passing verdict from the execution result, else the report (task 4.1).
 
     The ``execution`` phase computes ``verdict_success`` from the live runner
@@ -343,20 +337,16 @@ def _gate_cause_message(outcome_value: str, report: dict[str, Any]) -> str:
     """Map a gate-rejection outcome to a human-readable cause for the evaluation."""
     mapping = {
         "nao_confirmada": (
-            "Proposta bloqueada pela confirmação explícita: execução não "
-            "confirmada."
+            "Proposta bloqueada pela confirmação explícita: execução não confirmada."
         ),
         "contencao_recusada": (
-            "Proposta rejeitada pela verificação de contenção: destino externo "
-            "detectado."
+            "Proposta rejeitada pela verificação de contenção: destino externo detectado."
         ),
         "isolamento_falhou": (
-            "Proposta rejeitada pela verificação de isolamento: contêiner não "
-            "isolado."
+            "Proposta rejeitada pela verificação de isolamento: contêiner não isolado."
         ),
         "isolamento_quebrado": (
-            "Execução interrompida: o isolamento do contêiner deixou de ser "
-            "garantido."
+            "Execução interrompida: o isolamento do contêiner deixou de ser garantido."
         ),
         "caldera_indisponivel": (
             "Proposta bloqueada: a máquina de segurança não retornou uma decisão "
@@ -469,11 +459,7 @@ def _read_failed_nodes(report: dict[str, Any]) -> list[str]:
             continue
         status = getattr(result.get("status"), "value", result.get("status"))
         if status == AbilityResultStatus.FAILURE.value:
-            identifier = (
-                result.get("ability_id")
-                or result.get("node_id")
-                or result.get("name")
-            )
+            identifier = result.get("ability_id") or result.get("node_id") or result.get("name")
             if identifier is not None:
                 failed.append(str(identifier))
     return failed
@@ -484,9 +470,7 @@ def _read_failed_nodes(report: dict[str, Any]) -> list[str]:
 # ---------------------------------------------------------------------------
 
 
-def _diagnose_failing_stage(
-    report: Any, experience: list[dict[str, Any]]
-) -> tuple[str, str]:
+def _diagnose_failing_stage(report: Any, experience: list[dict[str, Any]]) -> tuple[str, str]:
     """Diagnose which curated stage to re-enter and explain why (design §Evaluator).
 
     Returns ``(refine_stage, rationale)`` where ``refine_stage`` is an
@@ -562,11 +546,11 @@ def _finish_rationale(report: dict[str, Any], evaluation: dict[str, Any]) -> str
 
 
 def _store_outcome(
-    state: "AgentState",
+    state: AgentState,
     report: Any,
     evaluation: dict[str, Any],
     *,
-    memory: "ExperienceMemory | None",
+    memory: ExperienceMemory | None,
 ) -> None:
     """Store the finalized outcome back into the long-term RAG memory.
 
@@ -590,14 +574,13 @@ def _store_outcome(
             from app.services.ai.memory import ExperienceMemory
 
             store = ExperienceMemory(session)
-        except Exception:  # noqa: BLE001 - RAG store-back is best-effort
+        except Exception:  # noqa: BLE001 -- RAG store-back is best-effort
             return
 
     report_dict = report if isinstance(report, dict) else {}
-    try:
+    # Never undo the decision on a store failure.
+    with contextlib.suppress(Exception):
         store.store_outcome(campaign_id, report_dict, evaluation)
-    except Exception:  # noqa: BLE001 - never undo the decision on a store failure
-        pass
 
 
 # ---------------------------------------------------------------------------
@@ -610,7 +593,7 @@ def persist_evaluation(
     iteration_id: int,
     evaluation: dict[str, Any],
     *,
-    report_id: Optional[int] = None,
+    report_id: int | None = None,
 ) -> Any:
     """Run_Service hook: persist the evaluation as an ``agent_evaluations`` row.
 

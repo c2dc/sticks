@@ -69,7 +69,7 @@ def _settings_from_overrides(**overrides: object) -> SepinfSettings:
     pydantic-settings binds on init.
     """
     aliased = {_ATTR_TO_ALIAS[name]: value for name, value in overrides.items()}
-    return SepinfSettings(_env_file=None, **aliased)  # type: ignore[call-arg]
+    return SepinfSettings(_env_file=None, **aliased)  # type: ignore[call-arg] -- pydantic-settings accepts _env_file at runtime but the stub does not declare it
 
 
 @pytest.fixture
@@ -233,11 +233,11 @@ def test_import_opens_no_network_connection() -> None:
         def _forbid(*_a, **_k):
             raise AssertionError("import opened a network connection")
 
-        socket.socket.connect = _forbid  # type: ignore[assignment]
-        socket.create_connection = _forbid  # type: ignore[assignment]
+        socket.socket.connect = _forbid  # type: ignore[assignment] -- test replaces the stdlib function to forbid network access
+        socket.create_connection = _forbid  # type: ignore[assignment] -- test replaces the stdlib function to forbid network access
 
-        import app.services.ai.config  # noqa: F401
-        import app.services.ai.llm  # noqa: F401
+        import app.services.ai.config  # noqa: F401 -- import under the network guard proves it makes no connection
+        import app.services.ai.llm  # noqa: F401 -- import under the network guard proves it makes no connection
 
         sys.exit(0)
         """
@@ -249,8 +249,7 @@ def test_import_opens_no_network_connection() -> None:
         cwd=str(Path(__file__).resolve().parents[1]),
     )
     assert result.returncode == 0, (
-        "importing the AI config/llm modules performed network I/O:\n"
-        f"{result.stderr}"
+        f"importing the AI config/llm modules performed network I/O:\n{result.stderr}"
     )
 
 
@@ -325,9 +324,7 @@ def test_require_raises_name_only_for_missing_base_url(
     clear_sepinf_env: None,
 ) -> None:
     """Absent/empty ``SEPINF_BASE_URL`` fails fast, naming the setting only."""
-    settings = _settings_from_overrides(
-        base_url="", model_id="ok-model", api_key="present-key"
-    )
+    settings = _settings_from_overrides(base_url="", model_id="ok-model", api_key="present-key")
 
     with pytest.raises(SepinfConfigError) as excinfo:
         _require(settings)

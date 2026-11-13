@@ -49,13 +49,14 @@ Revises: b7f4a9c21d3e
 Create Date: 2026-10-17 01:00:00.000000+00:00
 
 """
+
 from __future__ import annotations
 
 from typing import Sequence, Union
 
-from alembic import op
 import sqlalchemy as sa
 
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "c9d2e4f8a1b7"
@@ -79,7 +80,7 @@ _OLD_VALUES: tuple[str, ...] = (
 
 # Widened value set: the four historical values plus the new terminal state
 # (``incompleta_timeout`` is 18 chars → VARCHAR grows 12 → 18).
-_NEW_VALUES: tuple[str, ...] = _OLD_VALUES + ("incompleta_timeout",)
+_NEW_VALUES: tuple[str, ...] = (*_OLD_VALUES, "incompleta_timeout")
 
 
 def _enum_type(values: tuple[str, ...]) -> sa.Enum:
@@ -97,9 +98,7 @@ def _enum_type(values: tuple[str, ...]) -> sa.Enum:
     )
 
 
-def _restate_state_type(
-    old_values: tuple[str, ...], new_values: tuple[str, ...]
-) -> None:
+def _restate_state_type(old_values: tuple[str, ...], new_values: tuple[str, ...]) -> None:
     """Re-state the ``operations.state`` column type to the ``new_values`` set.
 
     Runs inside a batch block so SQLite rebuilds the table with the new column

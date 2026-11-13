@@ -22,9 +22,7 @@ ObjectType = Literal[
 ]
 
 # Object types that take part in the control flow graph.
-CONTROL_TYPES: frozenset[str] = frozenset(
-    {"attack-action", "attack-condition", "attack-operator"}
-)
+CONTROL_TYPES: frozenset[str] = frozenset({"attack-action", "attack-condition", "attack-operator"})
 
 # Fixed timestamp keeps bundles deterministic (same flow, same bytes).
 _STIX_TIMESTAMP = "1970-01-01T00:00:00.000Z"
@@ -133,7 +131,7 @@ class AttackFlow(BaseModel):
         }
 
     @classmethod
-    def from_stix_bundle(cls, bundle: dict[str, Any]) -> "AttackFlow":
+    def from_stix_bundle(cls, bundle: dict[str, Any]) -> AttackFlow:
         raw_objects = bundle.get("objects")
         if not isinstance(raw_objects, list):
             raise ValueError("bundle_without_objects")

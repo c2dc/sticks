@@ -46,10 +46,10 @@ from hypothesis import strategies as st
 
 from app.models.enums import AbilityResultStatus
 from app.services.curated_case_models import FlowData, FlowNode
-from app.services.environment.measurement import MeasurementService, AbilityMeasurementResult
+from app.services.environment.measurement import AbilityMeasurementResult, MeasurementService
 from app.services.environment.report import (
-    SufficiencyMetrics,
     ExecutionReport,
+    SufficiencyMetrics,
 )
 
 _SERVICE = MeasurementService()
@@ -91,7 +91,7 @@ def _cenario(draw: st.DrawFn):
 
     # --- Per-Ability results (includes noise: ability_id None/unknown). ---
     def _result() -> AbilityMeasurementResult:
-        aid = draw(st.one_of(st.none(), st.sampled_from(_ABILITY_IDS + ["desconhecida"])))
+        aid = draw(st.one_of(st.none(), st.sampled_from([*_ABILITY_IDS, "desconhecida"])))
         tempo = draw(
             st.one_of(
                 st.none(),
@@ -99,7 +99,9 @@ def _cenario(draw: st.DrawFn):
             )
         )
         telemetry = tuple(
-            draw(st.lists(st.sampled_from(["processo", "rede", "autenticacao", "file"]), max_size=3))
+            draw(
+                st.lists(st.sampled_from(["processo", "rede", "autenticacao", "file"]), max_size=3)
+            )
         )
         return AbilityMeasurementResult(
             ability_id=aid,
@@ -130,9 +132,9 @@ def _oraculo(flow, technique_by_ability, results):
     flow_set = set(ordem)
 
     # Agrega por técnica (flags independentes do acumulador da implementação).
-    tem_sucesso: dict[str, bool] = {t: False for t in ordem}
-    tem_falha: dict[str, bool] = {t: False for t in ordem}
-    tem_tentada: dict[str, bool] = {t: False for t in ordem}
+    tem_sucesso: dict[str, bool] = dict.fromkeys(ordem, False)
+    tem_falha: dict[str, bool] = dict.fromkeys(ordem, False)
+    tem_tentada: dict[str, bool] = dict.fromkeys(ordem, False)
 
     for r in results:
         if r.ability_id is None:
@@ -153,9 +155,7 @@ def _oraculo(flow, technique_by_ability, results):
     # Status consolidado: success > failure. failed_nodes = técnicas cujo status final
     # é failure (falhou e não teve nenhum success).
     failed_nodes = [
-        (node_id_por_tecnica[t] or t)
-        for t in ordem
-        if tem_falha[t] and not tem_sucesso[t]
+        (node_id_por_tecnica[t] or t) for t in ordem if tem_falha[t] and not tem_sucesso[t]
     ]
 
     taxa = (success / total) if total else 0.0
@@ -264,7 +264,7 @@ def test_report_consolidates_the_same_metrics(cenario) -> None:
         flow=flow,
         technique_by_ability=technique_by_ability,
     )
-    generated_at = dt.datetime(2024, 1, 1, tzinfo=dt.timezone.utc)
+    generated_at = dt.datetime(2024, 1, 1, tzinfo=dt.UTC)
     report = _SERVICE.consolidate(
         campaign_id="apt-x",
         metrics=metrics,

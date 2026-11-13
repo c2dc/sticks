@@ -36,6 +36,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from _stix_seed import ensure_stix_campaigns
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, sessionmaker
@@ -59,8 +60,6 @@ from app.services.ai.run_service import (
     DependencyUnavailableError,
     RunFailedError,
 )
-
-from _stix_seed import ensure_stix_campaigns
 
 _CAMPAIGN_ID = "campaign-under-test"
 
@@ -181,19 +180,16 @@ def _patch_service(
     no-op) so the real ``start`` runs its create-row + invoke + persist path, or
     make ``start`` itself raise a controlled error to drive the failure branch.
     """
-    monkeypatch.setattr(
-        AgentRunService, "_require_dependencies", lambda self: None, raising=True
-    )
+    monkeypatch.setattr(AgentRunService, "_require_dependencies", lambda self: None, raising=True)
     if start_raises is not None:
+
         def _boom(self: AgentRunService, *a: Any, **k: Any) -> Any:
             raise start_raises
 
         monkeypatch.setattr(AgentRunService, "start", _boom, raising=True)
         return
 
-    monkeypatch.setattr(
-        AgentRunService, "_build_graph", lambda self: graph, raising=True
-    )
+    monkeypatch.setattr(AgentRunService, "_build_graph", lambda self: graph, raising=True)
 
 
 # ===========================================================================
@@ -241,9 +237,7 @@ def test_post_start_honours_max_iterations_body(
     _patch_service(monkeypatch, graph=graph)
 
     client = _make_client(session_factory)
-    resp = client.post(
-        f"/api/campaigns/{_CAMPAIGN_ID}/ai/run", json={"max_iterations": 5}
-    )
+    resp = client.post(f"/api/campaigns/{_CAMPAIGN_ID}/ai/run", json={"max_iterations": 5})
     assert resp.status_code == 201, resp.text
     assert resp.json()["max_iterations"] == 5
 
@@ -259,9 +253,7 @@ def test_post_start_dependency_unavailable_persists_no_row(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A dependency-unavailable failure returns 503 and persists NO row (Req. 13.2)."""
-    before = db_session.execute(
-        select(func.count()).select_from(AgentRun)
-    ).scalar_one()
+    before = db_session.execute(select(func.count()).select_from(AgentRun)).scalar_one()
 
     _patch_service(
         monkeypatch,
@@ -278,9 +270,7 @@ def test_post_start_dependency_unavailable_persists_no_row(
 
     # No partial agent_runs row survived the rolled-back failed attempt.
     db_session.expire_all()
-    after = db_session.execute(
-        select(func.count()).select_from(AgentRun)
-    ).scalar_one()
+    after = db_session.execute(select(func.count()).select_from(AgentRun)).scalar_one()
     assert after == before, "a failed start must leave no partial agent_runs row"
 
 
@@ -290,9 +280,7 @@ def test_post_start_run_failed_persists_no_row(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A run-failed error returns 503 naming the node and persists NO row (Req. 13.2)."""
-    before = db_session.execute(
-        select(func.count()).select_from(AgentRun)
-    ).scalar_one()
+    before = db_session.execute(select(func.count()).select_from(AgentRun)).scalar_one()
 
     _patch_service(monkeypatch, start_raises=RunFailedError("flow"))
 
@@ -305,9 +293,7 @@ def test_post_start_run_failed_persists_no_row(
     assert detail["node"] == "flow"
 
     db_session.expire_all()
-    after = db_session.execute(
-        select(func.count()).select_from(AgentRun)
-    ).scalar_one()
+    after = db_session.execute(select(func.count()).select_from(AgentRun)).scalar_one()
     assert after == before, "a failed start must leave no partial agent_runs row"
 
 
@@ -392,9 +378,7 @@ def test_get_run_exposes_iterations_and_verdict(
 
     # First pass has no evaluation; the refined pass carries the verdict.
     assert iterations[0]["evaluation"] is None
-    assert iterations[1]["refined_stage"] == (
-        AgentStage.OPERATIONALIZATION.value
-    )
+    assert iterations[1]["refined_stage"] == (AgentStage.OPERATIONALIZATION.value)
 
     verdict = iterations[1]["evaluation"]
     assert verdict is not None

@@ -14,7 +14,7 @@ Importing this module performs no I/O (Requirement 1.7).
 from __future__ import annotations
 
 from operator import add
-from typing import Annotated, Optional, TypedDict
+from typing import Annotated, TypedDict
 
 
 class StageArtifacts(TypedDict, total=False):
@@ -47,8 +47,8 @@ class ExecutionResult(TypedDict, total=False):
     verdict: str  # the runner RunOutcome value, e.g. "concluida" / "isolamento_falhou"
     verdict_success: bool  # True iff the Operation ran to completion and passed
     executed: bool  # True iff the Operation actually started executing on Caldera
-    containment_passed: Optional[bool]  # containment pre-flight verdict (None if absent)
-    isolation_passed: Optional[bool]  # isolation pre-flight verdict (None if absent)
+    containment_passed: bool | None  # containment pre-flight verdict (None if absent)
+    isolation_passed: bool | None  # isolation pre-flight verdict (None if absent)
     total_success: int
     total_failure: int
     message: str
@@ -75,7 +75,9 @@ class AgentTrace(TypedDict, total=False):
 
     stage: str  # English AgentStage value: flow | operationalization | environment | execution | evaluation
     iteration: int
-    agent_input: dict  # prior-stage artifacts, selected-campaign context, retrieved experience, attack/stix
+    agent_input: (
+        dict  # prior-stage artifacts, selected-campaign context, retrieved experience, attack/stix
+    )
     processing: dict  # llm_prompt, llm_response, reasoning, tools_invoked, repair_attempts, retrieved_experience, prior_artifacts
 
 
@@ -91,10 +93,10 @@ class AgentState(TypedDict, total=False):
     max_iterations: int  # guard
     retrieved_experience: list[dict]  # RAG hits injected into prompts
     artifacts: StageArtifacts  # outputs of the current iteration
-    report: Optional[dict]  # Stage 6 report of the last execute
-    execution_result: Optional[ExecutionResult]  # structured result execution -> evaluation
-    evaluation: Optional[EvaluationResult]  # evaluator output of the last pass
-    refine_stage: Optional[str]  # AgentStage to re-enter, or None
+    report: dict | None  # Stage 6 report of the last execute
+    execution_result: ExecutionResult | None  # structured result execution -> evaluation
+    evaluation: EvaluationResult | None  # evaluator output of the last pass
+    refine_stage: str | None  # AgentStage to re-enter, or None
     history: Annotated[list[dict], add]  # append-only per-node trace (reducer)
     traces: Annotated[list[dict], add]  # NEW: per-node input+processing trace
-    error: Optional[str]
+    error: str | None

@@ -41,7 +41,10 @@ without a live SEPINF endpoint.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Callable, Optional
+import functools
+import re
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 from app.models.enums import AgentStage, TranslationSource
 from app.services.environment.operationalizer import ProducedOperationalization
@@ -49,14 +52,21 @@ from app.services.environment.operationalizer import ProducedOperationalization
 if TYPE_CHECKING:  # pragma: no cover - typing only, no runtime import
     from app.services.ai.memory import ExperienceMemory
     from app.services.ai.state import AgentState
-    from app.services.flow.flow_view import FlowView
+    from app.services.emulation.views import Stage2Output
     from app.services.environment.operationalization import (
         EnvironmentParameters,
         TargetHost,
     )
-    from app.services.emulation.views import Stage2Output
+    from app.services.flow.flow_view import FlowView
 
 __all__ = ["AiOperationalizer"]
+
+_PLACEHOLDER_RE = re.compile(r"#\{[^}]*\}")
+
+
+def _has_leftover_tokens(command: str) -> bool:
+    """True when a Final_Command still holds ``#{name}`` or PathToAtomicsFolder."""
+    return bool(_PLACEHOLDER_RE.search(command)) or "PathToAtomicsFolder" in command
 
 
 class AiOperationalizer:
@@ -80,10 +90,10 @@ class AiOperationalizer:
         self,
         *,
         chat: Any = None,
-        memory: "ExperienceMemory | None" = None,
-        atomic_lookup: "Callable[[str], list[dict]] | None" = None,
-        parser: "Callable[[str], dict] | None" = None,
-        trace_sink: "Optional[list[dict]]" = None,
+        memory: ExperienceMemory | None = None,
+        atomic_lookup: Callable[[str], list[dict]] | None = None,
+        parser: Callable[[str], dict] | None = None,
+        trace_sink: list[dict] | None = None,
     ) -> None:
         """Assemble the agent with lazily-injected collaborators.
 
@@ -126,9 +136,7 @@ class AiOperationalizer:
         """Stamp ``gerado_ia`` on the Stage 4 output (Req. 2.4, 2.5)."""
         return TranslationSource.AI_GENERATED
 
-    def operationalize(
-        self, campaign: str, flow: "FlowView"
-    ) -> ProducedOperationalization:
+    def operationalize(self, campaign: str, flow: FlowView) -> ProducedOperationalization:
         """Produce the two Stage 4 artifacts for ``campaign`` with ``origin=gerado_ia``.
 
         Walks the Stage 3 :class:`FlowView` and, per node, looks up the Atomic Red
@@ -170,8 +178,9 @@ class AiOperationalizer:
         # selection pass when an LLM is injected; stays empty on the deterministic
         # fallback so the trace honestly records "no LLM call").
         llm_calls: list[dict[str, Any]] = []
+        selection_log: list[dict[str, Any]] = []
         selections = self._select_per_node(
-            campaign, flow, experience, llm_calls=llm_calls
+            campaign, flow, experience, llm_calls=llm_calls, selection_log=selection_log
         )
 
         abilities = self._build_abilities(selections)
@@ -192,9 +201,7 @@ class AiOperationalizer:
                         "prior_artifacts": {"flow": self._flow_summary(flow)},
                     },
                     "processing": {
-                        "llm_prompt": [call["prompt"] for call in llm_calls]
-                        if llm_calls
-                        else None,
+                        "llm_prompt": [call["prompt"] for call in llm_calls] if llm_calls else None,
                         "llm_response": [call["response"] for call in llm_calls]
                         if llm_calls
                         else None,
@@ -202,6 +209,7 @@ class AiOperationalizer:
                         "tools_invoked": tools_invoked,
                         "repair_attempts": 0,
                         "repair_hints": None,
+                        "command_selection": selection_log or None,
                     },
                 }
             )
@@ -214,7 +222,7 @@ class AiOperationalizer:
         )
 
     @staticmethod
-    def _flow_summary(flow: "FlowView") -> dict[str, Any]:
+    def _flow_summary(flow: FlowView) -> dict[str, Any]:
         """A compact, JSON-native summary of the attack flow for the trace ``agent_input``."""
         nodes = []
         for node in getattr(flow, "nodes", []) or []:
@@ -234,7 +242,7 @@ class AiOperationalizer:
 
     # -- Collaborators resolved lazily --------------------------------------
 
-    def _atomic_lookup(self) -> "Callable[[str], list[dict]]":
+    def _atomic_lookup(self) -> Callable[[str], list[dict]]:
         """Resolve the Atomic Red Team command source, defaulting lazily."""
         if self._atomic is not None:
             return self._atomic
@@ -242,7 +250,7 @@ class AiOperationalizer:
 
         return tool_atomic_lookup
 
-    def _parse_command(self) -> "Callable[[str], dict]":
+    def _parse_command(self) -> Callable[[str], dict]:
         """Resolve the containment self-check parser, defaulting lazily."""
         if self._parser is not None:
             return self._parser
@@ -250,9 +258,7 @@ class AiOperationalizer:
 
         return tool_parse_command
 
-    def _prime_experience(
-        self, campaign: str, flow: "FlowView"
-    ) -> list[dict[str, Any]]:
+    def _prime_experience(self, campaign: str, flow: FlowView) -> list[dict[str, Any]]:
         """Retrieve cross-campaign RAG experience to prime the proposal (Req. 2.2).
 
         Uses the injected :class:`ExperienceMemory` to fetch known-good command
@@ -265,11 +271,11 @@ class AiOperationalizer:
         query = self._experience_query(flow)
         try:
             return self._memory.retrieve(campaign_id=campaign, query=query)
-        except Exception:  # noqa: BLE001 - priming is best-effort (Req. 5.7)
+        except Exception:  # noqa: BLE001 -- priming is best-effort (Req. 5.7)
             return []
 
     @staticmethod
-    def _experience_query(flow: "FlowView") -> str:
+    def _experience_query(flow: FlowView) -> str:
         """Build the RAG query text from the attack flow's techniques (traceable, compact)."""
         parts: list[str] = [getattr(flow, "name", "") or getattr(flow, "campaign_id", "")]
         for node in getattr(flow, "nodes", []) or []:
@@ -284,10 +290,11 @@ class AiOperationalizer:
     def _select_per_node(
         self,
         campaign: str,
-        flow: "FlowView",
+        flow: FlowView,
         experience: list[dict[str, Any]],
         *,
-        llm_calls: "Optional[list[dict[str, Any]]]" = None,
+        llm_calls: list[dict[str, Any]] | None = None,
+        selection_log: list[dict[str, Any]] | None = None,
     ) -> list[dict[str, Any]]:
         """Select/parametrize one Ability worth of commands per attack flow node (Req. 2.2).
 
@@ -312,6 +319,7 @@ class AiOperationalizer:
         """
         lookup = self._atomic_lookup()
         selections: list[dict[str, Any]] = []
+        facts = self._campaign_facts(campaign, flow)
 
         for node in getattr(flow, "nodes", []) or []:
             technique_id = getattr(node, "technique_id", None)
@@ -324,7 +332,12 @@ class AiOperationalizer:
                 continue
 
             chosen = self._choose_commands(
-                node, pool, experience, llm_calls=llm_calls
+                node,
+                pool,
+                experience,
+                llm_calls=llm_calls,
+                facts=facts,
+                selection_log=selection_log,
             )
             if not chosen:
                 continue
@@ -335,14 +348,12 @@ class AiOperationalizer:
 
             selections.append(
                 {
-                    "node_id": getattr(node, "node_id", None)
-                    or (technique_id or "node"),
+                    "node_id": getattr(node, "node_id", None) or (technique_id or "node"),
                     "ability_id": self._ability_id_for(node, pool, len(selections)),
                     "technique_id": technique_id,
                     "technique_name": getattr(node, "technique_name", None)
                     or self._first_nonempty(pool, "technique_name"),
-                    "tactic": getattr(node, "tactic", None)
-                    or self._first_nonempty(pool, "tactic"),
+                    "tactic": getattr(node, "tactic", None) or self._first_nonempty(pool, "tactic"),
                     "commands": chosen,
                 }
             )
@@ -355,7 +366,9 @@ class AiOperationalizer:
         pool: list[dict[str, Any]],
         experience: list[dict[str, Any]],
         *,
-        llm_calls: "Optional[list[dict[str, Any]]]" = None,
+        llm_calls: list[dict[str, Any]] | None = None,
+        facts: str | None = None,
+        selection_log: list[dict[str, Any]] | None = None,
     ) -> list[dict[str, Any]]:
         """Pick the concrete commands to propose for ``node`` from its ``pool``.
 
@@ -366,16 +379,41 @@ class AiOperationalizer:
         ``llm_calls`` is supplied the LLM prompt/response for this node is recorded
         into it for the Audit_Trace.
         """
+        node_key = getattr(node, "node_id", None) or getattr(node, "technique_id", None)
         if self._chat is not None:
             try:
                 chosen = self._choose_with_llm(
-                    node, pool, experience, llm_calls=llm_calls
+                    node,
+                    pool,
+                    experience,
+                    llm_calls=llm_calls,
+                    facts=facts,
+                    selection_log=selection_log,
                 )
                 if chosen:
                     return chosen
-            except Exception:  # noqa: BLE001 - degrade to deterministic selection
-                pass
-        return self._default_selection(pool)
+                if selection_log is not None:
+                    selection_log.append(
+                        {
+                            "node_id": node_key,
+                            "event": "fallback",
+                            "reason": "no_item_accepted",
+                        }
+                    )
+            except Exception as exc:  # noqa: BLE001 -- degrade to deterministic selection
+                if selection_log is not None:
+                    selection_log.append(
+                        {
+                            "node_id": node_key,
+                            "event": "fallback",
+                            "reason": f"llm_error:{type(exc).__name__}",
+                        }
+                    )
+        elif selection_log is not None:
+            selection_log.append(
+                {"node_id": node_key, "event": "fallback", "reason": "no_chat_model"}
+            )
+        return self._default_selection(pool, selection_log=selection_log, node_id=node_key)
 
     def _choose_with_llm(
         self,
@@ -383,7 +421,9 @@ class AiOperationalizer:
         pool: list[dict[str, Any]],
         experience: list[dict[str, Any]],
         *,
-        llm_calls: "Optional[list[dict[str, Any]]]" = None,
+        llm_calls: list[dict[str, Any]] | None = None,
+        facts: str | None = None,
+        selection_log: list[dict[str, Any]] | None = None,
     ) -> list[dict[str, Any]]:
         """Ask the injected LLM to select/adapt the atomic tests for ``node``.
 
@@ -397,7 +437,7 @@ class AiOperationalizer:
         """
         import json
 
-        prompt = self._build_prompt(node, pool, experience)
+        prompt = self._build_prompt(node, pool, experience, facts)
         reply = self._chat.invoke(prompt)
         text = getattr(reply, "content", reply)
         if not isinstance(text, str):
@@ -413,19 +453,61 @@ class AiOperationalizer:
                 }
             )
 
+        node_key = getattr(node, "node_id", None) or getattr(node, "technique_id", None)
+
+        def discard(reason: str, item: Any = None) -> None:
+            if selection_log is not None:
+                selection_log.append(
+                    {
+                        "node_id": node_key,
+                        "event": "discarded",
+                        "reason": reason,
+                        "item": item if isinstance(item, (str, dict)) else None,
+                    }
+                )
+
         try:
             proposed = json.loads(text)
         except (ValueError, TypeError):
+            discard("response_not_json")
             return []
         if not isinstance(proposed, list):
+            discard("response_not_a_list")
             return []
 
         by_command = {entry.get("command"): entry for entry in pool}
         chosen: list[dict[str, Any]] = []
         for item in proposed:
-            command = item if isinstance(item, str) else None
-            if command and command in by_command:
-                chosen.append(self._normalize_command(by_command[command]))
+            # New form: {"template", "command"}. Old form: a plain string that
+            # stands for both the template and the final command.
+            if isinstance(item, str):
+                template, final = item, item
+            elif isinstance(item, dict):
+                template, final = item.get("template"), item.get("command")
+            else:
+                discard("item_has_unsupported_shape", None)
+                continue
+            if not isinstance(template, str) or template not in by_command:
+                discard("template_not_in_pool", item)
+                continue
+            if not isinstance(final, str) or not final.strip():
+                discard("command_is_empty_or_not_text", item)
+                continue
+            if _has_leftover_tokens(final):
+                discard("command_has_unresolved_placeholders", item)
+                continue
+            normalized = self._normalize_command(by_command[template])
+            normalized["command"] = final.strip()
+            chosen.append(normalized)
+        if chosen and selection_log is not None:
+            selection_log.append(
+                {
+                    "node_id": node_key,
+                    "event": "accepted",
+                    "arguments_source": "agent",
+                    "accepted": len(chosen),
+                }
+            )
         return chosen
 
     @staticmethod
@@ -433,31 +515,83 @@ class AiOperationalizer:
         node: Any,
         pool: list[dict[str, Any]],
         experience: list[dict[str, Any]],
+        facts: str | None = None,
     ) -> str:
-        """Render the command-selection prompt (technique + pool + RAG experience)."""
+        """Render the adaptation prompt (technique + templates + environment facts).
+
+        Candidates are Command_Templates with their arguments; the Atomic
+        defaults are presented as suggestions only (Req. 12.2, 12.5, 12.6).
+        """
+        from app.services.ai.command_context import (
+            build_agent_command_context,
+            render_candidates,
+        )
+
         technique_id = getattr(node, "technique_id", None)
         technique_name = getattr(node, "technique_name", None)
-        candidates = [entry.get("command") for entry in pool if entry.get("command")]
+        candidates = render_candidates(build_agent_command_context(pool))
         hints = [hit.get("content") for hit in experience if hit.get("content")]
         return (
             "You operationalize one ATT&CK technique into contained lab commands.\n"
             f"Technique: {technique_id} {technique_name or ''}\n"
-            "Candidate Atomic Red Team commands (choose a subset, verbatim):\n"
-            + "\n".join(f"- {cmd}" for cmd in candidates)
+            "Each candidate below is an Atomic Red Team command TEMPLATE with "
+            "placeholders such as #{name}. The default values of the arguments "
+            "are only suggestions from the Atomic Red Team project (Windows paths, "
+            "example IPs) and may not exist in this campaign's environment.\n"
+            "The environment is emulated and changes with every campaign. Choose "
+            "a subset of the candidates and, for each one, decide the value of "
+            "every placeholder for THIS campaign: internal lab IPs, hosts, "
+            "containers and file paths. PathToAtomicsFolder (or "
+            "$PathToAtomicsFolder) is the folder where the payload files live in "
+            "the campaign container; replace it with a real path as well.\n"
+            + (f"Campaign environment facts:\n{facts}\n" if facts else "")
+            + "Candidates:\n"
+            + candidates
             + "\nKnown-good shapes from past campaigns:\n"
             + "\n".join(f"- {hint}" for hint in hints)
-            + "\nReturn a JSON array of the chosen command strings only."
+            + "\nReturn a JSON array of objects "
+            '{"template": <the candidate template, copied verbatim>, '
+            '"command": <the final command>}. The final command must not '
+            "contain any #{name} placeholder or PathToAtomicsFolder. Return the "
+            "JSON array only."
+        )
+
+    @staticmethod
+    def _campaign_facts(campaign: str, flow: FlowView) -> str:
+        """Environment facts really available at operationalization time."""
+        from app.services.ai.command_context import render_campaign_facts
+
+        return render_campaign_facts(
+            campaign,
+            getattr(flow, "name", None),
+            [
+                {
+                    "technique_id": getattr(n, "technique_id", None),
+                    "technique_name": getattr(n, "technique_name", None),
+                    "tactic": getattr(n, "tactic", None),
+                }
+                for n in getattr(flow, "nodes", []) or []
+            ],
         )
 
     @classmethod
-    def _default_selection(cls, pool: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        """Deterministic fallback: propose the first command per unique platform.
+    def _default_selection(
+        cls,
+        pool: list[dict[str, Any]],
+        *,
+        selection_log: list[dict[str, Any]] | None = None,
+        node_id: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Deterministic fallback: first command per platform, defaults applied.
 
         Keeps the selection small and stable (one command per executor platform,
-        in pool order) so the agent produces a usable proposal without an LLM.
+        in pool order). Each template is resolved with the Atomic default
+        suggestions on the OUTPUT side only (never in the agent context); the
+        source is recorded in ``selection_log`` as ``atomic_defaults`` together
+        with the arguments that stayed unresolved (Req. 12.9).
         """
-        chosen: list[dict[str, Any]] = []
-        seen_platforms: set[Optional[str]] = set()
+        picked: list[dict[str, Any]] = []
+        seen_platforms: set[str | None] = set()
         for entry in pool:
             command = (entry.get("command") or "").strip()
             if not command:
@@ -466,23 +600,50 @@ class AiOperationalizer:
             if platform in seen_platforms:
                 continue
             seen_platforms.add(platform)
-            chosen.append(cls._normalize_command(entry))
-        if not chosen and pool:
+            picked.append(entry)
+        if not picked and pool:
             # Every entry shared a platform with no command; fall back to the
             # first entry that carries a command.
             for entry in pool:
                 if (entry.get("command") or "").strip():
-                    chosen.append(cls._normalize_command(entry))
+                    picked.append(entry)
                     break
+
+        from app.services.atomic_arguments import resolve_command
+
+        chosen: list[dict[str, Any]] = []
+        for entry in picked:
+            normalized = cls._normalize_command(entry)
+            resolved = resolve_command(normalized["command"], entry.get("input_arguments"))
+            normalized["command"] = resolved.command
+            chosen.append(normalized)
+            if selection_log is not None:
+                selection_log.append(
+                    {
+                        "node_id": node_id,
+                        "event": "selected",
+                        "arguments_source": "atomic_defaults",
+                        "command_ref": normalized["command_ref"],
+                        "unresolved_arguments": list(resolved.unresolved_arguments),
+                    }
+                )
         return chosen
 
     @staticmethod
     def _normalize_command(entry: dict[str, Any]) -> dict[str, Any]:
-        """Project an atomic-pool entry into the proposed-command shape."""
+        """Project an atomic-pool entry into the proposed-command shape.
+
+        ``template`` keeps the stored Command_Template and ``command_ref`` the id
+        of its ``technique_commands`` row (``None`` for similarity hits).
+        """
+        command_ref = entry.get("command_ref")
+        template = (entry.get("command") or "").strip()
         return {
             "name": entry.get("name"),
             "platform": entry.get("platform"),
-            "command": (entry.get("command") or "").strip(),
+            "command": template,
+            "template": template,
+            "command_ref": command_ref if isinstance(command_ref, int) else None,
         }
 
     def _self_check(self, commands: list[dict[str, Any]]) -> None:
@@ -499,7 +660,7 @@ class AiOperationalizer:
             text = command.get("command") or ""
             try:
                 command["parsed"] = parse(text)
-            except Exception:  # noqa: BLE001 - self-check is advisory only
+            except Exception:  # noqa: BLE001 -- self-check is advisory only
                 command["parsed"] = None
 
     @staticmethod
@@ -519,7 +680,7 @@ class AiOperationalizer:
         return str(node_id or technique_id or f"ability-{index}")
 
     @staticmethod
-    def _first_nonempty(pool: list[dict[str, Any]], key: str) -> Optional[str]:
+    def _first_nonempty(pool: list[dict[str, Any]], key: str) -> str | None:
         """Return the first non-empty ``key`` value across the command pool."""
         for entry in pool:
             value = entry.get(key)
@@ -529,9 +690,7 @@ class AiOperationalizer:
 
     # -- Artifact assembly --------------------------------------------------
 
-    def _build_abilities(
-        self, selections: list[dict[str, Any]]
-    ) -> Optional["Stage2Output"]:
+    def _build_abilities(self, selections: list[dict[str, Any]]) -> Stage2Output | None:
         """Assemble the ordered Abilities (1st artifact) from the selections.
 
         Mirrors the curation ``Stage2Output`` shape — one
@@ -569,6 +728,7 @@ class AiOperationalizer:
                             name=command.get("name"),
                             platform=command.get("platform"),
                             command=command.get("command"),
+                            command_ref=command.get("command_ref"),
                         )
                         for command in selection["commands"]
                     ],
@@ -599,7 +759,7 @@ class AiOperationalizer:
 
     def _derive_parameters(
         self, campaign: str, selections: list[dict[str, Any]]
-    ) -> "EnvironmentParameters":
+    ) -> EnvironmentParameters:
         """Derive the :class:`EnvironmentParameters` (2nd artifact) from the proposal.
 
         Resolves target hosts from the proposed commands' **internal** destinations
@@ -624,16 +784,14 @@ class AiOperationalizer:
         )
         from app.services.environment.operationalizer import _infer_services
 
-        hosts: list["TargetHost"] = []
-        hosts_by_key: dict[str, "TargetHost"] = {}
+        hosts: list[TargetHost] = []
+        hosts_by_key: dict[str, TargetHost] = {}
         services: list[RequiredService] = []
-        seen_services: set[tuple[str, Optional[str]]] = set()
+        seen_services: set[tuple[str, str | None]] = set()
 
         for selection in selections:
             technique_id = selection.get("technique_id")
-            commands = [
-                command.get("command") or "" for command in selection["commands"]
-            ]
+            commands = [command.get("command") or "" for command in selection["commands"]]
 
             # Target hosts from the internal destinations of the proposed commands.
             for command_text in commands:
@@ -671,6 +829,7 @@ class AiOperationalizer:
             origin=self.origin(),
         )
 
+
 # ---------------------------------------------------------------------------
 # LangGraph node wrapper + persistence hook (task 7.3)
 # ---------------------------------------------------------------------------
@@ -692,15 +851,15 @@ class AiOperationalizer:
 # any DB session (and import-time DB deps) while the Run_Service owns the
 # transaction boundary.
 
-__all__ = ["AiOperationalizer", "node", "build_agent", "persist_stage_output"]
+__all__ = ["AiOperationalizer", "build_agent", "node", "persist_stage_output"]
 
 
 def build_agent(
     *,
     chat: Any = None,
-    memory: "ExperienceMemory | None" = None,
+    memory: ExperienceMemory | None = None,
     session: Any = None,
-    trace_sink: "Optional[list[dict]]" = None,
+    trace_sink: list[dict] | None = None,
 ) -> AiOperationalizer:
     """Build the Stage 4 :class:`AiOperationalizer`, resolving collaborators lazily.
 
@@ -729,7 +888,7 @@ def build_agent(
             from app.services.ai.llm import make_chat_model
 
             resolved_chat = make_chat_model()
-        except Exception:  # noqa: BLE001 - degrade to deterministic selection
+        except Exception:  # noqa: BLE001 -- degrade to deterministic selection
             resolved_chat = None
 
     resolved_memory = memory
@@ -738,19 +897,18 @@ def build_agent(
             from app.services.ai.memory import ExperienceMemory
 
             resolved_memory = ExperienceMemory(session)
-        except Exception:  # noqa: BLE001 - propose without RAG priming
+        except Exception:  # noqa: BLE001 -- propose without RAG priming
             resolved_memory = None
 
     # Bind the Atomic Red Team command pool to the request-scoped session so the
     # pool is sourced from the DB-backed Command_Base, never from disk (task
     # 14.1, Req. 12.1, 12.3, 5.2). With no session the lookup is left unset and
     # the agent's own lazy default yields an empty pool (no disk read).
-    resolved_atomic: "Callable[[str], list[dict]] | None" = None
+    resolved_atomic: Callable[[str], list[dict]] | None = None
     if session is not None:
         from app.services.ai.tools import tool_atomic_lookup
 
-        def resolved_atomic(technique_id: str) -> list[dict]:  # type: ignore[misc]
-            return tool_atomic_lookup(technique_id, session=session)
+        resolved_atomic = functools.partial(tool_atomic_lookup, session=session)
 
     return AiOperationalizer(
         chat=resolved_chat,
@@ -760,7 +918,7 @@ def build_agent(
     )
 
 
-def _techniques_from_state(state: "AgentState", session: Any = None) -> "FlowView":
+def _techniques_from_state(state: AgentState, session: Any = None) -> FlowView:
     """Read the campaign's ATT&CK techniques from ``stix_campaign_techniques``.
 
     The operationalizer seam (``operationalize(campaign, flow)``) walks
@@ -835,7 +993,8 @@ def _techniques_from_state(state: "AgentState", session: Any = None) -> "FlowVie
         edges=[],
     )
 
-def node(state: "AgentState", *, session: Any = None) -> dict:
+
+def node(state: AgentState, *, session: Any = None) -> dict:
     """LangGraph node for Stage 4 — operationalize the campaign techniques.
 
     Builds the :class:`AiOperationalizer` with lazily-resolved collaborators
@@ -905,7 +1064,7 @@ def persist_stage_output(
     produced: ProducedOperationalization,
     *,
     persist_parameters: bool = True,
-    trace: Optional[dict] = None,
+    trace: dict | None = None,
 ) -> Any:
     """Run_Service hook: persist the Stage 4 output as an ``agent_stage_outputs`` row.
 
@@ -949,7 +1108,7 @@ def persist_stage_output(
     from app.models.domain import AgentStageOutput, EnvironmentParametersRow
     from app.models.enums import AgentStage, TranslationSource
 
-    params_id: Optional[int] = None
+    params_id: int | None = None
     if persist_parameters:
         parameters = produced.parameters
         params_row = EnvironmentParametersRow(

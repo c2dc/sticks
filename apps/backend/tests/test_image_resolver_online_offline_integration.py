@@ -41,7 +41,7 @@ from __future__ import annotations
 import shutil
 import tempfile
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import pytest
 from sqlalchemy.orm import Session, sessionmaker
@@ -62,7 +62,6 @@ from app.services.environment.image_resolver import (
     build_catalog_semantic_matcher,
     detect_target_os,
 )
-
 
 # ---------------------------------------------------------------------------
 # Ephemeral session helper (fresh temp-file SQLite + ORM schema).
@@ -122,12 +121,10 @@ def _seed_image(
     *,
     image: str,
     target_os: str,
-    services: Optional[list[str]] = None,
+    services: list[str] | None = None,
 ) -> None:
     """Insert one ``image_catalog`` row (the primary catalog source, Req. 5.4)."""
-    session.add(
-        ImageCatalog(image=image, target_os=target_os, services=services)
-    )
+    session.add(ImageCatalog(image=image, target_os=target_os, services=services))
     session.flush()
 
 
@@ -145,11 +142,11 @@ class _SpyLookup:
     ZERO online attempts (Req. 5.4 catalog-first / Req. 14.5 containment).
     """
 
-    def __init__(self, result: Optional[str]) -> None:
+    def __init__(self, result: str | None) -> None:
         self._result = result
         self.calls: list[ImageNeed] = []
 
-    def __call__(self, need: ImageNeed) -> Optional[str]:
+    def __call__(self, need: ImageNeed) -> str | None:
         self.calls.append(need)
         return self._result
 
@@ -165,7 +162,7 @@ class _ConnectionErrorLookup:
     def __init__(self) -> None:
         self.calls: list[ImageNeed] = []
 
-    def __call__(self, need: ImageNeed) -> Optional[str]:
+    def __call__(self, need: ImageNeed) -> str | None:
         self.calls.append(need)
         raise ConnectionError("Docker Hub unreachable (simulated offline)")
 
@@ -265,9 +262,7 @@ def test_semantic_match_wins_when_confirmed_relationally(
 
     matcher = _StaticSemanticMatcher(candidates=["catalog/linux-b:1.0"])
     online = _SpyLookup(result="dockerhub/linux:latest")
-    resolver = ImageResolver(
-        db_session, catalog_matcher=matcher, docker_hub_lookup=online
-    )
+    resolver = ImageResolver(db_session, catalog_matcher=matcher, docker_hub_lookup=online)
 
     resolution = resolver.resolve(ImageNeed(target_os=TARGET_OS_LINUX))
 
@@ -364,7 +359,7 @@ def test_offline_by_construction_resolver_never_attempts_network(
     resolution = resolver.resolve(ImageNeed(target_os=TARGET_OS_LINUX))
 
     # The resolver has no outbound seam at all — the lookup is None.
-    assert resolver._docker_hub_lookup is None  # noqa: SLF001 - containment assertion
+    assert resolver._docker_hub_lookup is None
     # It still resolves, purely from the catalog.
     assert resolution.image == catalog_image
     assert resolution.source == SOURCE_IMAGE_CATALOG
@@ -414,9 +409,7 @@ def test_detect_target_os_windows_from_dominant_platform() -> None:
 
 def test_detect_target_os_windows_from_dominant_commands() -> None:
     """A Windows command-shell token selects target_os == windows (Req. 14.2)."""
-    assert (
-        detect_target_os(commands=["powershell -enc ZQBj"]) == TARGET_OS_WINDOWS
-    )
+    assert detect_target_os(commands=["powershell -enc ZQBj"]) == TARGET_OS_WINDOWS
     assert detect_target_os(commands=["cmd /c whoami"]) == TARGET_OS_WINDOWS
 
 
@@ -452,9 +445,7 @@ def test_catalog_prefers_row_covering_requested_services(
     )
 
     resolver = ImageResolver(db_session, docker_hub_lookup=None)
-    resolution = resolver.resolve(
-        ImageNeed(target_os=TARGET_OS_LINUX, services=("nginx",))
-    )
+    resolution = resolver.resolve(ImageNeed(target_os=TARGET_OS_LINUX, services=("nginx",)))
 
     assert resolution.image == "catalog/linux-web:1.0"
     assert resolution.source == SOURCE_IMAGE_CATALOG

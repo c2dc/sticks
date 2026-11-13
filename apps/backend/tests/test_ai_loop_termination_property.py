@@ -90,9 +90,7 @@ def _guard_and_verdicts(draw: st.DrawFn) -> tuple[int, list[bool], str]:
             max_size=max_iterations + 4,
         )
     )
-    refine_stage = draw(
-        st.sampled_from(["flow", "operationalize", "environment"])
-    )
+    refine_stage = draw(st.sampled_from(["flow", "operationalize", "environment"]))
     return max_iterations, verdicts, refine_stage
 
 
@@ -144,9 +142,7 @@ def _simulate_loop(
         )
         iteration += 1
 
-        assert passes <= safety_bound, (
-            "guard failed to terminate the loop within max_iterations"
-        )
+        assert passes <= safety_bound, "guard failed to terminate the loop within max_iterations"
 
     return passes, state
 
@@ -176,9 +172,7 @@ def test_property6_loop_terminates_within_iteration_guard(
 
     # (1) The loop terminated and performed at least one and at most
     # max_iterations passes — the guard bounds the loop (Req. 3.5).
-    assert 1 <= passes <= max_iterations, (
-        f"performed {passes} passes, expected 1..{max_iterations}"
-    )
+    assert 1 <= passes <= max_iterations, f"performed {passes} passes, expected 1..{max_iterations}"
 
     # The verdict of the final pass the router saw decides the terminal status.
     final_verdict = bool(final_state["evaluation"]["verdict_success"])
@@ -186,9 +180,7 @@ def test_property6_loop_terminates_within_iteration_guard(
     # (2) The run reaches a terminal status, derived exactly as the service does:
     # completed on a passing final verdict, aborted otherwise (the guard stopped
     # the loop without a passing verdict) — Req. 3.2 / 3.4 / 3.5.
-    status = (
-        AgentRunStatus.COMPLETED if final_verdict else AgentRunStatus.ABORTED
-    )
+    status = AgentRunStatus.COMPLETED if final_verdict else AgentRunStatus.ABORTED
     expected_english = _COMPLETED if final_verdict else _ABORTED
     assert status.value == expected_english
     assert status in {AgentRunStatus.COMPLETED, AgentRunStatus.ABORTED}

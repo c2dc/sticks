@@ -32,17 +32,12 @@ _Requirements: 3.5, 4.4, 5.1, 5.3, 5.5, 7.1, 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 9.7,
 
 from __future__ import annotations
 
-import json
-import shutil
-import tempfile
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any, Callable, Mapping
+from typing import Any
 
 import pytest
 
-from tests._curated_db import CaseDb, db_put
 from app.models.enums import TranslationSource
 from app.services.containment.isolation import (
     ContainerInspector,
@@ -52,25 +47,25 @@ from app.services.containment.isolation import (
     NetworkNotFound,
 )
 from app.services.environment.compose_executor import (
-    ComposeExecutor,
-    LogLine,
     CommandResult,
-)
-from app.services.environment.operationalization import (
-    TargetHost,
-    EnvironmentParameters,
-    EnvironmentPlatform,
-)
-from app.services.environment.provisioner import (
-    CurationEnvironmentProvisioner,
-    EnvironmentProvisioner,
+    LogLine,
 )
 from app.services.environment.health import (
     ContainerStateInfo,
     ContainerStateInspector,
     ContainerStateNotFound,
 )
-
+from app.services.environment.operationalization import (
+    EnvironmentParameters,
+    EnvironmentPlatform,
+    TargetHost,
+)
+from app.services.environment.provisioner import (
+    CurationEnvironmentProvisioner,
+    EnvironmentProvisioner,
+)
+from app.services.environment.topology_builder import HOST_CONTAINERS as _HOST_CONTAINERS
+from tests._curated_db import CaseDb, db_put
 
 # ---------------------------------------------------------------------------
 # Fakes (no network, no Docker daemon, no AI)
@@ -179,9 +174,7 @@ class FakeComposeExecutor:
             on_log(line)
         return CommandResult(code=code, lines=lines)
 
-    def up(
-        self, compose_file: str, *, on_log: Callable[[LogLine], None]
-    ) -> CommandResult:
+    def up(self, compose_file: str, *, on_log: Callable[[LogLine], None]) -> CommandResult:
         self.up_calls.append(compose_file)
         return self._executar(
             compose_file,
@@ -191,9 +184,7 @@ class FakeComposeExecutor:
             on_log=on_log,
         )
 
-    def down(
-        self, compose_file: str, *, on_log: Callable[[LogLine], None]
-    ) -> CommandResult:
+    def down(self, compose_file: str, *, on_log: Callable[[LogLine], None]) -> CommandResult:
         self.down_calls.append(compose_file)
         return self._executar(
             compose_file,
@@ -248,14 +239,15 @@ _NET = "caldera-kali-network"
 # real do laboratorio, igual ao que ``CurationEnvironmentProvisioner._target_containers``
 # faz em producao (via ``HOST_CONTAINERS``), de modo que os fakes de health/isolation
 # conhecam exatamente os nomes que o ``provision`` inspeciona.
-from app.services.environment.topology_builder import HOST_CONTAINERS as _HOST_CONTAINERS
+
 
 def _resolver(containers: list[str]) -> list[str]:
     return [_HOST_CONTAINERS.get(c, c) for c in containers]
 
 
-def _seed_case(data_dir: CaseDb, slug: str, *, with_adversary: bool = True,
-               with_abilities: bool = True) -> None:
+def _seed_case(
+    data_dir: CaseDb, slug: str, *, with_adversary: bool = True, with_abilities: bool = True
+) -> None:
     """Seed a minimal curated case with a 2-ability ordered adversary."""
     abilities = (
         [
@@ -263,17 +255,13 @@ def _seed_case(data_dir: CaseDb, slug: str, *, with_adversary: bool = True,
                 "ability_id": f"{slug}-ab-1",
                 "name": "first",
                 "technique_id": "T1190",
-                "executors": [
-                    {"name": "sh", "platform": "linux", "command": "echo 1"}
-                ],
+                "executors": [{"name": "sh", "platform": "linux", "command": "echo 1"}],
             },
             {
                 "ability_id": f"{slug}-ab-2",
                 "name": "second",
                 "technique_id": "T1059",
-                "executors": [
-                    {"name": "sh", "platform": "linux", "command": "echo 2"}
-                ],
+                "executors": [{"name": "sh", "platform": "linux", "command": "echo 2"}],
             },
         ]
         if with_abilities
@@ -282,22 +270,30 @@ def _seed_case(data_dir: CaseDb, slug: str, *, with_adversary: bool = True,
     db_put(data_dir, "ability", slug, abilities)
 
     if with_adversary:
-        db_put(data_dir, "adversary", slug, {
+        db_put(
+            data_dir,
+            "adversary",
+            slug,
+            {
                 "id": f"{slug}-adv",
                 "name": "Seed Adversary",
                 "description": "seed",
                 # Reversed order on purpose: provision must load in THIS order.
                 "atomic_ordering": [f"{slug}-ab-2", f"{slug}-ab-1"],
-            })
+            },
+        )
     # Without an adversary no ``adversaries`` row is persisted.
 
-    db_put(data_dir, "flow", slug, {
+    db_put(
+        data_dir,
+        "flow",
+        slug,
+        {
             "campaign_name": "Seed",
-            "structural_nodes": [
-                {"node_id": "n0", "technique_id": "T1190"}
-            ],
+            "structural_nodes": [{"node_id": "n0", "technique_id": "T1190"}],
             "metadata": {"total_techniques": 1},
-        })
+        },
+    )
 
 
 @pytest.fixture()
@@ -550,9 +546,7 @@ def _curadoria(
     fake. Qualquer colaborador pode ser substituído para exercitar a failure de uma
     step isolada — as demais permanecem no caminho feliz.
     """
-    _seed_case(
-        data_dir, _SLUG, with_abilities=with_abilities, with_adversary=with_adversary
-    )
+    _seed_case(data_dir, _SLUG, with_abilities=with_abilities, with_adversary=with_adversary)
     return CurationEnvironmentProvisioner(
         inspector=inspector if inspector is not None else _isolated_inspector(containers),
         session_factory=data_dir.factory,
@@ -588,7 +582,7 @@ def test_provision_happy_path_completes_with_three_prerequisites(data_dir: CaseD
     assert environment.target_containers == _resolver(containers)
 
     # on_log recebeu ao menos uma line de CADA step, na ordem do pipeline.
-    etapas_vistas = [l.step for l in lines]
+    etapas_vistas = [line.step for line in lines]
     for step in _ETAPAS:
         assert step in etapas_vistas, f"nenhuma line emitida para {step!r}"
     # A primeira ocorrência de cada step respeita a ordem subir → saúde →
@@ -616,9 +610,7 @@ def test_provision_failure_bring_up_containers_blocks_pipeline(data_dir: CaseDb)
     )
     caldera = FakeCaldera()
     state = _healthy_state_inspector(containers)
-    prov = _curadoria(
-        data_dir, containers, compose=compose, state=state, caldera=caldera
-    )
+    prov = _curadoria(data_dir, containers, compose=compose, state=state, caldera=caldera)
 
     environment = prov.provision(_params(containers))
 
@@ -660,7 +652,9 @@ def test_provision_failure_await_health_blocks_pipeline(data_dir: CaseDb) -> Non
     assert environment.failed_step == "aguardar_saude"
     assert environment.health.approved is False
     assert [v.container for v in environment.health.unhealthy] == _resolver([_C2])
-    assert environment.error_message is not None and _resolver([_C2])[0] in environment.error_message
+    assert (
+        environment.error_message is not None and _resolver([_C2])[0] in environment.error_message
+    )
     assert environment.ready is False
     # Parou antes de carregar Abilities e verificar isolation.
     assert caldera.calls == []
@@ -790,7 +784,7 @@ def test_deprovision_success_without_remaining(data_dir: CaseDb) -> None:
     # O ``down`` do fake foi chamado com o compose do environment provisionado.
     assert compose.down_calls == [environment.compose_file]
     # on_log recebeu as lines do teardown.
-    assert lines and all(l.step == "deprovision" for l in lines)
+    assert lines and all(line.step == "deprovision" for line in lines)
 
 
 # ---------------------------------------------------------------------------

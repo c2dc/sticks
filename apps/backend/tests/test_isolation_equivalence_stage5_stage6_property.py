@@ -165,9 +165,9 @@ def _container_strategy() -> st.SearchStrategy[GenContainer]:
             min_size=0,
             max_size=2,
         ).map(tuple),
-        dns=st.lists(
-            st.sampled_from(_ACCEPTABLE_DNS + _EXTERNAL_DNS), min_size=0, max_size=3
-        ).map(tuple),
+        dns=st.lists(st.sampled_from(_ACCEPTABLE_DNS + _EXTERNAL_DNS), min_size=0, max_size=3).map(
+            tuple
+        ),
     )
 
 
@@ -184,9 +184,7 @@ def _build_inspector(containers: list[GenContainer]) -> FakeInspector:
     """Populate a FakeInspector from generated containers (bridges unregistered)."""
     inspector = FakeInspector()
     for c in containers:
-        network_names = tuple(c.bridge_names) + tuple(
-            n.name for n in c.custom_networks
-        )
+        network_names = tuple(c.bridge_names) + tuple(n.name for n in c.custom_networks)
         inspector.containers[c.name] = ContainerNetworkInfo(
             name=c.name, network_names=network_names, dns=c.dns
         )
@@ -202,9 +200,7 @@ def _build_inspector(containers: list[GenContainer]) -> FakeInspector:
 # ---------------------------------------------------------------------------
 
 
-def _stage5_isolation_check(
-    containers: list[str], inspector: FakeInspector
-) -> IsolationResult:
+def _stage5_isolation_check(containers: list[str], inspector: FakeInspector) -> IsolationResult:
     """Apply isolation the way Stage 5 does.
 
     Stage 5's :class:`CurationEnvironmentProvisioner` (``_check_isolation`` and
@@ -215,9 +211,7 @@ def _stage5_isolation_check(
     return stage5_module.inspect_isolation(containers, inspector)
 
 
-def _stage6_isolation_check(
-    containers: list[str], inspector: FakeInspector
-) -> IsolationResult:
+def _stage6_isolation_check(containers: list[str], inspector: FakeInspector) -> IsolationResult:
     """Apply isolation the way Stage 6 does.
 
     Stage 6's :class:`OperationRunner` defaults its injectable

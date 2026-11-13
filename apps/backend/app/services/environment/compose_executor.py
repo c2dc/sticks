@@ -41,9 +41,9 @@ _Requirements: 3.1, 3.2, 8.2_
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Callable, Optional, Protocol, runtime_checkable
-
+from typing import Protocol, runtime_checkable
 
 # ---------------------------------------------------------------------------
 # Typed DTOs emitted by the seam (task 1.1)
@@ -89,7 +89,7 @@ class LogLine:
     step: str
     stream: str
     text: str
-    substage: Optional[str] = None
+    substage: str | None = None
 
 
 @dataclass(frozen=True)
@@ -134,9 +134,7 @@ class ComposeExecutor(Protocol):
     code and the emitted lines.
     """
 
-    def up(
-        self, compose_file: str, *, on_log: Callable[[LogLine], None]
-    ) -> CommandResult:
+    def up(self, compose_file: str, *, on_log: Callable[[LogLine], None]) -> CommandResult:
         """``docker compose -f <compose_file> up -d --wait``, streaming the logs.
 
         Uses ``--wait`` so Compose waits on the ``healthcheck`` defined in the
@@ -155,9 +153,7 @@ class ComposeExecutor(Protocol):
         """
         ...
 
-    def down(
-        self, compose_file: str, *, on_log: Callable[[LogLine], None]
-    ) -> CommandResult:
+    def down(self, compose_file: str, *, on_log: Callable[[LogLine], None]) -> CommandResult:
         """``docker compose -f <compose_file> down``, for the deprovisioning (Req. 8).
 
         Removes/stops the lab containers that were brought up for the campaign,
@@ -182,7 +178,7 @@ class ComposeExecutor(Protocol):
         network: str,
         *,
         on_log: Callable[[LogLine], None],
-        ip: Optional[str] = None,
+        ip: str | None = None,
     ) -> CommandResult:
         """``docker network connect [--ip <ip>] <network> <container>`` (mutates the network).
 
@@ -259,9 +255,7 @@ class ComposeExecutor(Protocol):
         """
         ...
 
-    def create_network(
-        self, network: str, *, on_log: Callable[[LogLine], None]
-    ) -> CommandResult:
+    def create_network(self, network: str, *, on_log: Callable[[LogLine], None]) -> CommandResult:
         """``docker network create <network>`` — create the ephemeral egress network.
 
         A **provisioning action** used by sub-stage 5.1 to create the egress
@@ -270,9 +264,7 @@ class ComposeExecutor(Protocol):
         """
         ...
 
-    def remove_network(
-        self, network: str, *, on_log: Callable[[LogLine], None]
-    ) -> CommandResult:
+    def remove_network(self, network: str, *, on_log: Callable[[LogLine], None]) -> CommandResult:
         """``docker network rm <network>`` — remove an ephemeral network (teardown).
 
         A **teardown action** used by the Stage-6 deprovision to sweep the
@@ -396,7 +388,7 @@ class DockerComposeExecutor:
         self,
         *,
         docker_bin: str = "docker",
-        image_exists: Optional[Callable[[str], bool]] = None,
+        image_exists: Callable[[str], bool] | None = None,
     ) -> None:
         """Assemble the executor with the ``docker`` binary and the image check.
 
@@ -415,9 +407,7 @@ class DockerComposeExecutor:
             image_exists if image_exists is not None else self._image_exists_docker
         )
 
-    def up(
-        self, compose_file: str, *, on_log: Callable[[LogLine], None]
-    ) -> CommandResult:
+    def up(self, compose_file: str, *, on_log: Callable[[LogLine], None]) -> CommandResult:
         """``docker compose -f <compose_file> up -d --wait <lab services>``.
 
         Names EXPLICITLY only the lab-attack services (:data:`LAB_SERVICES`) —
@@ -438,9 +428,7 @@ class DockerComposeExecutor:
         # --no-build (no internet/rebuild); some missing -> build the missing ones
         # and then up.
         missing = [
-            service
-            for service in LAB_SERVICES
-            if not self._image_exists(LAB_IMAGES[service])
+            service for service in LAB_SERVICES if not self._image_exists(LAB_IMAGES[service])
         ]
         lines: list[LogLine] = []
         if missing:
@@ -452,9 +440,7 @@ class DockerComposeExecutor:
                 "build",
                 *missing,
             ]
-            build = self._run(
-                build_argv, step="subir_conteineres", on_log=on_log
-            )
+            build = self._run(build_argv, step="subir_conteineres", on_log=on_log)
             lines.extend(build.lines)
             if build.code != 0:
                 # Build failure (e.g. package/mirror unavailable): does not up.
@@ -475,9 +461,7 @@ class DockerComposeExecutor:
         lines.extend(up.lines)
         return CommandResult(code=up.code, lines=lines)
 
-    def down(
-        self, compose_file: str, *, on_log: Callable[[LogLine], None]
-    ) -> CommandResult:
+    def down(self, compose_file: str, *, on_log: Callable[[LogLine], None]) -> CommandResult:
         """``docker compose -f <compose_file> down`` for the deprovisioning (Req. 8).
 
         Stops/removes the lab containers brought up for the campaign, freeing the
@@ -511,7 +495,7 @@ class DockerComposeExecutor:
         network: str,
         *,
         on_log: Callable[[LogLine], None],
-        ip: Optional[str] = None,
+        ip: str | None = None,
     ) -> CommandResult:
         """``docker network connect [--ip <ip>] <network> <container>`` (argument-list form, no shell).
 
@@ -635,9 +619,7 @@ class DockerComposeExecutor:
         ]
         return self._run(full_argv, step="exec_in", on_log=on_log)
 
-    def create_network(
-        self, network: str, *, on_log: Callable[[LogLine], None]
-    ) -> CommandResult:
+    def create_network(self, network: str, *, on_log: Callable[[LogLine], None]) -> CommandResult:
         """``docker network create --driver bridge <network>`` (argument-list form, no shell).
 
         Creates the ephemeral egress network of sub-stage 5.1 — a **bridge**
@@ -682,9 +664,7 @@ class DockerComposeExecutor:
                 return True
         return False
 
-    def remove_network(
-        self, network: str, *, on_log: Callable[[LogLine], None]
-    ) -> CommandResult:
+    def remove_network(self, network: str, *, on_log: Callable[[LogLine], None]) -> CommandResult:
         """``docker network rm <network>`` (argument-list form, no shell).
 
         Removes the ephemeral egress network during the Stage-6 deprovision
@@ -725,7 +705,7 @@ class DockerComposeExecutor:
         import subprocess
 
         try:
-            r = subprocess.run(  # noqa: S603 — fixed list, no shell
+            r = subprocess.run(  # noqa: S603 -- fixed list, no shell
                 [self._docker_bin, "image", "inspect", image_name],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
@@ -769,7 +749,7 @@ class DockerComposeExecutor:
         _emit("comando", " ".join(argv))
 
         try:
-            process = subprocess.Popen(  # noqa: S603 — argv is a fixed list, no shell
+            process = subprocess.Popen(  # noqa: S603 -- argv is a fixed list, no shell
                 argv,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
@@ -784,7 +764,7 @@ class DockerComposeExecutor:
 
         # Read line by line while the process runs, pushing in near-real time.
         # stderr is already in stdout (STDOUT), preserving the terminal order.
-        assert process.stdout is not None
+        assert process.stdout is not None  # noqa: S101 -- type narrowing; stdout is a PIPE for this Popen
         for raw in process.stdout:
             _emit("stdout", raw.rstrip("\n"))
         process.stdout.close()
@@ -794,12 +774,12 @@ class DockerComposeExecutor:
 
 
 __all__ = [
-    "LogLine",
+    "CALDERA_ENGINE_IMAGE",
+    "CALDERA_SERVICE",
+    "LAB_IMAGES",
+    "LAB_SERVICES",
     "CommandResult",
     "ComposeExecutor",
     "DockerComposeExecutor",
-    "LAB_SERVICES",
-    "LAB_IMAGES",
-    "CALDERA_SERVICE",
-    "CALDERA_ENGINE_IMAGE",
+    "LogLine",
 ]

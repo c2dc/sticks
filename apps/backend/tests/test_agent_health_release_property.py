@@ -79,9 +79,7 @@ _agent_lists = st.lists(_agent_payload(), min_size=0, max_size=12)
 # ---------------------------------------------------------------------------
 
 
-def _expected_release(
-    payloads: list[dict[str, object]], group: str
-) -> tuple[bool, list[str]]:
+def _expected_release(payloads: list[dict[str, object]], group: str) -> tuple[bool, list[str]]:
     """Recompute (released, orphan_paws) from the raw generated agent list.
 
     Release is granted iff at least one agent in ``group`` has ``alive=true``.
@@ -90,9 +88,7 @@ def _expected_release(
     """
     in_group = [p for p in payloads if p.get("group") == group]
     released = any(bool(p.get("alive", False)) for p in in_group)
-    orphans = sorted(
-        str(p.get("paw", "")) for p in in_group if not bool(p.get("alive", False))
-    )
+    orphans = sorted(str(p.get("paw", "")) for p in in_group if not bool(p.get("alive", False)))
     return released, orphans
 
 
@@ -190,9 +186,7 @@ def test_release_ignores_agents_outside_expected_group(
     # If no in-group agent is alive, release stays blocked even when other
     # groups have alive agents — proving group scoping of the biconditional.
     in_group_alive = any(
-        bool(p.get("alive", False))
-        for p in payloads
-        if p.get("group") == EXPECTED_GROUP
+        bool(p.get("alive", False)) for p in payloads if p.get("group") == EXPECTED_GROUP
     )
     assert released == in_group_alive
     # Confirm the payload round-trips as JSON (serving-shape sanity).

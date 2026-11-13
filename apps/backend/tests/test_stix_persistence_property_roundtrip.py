@@ -48,7 +48,6 @@ fixture pattern as ``test_backfill_idempotent_property.py`` /
 
 from __future__ import annotations
 
-import json
 import os
 import tempfile
 import uuid
@@ -65,7 +64,6 @@ from app.db.session import create_db_engine
 from app.models.domain import StixCampaign, StixPackage, StixTypeCount
 from app.services.stix.stix_persistence_service import StixPersistenceService
 from app.services.stix.stix_service import StixService
-
 
 # ---------------------------------------------------------------------------
 # Ephemeral DB fixture: a SQLite engine on a temporary file with the full schema
@@ -141,16 +139,12 @@ def _valid_bundle(draw) -> dict:
         obj: dict = {"type": "campaign", "id": cid, "name": f"Campaign {i}"}
         if draw(st.booleans()):
             code = f"C{draw(st.integers(min_value=0, max_value=9999)):04d}"
-            obj["external_references"] = [
-                {"source_name": "mitre-attack", "external_id": code}
-            ]
+            obj["external_references"] = [{"source_name": "mitre-attack", "external_id": code}]
         if draw(st.booleans()):
             obj["aliases"] = draw(
                 st.lists(
                     st.text(
-                        alphabet=st.characters(
-                            min_codepoint=65, max_codepoint=90
-                        ),
+                        alphabet=st.characters(min_codepoint=65, max_codepoint=90),
                         min_size=1,
                         max_size=6,
                     ),
@@ -196,9 +190,7 @@ def _valid_bundle(draw) -> dict:
 
     # --- malware (0..3) ------------------------------------------------------
     for i in range(draw(st.integers(min_value=0, max_value=3))):
-        objects.append(
-            {"type": "malware", "id": _stix_id("malware"), "name": f"Malware {i}"}
-        )
+        objects.append({"type": "malware", "id": _stix_id("malware"), "name": f"Malware {i}"})
 
     # --- relationships: uses (campaign -> attack-pattern) --------------------
     if pattern_ids:
@@ -274,9 +266,7 @@ def test_property1_persistence_roundtrip_preserves_counts_and_campaigns(
     try:
         # The bundle lives in memory only; no network is involved.
         stix_service = StixService()
-        persistence = StixPersistenceService(
-            session=session, stix_service=stix_service
-        )
+        persistence = StixPersistenceService(session=session, stix_service=stix_service)
 
         # --- reference model: the parser itself -----------------------------
         expected_counts = {
@@ -296,20 +286,17 @@ def test_property1_persistence_roundtrip_preserves_counts_and_campaigns(
             select(StixPackage).where(StixPackage.version == version)
         ).scalar_one()
 
-        persisted_counts = {
-            stix_type: count
-            for (stix_type, count) in session.execute(
+        persisted_counts = dict(
+            session.execute(
                 select(StixTypeCount.stix_type, StixTypeCount.count).where(
                     StixTypeCount.package_id == package.id
                 )
             ).all()
-        }
+        )
         persisted_campaign_ids = {
             stix_id
             for (stix_id,) in session.execute(
-                select(StixCampaign.stix_id).where(
-                    StixCampaign.package_id == package.id
-                )
+                select(StixCampaign.stix_id).where(StixCampaign.package_id == package.id)
             ).all()
         }
 

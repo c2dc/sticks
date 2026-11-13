@@ -3,7 +3,7 @@
 Validates: Requirements 13.1, 13.2, 13.7
 
 Testes de *exemplo* (sem Hypothesis) da ingestão de um Threat_Intel_Report no
-Command_Base através de :class:`ThreatIntelIngestService`. São 1–2 casos
+Command_Base através de :class:`ThreatIntelIngestService`. São 1-2 casos
 concretos por caminho:
 
 * **Estruturado (STIX/JSON)** — uma extração sem LLM que lê os campos do
@@ -35,6 +35,7 @@ dublado via a Protocol ``ChatModel``.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import tempfile
@@ -94,10 +95,8 @@ def _dispose(session: Session, engine: Any, db_path: Path) -> None:
     """Close the session, dispose the engine and remove the temp db file."""
     session.close()
     engine.dispose()
-    try:
+    with contextlib.suppress(OSError):
         db_path.unlink(missing_ok=True)
-    except OSError:
-        pass
 
 
 # ---------------------------------------------------------------------------
@@ -137,7 +136,7 @@ class _FakeChatModel:
         self._payload = json.dumps(items)
         self.calls = 0
 
-    def invoke(self, prompt: Any) -> "_FakeChatModel._Message":
+    def invoke(self, prompt: Any) -> _FakeChatModel._Message:
         self.calls += 1
         return self._Message(self._payload)
 
@@ -160,9 +159,7 @@ def _command_hash(command: str) -> str:
 def _rows_for_source(session: Session, source: str) -> list[TechniqueCommand]:
     """Return the persisted ``technique_commands`` rows for a given source."""
     return list(
-        session.execute(
-            select(TechniqueCommand).where(TechniqueCommand.source == source)
-        ).scalars()
+        session.execute(select(TechniqueCommand).where(TechniqueCommand.source == source)).scalars()
     )
 
 
@@ -457,7 +454,7 @@ def test_endpoint_ingests_structured_report_via_multipart() -> None:
     def _fake_resolve(self: Any) -> _FakeEmbedder:
         return _FakeEmbedder()
 
-    memory_module.ExperienceMemory._resolve_embedder = _fake_resolve  # type: ignore[method-assign]
+    memory_module.ExperienceMemory._resolve_embedder = _fake_resolve  # type: ignore[method-assign] -- test monkeypatches the method on the instance
 
     app = FastAPI()
     app.include_router(router)
@@ -495,6 +492,6 @@ def test_endpoint_ingests_structured_report_via_multipart() -> None:
         assert rows[0].executor == "cmd"
         assert rows[0].platform == "windows"
     finally:
-        memory_module.ExperienceMemory._resolve_embedder = original_resolver  # type: ignore[method-assign]
+        memory_module.ExperienceMemory._resolve_embedder = original_resolver  # type: ignore[method-assign] -- test monkeypatches the method on the instance
         app.dependency_overrides.clear()
         _dispose(session, engine, db_path)

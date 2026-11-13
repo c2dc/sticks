@@ -59,6 +59,8 @@ from pathlib import Path
 
 import httpx
 import pytest
+from hypothesis import given, settings
+from hypothesis import strategies as st
 from sqlalchemy import event, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
@@ -75,6 +77,7 @@ from app.services.caldera import (
     ADVERSARIES_PATH,
     HEALTH_PATH,
     OPERATIONS_PATH,
+    CalderaApiError,
     CalderaClient,
 )
 from app.services.containment.isolation import (
@@ -82,7 +85,6 @@ from app.services.containment.isolation import (
     IsolationResult,
 )
 from app.services.operation.runner import OperationRunner
-
 
 # The generated-UUID ``ability_id`` shape the AI path produces, matching the
 # reproduction recorded in bugfix.md / design.md (the observed counterexample).
@@ -110,7 +112,7 @@ def session() -> Iterator[Session]:
     engine = create_db_engine(settings)
 
     @event.listens_for(engine, "connect")
-    def _enforce_sqlite_foreign_keys(dbapi_connection, _record):  # noqa: ANN001
+    def _enforce_sqlite_foreign_keys(dbapi_connection, _record):
         cursor = dbapi_connection.cursor()
         cursor.execute("PRAGMA foreign_keys=ON")
         cursor.close()
@@ -160,9 +162,7 @@ def _ai_operationalization_artifact() -> dict:
         "technique_id": "T1003",
         "description": "AI-generated ability for the non-curated package.",
         "translation_source": TranslationSource.AI_GENERATED.value,
-        "executors": [
-            {"name": "sh", "platform": "linux", "command": _LOCAL_COMMAND}
-        ],
+        "executors": [{"name": "sh", "platform": "linux", "command": _LOCAL_COMMAND}],
     }
     adversary = {
         "id": _ADVERSARY_ID,
@@ -179,7 +179,7 @@ def _ai_operationalization_artifact() -> dict:
     }
 
 
-def _approving_isolation_verifier(containers, _inspector):  # noqa: ANN001
+def _approving_isolation_verifier(containers, _inspector):
     """A fake isolation verifier reporting every target container isolated.
 
     Keeps the isolation gate open so the only variable left is the missing parent
@@ -208,15 +208,11 @@ def _healthy_caldera_for_ai_ability() -> CalderaClient:
         if method == "GET" and path == HEALTH_PATH:
             return httpx.Response(200, json={"status": "ok"})
         if method == "POST" and path == ABILITIES_PATH:
-            return httpx.Response(
-                200, json=json.loads(request.content.decode("utf-8"))
-            )
+            return httpx.Response(200, json=json.loads(request.content.decode("utf-8")))
         if path == ADVERSARIES_PATH:
             return httpx.Response(200, json={"adversary_id": _ADVERSARY_ID})
         if method == "POST" and path == OPERATIONS_PATH:
-            return httpx.Response(
-                200, json={"id": "op-ai", "name": "ai-run", "state": "running"}
-            )
+            return httpx.Response(200, json={"id": "op-ai", "name": "ai-run", "state": "running"})
         if method == "GET" and path.startswith(OPERATIONS_PATH):
             return httpx.Response(
                 200,
@@ -260,7 +256,7 @@ def _run_stage6_over_ai_ability(session: Session) -> None:
         "artifacts": {"operationalization": _ai_operationalization_artifact()},
     }
     try:
-        execute_node(state, runner=runner, session=session)  # type: ignore[arg-type]
+        execute_node(state, runner=runner, session=session)  # type: ignore[arg-type] -- test double stands in for the real collaborator
     finally:
         caldera.close()
 
@@ -290,9 +286,7 @@ def test_ai_generated_ability_result_persists_without_fk_violation(
     # Precondition: the AI ability has NO parent row in ``abilities`` (bug input).
     assert (
         session.execute(
-            select(func.count())
-            .select_from(Ability)
-            .where(Ability.ability_id == _AI_ABILITY_ID)
+            select(func.count()).select_from(Ability).where(Ability.ability_id == _AI_ABILITY_ID)
         ).scalar()
         == 0
     )
@@ -314,9 +308,7 @@ def test_ai_generated_ability_result_persists_without_fk_violation(
     # The parent ability row now exists (materialized before the result insert).
     assert (
         session.execute(
-            select(func.count())
-            .select_from(Ability)
-            .where(Ability.ability_id == _AI_ABILITY_ID)
+            select(func.count()).select_from(Ability).where(Ability.ability_id == _AI_ABILITY_ID)
         ).scalar()
         == 1
     )
@@ -330,9 +322,7 @@ def test_ai_generated_ability_result_persists_without_fk_violation(
         ).scalar()
         == 1
     )
-    assert (
-        session.execute(select(func.count()).select_from(Operation)).scalar() == 1
-    )
+    assert session.execute(select(func.count()).select_from(Operation)).scalar() == 1
 
 
 # =============================================================================
@@ -365,11 +355,6 @@ def test_ai_generated_ability_result_persists_without_fk_violation(
 #
 # _Requirements: 3.1, 3.2, 3.3_
 # =============================================================================
-
-from hypothesis import given, settings  # noqa: E402
-from hypothesis import strategies as st  # noqa: E402
-
-from app.services.caldera import CalderaApiError  # noqa: E402
 
 
 # A curated ability id distinct from the AI one so the two preservation paths
@@ -406,9 +391,7 @@ def _seed_ability(
     db_ability.technique_name = technique_name
     db_ability.technique_id = technique_id
     db_ability.description = description
-    db_ability.executors = [
-        {"name": "sh", "platform": "linux", "command": _LOCAL_COMMAND}
-    ]
+    db_ability.executors = [{"name": "sh", "platform": "linux", "command": _LOCAL_COMMAND}]
     db_ability.translation_source = translation_source
     session.commit()
 
@@ -430,9 +413,7 @@ def _curated_operationalization_artifact() -> dict:
         "technique_id": "T1003",
         "description": "Curated ability whose parent row _persist upserted.",
         "translation_source": TranslationSource.HUMAN_CURATION.value,
-        "executors": [
-            {"name": "sh", "platform": "linux", "command": _LOCAL_COMMAND}
-        ],
+        "executors": [{"name": "sh", "platform": "linux", "command": _LOCAL_COMMAND}],
     }
     adversary = {
         "id": _ADVERSARY_ID,
@@ -464,15 +445,11 @@ def _healthy_caldera_for_ability(ability_id: str) -> CalderaClient:
         if method == "GET" and path == HEALTH_PATH:
             return httpx.Response(200, json={"status": "ok"})
         if method == "POST" and path == ABILITIES_PATH:
-            return httpx.Response(
-                200, json=json.loads(request.content.decode("utf-8"))
-            )
+            return httpx.Response(200, json=json.loads(request.content.decode("utf-8")))
         if path == ADVERSARIES_PATH:
             return httpx.Response(200, json={"adversary_id": _ADVERSARY_ID})
         if method == "POST" and path == OPERATIONS_PATH:
-            return httpx.Response(
-                200, json={"id": "op-ai", "name": "ai-run", "state": "running"}
-            )
+            return httpx.Response(200, json={"id": "op-ai", "name": "ai-run", "state": "running"})
         if method == "GET" and path.startswith(OPERATIONS_PATH):
             return httpx.Response(
                 200,
@@ -511,9 +488,7 @@ def _failing_caldera_api() -> CalderaClient:
         if method == "GET" and path == HEALTH_PATH:
             return httpx.Response(200, json={"status": "ok"})
         if method == "POST" and path == ABILITIES_PATH:
-            return httpx.Response(
-                200, json=json.loads(request.content.decode("utf-8"))
-            )
+            return httpx.Response(200, json=json.loads(request.content.decode("utf-8")))
         if path == ADVERSARIES_PATH:
             return httpx.Response(200, json={"adversary_id": _ADVERSARY_ID})
         if method == "POST" and path == OPERATIONS_PATH:
@@ -543,7 +518,7 @@ def _run_stage6_over_curated_ability(session: Session) -> None:
         "artifacts": {"operationalization": _curated_operationalization_artifact()},
     }
     try:
-        execute_node(state, runner=runner, session=session)  # type: ignore[arg-type]
+        execute_node(state, runner=runner, session=session)  # type: ignore[arg-type] -- test double stands in for the real collaborator
     finally:
         caldera.close()
 
@@ -569,7 +544,7 @@ def _run_stage6_with_failing_caldera(session: Session) -> None:
         "artifacts": {"operationalization": _ai_operationalization_artifact()},
     }
     try:
-        execute_node(state, runner=runner, session=session)  # type: ignore[arg-type]
+        execute_node(state, runner=runner, session=session)  # type: ignore[arg-type] -- test double stands in for the real collaborator
     finally:
         caldera.close()
 
@@ -609,9 +584,7 @@ def test_curated_ability_result_persists_without_fk_violation(
         ).scalar()
         == 1
     )
-    assert (
-        session.execute(select(func.count()).select_from(Operation)).scalar() == 1
-    )
+    assert session.execute(select(func.count()).select_from(Operation)).scalar() == 1
     # The curated parent row's metadata is untouched (still one row, HUMAN_CURATION).
     curated = session.get(Ability, _CURATED_ABILITY_ID)
     assert curated is not None
@@ -642,9 +615,7 @@ def test_already_present_ai_ability_result_persists_with_no_duplicate(
     # Exactly one parent row exists before the run (the bug condition is absent).
     assert (
         session.execute(
-            select(func.count())
-            .select_from(Ability)
-            .where(Ability.ability_id == _AI_ABILITY_ID)
+            select(func.count()).select_from(Ability).where(Ability.ability_id == _AI_ABILITY_ID)
         ).scalar()
         == 1
     )
@@ -660,15 +631,11 @@ def test_already_present_ai_ability_result_persists_with_no_duplicate(
         ).scalar()
         == 1
     )
-    assert (
-        session.execute(select(func.count()).select_from(Operation)).scalar() == 1
-    )
+    assert session.execute(select(func.count()).select_from(Operation)).scalar() == 1
     # Still exactly one parent ``abilities`` row — no duplicate was created.
     assert (
         session.execute(
-            select(func.count())
-            .select_from(Ability)
-            .where(Ability.ability_id == _AI_ABILITY_ID)
+            select(func.count()).select_from(Ability).where(Ability.ability_id == _AI_ABILITY_ID)
         ).scalar()
         == 1
     )
@@ -732,7 +699,7 @@ def _build_fk_enforcing_session() -> tuple[Session, Path, object]:
     engine = create_db_engine(settings)
 
     @event.listens_for(engine, "connect")
-    def _enforce_sqlite_foreign_keys(dbapi_connection, _record):  # noqa: ANN001
+    def _enforce_sqlite_foreign_keys(dbapi_connection, _record):
         cursor = dbapi_connection.cursor()
         cursor.execute("PRAGMA foreign_keys=ON")
         cursor.close()
@@ -751,9 +718,7 @@ def _build_fk_enforcing_session() -> tuple[Session, Path, object]:
         max_size=40,
     ),
     technique_id=st.from_regex(r"T[0-9]{4}", fullmatch=True),
-    tactic=st.sampled_from(
-        ["credential-access", "execution", "discovery", "persistence"]
-    ),
+    tactic=st.sampled_from(["credential-access", "execution", "discovery", "persistence"]),
 )
 def test_property2_already_present_ai_ability_upsert_is_idempotent(
     name: str,

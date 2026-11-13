@@ -40,8 +40,11 @@ export function CampaignView({
   onCompleted,
 }: {
   version: string
-  /** Called with the chosen `campaign_key` once its overview has loaded. */
-  onCompleted?: (campaignKey: string) => void
+  /**
+   * Called with the chosen `campaign_key` and the campaign's readable name once
+   * its overview has loaded.
+   */
+  onCompleted?: (campaignKey: string, campaignName?: string) => void
 }) {
   const { t } = useTranslation("pipeline")
 
@@ -51,10 +54,10 @@ export function CampaignView({
   useEffect(() => {
     onCompletedRef.current = onCompleted
   }, [onCompleted])
-  const reportCompletion = useCallback((key: string) => {
+  const reportCompletion = useCallback((key: string, name?: string) => {
     if (completionReported.current === key) return
     completionReported.current = key
-    onCompletedRef.current?.(key)
+    onCompletedRef.current?.(key, name)
   }, [])
 
   const [campaigns, setCampaigns] = useState<StixCampaignSummary[] | null>(null)
@@ -131,6 +134,7 @@ export function CampaignView({
 
   useEffect(() => {
     let active = true
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- resets the request state synchronously when the key changes, before the async fetch; deriving it during render would change the loading timing
     setCampaigns(null)
     setLoadError(null)
     setSelectedSlug(null)
@@ -168,7 +172,8 @@ export function CampaignView({
     try {
       const loaded = await getCampaignOverview(version, slug)
       setOverview(loaded)
-      reportCompletion(slug)
+      const chosen = campaigns?.find((c) => c.campaign_key === slug)
+      reportCompletion(slug, chosen?.name)
     } catch {
       setSelectionFailed(true)
     } finally {

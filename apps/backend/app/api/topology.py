@@ -38,8 +38,6 @@ _Requirements: 3.5_
 
 from __future__ import annotations
 
-from typing import Optional
-
 from fastapi import APIRouter, Depends, HTTPException, Path, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -47,6 +45,8 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.models.domain import (
     Ability as AbilityModel,
+)
+from app.models.domain import (
     Case as CaseModel,
 )
 from app.services.curated_case_reader import resolve_flow_data_from_db
@@ -63,10 +63,10 @@ from app.services.environment.topology_builder import (
 router = APIRouter(prefix="/api", tags=["topology"])
 
 # Re-export the typed models so callers can import them from this module.
-__all__ = ["router", "HostView", "NetworkView", "TopologyResponse"]
+__all__ = ["HostView", "NetworkView", "TopologyResponse", "router"]
 
 
-def _resolve_campaign_name_from_db(campaign: str, db: Session) -> Optional[str]:
+def _resolve_campaign_name_from_db(campaign: str, db: Session) -> str | None:
     """Resolve a campaign's display name from the DB when it has attack flow + Abilities.
 
     Database-only resolution for the topology (Req. 1.1, 3.5, 4.1): a campaign is
@@ -81,9 +81,7 @@ def _resolve_campaign_name_from_db(campaign: str, db: Session) -> Optional[str]:
     """
     has_ability = (
         db.execute(
-            select(AbilityModel.ability_id)
-            .where(AbilityModel.campaign_id == campaign)
-            .limit(1)
+            select(AbilityModel.ability_id).where(AbilityModel.campaign_id == campaign).limit(1)
         )
         .scalars()
         .first()
@@ -97,11 +95,7 @@ def _resolve_campaign_name_from_db(campaign: str, db: Session) -> Optional[str]:
     if flow is None or not flow.structural_nodes:
         return None
 
-    row = (
-        db.execute(select(CaseModel).where(CaseModel.id == campaign))
-        .scalars()
-        .first()
-    )
+    row = db.execute(select(CaseModel).where(CaseModel.id == campaign)).scalars().first()
     if row is not None and row.name:
         return row.name
     return campaign

@@ -32,7 +32,6 @@ _Requirements: 15.1, 15.2, 15.3, 15.4, 15.5, 15.6, 15.7, 15.8_
 from __future__ import annotations
 
 import datetime as dt
-from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -57,11 +56,11 @@ class TechniqueMetric(BaseModel):
             the technique's execution (Req. 15.5).
     """
 
-    technique_id: Optional[str] = None
-    node_id: Optional[str] = None
+    technique_id: str | None = None
+    node_id: str | None = None
     status: AbilityResultStatus = AbilityResultStatus.PENDING
-    failed_step: Optional[str] = None
-    execution_time_s: Optional[float] = None
+    failed_step: str | None = None
+    execution_time_s: float | None = None
     telemetry: list[str] = Field(default_factory=list)
 
 
@@ -85,7 +84,7 @@ class SufficiencyMetrics(BaseModel):
     successful_techniques: int = 0
     success_rate: float = 0.0
     procedural_coverage: float = 0.0
-    total_time_s: Optional[float] = None
+    total_time_s: float | None = None
     per_technique: list[TechniqueMetric] = Field(default_factory=list)
     failed_nodes: list[str] = Field(default_factory=list)
     success_verdict: bool = False
@@ -139,13 +138,13 @@ class ExecutionReport(BaseModel):
     metrics: SufficiencyMetrics
     results: list[Stage3AbilityResult] = Field(default_factory=list)
     environment_deprovisioned: bool = False
-    deprovisioning: Optional[DeprovisioningView] = None
+    deprovisioning: DeprovisioningView | None = None
     generated_at: dt.datetime
 
 
 __all__ = [
-    "TechniqueMetric",
-    "SufficiencyMetrics",
     "DeprovisioningView",
     "ExecutionReport",
+    "SufficiencyMetrics",
+    "TechniqueMetric",
 ]

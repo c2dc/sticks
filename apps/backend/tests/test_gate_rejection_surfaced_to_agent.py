@@ -73,12 +73,10 @@ from __future__ import annotations
 import copy
 from typing import Any
 
-from app.models.enums import AgentStage, EvaluatorDecision
+from app.models.enums import AgentStage, EvaluatorDecision, OperationState
 from app.services.ai.agents import evaluator
 from app.services.ai.graph import execute_node
 from app.services.operation.runner import OperationRunResult, RunOutcome
-from app.models.enums import OperationState
-
 
 # ---------------------------------------------------------------------------
 # Fakes — a recording runner and an in-memory RAG store
@@ -112,9 +110,7 @@ class _RecordingMemory:
     def __init__(self) -> None:
         self.stored: list[tuple[str, dict, dict]] = []
 
-    def store_outcome(
-        self, campaign_id: str, report: dict, evaluation: dict
-    ) -> None:
+    def store_outcome(self, campaign_id: str, report: dict, evaluation: dict) -> None:
         self.stored.append((campaign_id, report, evaluation))
 
 
@@ -140,10 +136,7 @@ def _containment_refused() -> OperationRunResult:
     return OperationRunResult(
         outcome=RunOutcome.CONTAINMENT_REFUSED,
         state=OperationState.NOT_STARTED,
-        message=(
-            "Emulação recusada por contenção — destino externo detectado: "
-            "8.8.8.8"
-        ),
+        message=("Emulação recusada por contenção — destino externo detectado: 8.8.8.8"),
     )
 
 
@@ -286,7 +279,9 @@ def _assert_refine_without_score(delta: dict, expected_stage: AgentStage) -> Non
     assert delta["refine_stage"] == expected_stage.value
 
 
-def _run_pipeline(result: OperationRunResult) -> tuple[dict, dict, dict, _RecordingRunner, _RecordingMemory]:
+def _run_pipeline(
+    result: OperationRunResult,
+) -> tuple[dict, dict, dict, _RecordingRunner, _RecordingMemory]:
     """Drive execute_node then evaluator.node over a fake runner result.
 
     Returns ``(seed_before, execute_delta, eval_delta, runner, memory)`` where
@@ -336,9 +331,7 @@ def _run_pipeline(result: OperationRunResult) -> tuple[dict, dict, dict, _Record
 
 def test_containment_rejection_surfaced_as_refinable_with_no_execution() -> None:
     """External destination → CONTAINMENT_REFUSED, no execution, REFINE (Req. 8.2)."""
-    seed_before, execute_delta, eval_delta, runner, memory = _run_pipeline(
-        _containment_refused()
-    )
+    seed_before, execute_delta, eval_delta, _runner, _memory = _run_pipeline(_containment_refused())
 
     report = execute_delta["report"]
     _assert_no_execution(report, RunOutcome.CONTAINMENT_REFUSED)
@@ -355,9 +348,7 @@ def test_containment_rejection_surfaced_as_refinable_with_no_execution() -> None
 
 def test_isolation_rejection_surfaced_as_refinable_with_no_execution() -> None:
     """Non-isolated container → ISOLATION_FAILED, no execution, REFINE (Req. 8.3)."""
-    _seed, execute_delta, eval_delta, _runner, _memory = _run_pipeline(
-        _isolation_failed()
-    )
+    _seed, execute_delta, eval_delta, _runner, _memory = _run_pipeline(_isolation_failed())
 
     report = execute_delta["report"]
     _assert_no_execution(report, RunOutcome.ISOLATION_FAILED)
@@ -371,9 +362,7 @@ def test_isolation_rejection_surfaced_as_refinable_with_no_execution() -> None:
 
 def test_isolation_broken_midrun_surfaced_as_refinable_with_no_completion() -> None:
     """Isolation stopped passing mid-run → ABORTED, REFINE to environment (Req. 8.3)."""
-    _seed, execute_delta, eval_delta, _runner, _memory = _run_pipeline(
-        _isolation_broken()
-    )
+    _seed, execute_delta, eval_delta, _runner, _memory = _run_pipeline(_isolation_broken())
 
     report = execute_delta["report"]
     _assert_no_execution(report, RunOutcome.ISOLATION_BROKEN)
@@ -386,9 +375,7 @@ def test_isolation_broken_midrun_surfaced_as_refinable_with_no_completion() -> N
 
 def test_missing_confirmation_surfaced_as_refinable_with_no_execution() -> None:
     """No explicit confirmation → NOT_CONFIRMED, no execution, REFINE (Req. 8.7)."""
-    _seed, execute_delta, eval_delta, _runner, _memory = _run_pipeline(
-        _not_confirmed()
-    )
+    _seed, execute_delta, eval_delta, _runner, _memory = _run_pipeline(_not_confirmed())
 
     report = execute_delta["report"]
     _assert_no_execution(report, RunOutcome.NOT_CONFIRMED)
@@ -401,9 +388,7 @@ def test_missing_confirmation_surfaced_as_refinable_with_no_execution() -> None:
 
 def test_no_decision_gate_surfaced_as_refinable_with_no_execution() -> None:
     """A gate returned no decision → CALDERA_UNAVAILABLE, no execution, REFINE (Req. 8.8)."""
-    _seed, execute_delta, eval_delta, _runner, _memory = _run_pipeline(
-        _caldera_unavailable()
-    )
+    _seed, execute_delta, eval_delta, _runner, _memory = _run_pipeline(_caldera_unavailable())
 
     report = execute_delta["report"]
     _assert_no_execution(report, RunOutcome.CALDERA_UNAVAILABLE)
@@ -428,7 +413,7 @@ def test_every_gate_rejection_stores_a_failed_outcome_into_rag() -> None:
         _not_confirmed,
         _caldera_unavailable,
     ):
-        _seed, _execute_delta, eval_delta, _runner, memory = _run_pipeline(builder())
+        _seed, _execute_delta, _eval_delta, _runner, memory = _run_pipeline(builder())
         assert len(memory.stored) == 1
         stored_campaign, _stored_report, stored_eval = memory.stored[0]
         assert stored_campaign == "campaign-under-test"
@@ -557,9 +542,7 @@ def test_evaluation_is_a_distinct_ordered_step_after_execution() -> None:
     # "report absent" blocked iteration rather than rendering a verdict. This is
     # only possible because evaluation runs AFTER, and depends on, execution.
     no_execution_state = dict(seed)
-    no_execution_delta = evaluator.node(
-        no_execution_state, memory=_RecordingMemory()
-    )
+    no_execution_delta = evaluator.node(no_execution_state, memory=_RecordingMemory())
     assert no_execution_delta["evaluation"]["decision"] == EvaluatorDecision.REFINE.value
     assert isinstance(no_execution_delta.get("error"), str)
     assert no_execution_delta["error"].strip()

@@ -18,7 +18,7 @@ def main() -> int:
         try:
             summary = apply_curated_seed(session)
             session.commit()
-        except Exception as exc:  # noqa: BLE001 - report the class only, no details
+        except Exception as exc:  # noqa: BLE001 -- report the class only, no details
             session.rollback()
             print(f"curated seed failed: {type(exc).__name__}", file=sys.stderr)
             return 1

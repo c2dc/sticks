@@ -51,7 +51,8 @@ _Requirements: 2.3, 2.4, 2.5, 8.3, 9.3, 11.5_
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Callable, Optional
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 from app.models.enums import AgentStage, TranslationSource
 from app.services.environment.compose_executor import LogLine
@@ -59,7 +60,6 @@ from app.services.environment.image_resolver import (
     ImageNeed,
     ImageResolution,
     ImageResolver,
-    ImageUnavailableError,
     detect_target_os,
 )
 from app.services.environment.operationalization import (
@@ -89,10 +89,10 @@ if TYPE_CHECKING:  # pragma: no cover - typing only, no import-time cost
 
 __all__ = [
     "AiEnvironmentProvisioner",
-    "node",
     "build_stage_output",
-    "persist_stage_output",
     "detect_params_target_os",
+    "node",
+    "persist_stage_output",
     "resolve_image_for_params",
 ]
 
@@ -140,14 +140,14 @@ class AiEnvironmentProvisioner:
     def __init__(
         self,
         *,
-        chat: Optional[Any] = None,
-        memory: Optional[Any] = None,
-        pipeline: "Optional[CurationEnvironmentProvisioner]" = None,
-        compose_tool: Optional[Callable[..., dict]] = None,
-        caldera_tool: Optional[Callable[..., dict]] = None,
-        resource_gate: Optional[ResourceGate] = None,
-        vm_confirmation_gate: Optional[VmConfirmationGate] = None,
-        trace_sink: "Optional[list[dict]]" = None,
+        chat: Any | None = None,
+        memory: Any | None = None,
+        pipeline: CurationEnvironmentProvisioner | None = None,
+        compose_tool: Callable[..., dict] | None = None,
+        caldera_tool: Callable[..., dict] | None = None,
+        resource_gate: ResourceGate | None = None,
+        vm_confirmation_gate: VmConfirmationGate | None = None,
+        trace_sink: list[dict] | None = None,
     ) -> None:
         """Assemble the AI provisioner with lazily-resolved, injected collaborators.
 
@@ -249,7 +249,7 @@ class AiEnvironmentProvisioner:
             self._chat = make_chat_model()
         return self._chat
 
-    def _get_pipeline(self) -> "CurationEnvironmentProvisioner":
+    def _get_pipeline(self) -> CurationEnvironmentProvisioner:
         """Return the Stage 5 pipeline, building the production one lazily.
 
         In production (``pipeline is None``) a
@@ -325,10 +325,7 @@ class AiEnvironmentProvisioner:
         Returns:
             One :class:`ProposedTarget` per proposed host, in order.
         """
-        return [
-            ProposedTarget(name=host.container or host.label)
-            for host in params.hosts
-        ]
+        return [ProposedTarget(name=host.container or host.label) for host in params.hosts]
 
     # -- fixed-vs-agent-decided split (design §E) -------------------------
 
@@ -406,9 +403,7 @@ class AiEnvironmentProvisioner:
             (h for h in params.hosts if _is_attacker(h)),
             None,
         )
-        attacker_node = (
-            (attacker.container or attacker.label) if attacker is not None else None
-        )
+        attacker_node = (attacker.container or attacker.label) if attacker is not None else None
         targets = [
             {
                 "system": host.container or host.label,
@@ -508,7 +503,7 @@ class AiEnvironmentProvisioner:
         # isolation/sub-stage outcome exists) and when ``provision`` raises before
         # the pipeline returns — the trace then carries the fail-closed empty
         # verdicts the serialization layer surfaces as "not approved".
-        environment: "Optional[ProvisionedEnvironment]" = None
+        environment: ProvisionedEnvironment | None = None
 
         try:
             if not resource_verdict.approved:
@@ -526,9 +521,7 @@ class AiEnvironmentProvisioner:
                 environment = ProvisionedEnvironment(
                     campaign_id=params.campaign_id,
                     platform=EnvironmentPlatform.CONTAINER,
-                    target_containers=[
-                        t.name for t in self._proposed_targets(params)
-                    ],
+                    target_containers=[t.name for t in self._proposed_targets(params)],
                     vm_confirmation=vm_confirmation,
                     origin=self.origin(),
                     failed_step="resource_gate",
@@ -547,14 +540,16 @@ class AiEnvironmentProvisioner:
             # record (Req. 14.7, 14.8). Every other verdict, summary, health,
             # isolation, sub-stage outcome and failed_step/error_message the
             # unchanged pipeline computed is preserved verbatim (Req. 2.7).
-            environment = self._get_pipeline().provision(
-                params, on_log=on_log
-            ).model_copy(
-                update={
-                    "origin": self.origin(),
-                    "platform": EnvironmentPlatform.CONTAINER,
-                    "vm_confirmation": vm_confirmation,
-                }
+            environment = (
+                self._get_pipeline()
+                .provision(params, on_log=on_log)
+                .model_copy(
+                    update={
+                        "origin": self.origin(),
+                        "platform": EnvironmentPlatform.CONTAINER,
+                        "vm_confirmation": vm_confirmation,
+                    }
+                )
             )
             return environment
         finally:
@@ -571,16 +566,8 @@ class AiEnvironmentProvisioner:
                 # empty verdicts) whenever the pipeline was NOT reached — the
                 # ResourceGate rejection path and any raise before it returned — so
                 # the trace never implies an isolation check that did not run.
-                isolation = (
-                    environment.isolation
-                    if environment is not None
-                    else IsolationSummary()
-                )
-                substages = (
-                    environment.substages
-                    if environment is not None
-                    else SubStageSummary()
-                )
+                isolation = environment.isolation if environment is not None else IsolationSummary()
+                substages = environment.substages if environment is not None else SubStageSummary()
                 self._trace_sink.append(
                     {
                         "stage": AgentStage.ENVIRONMENT.value,
@@ -590,9 +577,7 @@ class AiEnvironmentProvisioner:
                             "retrieved_experience": None,
                             "attack_context": None,
                             "prior_artifacts": {
-                                "operationalization_parameters": params.model_dump(
-                                    mode="json"
-                                )
+                                "operationalization_parameters": params.model_dump(mode="json")
                             },
                         },
                         "processing": {
@@ -608,9 +593,7 @@ class AiEnvironmentProvisioner:
                             # (attacker node, targets + vulnerabilities) — so the
                             # audit shows exactly where the agent had freedom and
                             # where the system imposed the standard.
-                            "fixed_infrastructure": self._fixed_infrastructure(
-                                params
-                            ),
+                            "fixed_infrastructure": self._fixed_infrastructure(params),
                             "agent_decided": self._agent_decided(params),
                             # The two gate verdicts (design §E ``gates`` block):
                             #   * resource_gate — the code-level host-resource
@@ -631,8 +614,7 @@ class AiEnvironmentProvisioner:
                                 "isolation": {
                                     "approved": isolation.approved,
                                     "verdicts": [
-                                        v.model_dump(mode="json")
-                                        for v in isolation.verdicts
+                                        v.model_dump(mode="json") for v in isolation.verdicts
                                     ],
                                 },
                             },
@@ -710,7 +692,7 @@ class AiEnvironmentProvisioner:
 # constructor is import-safe (all collaborators are optional and resolved lazily),
 # so this touches no network, subprocess or daemon at import (Req. 7.4, 1.7).
 _SEAM: EnvironmentProvisioner = AiEnvironmentProvisioner()
-assert isinstance(_SEAM, EnvironmentProvisioner)
+assert isinstance(_SEAM, EnvironmentProvisioner)  # noqa: S101 -- import-time structural guard of the Protocol seam; must stay a hard check
 
 
 # ---------------------------------------------------------------------------
@@ -718,7 +700,7 @@ assert isinstance(_SEAM, EnvironmentProvisioner)
 # ---------------------------------------------------------------------------
 
 
-def _read_environment_parameters(state: "AgentState") -> EnvironmentParameters:
+def _read_environment_parameters(state: AgentState) -> EnvironmentParameters:
     """Read the Stage 4 :class:`EnvironmentParameters` out of the agent state.
 
     The Stage 4 operationalization node writes the serialized
@@ -755,7 +737,7 @@ def _read_environment_parameters(state: "AgentState") -> EnvironmentParameters:
 
 
 # ---------------------------------------------------------------------------
-# Image resolution seam — detect Target_OS + resolve image (Req. 14.1–14.5)
+# Image resolution seam — detect Target_OS + resolve image (Req. 14.1-14.5)
 # ---------------------------------------------------------------------------
 #
 # These module-level helpers wire the Stage 5 env path to
@@ -809,7 +791,7 @@ def detect_params_target_os(params: EnvironmentParameters) -> str:
 def resolve_image_for_params(
     params: EnvironmentParameters,
     resolver: ImageResolver,
-) -> "ImageResolution":
+) -> ImageResolution:
     """Resolve the container image for ``params`` via ``resolver`` (Req. 14.3, 14.4).
 
     Detects the ``Target_OS`` from the concrete operationalization commands
@@ -846,7 +828,7 @@ def resolve_image_for_params(
     return resolver.resolve(ImageNeed(target_os=target_os, services=services))
 
 
-def node(state: "AgentState") -> dict:
+def node(state: AgentState) -> dict:
     """LangGraph node wrapping :class:`AiEnvironmentProvisioner` (Req. 2.4, 11.5).
 
     Builds the provisioner **lazily** (so importing this module and wiring the
@@ -917,11 +899,11 @@ def node(state: "AgentState") -> dict:
 
 
 def build_stage_output(
-    state: "AgentState",
+    state: AgentState,
     *,
     iteration_id: int,
-    params_id: Optional[int] = None,
-) -> "AgentStageOutput":
+    params_id: int | None = None,
+) -> AgentStageOutput:
     """Build the Stage 5 ``agent_stage_outputs`` row for the environment artifact.
 
     Factored out of :func:`node` so the session-bound ``AgentRunService`` (tasks
@@ -975,12 +957,12 @@ def build_stage_output(
 
 def persist_stage_output(
     session: Any,
-    state: "AgentState",
+    state: AgentState,
     *,
     iteration_id: int,
-    params_id: Optional[int] = None,
-    trace: Optional[dict] = None,
-) -> "AgentStageOutput":
+    params_id: int | None = None,
+    trace: dict | None = None,
+) -> AgentStageOutput:
     """Persist the Stage 5 ``agent_stage_outputs`` row via an injected ``Session``.
 
     The thin persistence hook the ``AgentRunService`` (tasks 15.x) calls after the
@@ -1008,9 +990,7 @@ def persist_stage_output(
     Returns:
         The added (not yet committed) :class:`~app.models.domain.AgentStageOutput`.
     """
-    stage_output = build_stage_output(
-        state, iteration_id=iteration_id, params_id=params_id
-    )
+    stage_output = build_stage_output(state, iteration_id=iteration_id, params_id=params_id)
     session.add(stage_output)
     # Flush so the stage output's id is assigned for the 1:1 trace FK; the write
     # stays inside the Run_Service's per-iteration SAVEPOINT (no commit here).

@@ -60,7 +60,7 @@ from app.db.session import create_db_engine
 from app.models.domain import AbilityResult, Operation
 from app.models.enums import AbilityResultStatus, OperationState
 from app.services.audit.audit_logger import AuditLogger
-from app.services.caldera import CalderaClient, OperationLink, OperationStateResult
+from app.services.caldera import OperationLink, OperationStateResult
 from app.services.caldera.client import TERMINAL_OPERATION_STATES
 from app.services.containment.isolation import ContainerIsolationVerdict, IsolationResult
 from app.services.operation.runner import OperationRunner
@@ -83,8 +83,7 @@ def _isolated_verifier(containers: list[str], _inspector: object) -> IsolationRe
     interval clamp) from the periodic isolation re-check.
     """
     verdicts = tuple(
-        ContainerIsolationVerdict(container=name, isolated=True, reasons=())
-        for name in containers
+        ContainerIsolationVerdict(container=name, isolated=True, reasons=()) for name in containers
     )
     return IsolationResult(passed=True, verdicts=verdicts)
 
@@ -195,9 +194,7 @@ def _clamp(value: float, low: float, high: float) -> float:
 )
 @given(
     num_non_terminal=st.integers(min_value=0, max_value=8),
-    non_terminal_states=st.lists(
-        st.sampled_from(_NON_TERMINAL_STATES), min_size=0, max_size=8
-    ),
+    non_terminal_states=st.lists(st.sampled_from(_NON_TERMINAL_STATES), min_size=0, max_size=8),
     terminal_state=st.sampled_from(_TERMINAL_STATES),
     link_count=st.integers(min_value=0, max_value=4),
     configured_interval=st.floats(
@@ -261,7 +258,7 @@ def test_property2_stops_at_first_terminal_and_clamps_interval(
 
         runner = OperationRunner(
             session=session,
-            caldera=caldera,  # type: ignore[arg-type]
+            caldera=caldera,  # type: ignore[arg-type] -- test double stands in for the real collaborator
             audit_logger=AuditLogger(session),
             isolation_verifier=_isolated_verifier,
             collection_interval=configured_interval,
@@ -306,10 +303,7 @@ def test_property2_stops_at_first_terminal_and_clamps_interval(
         # Terminal links were status 0 -> SUCCESS, so the tally is all successes.
         assert collection.total_success == link_count
         assert collection.total_failure == 0
-        assert all(
-            r.status is AbilityResultStatus.SUCCESS
-            for r in collection.ability_results
-        )
+        assert all(r.status is AbilityResultStatus.SUCCESS for r in collection.ability_results)
     finally:
         session.close()
         engine.dispose()

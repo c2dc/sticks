@@ -1,7 +1,7 @@
 """Threat-intel ingestion — parse an uploaded report into the Command_Base.
 
 This module ingests a Researcher-uploaded Threat_Intel_Report into the
-Command_Base (design Component 8, Req. 13.1–13.7). It mirrors the two-collaborator
+Command_Base (design Component 8, Req. 13.1-13.7). It mirrors the two-collaborator
 shape of :mod:`app.services.atomic_red_team_ingest_service`, but the *source* of
 the techniques→commands is an uploaded file rather than a GitHub checkout, and it
 has two parsing paths plus one injectable LLM boundary:
@@ -48,7 +48,7 @@ import json
 import logging
 import re
 from dataclasses import dataclass, field
-from typing import Any, Optional, Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -97,9 +97,7 @@ class ThreatIntelFormatError(ValueError):
     the endpoint can surface it verbatim.
     """
 
-    def __init__(
-        self, message: str, *, filename: str, content_type: Optional[str]
-    ) -> None:
+    def __init__(self, message: str, *, filename: str, content_type: str | None) -> None:
         super().__init__(message)
         self.filename = filename
         self.content_type = content_type
@@ -115,7 +113,7 @@ class ThreatIntelReport:
     """
 
     filename: str
-    content_type: Optional[str]
+    content_type: str | None
     content: bytes
 
 
@@ -156,7 +154,7 @@ class ThreatIntelIngestService:
     affinities share the request-scoped unit of work, and the ChatModel is
     injectable (defaulting to a lazily-built SEPINF chat model) so the free-text
     extraction can be doubled in tests. See the module docstring for the full
-    contract (Req. 13.1–13.7).
+    contract (Req. 13.1-13.7).
     """
 
     def __init__(
@@ -164,7 +162,7 @@ class ThreatIntelIngestService:
         session: Session,
         *,
         memory: ExperienceMemory,
-        llm: Optional[ChatModel] = None,
+        llm: ChatModel | None = None,
     ) -> None:
         self._session = session
         self._memory = memory
@@ -210,9 +208,7 @@ class ThreatIntelIngestService:
 
     # ---- format detection + extraction (no writes) -------------------------
 
-    def _extract(
-        self, report: ThreatIntelReport
-    ) -> tuple[str, list[_ParsedCommand]]:
+    def _extract(self, report: ThreatIntelReport) -> tuple[str, list[_ParsedCommand]]:
         """Detect the report format and extract its normalized commands.
 
         Returns ``(report_format, commands)``. Structured reports (STIX/JSON) are
@@ -258,7 +254,7 @@ class ThreatIntelIngestService:
             content_type=report.content_type,
         )
 
-    def _try_parse_json(self, report: ThreatIntelReport) -> Optional[Any]:
+    def _try_parse_json(self, report: ThreatIntelReport) -> Any | None:
         """Return the parsed JSON document, or ``None`` when the body is not JSON.
 
         Attempts a JSON parse when the content-type/extension hint at JSON/STIX or
@@ -282,11 +278,7 @@ class ThreatIntelIngestService:
         """True when the content-type or extension hints at JSON/STIX."""
         ctype = (report.content_type or "").lower()
         name = report.filename.lower()
-        return (
-            "json" in ctype
-            or "stix" in ctype
-            or name.endswith((".json", ".stix"))
-        )
+        return "json" in ctype or "stix" in ctype or name.endswith((".json", ".stix"))
 
     @staticmethod
     def _looks_like_pdf(report: ThreatIntelReport) -> bool:
@@ -295,7 +287,7 @@ class ThreatIntelIngestService:
         return "pdf" in ctype or report.filename.lower().endswith(".pdf")
 
     @staticmethod
-    def _try_decode_text(content: bytes) -> Optional[str]:
+    def _try_decode_text(content: bytes) -> str | None:
         """Decode ``content`` as UTF-8, then Latin-1; ``None`` if both fail.
 
         Used ONLY by the JSON sniff: Latin-1 maps every byte, so a non-text
@@ -311,7 +303,7 @@ class ThreatIntelIngestService:
         return None
 
     @staticmethod
-    def _try_decode_strict_text(content: bytes) -> Optional[str]:
+    def _try_decode_strict_text(content: bytes) -> str | None:
         """Decode ``content`` as strict UTF-8 for the free-text path; else ``None``.
 
         The plain-text/Markdown path accepts only content that is valid UTF-8 so
@@ -342,10 +334,9 @@ class ThreatIntelIngestService:
             text = "\n".join(pages).strip()
             if text:
                 return text
-        except Exception as exc:  # noqa: BLE001 - degrade to a lossy decode
+        except Exception as exc:  # noqa: BLE001 -- degrade to a lossy decode
             logger.warning(
-                "PDF text extraction for %s failed (%s: %s); falling back to a "
-                "lossy decode.",
+                "PDF text extraction for %s failed (%s: %s); falling back to a lossy decode.",
                 report.filename,
                 type(exc).__name__,
                 exc,
@@ -370,9 +361,7 @@ class ThreatIntelIngestService:
     @staticmethod
     def _is_stix_bundle(document: dict[str, Any]) -> bool:
         """True when the mapping is a STIX bundle (``type`` + ``objects`` list)."""
-        return document.get("type") == "bundle" and isinstance(
-            document.get("objects"), list
-        )
+        return document.get("type") == "bundle" and isinstance(document.get("objects"), list)
 
     def _extract_stix_bundle(self, document: dict[str, Any]) -> list[_ParsedCommand]:
         """Harvest technique ids + commands from a STIX bundle's objects.
@@ -394,7 +383,7 @@ class ThreatIntelIngestService:
         return commands
 
     @staticmethod
-    def _stix_attack_id(obj: dict[str, Any]) -> Optional[str]:
+    def _stix_attack_id(obj: dict[str, Any]) -> str | None:
         """Return the ATT&CK technique id from a STIX attack-pattern's refs."""
         refs = obj.get("external_references")
         if not isinstance(refs, list):
@@ -404,9 +393,7 @@ class ThreatIntelIngestService:
                 continue
             if ref.get("source_name") == "mitre-attack":
                 external_id = ref.get("external_id")
-                if isinstance(external_id, str) and _TECHNIQUE_ID_RE.match(
-                    external_id.strip()
-                ):
+                if isinstance(external_id, str) and _TECHNIQUE_ID_RE.match(external_id.strip()):
                     return external_id.strip()
         return None
 
@@ -488,16 +475,14 @@ class ThreatIntelIngestService:
                     _ParsedCommand(
                         technique_id=technique_id,
                         command=command,
-                        executor=self._normalize_token(raw.get("executor"))
-                        or default_executor,
-                        platform=self._normalize_token(raw.get("platform"))
-                        or default_platform,
+                        executor=self._normalize_token(raw.get("executor")) or default_executor,
+                        platform=self._normalize_token(raw.get("platform")) or default_platform,
                     )
                 )
         return parsed
 
     @staticmethod
-    def _resolve_technique_id(entry: dict[str, Any]) -> Optional[str]:
+    def _resolve_technique_id(entry: dict[str, Any]) -> str | None:
         """Return a valid ATT&CK technique id from a structured entry, if present."""
         for key in ("technique_id", "technique", "attack_technique", "id"):
             value = entry.get(key)
@@ -507,9 +492,7 @@ class ThreatIntelIngestService:
 
     # ---- free text (PDF/TXT/Markdown) extraction via the LLM (Req. 13.1) ---
 
-    def _extract_free_text(
-        self, report: ThreatIntelReport, text: str
-    ) -> list[_ParsedCommand]:
+    def _extract_free_text(self, report: ThreatIntelReport, text: str) -> list[_ParsedCommand]:
         """Extract technique→commands from free text via the injected LLM.
 
         Prompts the LLM to return a JSON array of
@@ -710,8 +693,7 @@ class ThreatIntelIngestService:
             f"platform {item.platform}: {item.command}"
         )
         dedup_key = hashlib.sha256(
-            f"{_SOURCE}|{item.technique_id}|{item.executor}|{item.platform}|"
-            f"{item.command}".encode("utf-8")
+            f"{_SOURCE}|{item.technique_id}|{item.executor}|{item.platform}|{item.command}".encode()
         ).hexdigest()
 
         return self._memory.store_affinity(

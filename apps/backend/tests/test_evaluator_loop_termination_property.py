@@ -155,7 +155,7 @@ class _FakeEmbedder:
     def embed(self, text: str) -> list[float]:
         vec: list[float] = []
         for dim in range(_EMBED_DIM):
-            component = hashlib.sha256(f"{dim}:{text}".encode("utf-8")).digest()[0]
+            component = hashlib.sha256(f"{dim}:{text}".encode()).digest()[0]
             vec.append((component / 127.5) - 1.0)
         if all(abs(c) < 1e-12 for c in vec):
             vec[0] = 1.0
@@ -185,12 +185,8 @@ def _install_fake_graph(
     and the compiled graph is the scripted ``graph``; the lifecycle under test is
     the terminal-status derivation, not the probe or the real graph.
     """
-    monkeypatch.setattr(
-        service_cls, "_build_graph", lambda self: graph, raising=True
-    )
-    monkeypatch.setattr(
-        service_cls, "_require_dependencies", lambda self: None, raising=True
-    )
+    monkeypatch.setattr(service_cls, "_build_graph", lambda self: graph, raising=True)
+    monkeypatch.setattr(service_cls, "_require_dependencies", lambda self: None, raising=True)
 
 
 # ---------------------------------------------------------------------------
@@ -213,9 +209,7 @@ _verdict_streams = st.lists(st.booleans(), min_size=1, max_size=12)
 # ---------------------------------------------------------------------------
 
 
-def _simulate_loop(
-    max_iterations: int, verdicts: list[bool]
-) -> tuple[int, bool]:
+def _simulate_loop(max_iterations: int, verdicts: list[bool]) -> tuple[int, bool]:
     """Drive the improvement loop around the REAL ``route_after_eval``.
 
     Mirrors the graph's control flow EXACTLY: ``orchestrate`` seeds
@@ -269,9 +263,7 @@ def _simulate_loop(
     return passes, final_verdict
 
 
-def _terminal_final_state(
-    passes: int, final_verdict: bool, max_iterations: int
-) -> dict:
+def _terminal_final_state(passes: int, final_verdict: bool, max_iterations: int) -> dict:
     """Build the final ``AgentState`` the service reads after the loop terminates.
 
     The graph's ``iteration`` counter is the 0-based index of the LAST pass
@@ -381,9 +373,7 @@ def test_property27_loop_terminates_bounded_and_writes_experience(
         final_state = _terminal_final_state(passes, final_verdict, max_iterations)
         _install_fake_graph(monkeypatch, AgentRunService, _FakeGraph(final_state))
 
-        run = AgentRunService(session).start(
-            _CAMPAIGN_ID, max_iterations=max_iterations
-        )
+        run = AgentRunService(session).start(_CAMPAIGN_ID, max_iterations=max_iterations)
 
         if final_verdict:
             # Passing verdict -> COMPLETED (Req. 15.7).
@@ -406,9 +396,7 @@ def test_property27_loop_terminates_bounded_and_writes_experience(
         # outcome, then run the REAL evaluator node over the terminal report with
         # a REAL ExperienceMemory, and assert exactly one NEW row was written in
         # BOTH terminal cases (success and guard exhaustion).
-        before = session.execute(
-            select(func.count()).select_from(ExperienceMemoryRow)
-        ).scalar_one()
+        before = session.execute(select(func.count()).select_from(ExperienceMemoryRow)).scalar_one()
 
         memory = ExperienceMemory(session, embedder=_FakeEmbedder())
         evaluator.node(
@@ -421,9 +409,7 @@ def test_property27_loop_terminates_bounded_and_writes_experience(
         )
         session.flush()
 
-        after = session.execute(
-            select(func.count()).select_from(ExperienceMemoryRow)
-        ).scalar_one()
+        after = session.execute(select(func.count()).select_from(ExperienceMemoryRow)).scalar_one()
 
         assert after - before == 1, (
             "every terminal run must write exactly one new experience row to the "
@@ -435,9 +421,7 @@ def test_property27_loop_terminates_bounded_and_writes_experience(
         # non-null embedding — the terminal experience is retrievable by
         # similarity for future runs (Req. 6.5, 15.9).
         stored = session.execute(
-            select(ExperienceMemoryRow)
-            .order_by(ExperienceMemoryRow.id.desc())
-            .limit(1)
+            select(ExperienceMemoryRow).order_by(ExperienceMemoryRow.id.desc()).limit(1)
         ).scalar_one()
         assert stored.campaign_id == _CAMPAIGN_ID
         assert stored.outcome == ("success" if final_verdict else "failure")

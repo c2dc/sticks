@@ -45,13 +45,15 @@ export function ThemeProvider({
 
   // Keep the internal theme in sync with a restored/controlled value so the
   // last persisted theme is applied on open without a user action (Req. 7.5).
-  React.useEffect(() => {
+  // Done by adjusting state during render (only when the controlled value
+  // itself changes) instead of in an effect, to avoid a cascading re-render.
+  const [previousControlled, setPreviousControlled] = React.useState(controlledTheme)
+  if (controlledTheme !== previousControlled) {
+    setPreviousControlled(controlledTheme)
     if (controlledTheme && controlledTheme !== theme) {
       setThemeState(controlledTheme)
     }
-    // Only react to changes of the controlled value itself.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [controlledTheme])
+  }
 
   // Apply the theme synchronously before paint so the switch is instant and has
   // no intermediate loading state (Req. 7.2).

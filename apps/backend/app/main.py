@@ -11,8 +11,8 @@ from __future__ import annotations
 
 import logging
 import os
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import AsyncIterator
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -31,9 +31,26 @@ def ingest_on_start_enabled() -> bool:
     return os.environ.get("STICKS_INGEST_ON_START", "1").strip().lower() not in _FALSE_VALUES
 
 
+def configure_app_logging() -> None:
+    """Make ``app.*`` log records visible next to uvicorn's output (idempotent).
+
+    uvicorn only configures its own loggers; without a handler the INFO records of
+    the ingestion (start, finish, failure causes) would be dropped.
+    """
+    app_logger = logging.getLogger("app")
+    if app_logger.level == logging.NOTSET or app_logger.level > logging.INFO:
+        app_logger.setLevel(logging.INFO)
+    if not any(getattr(h, "_sticks_handler", False) for h in app_logger.handlers):
+        handler = logging.StreamHandler()
+        handler._sticks_handler = True  # type: ignore[attr-defined] -- marker attribute set dynamically on the logging handler to keep setup idempotent
+        handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+        app_logger.addHandler(handler)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Create the ingestion orchestrator and start it without blocking (Req. 7.1, 7.4)."""
+    configure_app_logging()
     from app.db.session import SessionLocal
     from app.services.ingestion.orchestrator import IngestionOrchestrator
     from app.services.ingestion.runners import build_default_runners
@@ -43,8 +60,17 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     if ingest_on_start_enabled():
         try:
             orchestrator.start_background()  # daemon thread; returns immediately
-        except Exception:  # noqa: BLE001 - never block the API from coming up
+        except Exception:
             logger.exception("could not start the background ingestion")
+    if ingest_on_start_enabled():
+        # Warm the STIX version-list cache off the startup path (never raises).
+        import threading
+
+        from app.services.stix.stix_service import get_version_catalog
+
+        threading.Thread(
+            target=get_version_catalog().warm_up, name="stix-version-warmup", daemon=True
+        ).start()
     yield
 
 
@@ -61,8 +87,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         title=settings.app_name,
         version="0.1.0",
         description=(
-            "Pipeline UI backend for the sticks project "
-            "(ATT&CK-in-STIX / contained APT emulation)."
+            "Pipeline UI backend for the sticks project (ATT&CK-in-STIX / contained APT emulation)."
         ),
         lifespan=lifespan,
     )

@@ -38,8 +38,8 @@ _Requirements: 3.1, 12.2_
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Callable
 
 from hypothesis import given, settings
 from hypothesis import strategies as st
@@ -160,10 +160,7 @@ class _IsolationOnlyPipeline:
             compose_file="docker/docker-compose.yml",
             health=HealthSummary(
                 approved=True,
-                verdicts=[
-                    HealthVerdict(container=c, running=True)
-                    for c in self._containers
-                ],
+                verdicts=[HealthVerdict(container=c, running=True) for c in self._containers],
             ),
             loaded_abilities=True,
             isolation=self._isolation,
@@ -197,18 +194,14 @@ class _IsolationOnlyPipeline:
 # no network) is also reachable — both must fail closed.
 # ---------------------------------------------------------------------------
 
-_network_token = st.sampled_from(
-    [_INTERNAL_NET, _EXTERNAL_BRIDGE, _NON_INTERNAL_NET, _MISSING_NET]
-)
+_network_token = st.sampled_from([_INTERNAL_NET, _EXTERNAL_BRIDGE, _NON_INTERNAL_NET, _MISSING_NET])
 _dns_token = st.sampled_from([_INTERNAL_DNS, _EXTERNAL_DNS])
 
 
 @st.composite
 def _attachment(draw) -> tuple[tuple[str, ...], tuple[str, ...]]:
     """One container's (networks, dns) attachment shape."""
-    networks = tuple(
-        draw(st.lists(_network_token, min_size=0, max_size=3, unique=True))
-    )
+    networks = tuple(draw(st.lists(_network_token, min_size=0, max_size=3, unique=True)))
     dns = tuple(draw(st.lists(_dns_token, min_size=0, max_size=2, unique=True)))
     return networks, dns
 
@@ -239,9 +232,7 @@ def _build_inspector(shape: dict[str, tuple[tuple[str, ...], tuple[str, ...]]]) 
         name=_NON_INTERNAL_NET, internal=False, subnets=("10.0.0.0/8",)
     )
     for name, (networks, dns) in shape.items():
-        insp.containers[name] = ContainerNetworkInfo(
-            name=name, network_names=networks, dns=dns
-        )
+        insp.containers[name] = ContainerNetworkInfo(name=name, network_names=networks, dns=dns)
     return insp
 
 
@@ -257,9 +248,7 @@ def _oracle_isolated(networks: tuple[str, ...], dns: tuple[str, ...]) -> bool:
         return False
     if any(n in _NON_ISOLATING_NETWORKS for n in networks):
         return False
-    if any(server != _INTERNAL_DNS for server in dns):
-        return False
-    return True
+    return not any(server != _INTERNAL_DNS for server in dns)
 
 
 def _params(containers: list[str]) -> EnvironmentParameters:
@@ -294,9 +283,7 @@ def test_isolation_gate_failclosed_on_agent_proposed_environment(
     # Independent oracle: the gate approves IFF the target set is non-empty AND
     # every proposed container is attached exclusively to internal networks with
     # no external DNS.
-    expected_isolated = {
-        c: _oracle_isolated(*shape[c]) for c in containers
-    }
+    expected_isolated = {c: _oracle_isolated(*shape[c]) for c in containers}
     expected_approved = bool(containers) and all(expected_isolated.values())
 
     # (1) Approval IFF every target container is isolated; the empty set fails
@@ -319,9 +306,7 @@ def test_isolation_gate_failclosed_on_agent_proposed_environment(
     #     other prerequisite is satisfied, so ``ready`` is conditioned SOLELY on
     #     the isolation gate). The ResourceGate is kept permissive to isolate the
     #     containment gate under test.
-    agent = AiEnvironmentProvisioner(
-        pipeline=_IsolationOnlyPipeline(summary, containers)
-    )
+    agent = AiEnvironmentProvisioner(pipeline=_IsolationOnlyPipeline(summary, containers))
     environment = agent.provision(_params(containers))
 
     # Origin is always re-stamped to AI_GENERATED (the agent's artifact).
@@ -386,9 +371,7 @@ def test_unavailable_inspector_fails_closed() -> None:
         approved=False,
         verdicts=[],
     )
-    agent = AiEnvironmentProvisioner(
-        pipeline=_IsolationOnlyPipeline(failclosed, ["c0", "c1"])
-    )
+    agent = AiEnvironmentProvisioner(pipeline=_IsolationOnlyPipeline(failclosed, ["c0", "c1"]))
     environment = agent.provision(_params(["c0", "c1"]))
     assert environment.ready is False
     assert environment.failed_step == "verificar_isolamento"

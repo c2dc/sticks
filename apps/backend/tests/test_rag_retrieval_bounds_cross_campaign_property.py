@@ -74,8 +74,9 @@ Everything runs in-process: no network, no Docker, no PostgreSQL.
 
 from __future__ import annotations
 
+import itertools
 import math
-from typing import Any, Optional
+from typing import Any
 
 from hypothesis import given, settings
 from hypothesis import strategies as st
@@ -124,7 +125,7 @@ def _cosine_distance(a: list[float], b: list[float]) -> float:
     Recomputed independently here so the ordering assertions do not trust the
     code under test to define its own expected order.
     """
-    dot = sum(x * y for x, y in zip(a, b))
+    dot = sum(x * y for x, y in zip(a, b, strict=False))
     na = math.sqrt(sum(x * x for x in a))
     nb = math.sqrt(sum(y * y for y in b))
     if na == 0.0 or nb == 0.0:
@@ -141,9 +142,7 @@ class _Row:
     ``embedding`` the fake store orders by.
     """
 
-    def __init__(
-        self, *, campaign_id: str, content: str, embedding: list[float]
-    ) -> None:
+    def __init__(self, *, campaign_id: str, content: str, embedding: list[float]) -> None:
         self.campaign_id = campaign_id
         self.content = content
         self.embedding = embedding
@@ -158,7 +157,7 @@ class _ScalarResult:
     def __init__(self, rows: list[_Row]) -> None:
         self._rows = rows
 
-    def scalars(self) -> "_ScalarResult":
+    def scalars(self) -> _ScalarResult:
         return self
 
     def all(self) -> list[_Row]:
@@ -190,9 +189,9 @@ class _FakeVectorSession:
         # Pull the bound values out by shape rather than by fragile bind-name:
         # the query embedding is the one list[float] parameter, the excluded
         # campaign id is the str parameter, and the limit is the int parameter.
-        excluded_campaign: Optional[str] = None
-        query_embedding: Optional[list[float]] = None
-        limit: Optional[int] = None
+        excluded_campaign: str | None = None
+        query_embedding: list[float] | None = None
+        limit: int | None = None
         for value in params.values():
             if isinstance(value, list):
                 query_embedding = value
@@ -306,27 +305,22 @@ def test_property5_retrieval_is_bounded_cosine_ordered_and_cross_campaign(
     # --- Cosine-ordered (Req. 5.3): non-decreasing cosine distance to the query
     # (equivalently non-increasing cosine similarity), recomputed independently. ---
     query_vec = embedder.embed(query)
-    distances = [
-        _cosine_distance(embedder.embed(hit["content"]), query_vec) for hit in hits
-    ]
-    assert all(
-        earlier <= later + 1e-9
-        for earlier, later in zip(distances, distances[1:])
-    ), "returned snippets are not in ascending cosine-distance (top-similarity) order"
+    distances = [_cosine_distance(embedder.embed(hit["content"]), query_vec) for hit in hits]
+    assert all(earlier <= later + 1e-9 for earlier, later in itertools.pairwise(distances)), (
+        "returned snippets are not in ascending cosine-distance (top-similarity) order"
+    )
 
     # --- Completeness of the top-k (Req. 5.3, 5.5): the result is exactly the
     # top-k of the eligible (other-campaign) rows by cosine distance, so nothing
     # eligible was wrongly dropped and nothing excluded wrongly slipped in. ---
     eligible = [r for r in store_rows if r.campaign_id != running_campaign]
-    eligible_sorted = sorted(
-        eligible, key=lambda r: _cosine_distance(r.embedding, query_vec)
-    )
+    eligible_sorted = sorted(eligible, key=lambda r: _cosine_distance(r.embedding, query_vec))
     expected_len = min(k, len(eligible))
     assert len(hits) == expected_len
     # Compare by the stored cosine distance of each position: the returned
     # snippet at position i matches the i-th eligible row's distance (stable
     # tie-break preserved), which pins both bound and order simultaneously.
-    for hit, expected_row in zip(hits, eligible_sorted[:expected_len]):
+    for hit, expected_row in zip(hits, eligible_sorted[:expected_len], strict=False):
         hit_dist = _cosine_distance(embedder.embed(hit["content"]), query_vec)
         exp_dist = _cosine_distance(expected_row.embedding, query_vec)
         assert math.isclose(hit_dist, exp_dist, rel_tol=0.0, abs_tol=1e-9)

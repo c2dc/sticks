@@ -37,7 +37,6 @@ tests use). Nothing here touches the network (``http_client=None`` and
 
 from __future__ import annotations
 
-import json
 import os
 import tempfile
 from pathlib import Path
@@ -53,7 +52,6 @@ from app.db.session import create_db_engine
 from app.models.domain import StixTypeCount
 from app.services.stix.stix_persistence_service import StixPersistenceService
 from app.services.stix.stix_service import ROTULO_TIPO, StixService
-
 
 # The six counted STIX types, in the exact order StixService.dashboard emits
 # them (ROTULO_TIPO insertion order). The persisted per-type count must equal
@@ -150,7 +148,11 @@ def _build_bundle(counts: dict[str, int], noise: int) -> dict:
         )
         seq += 1
 
-    return {"type": "bundle", "id": "bundle--00000000-0000-0000-0000-000000000000", "objects": objects}
+    return {
+        "type": "bundle",
+        "id": "bundle--00000000-0000-0000-0000-000000000000",
+        "objects": objects,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -162,8 +164,7 @@ def _build_bundle(counts: dict[str, int], noise: int) -> dict:
 def _bundle_plan(draw) -> tuple[dict[str, int], int]:
     """Draw ``(counts, noise)``: a per-counted-type object count and noise size."""
     counts = {
-        stix_type: draw(st.integers(min_value=0, max_value=6))
-        for stix_type in _COUNTED_TYPES
+        stix_type: draw(st.integers(min_value=0, max_value=6)) for stix_type in _COUNTED_TYPES
     }
     noise = draw(st.integers(min_value=0, max_value=5))
     return counts, noise
@@ -212,9 +213,7 @@ def test_property4_type_counts_match_bundle(plan: tuple[dict[str, int], int]) ->
 
         # Read the persisted per-type counts back from the DB (not the DTO) so we
         # assert the stored rows, keyed by stix_type.
-        rows = (
-            session.execute(select(StixTypeCount)).scalars().all()
-        )
+        rows = session.execute(select(StixTypeCount)).scalars().all()
         persisted_by_type = {row.stix_type: row for row in rows}
 
         # Exactly the six counted types are persisted (one row each).

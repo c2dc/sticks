@@ -80,9 +80,7 @@ _REFINE = "refine"
 _node_id_strategy = st.from_regex(r"T[0-9]{3,4}(\.[0-9]{3})?", fullmatch=True)
 
 # A fraction in [0, 1] — the shape of both success_rate and procedural_coverage.
-_fraction_strategy = st.floats(
-    min_value=0.0, max_value=1.0, allow_nan=False, allow_infinity=False
-)
+_fraction_strategy = st.floats(min_value=0.0, max_value=1.0, allow_nan=False, allow_infinity=False)
 
 
 @st.composite
@@ -98,9 +96,7 @@ def _stage6_report(draw: st.DrawFn) -> dict[str, Any]:
     verdict_success = draw(st.booleans())
     success_rate = draw(_fraction_strategy)
     procedural_coverage = draw(_fraction_strategy)
-    failed_nodes = draw(
-        st.lists(_node_id_strategy, min_size=0, max_size=6, unique=True)
-    )
+    failed_nodes = draw(st.lists(_node_id_strategy, min_size=0, max_size=6, unique=True))
     return {
         "outcome": "concluida",
         "metrics": {
@@ -224,21 +220,13 @@ def test_property7_evaluator_decision_consistency_with_metrics(
     # is enforced downstream in route_after_eval (task 14.3), so on a failing
     # verdict the evaluator ALWAYS decides REFINE here — never FINISH/ABORTED.
     if verdict_success:
-        assert decision == _FINISH, (
-            f"verdict_success=True must decide FINISH, got {decision!r}"
-        )
+        assert decision == _FINISH, f"verdict_success=True must decide FINISH, got {decision!r}"
         # A passing verdict ends the run → no refine target is diagnosed.
-        assert delta["refine_stage"] is None, (
-            "FINISH must carry no refine_stage"
-        )
+        assert delta["refine_stage"] is None, "FINISH must carry no refine_stage"
     else:
-        assert decision == _REFINE, (
-            f"verdict_success=False must decide REFINE, got {decision!r}"
-        )
+        assert decision == _REFINE, f"verdict_success=False must decide REFINE, got {decision!r}"
         # A failing verdict routes back to a stage → a refine target is diagnosed.
-        assert delta["refine_stage"] is not None, (
-            "REFINE must diagnose a refine_stage"
-        )
+        assert delta["refine_stage"] is not None, "REFINE must diagnose a refine_stage"
 
     # The decision is exactly one of the two enum values — never anything else.
     assert decision in {_FINISH, _REFINE}
@@ -270,9 +258,7 @@ def test_property7_evaluator_decision_consistency_with_metrics(
         assert stored.success_rate == metrics["success_rate"]
         assert stored.procedural_coverage == metrics["procedural_coverage"]
         assert stored.verdict_success == verdict_success
-        assert list(stored.failed_nodes or []) == [
-            str(n) for n in metrics["failed_nodes"]
-        ]
+        assert list(stored.failed_nodes or []) == [str(n) for n in metrics["failed_nodes"]]
         # The persisted decision matches the node's decision (round-trips the
         # enum through the portable VARCHAR+CHECK column).
         assert stored.decision.value == decision

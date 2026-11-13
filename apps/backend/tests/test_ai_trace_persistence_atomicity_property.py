@@ -96,12 +96,8 @@ class _FakeGraph:
 
 
 def _install_fake_graph(monkeypatch: pytest.MonkeyPatch, graph: _FakeGraph) -> None:
-    monkeypatch.setattr(
-        AgentRunService, "_build_graph", lambda self: graph, raising=True
-    )
-    monkeypatch.setattr(
-        AgentRunService, "_require_dependencies", lambda self: None, raising=True
-    )
+    monkeypatch.setattr(AgentRunService, "_build_graph", lambda self: graph, raising=True)
+    monkeypatch.setattr(AgentRunService, "_require_dependencies", lambda self: None, raising=True)
 
 
 def _produced_op() -> Any:
@@ -191,9 +187,7 @@ def _boom(*_a: Any, **_k: Any) -> Any:
 
 
 def _inject_iteration_row_failure(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(
-        AgentRunService, "_persist_iteration_row", _boom, raising=True
-    )
+    monkeypatch.setattr(AgentRunService, "_persist_iteration_row", _boom, raising=True)
 
 
 def _inject_stage_output_failure(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -262,9 +256,7 @@ def test_property_persistence_failure_rolls_back_whole_iteration(
         try:
             _install_fake_graph(
                 monkeypatch,
-                _FakeGraph(
-                    final_state=_passing_final_state(iteration, with_trace=with_trace)
-                ),
+                _FakeGraph(final_state=_passing_final_state(iteration, with_trace=with_trace)),
             )
             injector(monkeypatch)
 

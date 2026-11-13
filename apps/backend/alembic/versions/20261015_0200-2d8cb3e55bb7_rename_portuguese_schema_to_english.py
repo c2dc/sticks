@@ -66,12 +66,12 @@ Revises: f3b9d2c71a5e
 Create Date: 2026-10-15 02:00:00.000000+00:00
 
 """
+
 from __future__ import annotations
 
 from typing import Sequence, Union
 
 from alembic import op
-
 
 # revision identifiers, used by Alembic.
 revision: str = "2d8cb3e55bb7"
@@ -243,9 +243,7 @@ def upgrade() -> None:
         batch_op.drop_constraint(_FK_OLD_NAME, type_="foreignkey")
         for old_col, new_col in _COLUMN_RENAMES["stage_runs"].items():
             batch_op.alter_column(old_col, new_column_name=new_col)
-        batch_op.create_foreign_key(
-            _FK_NEW_NAME, "dags", ["chosen_dag_id"], ["id"]
-        )
+        batch_op.create_foreign_key(_FK_NEW_NAME, "dags", ["chosen_dag_id"], ["id"])
 
     # (3) Rename every Portuguese column on the remaining tables.
     for table, columns in _COLUMN_RENAMES.items():
@@ -272,9 +270,7 @@ def downgrade() -> None:
         batch_op.drop_constraint(_FK_NEW_NAME, type_="foreignkey")
         for old_col, new_col in _COLUMN_RENAMES["stage_runs"].items():
             batch_op.alter_column(new_col, new_column_name=old_col)
-        batch_op.create_foreign_key(
-            _FK_OLD_NAME, "dags", ["dag_escolhido_id"], ["id"]
-        )
+        batch_op.create_foreign_key(_FK_OLD_NAME, "dags", ["dag_escolhido_id"], ["id"])
 
     # (1') Restore the Portuguese table names (English → Portuguese).
     for old, new in _TABLE_RENAMES:

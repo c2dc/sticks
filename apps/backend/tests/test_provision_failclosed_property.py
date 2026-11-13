@@ -67,17 +67,13 @@ _Requirements: 8.3, 8.4_
 
 from __future__ import annotations
 
-import json
-import shutil
-import tempfile
+from collections.abc import Mapping
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from tests._curated_db import CaseDb, db_put
 from app.services.containment.isolation import (
     ContainerNetworkInfo,
     ContainerNotFound,
@@ -98,7 +94,7 @@ from app.services.environment.operationalization import (
 from app.services.environment.provisioner import CurationEnvironmentProvisioner
 from app.services.environment.target_setup import ClassifiedCommand, SetupPhase
 from app.services.environment.topology_builder import HOST_CONTAINERS as _HOST_CONTAINERS
-
+from tests._curated_db import CaseDb, db_put
 
 _SLUG = "shadowray"
 _INTERNAL_NET = "caldera-kali-network"
@@ -141,9 +137,7 @@ class _NetworkState:
     history: list[dict[str, frozenset[str]]] = field(default_factory=list)
 
     def _snapshot(self) -> None:
-        self.history.append(
-            {c: frozenset(nets) for c, nets in self.attached.items()}
-        )
+        self.history.append({c: frozenset(nets) for c, nets in self.attached.items()})
 
     def attach(self, container: str, network: str) -> int:
         """Attach ``network`` to ``container`` — idempotent no-op if already there."""
@@ -184,9 +178,7 @@ class _StatefulEgressWindow:
     failpoint: str = ""
     fail_host: str = ""
 
-    def open(
-        self, container: str, attack_networks: list[str], *, on_log
-    ) -> EgressWindowResult:
+    def open(self, container: str, attack_networks: list[str], *, on_log) -> EgressWindowResult:
         if self.failpoint == "open_fail" and container == self.fail_host:
             # Reproves BEFORE any attach — the host never gets egress; the
             # orchestration still runs the fail-safe close (idempotent no-op here).
@@ -312,12 +304,16 @@ class _StatefulEgressProber:
         if container == self.fail_host:
             if self.failpoint == "probe_present":
                 return EgressVerdict(
-                    container=container, egress_lost=False, conclusive=True,
+                    container=container,
+                    egress_lost=False,
+                    conclusive=True,
                     reason="egresso ainda presente (simulado)",
                 )
             if self.failpoint == "probe_inconclusive":
                 return EgressVerdict(
-                    container=container, egress_lost=True, conclusive=False,
+                    container=container,
+                    egress_lost=True,
+                    conclusive=False,
                     reason="sondagem inconclusiva (simulado)",
                 )
         return EgressVerdict(container=container, egress_lost=True, conclusive=True)
@@ -367,8 +363,7 @@ class _FakeStateInspector:
         from app.services.environment.health import ContainerStateInfo
 
         self._states = {
-            c: ContainerStateInfo(name=c, running=True, health="healthy")
-            for c in containers
+            c: ContainerStateInfo(name=c, running=True, health="healthy") for c in containers
         }
 
     def get_container_state(self, container: str):
@@ -386,12 +381,8 @@ _EXTERNAL_BRIDGE = "sticks-external-bridge"
 def _inspector(containers: list[str], *, non_isolated: str = "") -> _FakeInspector:
     """Build a read-only inspector; ``non_isolated`` makes one host reprove the gate."""
     insp = _FakeInspector()
-    insp.networks[_INTERNAL_NET] = NetworkInfo(
-        name=_INTERNAL_NET, internal=True, subnets=()
-    )
-    insp.networks[_EXTERNAL_BRIDGE] = NetworkInfo(
-        name=_EXTERNAL_BRIDGE, internal=False, subnets=()
-    )
+    insp.networks[_INTERNAL_NET] = NetworkInfo(name=_INTERNAL_NET, internal=True, subnets=())
+    insp.networks[_EXTERNAL_BRIDGE] = NetworkInfo(name=_EXTERNAL_BRIDGE, internal=False, subnets=())
     for c in containers:
         if c == non_isolated:
             insp.containers[c] = ContainerNetworkInfo(
@@ -414,19 +405,27 @@ def _seed_case(data_dir: CaseDb, slug: str) -> None:
         },
     ]
     db_put(data_dir, "ability", slug, abilities)
-    db_put(data_dir, "adversary", slug, {
+    db_put(
+        data_dir,
+        "adversary",
+        slug,
+        {
             "id": f"{slug}-adv",
             "name": "Seed Adversary",
             "description": "seed",
             "atomic_ordering": [f"{slug}-ab-1"],
-        })
-    db_put(data_dir, "flow", slug, {
+        },
+    )
+    db_put(
+        data_dir,
+        "flow",
+        slug,
+        {
             "campaign_name": "Seed",
-            "structural_nodes": [
-                {"node_id": "n0", "technique_id": "T1190"}
-            ],
+            "structural_nodes": [{"node_id": "n0", "technique_id": "T1190"}],
             "metadata": {"total_techniques": 1},
-        })
+        },
+    )
 
 
 def _params(containers: list[str], *, label_salt: int = 0) -> EnvironmentParameters:
@@ -469,9 +468,7 @@ def _assert_invariant_over_history(state: _NetworkState) -> None:
 # ---------------------------------------------------------------------------
 
 _HOST_CHOICES = ["nginx", "db"]
-_hosts_strategy = st.lists(
-    st.sampled_from(_HOST_CHOICES), min_size=1, max_size=2, unique=True
-)
+_hosts_strategy = st.lists(st.sampled_from(_HOST_CHOICES), min_size=1, max_size=2, unique=True)
 _failpoint_strategy = st.sampled_from(sorted(_FAILPOINTS))
 _label_salt_strategy = st.integers(min_value=0, max_value=2**16)
 
@@ -531,14 +528,12 @@ def test_failure_never_leaves_a_target_with_egress(
     for container in containers:
         final = state.final_of(container)
         assert EGRESS_NETWORK not in final, (
-            f"{container} ficou com egresso após falha em {failpoint!r}: "
-            f"{sorted(final)}"
+            f"{container} ficou com egresso após falha em {failpoint!r}: {sorted(final)}"
         )
         # Safe-state shape: the final set is a subset of the attack networks (an
         # isolated/empty host) — egress swept, no stray external network left.
         assert final <= _ATTACK_NETS, (
-            f"{container} terminou num estado inseguro após {failpoint!r}: "
-            f"{sorted(final)}"
+            f"{container} terminou num estado inseguro após {failpoint!r}: {sorted(final)}"
         )
 
     # The containment invariant held across the WHOLE mutation history: never

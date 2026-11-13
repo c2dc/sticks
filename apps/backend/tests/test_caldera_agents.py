@@ -52,7 +52,7 @@ class RouterHandler:
         self.requests: list[httpx.Request] = []
         self._routes: dict[tuple[str, str], object] = {}
 
-    def route(self, method: str, path: str, responder) -> "RouterHandler":
+    def route(self, method: str, path: str, responder) -> RouterHandler:
         self._routes[(method.upper(), path)] = responder
         return self
 
@@ -61,9 +61,7 @@ class RouterHandler:
         key = (request.method.upper(), request.url.path)
         responder = self._routes.get(key)
         if responder is None:
-            raise AssertionError(
-                f"unexpected request: {request.method} {request.url.path}"
-            )
+            raise AssertionError(f"unexpected request: {request.method} {request.url.path}")
         if callable(responder):
             return responder(request)
         return responder
@@ -84,9 +82,7 @@ def test_list_agents_uses_current_v2_route_with_key_header() -> None:
         {"paw": "paw-1", "group": "red", "alive": True, "host": "kali"},
         {"paw": "paw-2", "group": "red", "alive": True, "host": "kali"},
     ]
-    handler = RouterHandler().route(
-        "GET", AGENTS_PATH, httpx.Response(200, json=agents)
-    )
+    handler = RouterHandler().route("GET", AGENTS_PATH, httpx.Response(200, json=agents))
 
     with _client(handler) as client:
         refs = client.list_agents()
@@ -107,9 +103,7 @@ def test_list_agents_filters_by_running_environment_group() -> None:
         {"paw": "paw-red", "group": "red", "alive": True},
         {"paw": "paw-blue", "group": "blue", "alive": True},
     ]
-    handler = RouterHandler().route(
-        "GET", AGENTS_PATH, httpx.Response(200, json=agents)
-    )
+    handler = RouterHandler().route("GET", AGENTS_PATH, httpx.Response(200, json=agents))
 
     with _client(handler) as client:
         red = client.list_agents(group="red")
@@ -127,13 +121,10 @@ def test_list_agents_404_route_maps_to_api_error() -> None:
     # A route that does not match the running Caldera API answers 404; this must
     # surface as the typed CalderaApiError the Stage 5 gate maps to a "pointing
     # divergence" block (Req. 4.5).
-    handler = RouterHandler().route(
-        "GET", AGENTS_PATH, httpx.Response(404, text="not found")
-    )
+    handler = RouterHandler().route("GET", AGENTS_PATH, httpx.Response(404, text="not found"))
 
-    with _client(handler) as client:
-        with pytest.raises(CalderaApiError) as excinfo:
-            client.list_agents()
+    with _client(handler) as client, pytest.raises(CalderaApiError) as excinfo:
+        client.list_agents()
 
     assert excinfo.value.status_code == 404
     assert excinfo.value.method == "GET"
@@ -148,9 +139,8 @@ def test_list_agents_non_resolvable_host_maps_to_unavailable() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         raise httpx.ConnectError("Name or service not known", request=request)
 
-    with _client(handler) as client:
-        with pytest.raises(CalderaUnavailable) as excinfo:
-            client.list_agents()
+    with _client(handler) as client, pytest.raises(CalderaUnavailable) as excinfo:
+        client.list_agents()
 
     assert excinfo.value.url == "http://localhost:8888"
     assert excinfo.value.timeout == 10.0
@@ -169,9 +159,7 @@ def test_list_agents_parses_alive_false_as_orphan() -> None:
         {"paw": "paw-alive", "group": "red", "alive": True, "host": "kali"},
         {"paw": "paw-orphan", "group": "red", "alive": False, "host": "kali"},
     ]
-    handler = RouterHandler().route(
-        "GET", AGENTS_PATH, httpx.Response(200, json=agents)
-    )
+    handler = RouterHandler().route("GET", AGENTS_PATH, httpx.Response(200, json=agents))
 
     with _client(handler) as client:
         refs = client.list_agents(group="red")

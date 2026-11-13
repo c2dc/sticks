@@ -22,9 +22,7 @@ class CycleReport:
     back_edges: list[tuple[str, str]]  # edges removed to get the acyclic view
 
 
-def _adjacency(
-    nodes: Sequence[str], edges: Sequence[tuple[str, str]]
-) -> dict[str, list[str]]:
+def _adjacency(nodes: Sequence[str], edges: Sequence[tuple[str, str]]) -> dict[str, list[str]]:
     known = set(nodes)
     sets: dict[str, set[str]] = {node: set() for node in known}
     for src, dst in edges:

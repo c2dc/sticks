@@ -30,8 +30,9 @@ The large data module is imported lazily, inside the function.
 from __future__ import annotations
 
 import datetime as dt
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -71,13 +72,15 @@ class SeedSummary:
         return {
             name: {"inserted": k.inserted, "updated": k.updated, "existing": k.existing}
             for name, k in zip(
-                ("campaigns", "abilities", "adversaries", "attack_flows"), self._kinds()
+                ("campaigns", "abilities", "adversaries", "attack_flows"),
+                self._kinds(),
+                strict=False,
             )
         }
 
 
 def _utcnow() -> dt.datetime:
-    return dt.datetime.now(dt.timezone.utc).replace(tzinfo=None)
+    return dt.datetime.now(dt.UTC).replace(tzinfo=None)
 
 
 def _source(value: str) -> TranslationSource:
@@ -128,10 +131,10 @@ def apply_curated_seed(session: Session, *, now: dt.datetime | None = None) -> S
     from app.seeds.loader import load_all  # lazy: reads the JSON files
 
     cases = load_all()
-    seed_campaigns = [c['campaign'] for c in cases]
-    seed_abilities = [a for c in cases for a in c['abilities']]
-    seed_adversaries = [c['adversary'] for c in cases]
-    seed_flows = [c['attack_flow'] for c in cases]
+    seed_campaigns = [c["campaign"] for c in cases]
+    seed_abilities = [a for c in cases for a in c["abilities"]]
+    seed_adversaries = [c["adversary"] for c in cases]
+    seed_flows = [c["attack_flow"] for c in cases]
 
     created_at = now or _utcnow()
     summary = SeedSummary()
@@ -156,7 +159,9 @@ def apply_curated_seed(session: Session, *, now: dt.datetime | None = None) -> S
         )
     session.flush()
 
-    abilities = _by_key(session, Ability, Ability.ability_id, [a["ability_id"] for a in seed_abilities])
+    abilities = _by_key(
+        session, Ability, Ability.ability_id, [a["ability_id"] for a in seed_abilities]
+    )
     for item in seed_abilities:
         row = abilities.get(item["ability_id"])
         _upsert(

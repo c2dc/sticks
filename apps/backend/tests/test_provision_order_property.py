@@ -35,17 +35,13 @@ _Requirements: 1.2, 1.3, 2.6_
 
 from __future__ import annotations
 
-import json
-import shutil
-import tempfile
+from collections.abc import Mapping
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any, Callable, Mapping
+from typing import Any
 
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from tests._curated_db import CaseDb, db_put
 from app.services.containment.isolation import (
     ContainerNetworkInfo,
     ContainerNotFound,
@@ -53,7 +49,7 @@ from app.services.containment.isolation import (
     NetworkNotFound,
 )
 from app.services.environment.compose_executor import CommandResult, LogLine
-from app.services.environment.egress import EGRESS_NETWORK, EgressVerdict, EgressWindowResult
+from app.services.environment.egress import EgressVerdict, EgressWindowResult
 from app.services.environment.operationalization import (
     EnvironmentParameters,
     TargetHost,
@@ -64,7 +60,7 @@ from app.services.environment.target_setup import (
     SetupPhase,
 )
 from app.services.environment.topology_builder import HOST_CONTAINERS as _HOST_CONTAINERS
-
+from tests._curated_db import CaseDb, db_put
 
 _SLUG = "shadowray"
 _NET = "caldera-kali-network"
@@ -109,26 +105,18 @@ class _FakeEgressWindow:
     open_fail: frozenset[str] = frozenset()
     close_fail: frozenset[str] = frozenset()
 
-    def open(
-        self, container: str, attack_networks: list[str], *, on_log
-    ) -> EgressWindowResult:
+    def open(self, container: str, attack_networks: list[str], *, on_log) -> EgressWindowResult:
         self.recorder.record("5.1", "build_online", container)
         on_log(LogLine(step="build_online", stream="info", text="open", substage="5.1"))
         if container in self.open_fail:
-            return EgressWindowResult(
-                container=container, opened=False, reason="falha ao abrir"
-            )
+            return EgressWindowResult(container=container, opened=False, reason="falha ao abrir")
         return EgressWindowResult(container=container, opened=True)
 
     def close(self, container: str, *, on_log) -> EgressWindowResult:
         self.recorder.record("5.1", "encerrar_egresso", container)
-        on_log(
-            LogLine(step="encerrar_egresso", stream="info", text="close", substage="5.1")
-        )
+        on_log(LogLine(step="encerrar_egresso", stream="info", text="close", substage="5.1"))
         if container in self.close_fail:
-            return EgressWindowResult(
-                container=container, closed=False, reason="falha ao encerrar"
-            )
+            return EgressWindowResult(container=container, closed=False, reason="falha ao encerrar")
         return EgressWindowResult(container=container, closed=True)
 
 
@@ -180,9 +168,7 @@ class _FakeEgressProber:
     def probe(self, container: str, *, on_log) -> EgressVerdict:
         self.recorder.record("5.2", "verificar_egresso", container)
         if container in self.lost_fail:
-            return EgressVerdict(
-                container=container, egress_lost=False, conclusive=True
-            )
+            return EgressVerdict(container=container, egress_lost=False, conclusive=True)
         return EgressVerdict(container=container, egress_lost=True, conclusive=True)
 
 
@@ -259,8 +245,7 @@ class _FakeStateInspector:
         from app.services.environment.health import ContainerStateInfo
 
         self._states = {
-            c: ContainerStateInfo(name=c, running=True, health="healthy")
-            for c in containers
+            c: ContainerStateInfo(name=c, running=True, health="healthy") for c in containers
         }
 
     def get_container_state(self, container: str):
@@ -276,9 +261,7 @@ def _isolated_inspector(containers: list[str]) -> _FakeInspector:
     insp = _FakeInspector()
     insp.networks[_NET] = NetworkInfo(name=_NET, internal=True, subnets=())
     for c in containers:
-        insp.containers[c] = ContainerNetworkInfo(
-            name=c, network_names=(_NET,), dns=()
-        )
+        insp.containers[c] = ContainerNetworkInfo(name=c, network_names=(_NET,), dns=())
     return insp
 
 
@@ -292,19 +275,27 @@ def _seed_case(data_dir: CaseDb, slug: str) -> None:
         },
     ]
     db_put(data_dir, "ability", slug, abilities)
-    db_put(data_dir, "adversary", slug, {
+    db_put(
+        data_dir,
+        "adversary",
+        slug,
+        {
             "id": f"{slug}-adv",
             "name": "Seed Adversary",
             "description": "seed",
             "atomic_ordering": [f"{slug}-ab-1"],
-        })
-    db_put(data_dir, "flow", slug, {
+        },
+    )
+    db_put(
+        data_dir,
+        "flow",
+        slug,
+        {
             "campaign_name": "Seed",
-            "structural_nodes": [
-                {"node_id": "n0", "technique_id": "T1190"}
-            ],
+            "structural_nodes": [{"node_id": "n0", "technique_id": "T1190"}],
             "metadata": {"total_techniques": 1},
-        })
+        },
+    )
 
 
 def _params(containers: list[str]) -> EnvironmentParameters:
@@ -325,9 +316,7 @@ def _params(containers: list[str]) -> EnvironmentParameters:
 # ---------------------------------------------------------------------------
 
 _HOST_CHOICES = ["nginx", "db"]
-_hosts_strategy = st.lists(
-    st.sampled_from(_HOST_CHOICES), min_size=1, max_size=2, unique=True
-)
+_hosts_strategy = st.lists(st.sampled_from(_HOST_CHOICES), min_size=1, max_size=2, unique=True)
 # Where (if anywhere) the pipeline is scripted to fail. ``"none"`` is the happy
 # path; the 5.1 failure points must prevent any 5.2 event.
 _failpoint = st.sampled_from(
@@ -387,15 +376,9 @@ def test_stage_52_never_runs_before_51_completed_for_all_hosts(
     events = recorder.events
 
     # Index of the FIRST 5.2 event (if any) and the LAST 5.1 event (if any).
-    first_52 = next(
-        (i for i, (ph, _s, _c) in enumerate(events) if ph == "5.2"), None
-    )
+    first_52 = next((i for i, (ph, _s, _c) in enumerate(events) if ph == "5.2"), None)
     last_51 = next(
-        (
-            i
-            for i in range(len(events) - 1, -1, -1)
-            if events[i][0] == "5.1"
-        ),
+        (i for i in range(len(events) - 1, -1, -1) if events[i][0] == "5.1"),
         None,
     )
 
@@ -419,14 +402,10 @@ def test_stage_52_never_runs_before_51_completed_for_all_hosts(
         # primeiro evento de 5.2 vem estritamente após o último de 5.1.
         if first_52 is not None:
             assert last_51 is not None
-            assert last_51 < first_52, (
-                f"um evento de 5.2 ocorreu antes de a 5.1 concluir: {events}"
-            )
+            assert last_51 < first_52, f"um evento de 5.2 ocorreu antes de a 5.1 concluir: {events}"
             # E a 5.1 (build_online) foi exercida para TODOS os hosts antes de
             # qualquer evento de 5.2.
-            hosts_with_51_before_52 = {
-                c for (ph, _s, c) in events[:first_52] if ph == "5.1"
-            }
+            hosts_with_51_before_52 = {c for (ph, _s, c) in events[:first_52] if ph == "5.1"}
             assert set(containers).issubset(hosts_with_51_before_52), (
                 f"a 5.2 iniciou sem a 5.1 ter rodado para todos os hosts: {events}"
             )

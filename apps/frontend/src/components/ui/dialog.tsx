@@ -60,8 +60,7 @@ export function Dialog({ open, onOpenChange, children }: DialogProps) {
   )
 }
 
-export interface DialogContentProps
-  extends React.HTMLAttributes<HTMLDivElement> {}
+export type DialogContentProps = React.HTMLAttributes<HTMLDivElement>
 
 export const DialogContent = React.forwardRef<HTMLDivElement, DialogContentProps>(
   ({ className, children, ...props }, forwardedRef) => {
@@ -105,6 +104,7 @@ export const DialogContent = React.forwardRef<HTMLDivElement, DialogContentProps
     }, [onOpenChange])
 
     return (
+      // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- pointer-only backdrop dismissal; keyboard users close the dialog with Escape (document keydown listener above)
       <div
         className="fixed inset-0 z-50 flex items-center justify-center p-4"
         // Backdrop click closes.
@@ -169,7 +169,7 @@ DialogFooter.displayName = "DialogFooter"
 export const DialogTitle = React.forwardRef<
   HTMLHeadingElement,
   React.HTMLAttributes<HTMLHeadingElement>
->(({ className, ...props }, ref) => {
+>(({ className, children, ...props }, ref) => {
   const { titleId } = useDialogContext("DialogTitle")
   return (
     <h2
@@ -177,7 +177,9 @@ export const DialogTitle = React.forwardRef<
       id={titleId}
       className={cn("text-lg font-semibold leading-none tracking-tight", className)}
       {...props}
-    />
+    >
+      {children}
+    </h2>
   )
 })
 DialogTitle.displayName = "DialogTitle"

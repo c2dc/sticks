@@ -91,9 +91,7 @@ class _RecordingExecutor:
             f"egresso e rede de ataque anexados juntos -> {sorted(nets)}"
         )
 
-    def attach_network(
-        self, container: str, network: str, *, on_log, ip=None
-    ) -> CommandResult:
+    def attach_network(self, container: str, network: str, *, on_log, ip=None) -> CommandResult:
         self.attached.setdefault(container, set()).add(network)
         self.events.append(("attach", container, network))
         line = LogLine(step="egresso", stream="info", text=f"attach {network}")
@@ -101,9 +99,7 @@ class _RecordingExecutor:
         self._check_invariant(container)
         return CommandResult(code=0, lines=[line])
 
-    def detach_network(
-        self, container: str, network: str, *, on_log
-    ) -> CommandResult:
+    def detach_network(self, container: str, network: str, *, on_log) -> CommandResult:
         self.attached.setdefault(container, set()).discard(network)
         self.events.append(("detach", container, network))
         line = LogLine(step="egresso", stream="info", text=f"detach {network}")
@@ -118,12 +114,8 @@ class _RecordingExecutor:
 # its drawn attack networks (the lab's steady state before 5.1).
 # ---------------------------------------------------------------------------
 _hosts = st.sampled_from(["nginx-target", "mariadb-target", "kali-attacker"])
-_attack_subsets = st.lists(
-    st.sampled_from(_ATTACK_NETWORKS), min_size=1, max_size=3, unique=True
-)
-_operations = st.lists(
-    st.tuples(_hosts, _attack_subsets), min_size=1, max_size=15
-)
+_attack_subsets = st.lists(st.sampled_from(_ATTACK_NETWORKS), min_size=1, max_size=3, unique=True)
+_operations = st.lists(st.tuples(_hosts, _attack_subsets), min_size=1, max_size=15)
 
 
 @settings(max_examples=40)
@@ -152,18 +144,12 @@ def test_egress_window_never_mixes_egress_and_attack(
 
         # (2) detach-before-attach: within this open() the egress attach must come
         # strictly after every attack-network detach for this container.
-        window_events = [
-            e for e in executor.events[before:] if e[1] == container
-        ]
+        window_events = [e for e in executor.events[before:] if e[1] == container]
         egress_attach_idx = next(
-            i
-            for i, e in enumerate(window_events)
-            if e[0] == "attach" and e[2] == EGRESS_NETWORK
+            i for i, e in enumerate(window_events) if e[0] == "attach" and e[2] == EGRESS_NETWORK
         )
         attack_detach_idxs = [
-            i
-            for i, e in enumerate(window_events)
-            if e[0] == "detach" and e[2] in _ATTACK_NETWORKS
+            i for i, e in enumerate(window_events) if e[0] == "detach" and e[2] in _ATTACK_NETWORKS
         ]
         assert all(idx < egress_attach_idx for idx in attack_detach_idxs), (
             "detach das redes de ataque deve preceder o attach do egresso"

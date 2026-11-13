@@ -64,7 +64,6 @@ network nor an AI client.
 
 from __future__ import annotations
 
-import json
 import os
 import tempfile
 import uuid
@@ -88,7 +87,6 @@ from app.models.domain import (
 from app.services.stix.stix_package_read_service import StixPackageReadService
 from app.services.stix.stix_persistence_service import StixPersistenceService
 from app.services.stix.stix_service import StixService
-
 
 # ---------------------------------------------------------------------------
 # Ephemeral DB fixture: a SQLite engine on a temporary file with the full schema
@@ -208,9 +206,7 @@ def _world(draw, version_tag: str) -> dict:
             if reuse_existing:
                 actor_stix_id = draw(st.sampled_from(actor_ids))
             else:
-                actor_stix_id = (
-                    f"intrusion-set--{version_tag}-{c}-{a}-{uuid.uuid4()}"
-                )
+                actor_stix_id = f"intrusion-set--{version_tag}-{c}-{a}-{uuid.uuid4()}"
                 actor_ids.append(actor_stix_id)
                 objects.append(
                     {
@@ -233,8 +229,7 @@ def _world(draw, version_tag: str) -> dict:
     # the rankings/distribution are exercised non-trivially on every example.
     first_campaign_id = campaign_ids[0]
     if not any(
-        o.get("relationship_type") == "uses"
-        and o.get("source_ref") == first_campaign_id
+        o.get("relationship_type") == "uses" and o.get("source_ref") == first_campaign_id
         for o in objects
     ):
         technique_id = f"T{version_tag}seed"
@@ -265,8 +260,7 @@ def _world(draw, version_tag: str) -> dict:
             }
         )
     if not any(
-        o.get("relationship_type") == "attributed-to"
-        and o.get("source_ref") == first_campaign_id
+        o.get("relationship_type") == "attributed-to" and o.get("source_ref") == first_campaign_id
         for o in objects
     ):
         actor_stix_id = f"intrusion-set--{version_tag}-seed-{uuid.uuid4()}"
@@ -338,7 +332,7 @@ def _oracle_actor_totals(session: Session, package_id: int) -> dict[str, int]:
         .where(StixActor.package_id == package_id)
         .group_by(StixActor.id, StixActor.stix_id)
     ).all()
-    return {stix_id: total for stix_id, total in rows}
+    return dict(rows)
 
 
 def _oracle_campaign_totals(session: Session, package_id: int) -> dict[str, int]:
@@ -361,10 +355,7 @@ def _oracle_campaign_totals(session: Session, package_id: int) -> dict[str, int]
         .where(StixCampaign.package_id == package_id)
         .group_by(StixCampaign.id, StixCampaign.stix_id, StixCampaign.curated_slug)
     ).all()
-    return {
-        (curated_slug or stix_id): total
-        for stix_id, curated_slug, total in rows
-    }
+    return {(curated_slug or stix_id): total for stix_id, curated_slug, total in rows}
 
 
 def _oracle_tactic_totals(session: Session, package_id: int) -> dict[str, int]:
@@ -378,7 +369,7 @@ def _oracle_tactic_totals(session: Session, package_id: int) -> dict[str, int]:
         )
         .group_by(StixCampaignTechnique.tactic)
     ).all()
-    return {tactic: total for tactic, total in rows}
+    return dict(rows)
 
 
 def _oracle_technique_totals(session: Session, package_id: int) -> dict[str, int]:
@@ -397,19 +388,17 @@ def _oracle_technique_totals(session: Session, package_id: int) -> dict[str, int
         .where(StixCampaign.package_id == package_id)
         .group_by(StixCampaignTechnique.technique_id)
     ).all()
-    return {technique_id: total for technique_id, total in rows}
+    return dict(rows)
 
 
 def _assert_non_increasing(totals: list[int]) -> None:
     """Assert a ranking's totals are sorted non-increasingly (a valid order)."""
-    assert all(
-        totals[i] >= totals[i + 1] for i in range(len(totals) - 1)
-    ), f"ranking is not sorted by total descending: {totals}"
+    assert all(totals[i] >= totals[i + 1] for i in range(len(totals) - 1)), (
+        f"ranking is not sorted by total descending: {totals}"
+    )
 
 
-def _assert_valid_top_n(
-    service_totals: list[int], oracle_map: dict[str, int], top_n: int
-) -> None:
+def _assert_valid_top_n(service_totals: list[int], oracle_map: dict[str, int], top_n: int) -> None:
     """Assert the service returned a valid top-N cut of the oracle totals.
 
     ``oracle_map`` is the ``{key: total}`` map of every ranked entity. The
@@ -463,9 +452,7 @@ def test_property6_analytics_matches_row_oracle_without_cross_version(
     session = factory()
     try:
         stix_service = StixService()
-        persistence = StixPersistenceService(
-            session=session, stix_service=stix_service
-        )
+        persistence = StixPersistenceService(session=session, stix_service=stix_service)
 
         # Persist BOTH versions into the SAME database.
         for version, world in ((VERSION_A, world_a), (VERSION_B, world_b)):
@@ -478,9 +465,7 @@ def test_property6_analytics_matches_row_oracle_without_cross_version(
         package_id_b = _resolve_package_id(session, VERSION_B)
 
         # Row-derived oracle for version A (independent of package_analytics).
-        oracle_curated, oracle_uncurated = _oracle_curated_totals(
-            session, package_id_a
-        )
+        oracle_curated, oracle_uncurated = _oracle_curated_totals(session, package_id_a)
         oracle_actor_totals = _oracle_actor_totals(session, package_id_a)
         oracle_campaign_totals = _oracle_campaign_totals(session, package_id_a)
         oracle_tactic_totals = _oracle_tactic_totals(session, package_id_a)
@@ -505,9 +490,7 @@ def test_property6_analytics_matches_row_oracle_without_cross_version(
 
         # top_actors: per-actor campaigns_total map equals the oracle, the order
         # is non-increasing, and no version-B actor appears.
-        service_actor_map = {
-            rank.stix_id: rank.campaigns_total for rank in analytics.top_actors
-        }
+        service_actor_map = {rank.stix_id: rank.campaigns_total for rank in analytics.top_actors}
         assert service_actor_map == oracle_actor_totals
         _assert_non_increasing([rank.campaigns_total for rank in analytics.top_actors])
         assert set(service_actor_map).isdisjoint(b_actor_keys)
@@ -515,13 +498,10 @@ def test_property6_analytics_matches_row_oracle_without_cross_version(
         # top_campaigns: per-campaign techniques_total map equals the oracle, the
         # order is non-increasing, and no version-B campaign appears.
         service_campaign_map = {
-            rank.campaign_key: rank.techniques_total
-            for rank in analytics.top_campaigns
+            rank.campaign_key: rank.techniques_total for rank in analytics.top_campaigns
         }
         assert service_campaign_map == oracle_campaign_totals
-        _assert_non_increasing(
-            [rank.techniques_total for rank in analytics.top_campaigns]
-        )
+        _assert_non_increasing([rank.techniques_total for rank in analytics.top_campaigns])
         assert set(service_campaign_map).isdisjoint(b_campaign_keys)
 
         # tactics: per-tactic techniques_total map equals the oracle, the order
@@ -530,22 +510,17 @@ def test_property6_analytics_matches_row_oracle_without_cross_version(
             bucket.tactic: bucket.techniques_total for bucket in analytics.tactics
         }
         assert service_tactic_map == oracle_tactic_totals
-        _assert_non_increasing(
-            [bucket.techniques_total for bucket in analytics.tactics]
-        )
+        _assert_non_increasing([bucket.techniques_total for bucket in analytics.tactics])
         assert set(service_tactic_map).isdisjoint(b_tactic_keys)
 
         # top_techniques: per-technique campaigns_total map equals the oracle
         # (distinct campaigns per technique), the order is non-increasing, and no
         # version-B technique appears.
         service_technique_map = {
-            rank.technique_id: rank.campaigns_total
-            for rank in analytics.top_techniques
+            rank.technique_id: rank.campaigns_total for rank in analytics.top_techniques
         }
         assert service_technique_map == oracle_technique_totals
-        _assert_non_increasing(
-            [rank.campaigns_total for rank in analytics.top_techniques]
-        )
+        _assert_non_increasing([rank.campaigns_total for rank in analytics.top_techniques])
         assert set(service_technique_map).isdisjoint(b_technique_keys)
 
         # --- top_n truncation: with a small cut the service must return a valid

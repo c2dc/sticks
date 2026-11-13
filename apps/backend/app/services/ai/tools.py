@@ -19,7 +19,8 @@ unit of work; without a session they degrade to an empty context rather than
 falling back to disk, preserving the no-disk guarantee.
 """
 
-from typing import TYPE_CHECKING, Any, Callable, Optional
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:  # pragma: no cover - typing only, no import-time cost
     from sqlalchemy.orm import Session
@@ -37,7 +38,7 @@ def tool_read_attack(
     campaign: str,
     *,
     version: str = _DEFAULT_VERSION,
-    session: "Optional[Session]" = None,
+    session: "Session | None" = None,
 ) -> dict:
     """STIX/ATT&CK base-context reader from the DATABASE (no disk — Req. 5.1, 5.2, 5.4).
 
@@ -101,9 +102,7 @@ def tool_read_attack(
     attack: dict | None = None
     curated: dict | None = None
     try:
-        overview = StixPackageReadService(session).campaign_overview(
-            version, campaign
-        )
+        overview = StixPackageReadService(session).campaign_overview(version, campaign)
         attack = overview.model_dump()
         # Preserve the legacy ``curated`` key shape without a disk read: carry the
         # campaign's curated flag so trace consumers keep a stable shape (Req. 5.2).
@@ -121,6 +120,7 @@ def tool_read_attack(
         "attack": attack,
         "curated": curated,
     }
+
 
 # --- operationalization-phase tool wrappers (task 7.1, 14.1) ---
 #
@@ -148,7 +148,7 @@ def tool_read_attack(
 def tool_atomic_lookup(
     technique_id: str,
     *,
-    session: "Optional[Session]" = None,
+    session: "Session | None" = None,
 ) -> list[dict]:
     """Return the Atomic Red Team command pool for a technique from the DATABASE.
 
@@ -180,7 +180,10 @@ def tool_atomic_lookup(
                 "tactic": str | None,
                 "name": str | None,         # executor name
                 "platform": str | None,     # executor platform
-                "command": str,             # concrete command (argv-friendly)
+                "command": str,             # stored template (not substituted)
+                "command_ref": int | None,  # technique_commands id (exact only)
+                "input_arguments": dict,    # Atomic arguments (+ Path_Argument);
+                                            # similarity: detected names -> None
             }
 
         The dict shape is preserved for byte-compatibility with the consuming
@@ -197,6 +200,10 @@ def tool_atomic_lookup(
         return []
 
     # Lazy import: no service construction or DB access happens at module import.
+    from app.services.atomic_arguments import (
+        detect_argument_names,
+        with_path_argument,
+    )
     from app.services.command_base import CommandBase
 
     suggestions = CommandBase(session).commands_for_technique(normalized)
@@ -205,8 +212,17 @@ def tool_atomic_lookup(
         command = (suggestion.command or "").strip()
         if not command:
             continue
+        # ``command`` stays the stored template (no substitution): the agent
+        # adapts it. Exact rows carry their Atomic arguments (+ the synthetic
+        # Path_Argument); similarity hits only expose the detected names.
+        if suggestion.exact:
+            input_arguments = with_path_argument(command, suggestion.input_arguments)
+        else:
+            input_arguments = dict.fromkeys(detect_argument_names(command))
         pool.append(
             {
+                "command_ref": suggestion.id if suggestion.exact else None,
+                "input_arguments": input_arguments,
                 "technique_id": suggestion.technique_id,
                 "technique_name": None,
                 # The Command_Base is keyed by technique, not by ability; derive a
@@ -277,6 +293,7 @@ def tool_parse_command(command: str) -> dict:
         "all_internal": not has_external,
         "has_external": has_external,
     }
+
 
 # --- environment-phase tool wrappers (task 11.1) ---
 #
@@ -364,10 +381,9 @@ def tool_compose(
     method_name = method_by_action.get(action)
     if method_name is None:
         raise ValueError(
-            f"ação de compose desconhecida: {action!r} "
-            f"(esperado um de {sorted(method_by_action)})"
+            f"ação de compose desconhecida: {action!r} (esperado um de {sorted(method_by_action)})"
         )
-    operation: Callable[..., "CommandResult"] = getattr(executor, method_name)
+    operation: Callable[..., CommandResult] = getattr(executor, method_name)
 
     result = operation(on_log=_on_log, **kw)
 

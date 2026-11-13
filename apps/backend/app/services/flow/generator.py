@@ -8,7 +8,7 @@ implementation is :class:`app.services.ai.agents.flow_agent.FlowAgent`.
 
 from __future__ import annotations
 
-from typing import Optional, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 from pydantic import BaseModel, Field
 
@@ -19,10 +19,10 @@ class TechniqueElement(BaseModel):
     """One ATT&CK technique of a structural modeling."""
 
     technique_id: str
-    technique_name: Optional[str] = None
-    tactic: Optional[str] = None
-    description: Optional[str] = None
-    node_id: Optional[str] = None
+    technique_name: str | None = None
+    tactic: str | None = None
+    description: str | None = None
+    node_id: str | None = None
 
 
 class RelationshipElement(BaseModel):
@@ -34,8 +34,8 @@ class RelationshipElement(BaseModel):
 
     source: str
     target: str
-    source_technique: Optional[str] = None
-    target_technique: Optional[str] = None
+    source_technique: str | None = None
+    target_technique: str | None = None
 
 
 class StructuralModeling(BaseModel):
@@ -44,10 +44,11 @@ class StructuralModeling(BaseModel):
     techniques: list[TechniqueElement] = Field(default_factory=list)
     relationships: list[RelationshipElement] = Field(default_factory=list)
 
+
 class ProducedFlow(BaseModel):
     """An attack flow produced by a :class:`FlowGenerator`, ready for persistence.
 
-    Mirrors the ``AttackFlowRow`` entity columns (Req. 4.1–4.4), so a ``ProducedFlow`` can
+    Mirrors the ``AttackFlowRow`` entity columns (Req. 4.1-4.4), so a ``ProducedFlow`` can
     be persisted directly without intermediate conversion:
 
     * ``origin`` — the :class:`~app.models.enums.FlowOrigin` that stamps the attack flow's
@@ -75,13 +76,13 @@ class ProducedFlow(BaseModel):
 
     origin: FlowOrigin
     identifier: str
-    label: Optional[str] = None
+    label: str | None = None
     content: dict = Field(default_factory=dict)
     gaps: list[str] = Field(default_factory=list)
     # Three-path decision record ``{kind, references, similarity}`` for flows
     # produced by the AI (``exact`` / ``adapted`` / ``created``); ``None`` for
     # curated flows.
-    provenance: Optional[dict] = None
+    provenance: dict | None = None
 
 
 @runtime_checkable
@@ -103,7 +104,7 @@ class FlowGenerator(Protocol):
         """The :class:`~app.models.enums.FlowOrigin` stamped on produced attack flows."""
         ...
 
-    def generate(self, campaign: str, modeling: "StructuralModeling") -> list["ProducedFlow"]:
+    def generate(self, campaign: str, modeling: StructuralModeling) -> list[ProducedFlow]:
         """Produce the attack flows of the ``campaign`` *slug* from the Structural Modeling.
 
         ``modeling`` is the Stage 1 output (techniques + relationships); the

@@ -55,3 +55,52 @@ def test_unreachable_and_http_error_map_to_embedder_unavailable():
 
 def test_attack_flow_is_an_affinity_kind():
     assert "attack_flow" in AFFINITY_KINDS
+
+
+def _timeout_of(**kwargs) -> float:
+    return OllamaEmbedder(base_url="http://ollama.test", **kwargs)._timeout
+
+
+def test_default_timeout_is_120_seconds(monkeypatch):
+    monkeypatch.delenv("OLLAMA_EMBED_TIMEOUT", raising=False)
+    assert _timeout_of() == 120.0
+
+
+def test_timeout_is_overridable_by_env_and_constructor(monkeypatch):
+    monkeypatch.setenv("OLLAMA_EMBED_TIMEOUT", "45.5")
+    assert _timeout_of() == 45.5
+    assert _timeout_of(timeout=7) == 7.0
+
+
+@pytest.mark.parametrize("raw", ["abc", "", "0", "-5", "nan", "inf"])
+def test_invalid_env_timeout_falls_back_to_default(monkeypatch, raw):
+    monkeypatch.setenv("OLLAMA_EMBED_TIMEOUT", raw)
+    assert _timeout_of() == 120.0
+
+
+@pytest.mark.parametrize("value", [0, -1, float("nan")])
+def test_invalid_constructor_timeout_falls_back_to_default(monkeypatch, value):
+    monkeypatch.delenv("OLLAMA_EMBED_TIMEOUT", raising=False)
+    assert _timeout_of(timeout=value) == 120.0
+
+
+def test_timeout_is_passed_to_the_http_call(monkeypatch):
+    monkeypatch.setenv("OLLAMA_EMBED_TIMEOUT", "33")
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["timeout"] = request.extensions["timeout"]
+        return httpx.Response(200, json={"embeddings": [[0.5] * 768]})
+
+    _embedder(handler).embed("x")
+    assert seen["timeout"]["read"] == 33.0
+
+
+@pytest.mark.parametrize("exc", [httpx.ReadTimeout, httpx.ConnectTimeout])
+def test_timeout_exceeded_maps_to_embedder_unavailable(exc):
+    def slow(request: httpx.Request) -> httpx.Response:
+        raise exc("timed out")
+
+    with pytest.raises(EmbedderError) as info:
+        _embedder(slow).embed("x")
+    assert info.value.code == EMBEDDER_UNAVAILABLE

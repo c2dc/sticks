@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 from pydantic import BaseModel, Field
+
 
 class FlowNodeView(BaseModel):
     """One node of the attack flow as shown in the ``GET /api/campaigns/{campaign}/flows/{flow_id}`` payload.
@@ -15,9 +14,9 @@ class FlowNodeView(BaseModel):
     """
 
     node_id: str
-    technique_id: Optional[str] = None
-    technique_name: Optional[str] = None
-    tactic: Optional[str] = None
+    technique_id: str | None = None
+    technique_name: str | None = None
+    tactic: str | None = None
 
 
 class FlowEdgeView(BaseModel):
@@ -55,5 +54,5 @@ class FlowView(BaseModel):
     mermaid: str = ""
     # Stub / error fields (populated only in the non-curated or error states).
     unavailable: bool = False
-    message: Optional[str] = None
-    error: Optional[str] = None
+    message: str | None = None
+    error: str | None = None

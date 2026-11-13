@@ -75,13 +75,14 @@ Revises: 1cc7b8b24bd2
 Create Date: 2026-10-13 03:00:00.000000+00:00
 
 """
+
 from __future__ import annotations
 
 from typing import Sequence, Union
 
-from alembic import op
 import sqlalchemy as sa
 
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "e907e49a84c5"
@@ -126,7 +127,7 @@ def _remap_estagio(bind, mapping: dict[int, int]) -> None:
     origens = ", ".join(str(o) for o in mapping)
     bind.execute(
         sa.text(
-            f"UPDATE execucoes_estagio SET estagio = CASE {whens} ELSE estagio END "
+            f"UPDATE execucoes_estagio SET estagio = CASE {whens} ELSE estagio END "  # noqa: S608 -- interpolates only integers built from the module mapping
             f"WHERE estagio IN ({origens})"
         )
     )
@@ -134,7 +135,7 @@ def _remap_estagio(bind, mapping: dict[int, int]) -> None:
     destinos_tmp = ", ".join(str(d + _TEMP_OFFSET) for d in mapping.values())
     bind.execute(
         sa.text(
-            f"UPDATE execucoes_estagio SET estagio = estagio - {_TEMP_OFFSET} "
+            f"UPDATE execucoes_estagio SET estagio = estagio - {_TEMP_OFFSET} "  # noqa: S608 -- interpolates only integers built from the module mapping
             f"WHERE estagio IN ({destinos_tmp})"
         )
     )
@@ -146,10 +147,7 @@ def upgrade() -> None:
     # (1) Guarda: aborta sem alterar dados se houver estagio fora de 1..5. Roda
     # antes de qualquer UPDATE/CREATE, dentro da transação do Alembic.
     fora = bind.execute(
-        sa.text(
-            "SELECT COUNT(*) FROM execucoes_estagio "
-            "WHERE estagio NOT BETWEEN 1 AND 5"
-        )
+        sa.text("SELECT COUNT(*) FROM execucoes_estagio WHERE estagio NOT BETWEEN 1 AND 5")
     ).scalar_one()
     if fora:
         raise RuntimeError(

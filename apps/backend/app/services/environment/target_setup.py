@@ -44,9 +44,10 @@ _Requirements: 2.2, 5.1_
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
-from typing import Callable, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 from app.services.environment.compose_executor import (
     CommandResult,
@@ -222,7 +223,7 @@ class DockerTargetSetup:
     _Requirements: 2.3, 3.3_
     """
 
-    def __init__(self, executor: "_ExecInExecutor") -> None:
+    def __init__(self, executor: _ExecInExecutor) -> None:
         """Assemble the adapter with the injected ``ComposeExecutor``.
 
         Args:
@@ -306,14 +307,13 @@ class _ExecInExecutor(Protocol):
         argv: list[str],
         *,
         on_log: Callable[[LogLine], None],
-    ) -> CommandResult:
-        ...
+    ) -> CommandResult: ...
 
 
 __all__ = [
-    "SetupPhase",
     "ClassifiedCommand",
-    "classify_commands",
-    "TargetSetup",
     "DockerTargetSetup",
+    "SetupPhase",
+    "TargetSetup",
+    "classify_commands",
 ]

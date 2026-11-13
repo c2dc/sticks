@@ -65,9 +65,7 @@ _VERSIONS_DIR = Path(__file__).resolve().parents[1] / "alembic" / "versions"
 
 def _load_migration(module_name: str, filename: str) -> ModuleType:
     """Import a shipped migration module by its on-disk path."""
-    spec = importlib.util.spec_from_file_location(
-        module_name, _VERSIONS_DIR / filename
-    )
+    spec = importlib.util.spec_from_file_location(module_name, _VERSIONS_DIR / filename)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -119,16 +117,15 @@ def _run_migration_step(engine: Engine, module: ModuleType, step: str) -> None:
     body is skipped and the step is a clean no-op.
     """
     func = getattr(module, step)
-    with engine.connect() as conn:
-        with conn.begin():
-            ctx = MigrationContext.configure(connection=conn)
-            op_proxy = Operations(ctx)
-            original_op = module.op
-            module.op = op_proxy
-            try:
-                func()
-            finally:
-                module.op = original_op
+    with engine.connect() as conn, conn.begin():
+        ctx = MigrationContext.configure(connection=conn)
+        op_proxy = Operations(ctx)
+        original_op = module.op
+        module.op = op_proxy
+        try:
+            func()
+        finally:
+            module.op = original_op
 
 
 # ===========================================================================
@@ -159,10 +156,7 @@ def test_embedding_dim_migration_chain_and_width_constants() -> None:
     # These structurally assert the real PostgreSQL VECTOR(768) recreation that
     # SQLite cannot exercise: upgrade resizes to 768, downgrade restores 1024.
     assert _MIGRATION_EMBEDDING_DIM._NEW_EMBEDDING_DIM == _EXPECTED_NEW_DIM
-    assert (
-        _MIGRATION_EMBEDDING_DIM._PREVIOUS_EMBEDDING_DIM
-        == _EXPECTED_PREVIOUS_DIM
-    )
+    assert _MIGRATION_EMBEDDING_DIM._PREVIOUS_EMBEDDING_DIM == _EXPECTED_PREVIOUS_DIM
 
 
 # ===========================================================================

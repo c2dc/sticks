@@ -66,13 +66,14 @@ Revises: b9c0d1e2f3a4
 Create Date: 2026-10-27 01:00:00.000000+00:00
 
 """
+
 from __future__ import annotations
 
 from typing import Sequence, Union
 
-from alembic import op
 import sqlalchemy as sa
 
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "c0d1e2f3a4b5"
@@ -161,7 +162,7 @@ def _convert(table: str, column: str, pairs: Sequence[tuple[str, str]]) -> None:
     bind = op.get_bind()
     for src, dst in pairs:
         bind.execute(
-            sa.text(f"UPDATE {table} SET {column} = :dst WHERE {column} = :src"),
+            sa.text(f"UPDATE {table} SET {column} = :dst WHERE {column} = :src"),  # noqa: S608 -- table and column names come from module constants; values are bound
             {"dst": dst, "src": src},
         )
 
@@ -188,9 +189,7 @@ def _regenerate(
     _convert(table, column, pairs)
 
     with op.batch_alter_table(table) as batch_op:
-        batch_op.create_check_constraint(
-            check_name, _check_expr(column, dst_check_values)
-        )
+        batch_op.create_check_constraint(check_name, _check_expr(column, dst_check_values))
 
 
 def upgrade() -> None:

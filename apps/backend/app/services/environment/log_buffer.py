@@ -56,10 +56,10 @@ from __future__ import annotations
 
 import datetime as dt
 import threading
-from typing import Callable, Optional
+from collections.abc import Callable
 
-from app.services.environment.compose_executor import LogLine
 from app.services.emulation.views import LogLineView
+from app.services.environment.compose_executor import LogLine
 
 # Default per-case line limit. Keeps a live execution's buffer within a
 # predictable memory band in a long-lived process; on exceeding, the oldest
@@ -108,7 +108,7 @@ class ProvisioningLogBuffer:
         self,
         *,
         max_lines: int = DEFAULT_MAX_LINES,
-        clock: Optional[Callable[[], dt.datetime]] = None,
+        clock: Callable[[], dt.datetime] | None = None,
     ) -> None:
         if max_lines < 1:
             raise ValueError("max_lines must be >= 1")
@@ -240,7 +240,7 @@ def get_log_buffer() -> ProvisioningLogBuffer:
 
 
 __all__ = [
-    "ProvisioningLogBuffer",
     "DEFAULT_MAX_LINES",
+    "ProvisioningLogBuffer",
     "get_log_buffer",
 ]

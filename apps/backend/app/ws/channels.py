@@ -41,7 +41,7 @@ free of routing concerns.
 from __future__ import annotations
 
 import asyncio
-from typing import Awaitable, Callable, Optional
+from collections.abc import Awaitable, Callable
 
 from sqlalchemy.orm import Session
 from starlette.websockets import WebSocket, WebSocketDisconnect
@@ -94,9 +94,7 @@ async def _default_sleep(seconds: float) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _operation_view(
-    service: SessionStateService, operation_id: int
-):
+def _operation_view(service: SessionStateService, operation_id: int):
     """Return the persisted :class:`OperationResultView` for ``operation_id``.
 
     ``SessionStateService.get_operation_results`` groups results by *case*; here
@@ -124,10 +122,10 @@ async def run_operation_progress_channel(
     *,
     session_factory: SessionFactory,
     interval: float = OPERATION_PUSH_INTERVAL_SECONDS,
-    max_frames: Optional[int] = None,
+    max_frames: int | None = None,
     sleeper: Sleeper = _default_sleep,
 ) -> int:
-    """Push per-Ability status + final aggregate for an Operation (Req. 4.3–4.5).
+    """Push per-Ability status + final aggregate for an Operation (Req. 4.3-4.5).
 
     Polls the persisted Operation (:meth:`SessionStateService.get_operation_results`)
     and sends a typed frame containing, for each Ability of the Operation, its
@@ -154,7 +152,7 @@ async def run_operation_progress_channel(
         The number of frames actually sent.
     """
     frames_sent = 0
-    last_signature: Optional[str] = None
+    last_signature: str | None = None
 
     try:
         while True:
@@ -173,9 +171,7 @@ async def run_operation_progress_channel(
                         "type": "operation",
                         "operation_id": operation_id,
                         "found": False,
-                        "message": (
-                            "No Operation persisted for the given id."
-                        ),
+                        "message": ("No Operation persisted for the given id."),
                     }
                 )
                 frames_sent += 1

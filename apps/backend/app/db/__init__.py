@@ -11,8 +11,8 @@ from app.db.session import SessionLocal, engine, get_db, get_engine, get_session
 
 __all__ = [
     "Base",
-    "engine",
     "SessionLocal",
+    "engine",
     "get_db",
     "get_engine",
     "get_sessionmaker",

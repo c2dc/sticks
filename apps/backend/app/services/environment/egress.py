@@ -44,8 +44,9 @@ _Requirements: 5.1, 5.2, 5.3_
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable, Optional, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 from app.services.containment.subnets import (
     INTERNAL_NETWORK_SUBNETS,
@@ -117,6 +118,7 @@ def attack_networks_for(containers: list[str]) -> list[str]:
 # -> "nginx"), so re-isolation can look the host up in the compose topology.
 _CONTAINER_TO_HOST: dict[str, str] = {c: h for h, c in HOST_CONTAINERS.items()}
 
+
 # Per-logical-network subnet prefix (first three octets), to pick the host's
 # fixed IP that belongs to each network from STATIC_IP_CONTAINERS.
 def _subnet_prefix(logical_network: str) -> str:
@@ -125,7 +127,7 @@ def _subnet_prefix(logical_network: str) -> str:
     return ".".join(octets[:3]) + "." if len(octets) >= 3 else ""
 
 
-def attack_networks_with_ip_for(container: str) -> list[tuple[str, Optional[str]]]:
+def attack_networks_with_ip_for(container: str) -> list[tuple[str, str | None]]:
     """Resolve the (real network, fixed IP) pairs to re-isolate ``container`` onto.
 
     Restores the EXACT curated compose topology for a target: only the attack
@@ -145,7 +147,7 @@ def attack_networks_with_ip_for(container: str) -> list[tuple[str, Optional[str]
         return [(net, None) for net in attack_networks_for([container])]
 
     host_ips = [ip for ip, name in STATIC_IP_CONTAINERS.items() if name == host]
-    pairs: list[tuple[str, Optional[str]]] = []
+    pairs: list[tuple[str, str | None]] = []
     for logical_net, members in NETWORK_MEMBERS.items():
         if host not in members:
             continue
@@ -183,7 +185,7 @@ class EgressWindowResult:
     container: str
     opened: bool = False
     closed: bool = False
-    reason: Optional[str] = None
+    reason: str | None = None
 
 
 @runtime_checkable
@@ -228,9 +230,7 @@ class EgressWindow(Protocol):
         """
         ...
 
-    def close(
-        self, container: str, *, on_log: Callable[[LogLine], None]
-    ) -> EgressWindowResult:
+    def close(self, container: str, *, on_log: Callable[[LogLine], None]) -> EgressWindowResult:
         """``detach(EGRESS_NETWORK)`` — end the window (Req. 2.5, 5.3).
 
         Detaches ``container`` from :data:`EGRESS_NETWORK`, ending its internet
@@ -321,15 +321,12 @@ class DockerEgressWindow:
                     container=container,
                     opened=False,
                     reason=(
-                        f"falha ao criar a rede de egresso {EGRESS_NETWORK!r} "
-                        f"(code={created.code})"
+                        f"falha ao criar a rede de egresso {EGRESS_NETWORK!r} (code={created.code})"
                     ),
                 )
 
         # 3) attach(EGRESS_NETWORK) — only now, with no attack network attached.
-        attached = self._executor.attach_network(
-            container, EGRESS_NETWORK, on_log=on_log
-        )
+        attached = self._executor.attach_network(container, EGRESS_NETWORK, on_log=on_log)
         if attached.code != 0:
             return EgressWindowResult(
                 container=container,
@@ -342,13 +339,9 @@ class DockerEgressWindow:
 
         return EgressWindowResult(container=container, opened=True)
 
-    def close(
-        self, container: str, *, on_log: Callable[[LogLine], None]
-    ) -> EgressWindowResult:
+    def close(self, container: str, *, on_log: Callable[[LogLine], None]) -> EgressWindowResult:
         """Detach :data:`EGRESS_NETWORK`, ending the window (Req. 2.5, 5.3)."""
-        result = self._executor.detach_network(
-            container, EGRESS_NETWORK, on_log=on_log
-        )
+        result = self._executor.detach_network(container, EGRESS_NETWORK, on_log=on_log)
         if result.code != 0:
             return EgressWindowResult(
                 container=container,
@@ -405,7 +398,7 @@ class EgressVerdict:
     container: str
     egress_lost: bool = False
     conclusive: bool = False
-    reason: Optional[str] = None
+    reason: str | None = None
 
 
 @runtime_checkable
@@ -424,9 +417,7 @@ class EgressProber(Protocol):
     loss of egress is **positively verified**, never presumed (Req. 3.2, 5.4, 5.5).
     """
 
-    def probe(
-        self, container: str, *, on_log: Callable[[LogLine], None]
-    ) -> EgressVerdict:
+    def probe(self, container: str, *, on_log: Callable[[LogLine], None]) -> EgressVerdict:
         """Try to reach the fixed external endpoint from ``container``; MUST fail.
 
         Args:
@@ -500,9 +491,7 @@ class DockerEgressProber:
         """
         self._executor = executor
 
-    def probe(
-        self, container: str, *, on_log: Callable[[LogLine], None]
-    ) -> EgressVerdict:
+    def probe(self, container: str, *, on_log: Callable[[LogLine], None]) -> EgressVerdict:
         """Run the read-only reachability attempt; a failure means egress lost.
 
         The probe opens a short-timeout TCP connection to :data:`PROBE_ENDPOINT`
@@ -514,10 +503,7 @@ class DockerEgressProber:
         # backend-constant endpoint and read only its exit status. It installs
         # nothing and writes no payload. ``bash -lc`` keeps the argument-list form
         # the executor passes to ``docker exec`` without a host shell.
-        probe_cmd = (
-            f"timeout {PROBE_TIMEOUT_SECONDS} "
-            f"bash -c '</dev/tcp/{PROBE_ENDPOINT}/443'"
-        )
+        probe_cmd = f"timeout {PROBE_TIMEOUT_SECONDS} bash -c '</dev/tcp/{PROBE_ENDPOINT}/443'"
         argv = ["bash", "-lc", probe_cmd]
         result = self._executor.exec_in(container, argv, on_log=on_log)
 
@@ -527,10 +513,7 @@ class DockerEgressProber:
                 container=container,
                 egress_lost=False,
                 conclusive=True,
-                reason=(
-                    f"egresso ainda presente: {container!r} alcançou "
-                    f"{PROBE_ENDPOINT!r}"
-                ),
+                reason=(f"egresso ainda presente: {container!r} alcançou {PROBE_ENDPOINT!r}"),
             )
 
         # Non-zero exit: the endpoint was unreachable (no route / timeout) ⇒ egress
@@ -549,15 +532,15 @@ class DockerEgressProber:
 
 __all__ = [
     "EGRESS_NETWORK",
-    "attack_networks_for",
-    "attack_networks_with_ip_for",
-    "EgressWindowResult",
-    "EgressWindow",
-    "DockerEgressWindow",
     "PROBE_ENDPOINT",
     "PROBE_TIMEOUT_SECONDS",
-    "EgressVerdict",
-    "EgressProber",
-    "egress_lost",
     "DockerEgressProber",
+    "DockerEgressWindow",
+    "EgressProber",
+    "EgressVerdict",
+    "EgressWindow",
+    "EgressWindowResult",
+    "attack_networks_for",
+    "attack_networks_with_ip_for",
+    "egress_lost",
 ]

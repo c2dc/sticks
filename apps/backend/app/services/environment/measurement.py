@@ -7,8 +7,8 @@ measurement + report). The execution itself **reuses** the
 persists one :class:`~app.models.domain.AbilityResult` per Ability; this task
 **derives** the :class:`~app.services.environment.report.SufficiencyMetrics` from
 those per-Ability results **plus the curated attack flow** and consolidates everything
-into an :class:`~app.services.environment.report.ExecutionReport` (Req. 10.4–10.7,
-15.1–15.7).
+into an :class:`~app.services.environment.report.ExecutionReport` (Req. 10.4-10.7,
+15.1-15.7).
 
 What is derived, and how
 ------------------------
@@ -50,18 +50,17 @@ _Requirements: 10.4, 10.5, 10.6, 10.7, 15.1, 15.2, 15.3, 15.4, 15.5, 15.6, 15.7_
 from __future__ import annotations
 
 import datetime as dt
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Mapping, Optional, Sequence
 
 from app.models.enums import AbilityResultStatus
 from app.services.curated_case_models import CaseData, FlowData, FlowNode
+from app.services.emulation.views import Stage3AbilityResult
 from app.services.environment.report import (
+    ExecutionReport,
     SufficiencyMetrics,
     TechniqueMetric,
-    ExecutionReport,
 )
-from app.services.emulation.views import Stage3AbilityResult
-
 
 # ---------------------------------------------------------------------------
 # Normalized measurement input (one result per executed Ability)
@@ -88,18 +87,18 @@ class AbilityMeasurementResult:
             the execution (Req. 15.5).
     """
 
-    ability_id: Optional[str] = None
+    ability_id: str | None = None
     status: AbilityResultStatus = AbilityResultStatus.PENDING
-    execution_time_s: Optional[float] = None
+    execution_time_s: float | None = None
     telemetry: tuple[str, ...] = ()
 
     @classmethod
-    def from_stage3(cls, result: Stage3AbilityResult) -> "AbilityMeasurementResult":
+    def from_stage3(cls, result: Stage3AbilityResult) -> AbilityMeasurementResult:
         """Normalize a :class:`Stage3AbilityResult` (no time/telemetry)."""
         return cls(ability_id=result.ability_id, status=result.status)
 
     @classmethod
-    def from_execution(cls, result: object) -> "AbilityMeasurementResult":
+    def from_execution(cls, result: object) -> AbilityMeasurementResult:
         """Normalize a *duck-typed* result (``ability_id``/``status``).
 
         Accepts any object that exposes ``ability_id`` and ``status`` — for
@@ -136,11 +135,11 @@ class _FlowTechnique:
     """
 
     technique_id: str
-    node_id: Optional[str] = None
-    step: Optional[str] = None
+    node_id: str | None = None
+    step: str | None = None
 
 
-def _step_of_node(node: FlowNode) -> Optional[str]:
+def _step_of_node(node: FlowNode) -> str | None:
     """Derive the 'attack flow step' of a node, to annotate the failure (Req. 15.2).
 
     Prefers ``node_type`` (the structural phase), falls back to ``tactic`` (the
@@ -153,7 +152,7 @@ def _step_of_node(node: FlowNode) -> Optional[str]:
     return None
 
 
-def _flow_techniques(flow: Optional[FlowData]) -> list[_FlowTechnique]:
+def _flow_techniques(flow: FlowData | None) -> list[_FlowTechnique]:
     """Extract the **distinct** attack flow techniques, preserving node order.
 
     A technique is a structural node with ``technique_id`` (the same definition as
@@ -189,7 +188,7 @@ class _TechniqueAggregate:
     attempted: bool = False
     success: bool = False
     failure: bool = False
-    time_s: Optional[float] = None
+    time_s: float | None = None
     telemetry: list[str] = field(default_factory=list)
 
     def accumulate(self, result: AbilityMeasurementResult) -> None:
@@ -255,8 +254,8 @@ class MeasurementService:
         self,
         *,
         results: Sequence[AbilityMeasurementResult],
-        flow: Optional[FlowData],
-        technique_by_ability: Mapping[str, Optional[str]],
+        flow: FlowData | None,
+        technique_by_ability: Mapping[str, str | None],
     ) -> SufficiencyMetrics:
         """Derive the :class:`SufficiencyMetrics` from the results + the attack flow (Req. 15).
 
@@ -299,7 +298,7 @@ class MeasurementService:
         failed_nodes: list[str] = []
         successful_techniques = 0
         attempted_techniques = 0
-        total_time: Optional[float] = None
+        total_time: float | None = None
 
         for technique in techniques:
             aggregate = aggregates[technique.technique_id]
@@ -350,9 +349,9 @@ class MeasurementService:
         *,
         campaign_id: str,
         metrics: SufficiencyMetrics,
-        results: Optional[Sequence[Stage3AbilityResult]] = None,
+        results: Sequence[Stage3AbilityResult] | None = None,
         environment_deprovisioned: bool = False,
-        generated_at: Optional[dt.datetime] = None,
+        generated_at: dt.datetime | None = None,
     ) -> ExecutionReport:
         """Consolidate the metrics + the results into an :class:`ExecutionReport`.
 
@@ -377,7 +376,7 @@ class MeasurementService:
             metrics=metrics,
             results=list(results or []),
             environment_deprovisioned=environment_deprovisioned,
-            generated_at=generated_at or dt.datetime.now(dt.timezone.utc),
+            generated_at=generated_at or dt.datetime.now(dt.UTC),
         )
 
     def measure_from_campaign(
@@ -394,7 +393,7 @@ class MeasurementService:
         layer (task 8.5) only needs to resolve the Campaign and pass the execution
         results.
         """
-        technique_by_ability: dict[str, Optional[str]] = {
+        technique_by_ability: dict[str, str | None] = {
             a.ability_id: a.technique_id for a in campaign.abilities
         }
         return self.measure(
@@ -410,7 +409,7 @@ class MeasurementService:
         ability_results: Sequence[AbilityMeasurementResult],
         stage3_results: Sequence[Stage3AbilityResult],
         environment_deprovisioned: bool = False,
-        generated_at: Optional[dt.datetime] = None,
+        generated_at: dt.datetime | None = None,
     ) -> ExecutionReport:
         """Measure and consolidate in a single step — the complete Stage 6 output.
 

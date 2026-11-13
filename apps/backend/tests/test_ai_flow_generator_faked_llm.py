@@ -46,8 +46,12 @@ from app.models.enums import FlowOrigin
 from app.services.ai.agents.flow_agent import FlowAgent, FlowGenerationError
 from app.services.attack_flow.model import AttackFlow, AttackFlowObject
 from app.services.attack_flow.policy import FlowCandidate
-from app.services.flow.generator import ProducedFlow, StructuralModeling
-from app.services.flow.generator import RelationshipElement, TechniqueElement
+from app.services.flow.generator import (
+    ProducedFlow,
+    RelationshipElement,
+    StructuralModeling,
+    TechniqueElement,
+)
 
 _SLUG = "ai-flow-faked"
 
@@ -281,7 +285,7 @@ def _corpus_content(techniques: list[str]) -> dict:
             technique_id=tech,
             effect_refs=[ids[i + 1]] if i + 1 < len(ids) else [],
         )
-        for i, (oid, tech) in enumerate(zip(ids, techniques))
+        for i, (oid, tech) in enumerate(zip(ids, techniques, strict=False))
     ]
     flow = AttackFlow(flow_id="attack-flow--doc", name="Doc", start_refs=ids[:1], objects=objects)
     return flow.model_dump(mode="json")
@@ -295,7 +299,9 @@ def test_exact_path_copies_documented_flow_without_llm() -> None:
     chat = _ScriptedChat([])
     sink: list[dict] = []
     operationalization = {
-        "abilities": {"abilities": [{"technique_id": "T1190", "executors": [{"id": 7, "command": "x"}]}]}
+        "abilities": {
+            "abilities": [{"technique_id": "T1190", "executors": [{"id": 7, "command": "x"}]}]
+        }
     }
     agent = FlowAgent(
         chat=chat,
@@ -357,9 +363,7 @@ def test_adapted_path_calls_llm_with_references_and_records_provenance() -> None
 def test_created_path_without_corpus_records_reason_and_empty_references() -> None:
     chat = _ScriptedChat([_valid_graph_json()])
     sink: list[dict] = []
-    agent = FlowAgent(
-        chat=chat, flow_retriever=_FakeRetriever([], corpus=False), trace_sink=sink
-    )
+    agent = FlowAgent(chat=chat, flow_retriever=_FakeRetriever([], corpus=False), trace_sink=sink)
 
     (produced,) = agent.generate(_SLUG, _modeling())
 

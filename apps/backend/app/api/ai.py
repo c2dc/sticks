@@ -36,7 +36,7 @@ _Requirements: 13.1, 13.2_
 from __future__ import annotations
 
 import datetime as dt
-from typing import Any, Optional
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Path, status
 from pydantic import BaseModel, ConfigDict, Field
@@ -78,7 +78,7 @@ _PROCESSING_KEYS = (
 )
 
 
-def _resolve_processing(processing: Optional[dict]) -> dict:
+def _resolve_processing(processing: dict | None) -> dict:
     """Map null/absent Agent_Processing elements to the "not available" sentinel.
 
     Every known processing key (:data:`_PROCESSING_KEYS`) is present in the
@@ -114,7 +114,7 @@ class AiRunStartRequest(BaseModel):
     range.
     """
 
-    max_iterations: Optional[int] = Field(
+    max_iterations: int | None = Field(
         default=None,
         description=(
             "Optional loop guard for the run. Omitted → the configured default "
@@ -132,14 +132,10 @@ class AiRunResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int = Field(..., description="Primary key of the agent_runs row.")
-    campaign_id: str = Field(
-        ..., description="Campaign this run curates (FK into campaigns)."
-    )
+    campaign_id: str = Field(..., description="Campaign this run curates (FK into campaigns).")
     status: str = Field(
         ...,
-        description=(
-            "Run status: pendente / em_execucao / concluido / falhou / abortado."
-        ),
+        description=("Run status: pendente / em_execucao / concluido / falhou / abortado."),
     )
     thread_id: str = Field(
         ..., description="LangGraph checkpoint thread key making the run resumable."
@@ -148,13 +144,11 @@ class AiRunResponse(BaseModel):
     iterations_used: int = Field(
         ..., description="Number of plan→execute→measure→improve passes performed."
     )
-    final_verdict_success: Optional[bool] = Field(
+    final_verdict_success: bool | None = Field(
         default=None,
-        description=(
-            "Overall verdict summary; null until the run reaches a terminal state."
-        ),
+        description=("Overall verdict summary; null until the run reaches a terminal state."),
     )
-    error: Optional[str] = Field(
+    error: str | None = Field(
         default=None,
         description=(
             "Structured failure cause surfaced from agent_runs.error (the failing "
@@ -173,22 +167,18 @@ class AiEvaluationView(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int = Field(..., description="Primary key of the agent_evaluations row.")
-    report_id: Optional[int] = Field(
+    report_id: int | None = Field(
         default=None, description="Execution-phase report the evaluator read."
     )
     success_rate: float = Field(..., description="Execution success rate read.")
     procedural_coverage: float = Field(
         ..., description="Procedural-sufficiency metric read from the report."
     )
-    verdict_success: bool = Field(
-        ..., description="Whether the evaluator's verdict passed."
-    )
+    verdict_success: bool = Field(..., description="Whether the evaluator's verdict passed.")
     decision: str = Field(
         ..., description="Evaluator decision driving the loop: refinar / finalizar."
     )
-    rationale: str = Field(
-        ..., description="LLM reasoning for the decision (≤10,000 chars)."
-    )
+    rationale: str = Field(..., description="LLM reasoning for the decision (≤10,000 chars).")
 
 
 class AiAgentTraceView(BaseModel):
@@ -218,7 +208,7 @@ class AiAgentTraceView(BaseModel):
         description=(
             "Agent_Processing: the LLM prompt and response, reasoning, tools "
             "invoked, and repair attempts. Null/absent elements are the "
-            "\"not available\" sentinel rather than omitted (Req. 1.3, 1.6)."
+            '"not available" sentinel rather than omitted (Req. 1.3, 1.6).'
         ),
     )
 
@@ -268,14 +258,11 @@ class AiIterationView(BaseModel):
 
     id: int = Field(..., description="Primary key of the agent_iterations row.")
     index: int = Field(..., description="0-based iteration number within the run.")
-    refined_stage: Optional[str] = Field(
+    refined_stage: str | None = Field(
         default=None,
-        description=(
-            "Stage the evaluator refined into this iteration; null on the first "
-            "pass."
-        ),
+        description=("Stage the evaluator refined into this iteration; null on the first pass."),
     )
-    notes: Optional[str] = Field(default=None, description="Free-form iteration notes.")
+    notes: str | None = Field(default=None, description="Free-form iteration notes.")
     created_at: dt.datetime = Field(
         ..., description="Naive-UTC creation timestamp of the iteration."
     )
@@ -286,14 +273,14 @@ class AiIterationView(BaseModel):
             "Audit_Trace, ordered by stage (Req. 1.1, 1.4, 2.4)."
         ),
     )
-    failing_agent: Optional[str] = Field(
+    failing_agent: str | None = Field(
         default=None,
         description=(
             "Identity of the failing Stage/Agent captured on a failed Run; null "
             "unless this iteration carries the failure anchor (Req. 2.6)."
         ),
     )
-    evaluation: Optional[AiEvaluationView] = Field(
+    evaluation: AiEvaluationView | None = Field(
         default=None,
         description="The evaluator verdict recorded for this iteration, if any.",
     )
@@ -326,9 +313,7 @@ class GroundTruthStageComparison(BaseModel):
     AI matched, missed, and added relative to ground truth.
     """
 
-    stage: str = Field(
-        ..., description="English AgentStage value this comparison belongs to."
-    )
+    stage: str = Field(..., description="English AgentStage value this comparison belongs to.")
     ai_items: list[str] = Field(
         default_factory=list,
         description="The identifiers the AI Run produced for this stage (sorted).",
@@ -443,9 +428,7 @@ def start_ai_run(
         # non-curated campaign (Req. 2.4, 2.5, 2.6). Idempotent no-op for an
         # already-materialized (curated) campaign.
         CampaignMaterializer(db).materialize(campaign, CURATED_VERSION)
-        run = AgentRunService(db).start(
-            campaign, max_iterations=body.max_iterations
-        )
+        run = AgentRunService(db).start(campaign, max_iterations=body.max_iterations)
     except DependencyUnavailableError as exc:
         # A required dependency (checkpointer / pgvector) was unavailable: the
         # service created no row, but roll back defensively so nothing partial
@@ -484,13 +467,10 @@ def start_ai_run(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail={
                 "reason": "persistence_failed",
-                "message": (
-                    "The AI run could not be started: run persistence "
-                    "failed."
-                ),
+                "message": ("The AI run could not be started: run persistence failed."),
             },
         ) from exc
-    except Exception as exc:  # noqa: BLE001 - leave no partial row on any failure
+    except Exception as exc:
         # Any other error: roll back so no partial agent_runs row is persisted
         # (Req. 13.2), then surface a generic "could not start" error response.
         db.rollback()
@@ -498,10 +478,7 @@ def start_ai_run(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail={
                 "reason": "run_not_started",
-                "message": (
-                    "The AI run could not be started due to an unexpected "
-                    "error."
-                ),
+                "message": ("The AI run could not be started due to an unexpected error."),
             },
         ) from exc
 
@@ -553,10 +530,7 @@ def get_ai_run(
     if run is None or run.campaign_id != campaign:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=(
-                f"Execução de IA desconhecida: id={id!r} para a campanha "
-                f"{campaign!r}."
-            ),
+            detail=(f"Execução de IA desconhecida: id={id!r} para a campanha {campaign!r}."),
         )
 
     run_failed = run.status is AgentRunStatus.FAILED
@@ -587,7 +561,7 @@ def get_ai_run(
         ).all()
 
         stage_outputs: list[AiStageOutputView] = []
-        failing_agent: Optional[str] = None
+        failing_agent: str | None = None
         for stage_output, trace in stage_output_rows:
             stage_value = getattr(stage_output.stage, "value", stage_output.stage)
             origin_value = getattr(stage_output.origin, "value", stage_output.origin)
@@ -602,9 +576,7 @@ def get_ai_run(
                     id=stage_output.id,
                     stage=stage_value,
                     origin=origin_value,
-                    payload=stage_output.payload
-                    if isinstance(stage_output.payload, dict)
-                    else {},
+                    payload=stage_output.payload if isinstance(stage_output.payload, dict) else {},
                     trace=AiAgentTraceView(
                         agent_input=agent_input,
                         processing=_resolve_processing(processing),
@@ -705,7 +677,9 @@ def _ability_ids_from_op_payload(payload: Any) -> set[str]:
     return ids
 
 
-def _build_stage_comparison(stage: str, ai_items: set[str], curated_items: set[str]) -> GroundTruthStageComparison:
+def _build_stage_comparison(
+    stage: str, ai_items: set[str], curated_items: set[str]
+) -> GroundTruthStageComparison:
     """Assemble one stage's symmetric AI-vs-curation comparison (sorted, stable)."""
     return GroundTruthStageComparison(
         stage=stage,
@@ -736,7 +710,7 @@ def compare_ai_run_with_curation(
     id: int = Path(..., description="Id of the completed agent_runs row to compare"),
     db: Session = Depends(get_db),
 ) -> GroundTruthComparisonResponse:
-    """Compute the on-demand Ground_Truth_Comparison for a curated campaign (Req. 5.1–5.4).
+    """Compute the on-demand Ground_Truth_Comparison for a curated campaign (Req. 5.1-5.4).
 
     Curated-ness is determined SERVER-SIDE from the ``campaigns.curated`` flag:
     the comparison is only
@@ -751,14 +725,14 @@ def compare_ai_run_with_curation(
     Run (Req. 5.4). An unknown run id — or one belonging to a different campaign
     — is a 404.
     """
+    from app.models.domain import Ability as AbilityModel
     from app.models.domain import (
         AgentIteration,
         AgentRun,
         AgentStageOutput,
+        Case,
     )
-    from app.models.domain import Ability as AbilityModel
     from app.models.enums import AgentStage
-    from app.models.domain import Case
     from app.services.curated_case_reader import resolve_flow_data_from_db
 
     run = db.get(AgentRun, id)
@@ -767,9 +741,7 @@ def compare_ai_run_with_curation(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={
                 "reason": "run_not_found",
-                "message": (
-                    f"No AI run id={id!r} exists for campaign {campaign!r}."
-                ),
+                "message": (f"No AI run id={id!r} exists for campaign {campaign!r}."),
             },
         )
 
@@ -827,11 +799,7 @@ def compare_ai_run_with_curation(
                 curated_technique_ids.add(tid)
 
     curated_ability_rows = (
-        db.execute(
-            select(AbilityModel.ability_id).where(
-                AbilityModel.campaign_id == campaign
-            )
-        )
+        db.execute(select(AbilityModel.ability_id).where(AbilityModel.campaign_id == campaign))
         .scalars()
         .all()
     )
@@ -841,9 +809,7 @@ def compare_ai_run_with_curation(
             curated_ability_ids.add(aid)
 
     stages = [
-        _build_stage_comparison(
-            AgentStage.FLOW.value, ai_technique_ids, curated_technique_ids
-        ),
+        _build_stage_comparison(AgentStage.FLOW.value, ai_technique_ids, curated_technique_ids),
         _build_stage_comparison(
             AgentStage.OPERATIONALIZATION.value,
             ai_ability_ids,

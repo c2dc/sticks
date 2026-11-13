@@ -1,5 +1,5 @@
 """StixPackageReadService — read-only package/campaign views from Postgres
-(tasks 4.1–4.2).
+(tasks 4.1-4.2).
 
 This service serves the STIX package and campaign overviews reading **only**
 from the database (no bundle is kept anywhere else). It is
@@ -33,8 +33,6 @@ from __future__ import annotations
 
 import datetime as dt
 
-from typing import Optional
-
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -57,7 +55,7 @@ def _isoformat_utc(value: dt.datetime) -> str:
     a JS ``new Date(...)`` read it as local time, shifting the displayed value.
     We append the ``Z`` (Zulu/UTC) designator so the contract is unambiguous.
     """
-    aware = value.replace(tzinfo=dt.timezone.utc)
+    aware = value.replace(tzinfo=dt.UTC)
     return aware.isoformat().replace("+00:00", "Z")
 
 
@@ -76,9 +74,7 @@ class StixPackageNotPersistedError(Exception):
 
     def __init__(self, version: str) -> None:
         self.version = version
-        super().__init__(
-            f"STIX package v{version} is not persisted: no row in stix_packages."
-        )
+        super().__init__(f"STIX package v{version} is not persisted: no row in stix_packages.")
 
 
 class CampaignNotFoundError(Exception):
@@ -95,9 +91,7 @@ class CampaignNotFoundError(Exception):
     def __init__(self, version: str, campaign_key: str) -> None:
         self.version = version
         self.campaign_key = campaign_key
-        super().__init__(
-            f"STIX campaign '{campaign_key}' not found in package v{version}."
-        )
+        super().__init__(f"STIX campaign '{campaign_key}' not found in package v{version}.")
 
 
 # ---------------------------------------------------------------------------
@@ -132,7 +126,7 @@ class StixPackageOverview(BaseModel):
 
     version: str
     name: str
-    downloaded_at: Optional[str] = None
+    downloaded_at: str | None = None
     counts: list[TypeCount] = Field(default_factory=list)
     campaigns_total: int
     actors_total: int
@@ -153,9 +147,9 @@ class StixCampaignSummary(BaseModel):
     campaign_key: str
     stix_id: str
     name: str
-    external_id: Optional[str] = None
+    external_id: str | None = None
     curated: bool
-    curated_slug: Optional[str] = None
+    curated_slug: str | None = None
 
 
 class TechniqueElement(BaseModel):
@@ -167,9 +161,9 @@ class TechniqueElement(BaseModel):
     """
 
     technique_id: str
-    technique_name: Optional[str] = None
-    tactic: Optional[str] = None
-    description: Optional[str] = None
+    technique_name: str | None = None
+    tactic: str | None = None
+    description: str | None = None
 
 
 class ActorRef(BaseModel):
@@ -192,11 +186,11 @@ class StixCampaignOverview(BaseModel):
     campaign_key: str
     stix_id: str
     name: str
-    external_id: Optional[str] = None
-    description: Optional[str] = None
+    external_id: str | None = None
+    description: str | None = None
     aliases: list[str] = Field(default_factory=list)
     curated: bool
-    curated_slug: Optional[str] = None
+    curated_slug: str | None = None
     techniques: list[TechniqueElement] = Field(default_factory=list)
     actors: list[ActorRef] = Field(default_factory=list)
 
@@ -259,7 +253,7 @@ class TechniqueRank(BaseModel):
     """
 
     technique_id: str
-    technique_name: Optional[str] = None
+    technique_name: str | None = None
     campaigns_total: int
 
 
@@ -333,16 +327,14 @@ class StixPackageReadService:
             The persisted versions (empty list when nothing is persisted yet).
         """
         rows = (
-            self._session.execute(
-                select(StixPackage.version).order_by(StixPackage.version.desc())
-            )
+            self._session.execute(select(StixPackage.version).order_by(StixPackage.version.desc()))
             .scalars()
             .all()
         )
         return list(rows)
 
     def package_overview(self, version: str) -> StixPackageOverview:
-        """Assemble the package overview from the database only (Req. 3.1–3.4).
+        """Assemble the package overview from the database only (Req. 3.1-3.4).
 
         Resolves the ``stix_packages`` row by ``version`` and, reading **only**
         from the database (no bundle is kept elsewhere), builds the
@@ -402,18 +394,14 @@ class StixPackageReadService:
             .where(StixCampaign.package_id == package.id)
         ).scalar_one()
         actors_total = self._session.execute(
-            select(func.count())
-            .select_from(StixActor)
-            .where(StixActor.package_id == package.id)
+            select(func.count()).select_from(StixActor).where(StixActor.package_id == package.id)
         ).scalar_one()
 
         return StixPackageOverview(
             version=package.version,
             name=package.name,
             downloaded_at=(
-                _isoformat_utc(package.downloaded_at)
-                if package.downloaded_at is not None
-                else None
+                _isoformat_utc(package.downloaded_at) if package.downloaded_at is not None else None
             ),
             counts=counts,
             campaigns_total=campaigns_total,
@@ -470,9 +458,7 @@ class StixPackageReadService:
         """
         package_id = self._resolve_package_id(version)
         campaigns = (
-            self._session.execute(
-                select(StixCampaign).where(StixCampaign.package_id == package_id)
-            )
+            self._session.execute(select(StixCampaign).where(StixCampaign.package_id == package_id))
             .scalars()
             .all()
         )
@@ -488,10 +474,8 @@ class StixPackageReadService:
             for campaign in campaigns
         ]
 
-    def campaign_overview(
-        self, version: str, campaign_key: str
-    ) -> StixCampaignOverview:
-        """Assemble the overview of one campaign, from the database (Req. 4.2–4.5).
+    def campaign_overview(self, version: str, campaign_key: str) -> StixCampaignOverview:
+        """Assemble the overview of one campaign, from the database (Req. 4.2-4.5).
 
         Resolves the ``stix_packages`` row by ``version`` and finds the campaign
         of that package whose ``campaign_key`` (``curated_slug`` when present,
@@ -524,9 +508,7 @@ class StixPackageReadService:
         # Python lookup keeps the match independent of whether the key is a
         # curated slug or a raw stix_id.
         campaigns = (
-            self._session.execute(
-                select(StixCampaign).where(StixCampaign.package_id == package_id)
-            )
+            self._session.execute(select(StixCampaign).where(StixCampaign.package_id == package_id))
             .scalars()
             .all()
         )
@@ -571,9 +553,7 @@ class StixPackageReadService:
             .scalars()
             .all()
         )
-        actors = [
-            ActorRef(stix_id=actor.stix_id, name=actor.name) for actor in actor_rows
-        ]
+        actors = [ActorRef(stix_id=actor.stix_id, name=actor.name) for actor in actor_rows]
 
         # Deserialize aliases JSON to list[str], defaulting to [] when absent or
         # not a list (the column is nullable JSON).
@@ -593,9 +573,7 @@ class StixPackageReadService:
             actors=actors,
         )
 
-    def package_analytics(
-        self, version: str, top_n: int = 10
-    ) -> StixPackageAnalytics:
+    def package_analytics(self, version: str, top_n: int = 10) -> StixPackageAnalytics:
         """Aggregate the analytic dashboard of a package from the database (Req. 12.*).
 
         Resolves the ``stix_packages`` row by ``version`` and, reading **only**
@@ -737,9 +715,7 @@ class StixPackageReadService:
         # (stix_campaign_techniques grouped by technique_id), ordered desc,
         # limited to top_n. Counts distinct campaigns so a technique repeated
         # within one campaign is not double-counted.
-        technique_campaigns_count = func.count(
-            func.distinct(StixCampaignTechnique.campaign_id)
-        )
+        technique_campaigns_count = func.count(func.distinct(StixCampaignTechnique.campaign_id))
         technique_rows = self._session.execute(
             select(
                 StixCampaignTechnique.technique_id,

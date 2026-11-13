@@ -69,7 +69,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.core.config import Settings
 from app.db.base import Base, import_models
 from app.db.session import create_db_engine
-from app.models.domain import AbilityResult, AuditLogEntry, Operation
+from app.models.domain import AbilityResult, Operation
 from app.models.enums import AbilityResultStatus, OperationState
 from app.services.audit.audit_logger import AuditLogger
 from app.services.caldera import (
@@ -159,8 +159,7 @@ def _isolated_verifier(containers: list[str], _inspector: object) -> IsolationRe
     variable (the aggregation) from the isolation gate too.
     """
     verdicts = tuple(
-        ContainerIsolationVerdict(container=name, isolated=True, reasons=())
-        for name in containers
+        ContainerIsolationVerdict(container=name, isolated=True, reasons=()) for name in containers
     )
     return IsolationResult(passed=True, verdicts=verdicts)
 
@@ -208,9 +207,7 @@ class MixedChainCaldera:
         if method == "POST" and path == ABILITIES_PATH:
             return httpx.Response(200, json=json.loads(request.content.decode("utf-8")))
         if method == "POST" and path == OPERATIONS_PATH:
-            return httpx.Response(
-                200, json={"id": "op-test", "name": "run", "state": "running"}
-            )
+            return httpx.Response(200, json={"id": "op-test", "name": "run", "state": "running"})
         if method == "GET" and path == f"{OPERATIONS_PATH}/op-test":
             return httpx.Response(
                 200,
@@ -290,9 +287,7 @@ def _build_abilities(num: int) -> list[FakeAbility]:
                 {
                     "name": "sh",
                     "platform": "linux",
-                    "command": _INTERNAL_COMMAND_TEMPLATES[
-                        i % len(_INTERNAL_COMMAND_TEMPLATES)
-                    ],
+                    "command": _INTERNAL_COMMAND_TEMPLATES[i % len(_INTERNAL_COMMAND_TEMPLATES)],
                 },
             ),
         )
@@ -377,12 +372,8 @@ def test_property10_operation_aggregate_matches_per_ability_results(
         assert len(result.ability_results) == total_links
 
         # --- The per-Ability result rows carry exactly the derived statuses. ---
-        persisted_statuses = (
-            session.execute(select(AbilityResult.status)).scalars().all()
-        )
-        assert sorted(s.value for s in persisted_statuses) == sorted(
-            s.value for s in derived
-        )
+        persisted_statuses = session.execute(select(AbilityResult.status)).scalars().all()
+        assert sorted(s.value for s in persisted_statuses) == sorted(s.value for s in derived)
 
         # --- The persisted aggregate matches the counts from the results. ---
         assert operation.total_success == expected_sucesso
@@ -415,7 +406,5 @@ def test_property10_operation_aggregate_matches_per_ability_results(
 def _count_by_status(session: Session, status: AbilityResultStatus) -> int:
     """Count persisted AbilityResult rows whose ``status`` equals ``status``."""
     return session.execute(
-        select(func.count())
-        .select_from(AbilityResult)
-        .where(AbilityResult.status == status)
+        select(func.count()).select_from(AbilityResult).where(AbilityResult.status == status)
     ).scalar_one()

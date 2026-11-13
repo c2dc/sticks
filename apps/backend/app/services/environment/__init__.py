@@ -24,28 +24,41 @@ _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7, 9.2, 9.3, 9.4, 10.2_
 
 from __future__ import annotations
 
+from app.services.environment.completion import (
+    CompletionStage6Result,
+    CompletionStage6Service,
+    DbReportSink,
+    ReportSink,
+)
 from app.services.environment.execution import (
     ExecutionAbilityResult,
     ExecutionResult,
     ExecutionStageService,
     RunnerFactory,
 )
+from app.services.environment.health import (
+    ContainerStateInfo,
+    ContainerStateInspector,
+    ContainerStateNotFound,
+    DockerSdkStateInspector,
+    HealthSummary,
+    HealthVerdict,
+    check_health,
+    inspect_health,
+)
+from app.services.environment.log_buffer import (
+    DEFAULT_MAX_LINES,
+    ProvisioningLogBuffer,
+)
+from app.services.environment.measurement import (
+    AbilityMeasurementResult,
+    MeasurementService,
+)
 from app.services.environment.operationalization import (
     EnvironmentParameters,
     EnvironmentPlatform,
     RequiredService,
     TargetHost,
-)
-from app.services.environment.resource_gate import (
-    DockerSdkHostResourceInspector,
-    HostResourceInspector,
-    HostResources,
-    ProposedTarget,
-    ResourceGate,
-    ResourceGateVerdict,
-    ResourceLimits,
-    ResourcePlan,
-    build_resource_plan,
 )
 from app.services.environment.operationalizer import (
     OperationalizerByOrigin,
@@ -61,34 +74,21 @@ from app.services.environment.provisioner import (
     ProvisionedEnvironment,
     ProvisioningResult,
 )
-from app.services.environment.health import (
-    ContainerStateInfo,
-    ContainerStateInspector,
-    ContainerStateNotFound,
-    DockerSdkStateInspector,
-    HealthSummary,
-    HealthVerdict,
-    check_health,
-    inspect_health,
-)
-from app.services.environment.completion import (
-    CompletionStage6Result,
-    CompletionStage6Service,
-    DbReportSink,
-    ReportSink,
-)
-from app.services.environment.log_buffer import (
-    DEFAULT_MAX_LINES,
-    ProvisioningLogBuffer,
-)
-from app.services.environment.measurement import (
-    AbilityMeasurementResult,
-    MeasurementService,
-)
 from app.services.environment.report import (
     ExecutionReport,
     SufficiencyMetrics,
     TechniqueMetric,
+)
+from app.services.environment.resource_gate import (
+    DockerSdkHostResourceInspector,
+    HostResourceInspector,
+    HostResources,
+    ProposedTarget,
+    ResourceGate,
+    ResourceGateVerdict,
+    ResourceLimits,
+    ResourcePlan,
+    build_resource_plan,
 )
 from app.services.environment.topology_builder import (
     HOST_CONTAINERS,
@@ -106,73 +106,73 @@ from app.services.environment.topology_builder import (
 )
 
 __all__ = [
+    "DEFAULT_MAX_LINES",
+    "HOST_CONTAINERS",
+    # topology_builder (reusable pure construction)
+    "HOST_ROLES",
+    "NETWORK_MEMBERS",
+    # measurement (procedural-sufficiency measurement + report — Stage 6, task 8.3)
+    "AbilityMeasurementResult",
+    # provisioner (seam + Stage 5 DTOs + curation)
+    "CalderaLoader",
+    "CompletionStage6Result",
+    "CompletionStage6Service",
+    # health (read-only target-container health check — Stage 5, task 2.1)
+    "ContainerStateInfo",
+    "ContainerStateInspector",
+    "ContainerStateNotFound",
+    "ContainerVerdict",
+    "CurationEnvironmentProvisioner",
+    "DbReportSink",
+    "DeprovisioningResult",
+    "DockerSdkHostResourceInspector",
+    "DockerSdkStateInspector",
+    "EnvironmentParameters",
     # operationalization (environment-parameter DTOs — Stage 4, task 5.1)
     "EnvironmentPlatform",
-    "TargetHost",
-    "RequiredService",
-    "EnvironmentParameters",
+    "EnvironmentProvisioner",
+    "ExecutionAbilityResult",
+    "ExecutionReport",
+    "ExecutionResult",
+    "ExecutionStageService",
+    "HealthSummary",
+    "HealthVerdict",
+    "HostResourceInspector",
+    "HostResources",
+    "HostView",
+    "IsolationSummary",
+    "MeasurementService",
+    "NetworkView",
     # operationalizer (seam + dual-Output DTO of Stage 4 — task 5.2)
     "OperationalizerByOrigin",
     "ProducedOperationalization",
-    # report (metric and report DTOs — Stage 6, task 8.1)
-    "TechniqueMetric",
-    "SufficiencyMetrics",
-    "ExecutionReport",
-    # measurement (procedural-sufficiency measurement + report — Stage 6, task 8.3)
-    "AbilityMeasurementResult",
-    "MeasurementService",
-    # execution (Stage 6 Execution seam reusing OperationRunner — task 8.2)
-    "RunnerFactory",
-    "ExecutionAbilityResult",
-    "ExecutionResult",
-    "ExecutionStageService",
+    "ProposedTarget",
+    "ProvisionedEnvironment",
+    # log_buffer (per-campaign provisioning log buffer — Stage 5, task 4.2)
+    "ProvisioningLogBuffer",
+    "ProvisioningResult",
+    # completion (deprovisioning + Stage 6 completion — task 8.4)
+    "ReportSink",
+    "RequiredService",
+    "ResourceGate",
+    "ResourceGateVerdict",
     # resource_gate (deterministic host-resource authority — Axis 3, task 5.1)
     "ResourceLimits",
     "ResourcePlan",
-    "ResourceGateVerdict",
-    "ResourceGate",
-    "ProposedTarget",
-    "HostResources",
-    "HostResourceInspector",
-    "DockerSdkHostResourceInspector",
-    "build_resource_plan",
-    # provisioner (seam + Stage 5 DTOs + curation)
-    "CalderaLoader",
-    "EnvironmentProvisioner",
-    "ProvisioningResult",
-    "CurationEnvironmentProvisioner",
-    "ContainerVerdict",
-    "IsolationSummary",
-    "ProvisionedEnvironment",
-    "DeprovisioningResult",
-    # health (read-only target-container health check — Stage 5, task 2.1)
-    "ContainerStateInfo",
-    "ContainerStateNotFound",
-    "ContainerStateInspector",
-    "HealthVerdict",
-    "HealthSummary",
-    "check_health",
-    "DockerSdkStateInspector",
-    "inspect_health",
-    # completion (deprovisioning + Stage 6 completion — task 8.4)
-    "ReportSink",
-    "DbReportSink",
-    "CompletionStage6Result",
-    "CompletionStage6Service",
-    # log_buffer (per-campaign provisioning log buffer — Stage 5, task 4.2)
-    "ProvisioningLogBuffer",
-    "DEFAULT_MAX_LINES",
-    # topology_builder (reusable pure construction)
-    "HOST_ROLES",
-    "HOST_CONTAINERS",
-    "NETWORK_MEMBERS",
-    "HostView",
-    "NetworkView",
+    # execution (Stage 6 Execution seam reusing OperationRunner — task 8.2)
+    "RunnerFactory",
+    "SufficiencyMetrics",
+    "TargetHost",
+    # report (metric and report DTOs — Stage 6, task 8.1)
+    "TechniqueMetric",
     "TopologyResponse",
-    "ips_for_host",
-    "container_names",
     "build_hosts",
-    "build_networks",
     "build_mermaid",
+    "build_networks",
+    "build_resource_plan",
+    "check_health",
     "compose_path",
+    "container_names",
+    "inspect_health",
+    "ips_for_host",
 ]

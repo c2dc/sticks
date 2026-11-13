@@ -15,8 +15,6 @@ Endpoints implemented here:
 
 from __future__ import annotations
 
-from typing import Optional
-
 from fastapi import APIRouter, Depends, HTTPException, Path, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
@@ -53,7 +51,7 @@ class CaseListItem(BaseModel):
 
     id: str
     name: str
-    translation_source: Optional[TranslationSource] = None
+    translation_source: TranslationSource | None = None
 
 
 class CampaignsResponse(BaseModel):
@@ -61,23 +59,24 @@ class CampaignsResponse(BaseModel):
 
     campaigns: list[CaseListItem] = Field(default_factory=list)
 
+
 class CaseExecutorView(BaseModel):
     """A concrete executor (command) of a curated Ability (case detail)."""
 
-    name: Optional[str] = None
-    platform: Optional[str] = None
-    command: Optional[str] = None
+    name: str | None = None
+    platform: str | None = None
+    command: str | None = None
 
 
 class CaseAbilityView(BaseModel):
     """One curated Ability in the case-detail response (Req. 3.2)."""
 
     ability_id: str
-    name: Optional[str] = None
-    tactic: Optional[str] = None
-    technique_name: Optional[str] = None
-    technique_id: Optional[str] = None
-    description: Optional[str] = None
+    name: str | None = None
+    tactic: str | None = None
+    technique_name: str | None = None
+    technique_id: str | None = None
+    description: str | None = None
     executors: list[CaseExecutorView] = Field(default_factory=list)
 
 
@@ -85,8 +84,8 @@ class CaseAdversaryView(BaseModel):
     """The curated Adversary in the case-detail response (Req. 3.5)."""
 
     id: str
-    name: Optional[str] = None
-    description: Optional[str] = None
+    name: str | None = None
+    description: str | None = None
     atomic_ordering: list[str] = Field(default_factory=list)
 
 
@@ -101,7 +100,7 @@ class CaseDetailResponse(BaseModel):
     name: str
     translation_source: TranslationSource
     abilities: list[CaseAbilityView] = Field(default_factory=list)
-    adversary: Optional[CaseAdversaryView] = None
+    adversary: CaseAdversaryView | None = None
     atomic_ordering: list[str] = Field(default_factory=list)
 
 
@@ -120,9 +119,7 @@ class OperationResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-def _known_campaign_or_404(
-    campaign_key: str, session: Session, version: str
-) -> None:
+def _known_campaign_or_404(campaign_key: str, session: Session, version: str) -> None:
     """Raise 404 when ``campaign_key`` is not persisted in ``stix_campaigns``.
 
     Validates the campaign against the 52 persisted STIX campaigns of ``version``
@@ -157,7 +154,7 @@ def _known_campaign_or_404(
 
 def _derive_total_time_s(
     operations: list[OperationResultView],
-) -> Optional[float]:
+) -> float | None:
     """Derive the real total execution time from the Operation instants (Req. 4.1, 4.3).
 
     Pure, DB-free derivation shared by ``get_report`` and its property test: for
@@ -170,12 +167,15 @@ def _derive_total_time_s(
     so an absent ``started_at`` or ``finished_at`` (on the only/every finished
     Operation) yields ``None`` (Req. 4.3) — never ``0.0``.
     """
-    total_time_s: Optional[float] = None
+    total_time_s: float | None = None
     for operation in operations:
-        if operation.state is OperationState.FINISHED:
-            if operation.started_at is not None and operation.finished_at is not None:
-                duration = (operation.finished_at - operation.started_at).total_seconds()
-                total_time_s = (total_time_s or 0.0) + duration
+        if (
+            operation.state is OperationState.FINISHED
+            and operation.started_at is not None
+            and operation.finished_at is not None
+        ):
+            duration = (operation.finished_at - operation.started_at).total_seconds()
+            total_time_s = (total_time_s or 0.0) + duration
     return total_time_s
 
 
@@ -216,9 +216,7 @@ def _adversary_view(adv: AdversaryData) -> CaseAdversaryView:
 def list_campaigns_endpoint(db: Session = Depends(get_db)) -> CampaignsResponse:
     """List the curated campaigns (``campaigns.curated`` rows) from the database."""
     rows = (
-        db.execute(
-            select(CaseRow).where(CaseRow.curated.is_(True)).order_by(CaseRow.id)
-        )
+        db.execute(select(CaseRow).where(CaseRow.curated.is_(True)).order_by(CaseRow.id))
         .scalars()
         .all()
     )
@@ -279,7 +277,7 @@ def get_report(
     coverage, time, failed nodes, per-technique telemetry and verdict) are
     recomputed on every read
     from the persisted results, so the report always reflects the current
-    execution state (Req. 15.1–15.7).
+    execution state (Req. 15.1-15.7).
 
     The per-Ability results of **all** the Campaign's Operations are flattened (a
     curated Campaign runs a single Operation; defensively we consolidate all) and
@@ -318,7 +316,7 @@ def get_report(
     # finished Operations that carry both instants, via the pure, DB-free
     # ``_derive_total_time_s`` helper (shared with its property test). It stays
     # ``None`` when no finished Operation provides a measurable duration.
-    total_time_s: Optional[float] = _derive_total_time_s(operations)
+    total_time_s: float | None = _derive_total_time_s(operations)
     for operation in operations:
         if operation.state is OperationState.FINISHED:
             any_finished = True

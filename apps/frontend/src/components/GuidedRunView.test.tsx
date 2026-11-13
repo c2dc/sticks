@@ -26,8 +26,18 @@ import type {
  */
 
 vi.mock("@/components/OperationalizationScreen", () => ({
-  OperationalizationScreen: ({ version, campaignKey }: { version: string; campaignKey: string }) => (
-    <div data-testid="operationalization-stub">{`${campaignKey}@${version}`}</div>
+  OperationalizationScreen: ({
+    version,
+    campaignKey,
+    campaignName,
+  }: {
+    version: string
+    campaignKey: string
+    campaignName?: string
+  }) => (
+    <div data-testid="operationalization-stub" data-campaign-name={campaignName}>
+      {`${campaignKey}@${version}`}
+    </div>
   ),
 }))
 
@@ -121,6 +131,39 @@ describe("GuidedRunView — semantic phases with evaluation as its own item", ()
     await user.click(await screen.findByText("Começar a emulação"))
     expect(startAiRunMock).toHaveBeenCalledWith("shadowray")
     expect(await screen.findByTestId("flow-phase-stub")).toHaveTextContent("shadowray")
+  })
+
+  it.each([
+    ["the provided name", "Outer Space"],
+    ["the humanized key when the name is absent", undefined],
+  ])("shows the campaign name in every orchestrator message using %s", async (_label, name) => {
+    const user = userEvent.setup()
+    const { container } = renderWithI18n(
+      <GuidedRunView campaignId="outer_space" campaignName={name} version="18.0" />,
+    )
+
+    // The operationalization header receives the readable name.
+    expect(await screen.findByTestId("operationalization-stub")).toHaveAttribute(
+      "data-campaign-name",
+      "Outer Space",
+    )
+
+    await user.click(await screen.findByText("Começar a emulação"))
+    for (let i = 0; i < 3; i++) {
+      await user.click(await screen.findByText("Pode prosseguir"))
+    }
+    await waitFor(() => {
+      expect(document.querySelector('[data-section="guided-verdict"]')).not.toBeNull()
+    })
+
+    // Operationalization, flow, environment, execution and evaluation speak the name.
+    const text = container.textContent ?? ""
+    expect(text.match(/campanha Outer Space/g)).toHaveLength(5)
+
+    // The slug never shows in the conversation (stubs echo raw ids on purpose).
+    const clone = container.cloneNode(true) as HTMLElement
+    clone.querySelectorAll("[data-testid$='-stub']").forEach((node) => node.remove())
+    expect(clone.textContent).not.toContain("outer_space")
   })
 
   it("renders the phases in the order operationalization → flow → execution → evaluation", async () => {

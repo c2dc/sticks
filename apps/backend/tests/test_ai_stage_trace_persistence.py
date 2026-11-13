@@ -19,6 +19,7 @@ _Requirements: 2.1, 2.5_
 
 from __future__ import annotations
 
+import contextlib
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -79,10 +80,8 @@ def session() -> Any:
     finally:
         sess.close()
         engine.dispose()
-        try:
+        with contextlib.suppress(OSError):
             db_path.unlink()
-        except OSError:
-            pass
 
 
 # ---------------------------------------------------------------------------
@@ -99,12 +98,8 @@ class _FakeGraph:
 
 
 def _install_fake_graph(monkeypatch: pytest.MonkeyPatch, graph: _FakeGraph) -> None:
-    monkeypatch.setattr(
-        AgentRunService, "_build_graph", lambda self: graph, raising=True
-    )
-    monkeypatch.setattr(
-        AgentRunService, "_require_dependencies", lambda self: None, raising=True
-    )
+    monkeypatch.setattr(AgentRunService, "_build_graph", lambda self: graph, raising=True)
+    monkeypatch.setattr(AgentRunService, "_require_dependencies", lambda self: None, raising=True)
 
 
 def _produced_op() -> Any:
@@ -207,9 +202,7 @@ def test_absent_processing_elements_carried_as_none_sentinel(
     them, so the read layer renders "not available" (design §A).
     """
     trace = _op_trace(full_processing=False)
-    _install_fake_graph(
-        monkeypatch, _FakeGraph(final_state=_final_state_with_op_and_trace(trace))
-    )
+    _install_fake_graph(monkeypatch, _FakeGraph(final_state=_final_state_with_op_and_trace(trace)))
 
     AgentRunService(session).start(_CAMPAIGN_ID)
 
@@ -226,9 +219,7 @@ def test_no_trace_row_when_no_matching_trace(
     session: Session, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """With no matching trace in the channel, the output is persisted with no trace row."""
-    _install_fake_graph(
-        monkeypatch, _FakeGraph(final_state=_final_state_with_op_and_trace(None))
-    )
+    _install_fake_graph(monkeypatch, _FakeGraph(final_state=_final_state_with_op_and_trace(None)))
 
     AgentRunService(session).start(_CAMPAIGN_ID)
 

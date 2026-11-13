@@ -13,7 +13,6 @@ The orchestrator lives in ``app.state.ingestion`` (created by the app
 from __future__ import annotations
 
 import datetime as dt
-from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel
@@ -34,12 +33,12 @@ class IngestionSourceStatus(BaseModel):
 
     source: IngestSource
     status: IngestStatus
-    loaded_count: Optional[int] = None
-    embedded_count: Optional[int] = None
-    expected_count: Optional[int] = None
-    error: Optional[str] = None
+    loaded_count: int | None = None
+    embedded_count: int | None = None
+    expected_count: int | None = None
+    error: str | None = None
     skipped_count: int = 0
-    updated_at: Optional[dt.datetime] = None
+    updated_at: dt.datetime | None = None
 
 
 def _to_model(item: SourceStatus) -> IngestionSourceStatus:

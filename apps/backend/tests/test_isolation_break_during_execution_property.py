@@ -131,9 +131,7 @@ def _ability_strategy() -> st.SearchStrategy[FakeAbility]:
         lambda uid, cmds: FakeAbility(
             ability_id=f"ability-{uid.hex[:8]}",
             name=f"T{1000 + (uid.int % 600)} - generated",
-            executors=tuple(
-                {"name": "sh", "platform": "linux", "command": cmd} for cmd in cmds
-            ),
+            executors=tuple({"name": "sh", "platform": "linux", "command": cmd} for cmd in cmds),
         ),
         st.uuids(),
         st.lists(st.sampled_from(_INTERNAL_COMMAND_TEMPLATES), min_size=1, max_size=2),
@@ -340,9 +338,7 @@ def _count(session: Session, model: type) -> int:
     # ``k`` = number of in-loop re-checks that PASS before the break. The break
     # fires on re-check k + 1 (poll k + 1 is never reconciled).
     k=st.integers(min_value=0, max_value=6),
-    status_pool=st.lists(
-        st.sampled_from(_NON_TERMINAL_STATUS_CODES), min_size=1, max_size=2
-    ),
+    status_pool=st.lists(st.sampled_from(_NON_TERMINAL_STATUS_CODES), min_size=1, max_size=2),
     campaign_id=st.sampled_from(["apt41_dust", "c0010", "shadowray", None]),
 )
 def test_property14_isolation_break_fail_closed_during_execution(
@@ -427,8 +423,7 @@ def test_property14_isolation_break_fail_closed_during_execution(
         # Every preserved partial is non-terminal (pendente / em_execucao): the
         # break must not fabricate terminal results.
         persisted_statuses = {
-            row.status
-            for row in session.execute(select(AbilityResult)).scalars().all()
+            row.status for row in session.execute(select(AbilityResult)).scalars().all()
         }
         assert persisted_statuses <= {
             AbilityResultStatus.PENDING,

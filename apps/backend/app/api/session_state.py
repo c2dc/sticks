@@ -38,9 +38,7 @@ def _load_preferences(db: Session) -> PreferencesView | None:
     """
     try:
         prefs = (
-            db.execute(select(UserPreferences).order_by(UserPreferences.id.asc()))
-            .scalars()
-            .first()
+            db.execute(select(UserPreferences).order_by(UserPreferences.id.asc())).scalars().first()
         )
     except SQLAlchemyError:
         return None

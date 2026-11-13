@@ -19,16 +19,15 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from _stix_fakes import FakeStixHttp, small_bundle
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
-from _stix_fakes import FakeStixHttp, small_bundle
-
 from app.services.stix.stix_service import (
-    TYPE_DESCRIPTIONS,
+    KNOWN_VERSIONS,
     ROTULO_TIPO,
     SLUG_TO_STIX,
-    KNOWN_VERSIONS,
+    TYPE_DESCRIPTIONS,
     StixDownloadError,
     StixService,
 )
@@ -44,7 +43,6 @@ PROP_SETTINGS = settings(
 # ---------------------------------------------------------------------------
 # Shared helpers / strategies
 # ---------------------------------------------------------------------------
-
 
 
 # The six STIX types the dashboard must count, plus a couple of noise types that
@@ -91,9 +89,7 @@ def _bundle_de_contagens(draw: st.DrawFn) -> tuple[list[dict], dict[str, int]]:
 # Feature: stream-stix-dashboard, Property 3: Contagem por type igual ao numero de objetos daquele type no bundle
 @PROP_SETTINGS
 @given(dados=_bundle_de_contagens())
-def test_property3_contagens_iguais_aos_objetos(
-    dados: tuple[list[dict], dict[str, int]]
-) -> None:
+def test_property3_contagens_iguais_aos_objetos(dados: tuple[list[dict], dict[str, int]]) -> None:
     """Each ``TypeCount.count`` equals the number of generated objects
     of that STIX type; noise types never inflate a required count."""
     objetos, oraculo = dados
@@ -115,9 +111,7 @@ def test_property3_contagens_iguais_aos_objetos(
 # Feature: stream-stix-dashboard, Property 4: Todo type contabilizado tem description nao vazia
 @PROP_SETTINGS
 @given(dados=_bundle_de_contagens())
-def test_property4_every_description_not_empty(
-    dados: tuple[list[dict], dict[str, int]]
-) -> None:
+def test_property4_every_description_not_empty(dados: tuple[list[dict], dict[str, int]]) -> None:
     """Every ``TypeCount`` in any produced dashboard has a non-empty English
     description drawn from TYPE_DESCRIPTIONS (no Portuguese literal remains)."""
     objetos, _ = dados
@@ -199,13 +193,11 @@ def _bundle_with_campaigns(draw: st.DrawFn) -> tuple[list[dict], list[str]]:
     for i in range(n):
         cid = _stix_id("campaign", contador)
         contador += 1
-        objetos.append(
-            {"type": "campaign", "id": cid, "name": f"Campaign {i}"}
-        )
+        objetos.append({"type": "campaign", "id": cid, "name": f"Campaign {i}"})
         campaign_ids.append(cid)
 
     # Interleave noise objects (never campaigns).
-    for noise in _NOISE_TYPES + ["intrusion-set", "relationship"]:
+    for noise in [*_NOISE_TYPES, "intrusion-set", "relationship"]:
         for _ in range(draw(st.integers(min_value=0, max_value=3))):
             objetos.append({"type": noise, "id": _stix_id(noise, contador)})
             contador += 1
@@ -231,13 +223,10 @@ def _bundle_with_campaigns(draw: st.DrawFn) -> tuple[list[dict], list[str]]:
 # Feature: stream-stix-dashboard, Property 5: Lista de campaigns igual aos objetos campaign do bundle
 @PROP_SETTINGS
 @given(dados=_bundle_with_campaigns())
-def test_property5_campaign_list_equals_objects(
-    dados: tuple[list[dict], list[str]]
-) -> None:
+def test_property5_campaign_list_equals_objects(dados: tuple[list[dict], list[str]]) -> None:
     """``list_campaigns`` returns exactly the campaign-typed objects, in the
     same order, none lost or duplicated."""
     objetos, ids_esperados = dados
-    version = KNOWN_VERSIONS[0]
     service = StixService()
     bundle = {"type": "bundle", "objects": objetos}
 
@@ -309,7 +298,6 @@ def test_property6_adversary_campaigns_grouping(dados: dict) -> None:
     """Each campaign appears under exactly the actors it is attributed to (and
     unattributed campaigns under the synthetic 'sem-ator' group), none lost or
     duplicated."""
-    version = KNOWN_VERSIONS[0]
     service = StixService()
     bundle = {"type": "bundle", "objects": dados["objects"]}
 
@@ -339,13 +327,9 @@ def test_property6_adversary_campaigns_grouping(dados: dict) -> None:
 
 # Known curated (slug, campaign spec) samples: by external_id and by name.
 _CURADAS_POR_ID = [
-    (slug, mapa["referencias"][0])
-    for slug, mapa in SLUG_TO_STIX.items()
-    if mapa.get("referencias")
+    (slug, mapa["referencias"][0]) for slug, mapa in SLUG_TO_STIX.items() if mapa.get("referencias")
 ]
-_CURADAS_POR_NOME = [
-    (slug, mapa["nome_canonico"]) for slug, mapa in SLUG_TO_STIX.items()
-]
+_CURADAS_POR_NOME = [(slug, mapa["nome_canonico"]) for slug, mapa in SLUG_TO_STIX.items()]
 
 # External ids / names that are guaranteed NOT to match any curated case.
 _NAO_CURADAS_IDS = ["C9999", "C0000", "T1055", "G0001"]
@@ -400,21 +384,18 @@ def _campaign_curated_or_not(draw: st.DrawFn) -> tuple[dict, str | None]:
 # Feature: stream-stix-dashboard, Property 7: Flag "curated" corresponde exatamente ao mapeamento de campaigns curados
 @PROP_SETTINGS
 @given(itens=st.lists(_campaign_curated_or_not(), min_size=1, max_size=8))
-def test_property7_curated_flag_matches_mapping(
-    itens: list[tuple[dict, str | None]]
-) -> None:
+def test_property7_curated_flag_matches_mapping(itens: list[tuple[dict, str | None]]) -> None:
     """``curated``/``curated_slug`` is set iff the campaign matches the curated
     mapping (by external_id or canonical name); otherwise curated is False and
     curated_slug is None."""
     objetos = [obj for obj, _ in itens]
     oraculos = [slug for _, slug in itens]
-    version = KNOWN_VERSIONS[0]
     service = StixService()
     bundle = {"type": "bundle", "objects": objetos}
 
     campaigns = service.list_campaigns(bundle)
     assert len(campaigns) == len(itens)
-    for campaign, slug_esperado in zip(campaigns, oraculos):
+    for campaign, slug_esperado in zip(campaigns, oraculos, strict=False):
         if slug_esperado is None:
             assert campaign.curated is False
             assert campaign.curated_slug is None

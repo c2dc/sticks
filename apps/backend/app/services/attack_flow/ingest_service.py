@@ -13,11 +13,13 @@ transaction, as in the sibling ingest services.
 
 from __future__ import annotations
 
+import contextlib
 import datetime as dt
 import hashlib
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Optional, Protocol
+from typing import Any, Protocol
 
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
@@ -59,7 +61,7 @@ class AttackFlowIngestSummary:
 
 
 def attack_flow_dedup_key(source_key: str) -> str:
-    return hashlib.sha256(f"attack_flow:{source_key}".encode("utf-8")).hexdigest()
+    return hashlib.sha256(f"attack_flow:{source_key}".encode()).hexdigest()
 
 
 def _embedding_content(flow: AttackFlow) -> str:
@@ -75,14 +77,14 @@ class AttackFlowIngestService:
         session: Session,
         *,
         memory: ExperienceMemory,
-        fetcher: Optional[CorpusFetcher] = None,
+        fetcher: CorpusFetcher | None = None,
     ) -> None:
         self._session = session
         self._memory = memory
         self._fetcher: CorpusFetcher = fetcher or AttackFlowCorpusFetcher()
 
     def vectorize_missing(
-        self, progress: Optional[Callable[[int, int], None]] = None
+        self, progress: Callable[[int, int], None] | None = None
     ) -> tuple[int, list[str]]:
         """Embed the stored corpus flows that have no embedding yet (no network).
 
@@ -90,15 +92,19 @@ class AttackFlowIngestService:
         ``(embeddings_stored, errors)``; failures are isolated per flow.
         """
         row_cls = self._row_cls()
-        rows = self._session.execute(
-            select(row_cls).where(row_cls.source_key.is_not(None)).order_by(row_cls.id)
-        ).scalars().all()
+        rows = (
+            self._session.execute(
+                select(row_cls).where(row_cls.source_key.is_not(None)).order_by(row_cls.id)
+            )
+            .scalars()
+            .all()
+        )
         stored_count = 0
         errors: list[str] = []
         for index, row in enumerate(rows, start=1):
             try:
                 flow = AttackFlow.model_validate(row.content)
-            except Exception as exc:  # noqa: BLE001 - one bad row must not stop the rest
+            except Exception as exc:  # noqa: BLE001 -- one bad row must not stop the rest
                 errors.append(f"stored flow {row.source_key!r} is unreadable: {type(exc).__name__}")
                 continue
             stored, error = self._vectorize(flow, row.source_key, replace=False)
@@ -110,9 +116,7 @@ class AttackFlowIngestService:
                 progress(index, len(rows))
         return stored_count, errors
 
-    def ingest(
-        self, progress: Optional[Callable[[int, int], None]] = None
-    ) -> AttackFlowIngestSummary:
+    def ingest(self, progress: Callable[[int, int], None] | None = None) -> AttackFlowIngestSummary:
         """Ingest every corpus file. A listing failure raises ``CorpusFetchError``
         before any write; per-file problems are isolated in ``skipped``.
 
@@ -154,7 +158,7 @@ class AttackFlowIngestService:
             try:
                 inserted = self._upsert_flow(flow, corpus_file)
                 savepoint.commit()
-            except Exception as exc:  # noqa: BLE001 - isolate the file
+            except Exception as exc:  # noqa: BLE001 -- isolate the file
                 savepoint.rollback()
                 summary.skipped.append({"item": source_key, "reason": "persist_failed"})
                 logger.warning("attack flow %s persist failed: %s", source_key, exc)
@@ -272,7 +276,7 @@ class AttackFlowIngestService:
 
     def _vectorize(
         self, flow: AttackFlow, source_key: str, *, replace: bool
-    ) -> tuple[bool, Optional[str]]:
+    ) -> tuple[bool, str | None]:
         """One embedding per flow, keyed by ``source_key``.
 
         When the flow was re-ingested (``replace``), the previous embedding row
@@ -302,14 +306,11 @@ class AttackFlowIngestService:
             )
             savepoint.commit()
             return stored, None
-        except Exception as exc:  # noqa: BLE001 - vectorization is best-effort
-            try:
+        except Exception as exc:  # noqa: BLE001 -- vectorization is best-effort
+            with contextlib.suppress(Exception):  # best-effort cleanup
                 savepoint.rollback()
-            except Exception:  # noqa: BLE001
-                pass
             message = (
-                f"vectorization skipped for attack flow {source_key!r}: "
-                f"{type(exc).__name__}: {exc}"
+                f"vectorization skipped for attack flow {source_key!r}: {type(exc).__name__}: {exc}"
             )
             logger.warning(message)
             return False, message

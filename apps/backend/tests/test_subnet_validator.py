@@ -24,7 +24,6 @@ import copy
 
 import pytest
 
-from tests._shadowray_abilities import SHADOWRAY_ABILITIES
 from app.services.containment.command_parser import (
     Destination,
     DestinationKind,
@@ -39,7 +38,7 @@ from app.services.containment.subnet_validator import (
     validate_ability,
     validate_commands,
 )
-
+from tests._shadowray_abilities import SHADOWRAY_ABILITIES
 
 # ---------------------------------------------------------------------------
 # 1. is_internal_ip — membership in the three internal /24 subnets
@@ -51,7 +50,7 @@ from app.services.containment.subnet_validator import (
     [
         "192.168.10.10",  # caldera
         "192.168.10.20",  # kali
-        "192.168.10.0",   # network address (boundary)
+        "192.168.10.0",  # network address (boundary)
         "192.168.10.255",  # broadcast (boundary)
         "192.168.20.30",  # nginx (most common ShadowRay hop)
         "192.168.30.40",  # db
@@ -66,15 +65,15 @@ def test_internal_ips_are_internal(ip: str) -> None:
 @pytest.mark.parametrize(
     "ip",
     [
-        "172.19.0.20",   # just below the first subnet
-        "192.168.40.20",   # just above the last subnet
-        "192.168.11.10",   # right /24 base but wrong third octet
-        "8.8.8.8",       # public DNS
-        "10.0.0.5",      # different private range
-        "192.168.1.1",   # different private range
-        "127.0.0.1",     # loopback
-        "not-an-ip",     # malformed literal
-        "",              # empty
+        "172.19.0.20",  # just below the first subnet
+        "192.168.40.20",  # just above the last subnet
+        "192.168.11.10",  # right /24 base but wrong third octet
+        "8.8.8.8",  # public DNS
+        "10.0.0.5",  # different private range
+        "192.168.1.1",  # different private range
+        "127.0.0.1",  # loopback
+        "not-an-ip",  # malformed literal
+        "",  # empty
         "999.999.999.999",  # invalid octets
     ],
 )
@@ -149,7 +148,9 @@ def test_ability_with_external_host_is_refused_and_identified() -> None:
     """An external host refuses the Ability and names command + destination.
     _Requirements: 6.1, 6.2_"""
     report = validate_commands(
-        ["sshpass -p 'Passw0rd' ssh attacker@192.168.20.30 wget https://nmap.org/dist/nmap-7.98.tgz"],
+        [
+            "sshpass -p 'Passw0rd' ssh attacker@192.168.20.30 wget https://nmap.org/dist/nmap-7.98.tgz"
+        ],
         ability_id="8130dba3-f51c-57d2-9d49-78e9b0bb3c4b",
         ability_name="T1068 - Exploitation for Privilege Escalation",
     )
@@ -220,7 +221,7 @@ def test_ability_with_no_executors_is_trivially_allowed() -> None:
     class _Ability:
         ability_id = "empty"
         name = "Empty"
-        executors: list = []
+        executors: list = []  # noqa: RUF012 -- test double attribute, read-only
 
     report = validate_ability(_Ability())
     assert report.allowed is True
@@ -266,7 +267,14 @@ def test_shadowray_full_operation_is_contained() -> None:
     """All 11 current ShadowRay abilities stay inside the contained lab."""
     abilities = _load_shadowray_abilities()
     op_report = validate_abilities(
-        [type("A", (), {"ability_id": a["ability_id"], "name": a["name"], "executors": a["executors"]})() for a in abilities]
+        [
+            type(
+                "A",
+                (),
+                {"ability_id": a["ability_id"], "name": a["name"], "executors": a["executors"]},
+            )()
+            for a in abilities
+        ]
     )
     assert op_report.allowed is True
     assert op_report.refused_abilities == []

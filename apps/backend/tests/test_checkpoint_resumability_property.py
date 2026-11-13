@@ -60,8 +60,7 @@ Everything runs in-process with no network, Docker or Postgres.
 
 from __future__ import annotations
 
-from operator import add
-from typing import Annotated, Optional, TypedDict
+import itertools
 
 from hypothesis import given, settings
 from hypothesis import strategies as st
@@ -104,7 +103,7 @@ def _build_graph(checkpointer):
     for name in _NODE_ORDER:
         graph.add_node(name, _make_node(name))
     graph.add_edge(START, _NODE_ORDER[0])
-    for earlier, later in zip(_NODE_ORDER, _NODE_ORDER[1:]):
+    for earlier, later in itertools.pairwise(_NODE_ORDER):
         graph.add_edge(earlier, later)
     graph.add_edge(_NODE_ORDER[-1], END)
     return graph
@@ -200,9 +199,7 @@ def test_property4_resume_restores_last_checkpoint_and_continues(
     # Serialize the persisted channel values with the saver's own serializer so
     # "byte-for-byte equal" is asserted against the exact wire form the checkpoint
     # stores (Requirement 4.3).
-    persisted_bytes = checkpointer.serde.dumps_typed(
-        persisted_tuple.checkpoint["channel_values"]
-    )
+    persisted_bytes = checkpointer.serde.dumps_typed(persisted_tuple.checkpoint["channel_values"])
 
     # Nodes executed up to and including the interrupt node: the prefix.
     executed_prefix = _NODE_ORDER[: _NODE_ORDER.index(interrupt_node) + 1]
@@ -215,9 +212,7 @@ def test_property4_resume_restores_last_checkpoint_and_continues(
     # (Requirement 4.3).
     reread_tuple = checkpointer.get_tuple(config)
     assert reread_tuple is not None
-    reread_bytes = checkpointer.serde.dumps_typed(
-        reread_tuple.checkpoint["channel_values"]
-    )
+    reread_bytes = checkpointer.serde.dumps_typed(reread_tuple.checkpoint["channel_values"])
     assert reread_bytes == persisted_bytes, (
         "restored checkpoint is not byte-for-byte equal to the persisted one"
     )
@@ -235,8 +230,8 @@ def test_property4_resume_restores_last_checkpoint_and_continues(
     assert final_history == _NODE_ORDER
     # The suffix actually executed on resume is precisely the nodes from the
     # following node onward (Requirement 4.3).
-    suffix = _NODE_ORDER[_NODE_ORDER.index(following):]
-    assert final_history[len(executed_prefix):] == suffix
+    suffix = _NODE_ORDER[_NODE_ORDER.index(following) :]
+    assert final_history[len(executed_prefix) :] == suffix
 
     # Non-history seed fields survived the checkpoint/resume unchanged.
     assert final["campaign_id"] == seed["campaign_id"]

@@ -97,12 +97,8 @@ def _seed_terminal_operation(
         campaign_id=campaign,
         caldera_operation_id="op-shadowray",
         state=OperationState.FINISHED,
-        total_success=sum(
-            1 for s in statuses if s is AbilityResultStatus.SUCCESS
-        ),
-        total_failure=sum(
-            1 for s in statuses if s is AbilityResultStatus.FAILURE
-        ),
+        total_success=sum(1 for s in statuses if s is AbilityResultStatus.SUCCESS),
+        total_failure=sum(1 for s in statuses if s is AbilityResultStatus.FAILURE),
         started_at=dt.datetime(2024, 1, 2, 3, 4, 5),
         finished_at=dt.datetime(2024, 1, 2, 3, 14, 5),
     )
@@ -147,9 +143,7 @@ def test_shadowray_terminal_report_is_consistent() -> None:
     session, db_path, engine = _build_ephemeral_session()
     try:
         operation = _seed_terminal_operation(session, _SHADOWRAY_STATUSES)
-        expected_failures = sum(
-            1 for s in _SHADOWRAY_STATUSES if s is AbilityResultStatus.FAILURE
-        )
+        expected_failures = sum(1 for s in _SHADOWRAY_STATUSES if s is AbilityResultStatus.FAILURE)
         expected_successes = _SHADOWRAY_CHAIN - expected_failures
 
         builder = ReportBuilder(session=session)
@@ -176,20 +170,14 @@ def test_shadowray_terminal_report_is_consistent() -> None:
         assert view.success_rate == expected_successes / _SHADOWRAY_CHAIN
         # ShadowRay had failures, so the rate is < 1.0 ⇒ verdict is False.
         assert view.success_verdict is False
-        assert view.success_verdict == (
-            view.total_techniques > 0 and view.success_rate >= 1.0
-        )
+        assert view.success_verdict == (view.total_techniques > 0 and view.success_rate >= 1.0)
 
         # Determinism: building the report again yields the same consistent view.
         again = builder.build_report(operation)
         assert again.model_dump(mode="json") == view.model_dump(mode="json")
 
         # The report was persisted for the campaign (single row, this execution).
-        assert (
-            session.execute(select(func.count()).select_from(ExecutionReport))
-            .scalar_one()
-            == 1
-        )
+        assert session.execute(select(func.count()).select_from(ExecutionReport)).scalar_one() == 1
         persisted = session.execute(select(ExecutionReport)).scalar_one()
         assert persisted.operation_id == operation.id
         assert persisted.success_verdict is False
@@ -213,9 +201,7 @@ def test_shadowray_all_success_terminal_report_verdict_true() -> None:
     """
     session, db_path, engine = _build_ephemeral_session()
     try:
-        all_success = tuple(
-            AbilityResultStatus.SUCCESS for _ in range(_SHADOWRAY_CHAIN)
-        )
+        all_success = tuple(AbilityResultStatus.SUCCESS for _ in range(_SHADOWRAY_CHAIN))
         operation = _seed_terminal_operation(session, all_success)
 
         builder = ReportBuilder(session=session)

@@ -75,20 +75,20 @@ INTERNAL_SUBNETS = INTERNAL_NETWORKS
 
 __all__ = [
     "CALDERA_KALI_SUBNET",
+    "INTERNAL_SUBNETS",
     "KALI_NGINX_SUBNET",
     "NGINX_DB_SUBNET",
-    "INTERNAL_SUBNETS",
-    "DestinationClass",
+    "AbilityContainmentReport",
     "ClassifiedDestination",
     "CommandClassification",
-    "AbilityContainmentReport",
+    "DestinationClass",
     "OperationContainmentReport",
-    "is_internal_ip",
     "classify_destination",
+    "is_internal_ip",
+    "validate_abilities",
+    "validate_ability",
     "validate_command_destinations",
     "validate_commands",
-    "validate_ability",
-    "validate_abilities",
 ]
 
 
@@ -232,12 +232,9 @@ class AbilityContainmentReport:
         label = self.ability_name or self.ability_id or "(ability desconhecida)"
         lines: list[str] = []
         for cmd in self.offending_commands:
-            externals = ", ".join(
-                dest.raw for dest in cmd.external_destinations
-            )
+            externals = ", ".join(dest.raw for dest in cmd.external_destinations)
             lines.append(
-                f"Ability '{label}': comando com destino externo "
-                f"[{externals}] -> {cmd.command}"
+                f"Ability '{label}': comando com destino externo [{externals}] -> {cmd.command}"
             )
         return lines
 
@@ -344,9 +341,7 @@ def validate_commands(
         An :class:`AbilityContainmentReport` for the Ability's commands.
     """
     parsed = [parse_command(command) for command in commands]
-    return validate_command_destinations(
-        parsed, ability_id=ability_id, ability_name=ability_name
-    )
+    return validate_command_destinations(parsed, ability_id=ability_id, ability_name=ability_name)
 
 
 def _ability_commands(ability: object) -> list[str]:

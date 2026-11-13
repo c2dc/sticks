@@ -40,7 +40,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -86,7 +86,7 @@ class ProvisioningMap:
     campaign_id: str
     target_os: str
     content: dict[str, Any] = field(default_factory=dict)
-    row_id: Optional[int] = None
+    row_id: int | None = None
 
 
 class ProvisioningMapService:
@@ -96,7 +96,7 @@ class ProvisioningMapService:
     ``environment_affinity`` rows share the request-scoped unit of work and the
     same embedder as the rest of the Vector_Store (matching
     :class:`ExperienceMemoryBootstrap` / the STIX vector indexer wiring). See the
-    module docstring for the full contract (Req. 8.1–8.4).
+    module docstring for the full contract (Req. 8.1-8.4).
     """
 
     def __init__(self, session: Session, *, memory: ExperienceMemory) -> None:
@@ -144,9 +144,7 @@ class ProvisioningMapService:
 
     # ---- relational derivation + persistence (Req. 8.1, 8.2) ---------------
 
-    def _collect_techniques_and_platforms(
-        self, campaign_id: str
-    ) -> tuple[list[str], list[str]]:
+    def _collect_techniques_and_platforms(self, campaign_id: str) -> tuple[list[str], list[str]]:
         """Read the sorted (techniques, platforms) the campaign's abilities exercise.
 
         Collects each ability's ``technique_id`` and the ``platform`` of each of
@@ -234,9 +232,7 @@ class ProvisioningMapService:
             },
         }
 
-    def _persist_map(
-        self, campaign_id: str, target_os: str, content: dict[str, Any]
-    ) -> Any:
+    def _persist_map(self, campaign_id: str, target_os: str, content: dict[str, Any]) -> Any:
         """Upsert the single ``provisioning_map`` row for the campaign (Req. 8.2).
 
         Keeps **one row per campaign** (``latest-wins`` upsert on the unique
@@ -305,7 +301,7 @@ class ProvisioningMapService:
                     "platforms": platforms,
                 },
             )
-        except Exception as exc:  # noqa: BLE001 - vector write is best-effort
+        except Exception as exc:  # noqa: BLE001 -- vector write is best-effort
             logger.warning(
                 "Environment affinity not stored for campaign %s (%s: %s); the "
                 "relational Provisioning_Map is unaffected.",
@@ -338,8 +334,8 @@ class ProvisioningMapService:
 
 
 __all__ = [
-    "ProvisioningMapService",
-    "ProvisioningMap",
     "TARGET_OS_LINUX",
     "TARGET_OS_WINDOWS",
+    "ProvisioningMap",
+    "ProvisioningMapService",
 ]

@@ -53,7 +53,6 @@ from app.services.ai.agents.flow_agent import FlowAgent
 from app.services.flow.generator import (
     FlowGenerator,
     ProducedFlow,
-    StructuralModeling,
 )
 
 # The seam methods whose names, parameter lists and types must match the
@@ -76,7 +75,7 @@ def _resolved_signature(obj: object, method_name: str) -> inspect.Signature:
     raw = inspect.signature(func)
     try:
         hints = get_type_hints(func)
-    except Exception:  # noqa: BLE001 - fall back to the raw (stringized) sig
+    except Exception:  # noqa: BLE001 -- fall back to the raw (stringized) sig
         return raw
 
     params = []
@@ -98,7 +97,7 @@ def _protocol_signature(method_name: str) -> inspect.Signature:
     raw = inspect.signature(func)
     try:
         hints = get_type_hints(func)
-    except Exception:  # noqa: BLE001
+    except Exception:  # noqa: BLE001 -- fall back to the raw (stringized) annotations when hints cannot be resolved
         hints = {}
 
     params = []

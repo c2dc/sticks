@@ -53,7 +53,6 @@ from app.services.containment.command_parser import (
     Destination,
     parse_command,
 )
-from app.services.containment.subnets import container_for_ip
 from app.services.containment.subnet_validator import (
     AbilityContainmentReport,
     ClassifiedDestination,
@@ -61,6 +60,7 @@ from app.services.containment.subnet_validator import (
     DestinationClass,
     validate_command_destinations,
 )
+from app.services.containment.subnets import container_for_ip
 
 #: Label used as the target of a purely local command (no outbound destination).
 #: The concrete executing container is chosen by the caller (the executor's agent
@@ -266,9 +266,7 @@ def build_ability_preview(
     Returns:
         An :class:`AbilityPreview` with a per-command, per-destination breakdown.
     """
-    commands = [
-        _preview_command(cmd, local_target=local_target) for cmd in report.commands
-    ]
+    commands = [_preview_command(cmd, local_target=local_target) for cmd in report.commands]
     return AbilityPreview(
         ability_id=report.ability_id,
         ability_name=report.ability_name,
@@ -415,7 +413,5 @@ def preview_abilities(
         An :class:`EmulationPreview` aggregating one :class:`AbilityPreview` per
         Ability.
     """
-    previews = [
-        preview_ability(ability, local_target=local_target) for ability in abilities
-    ]
+    previews = [preview_ability(ability, local_target=local_target) for ability in abilities]
     return EmulationPreview(abilities=previews)

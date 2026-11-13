@@ -278,9 +278,7 @@ def test_get_run_returns_stage_outputs_trace_and_sentinel(
     assert op_proc["repair_attempts"] == NOT_AVAILABLE
     assert op_proc["repair_hints"] == NOT_AVAILABLE  # missing key -> sentinel.
     # The agent_input the agent received is surfaced as-is.
-    assert stage_outputs[1]["trace"]["agent_input"] == {
-        "prior_artifacts": {"flow": "..."}
-    }
+    assert stage_outputs[1]["trace"]["agent_input"] == {"prior_artifacts": {"flow": "..."}}
 
 
 # ===========================================================================
@@ -318,16 +316,10 @@ class _FailingGraph:
         raise self._exc
 
 
-def _install_failing_graph(
-    monkeypatch: pytest.MonkeyPatch, graph: _FailingGraph
-) -> None:
+def _install_failing_graph(monkeypatch: pytest.MonkeyPatch, graph: _FailingGraph) -> None:
     """Patch ``_build_graph``/``_require_dependencies`` so the failure path runs."""
-    monkeypatch.setattr(
-        AgentRunService, "_build_graph", lambda self: graph, raising=True
-    )
-    monkeypatch.setattr(
-        AgentRunService, "_require_dependencies", lambda self: None, raising=True
-    )
+    monkeypatch.setattr(AgentRunService, "_build_graph", lambda self: graph, raising=True)
+    monkeypatch.setattr(AgentRunService, "_require_dependencies", lambda self: None, raising=True)
 
 
 def test_fail_run_records_error_and_persists_partial_trace(
@@ -366,9 +358,7 @@ def test_fail_run_records_error_and_persists_partial_trace(
         assert excinfo.value.node == "operationalize"
         session.commit()
         # The module-scoped factory is shared, so scope to the newest run.
-        run_id = session.execute(
-            select(AgentRun.id).order_by(AgentRun.id.desc())
-        ).scalars().first()
+        run_id = session.execute(select(AgentRun.id).order_by(AgentRun.id.desc())).scalars().first()
     finally:
         session.close()
 
@@ -432,9 +422,7 @@ def test_get_run_surfaces_error_and_failing_agent_on_failed_run(
             AgentRunService(session).start(_CAMPAIGN_ID)
         session.commit()
         # The module-scoped factory is shared, so scope to the newest run.
-        run_id = session.execute(
-            select(AgentRun.id).order_by(AgentRun.id.desc())
-        ).scalars().first()
+        run_id = session.execute(select(AgentRun.id).order_by(AgentRun.id.desc())).scalars().first()
     finally:
         session.close()
 

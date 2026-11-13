@@ -24,8 +24,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.models.domain import StixCampaign, StixPackage
-from tests._curated_db import CURATED_NAMES as CURATED_CASES
 from app.services.stix.stix_service import CURATED_VERSION
+from tests._curated_db import CURATED_NAMES as CURATED_CASES
 
 
 def ensure_stix_campaigns(
@@ -61,17 +61,13 @@ def ensure_stix_campaigns(
         # same (curated_slug or stix_id) rule the read service exposes. A test
         # that already persisted a richer campaign for a key (with techniques)
         # must not be shadowed by a bare seeded row for the same key.
-        existing = (
-            session.execute(
-                select(StixCampaign.stix_id, StixCampaign.curated_slug).where(
-                    StixCampaign.package_id == package_id
-                )
+        existing = session.execute(
+            select(StixCampaign.stix_id, StixCampaign.curated_slug).where(
+                StixCampaign.package_id == package_id
             )
-            .all()
-        )
+        ).all()
         existing_keys = {
-            curated_slug if curated_slug else stix_id
-            for stix_id, curated_slug in existing
+            curated_slug if curated_slug else stix_id for stix_id, curated_slug in existing
         }
 
         seen_in_batch: set[str] = set()

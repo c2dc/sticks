@@ -94,7 +94,7 @@ def _resolved_signature(obj: object, method_name: str) -> inspect.Signature:
     raw = inspect.signature(func)
     try:
         hints = get_type_hints(func)
-    except Exception:  # noqa: BLE001 - fall back to the raw (stringized) sig
+    except Exception:  # noqa: BLE001 -- fall back to the raw (stringized) sig
         return raw
 
     params = []
@@ -116,7 +116,7 @@ def _protocol_signature(method_name: str) -> inspect.Signature:
     raw = inspect.signature(func)
     try:
         hints = get_type_hints(func)
-    except Exception:  # noqa: BLE001
+    except Exception:  # noqa: BLE001 -- fall back to the raw (stringized) annotations when hints cannot be resolved
         hints = {}
 
     params = []
@@ -155,7 +155,7 @@ def _signatures_match(impl_sig: inspect.Signature, seam_sig: inspect.Signature) 
         f"parameter count differs: {impl_sig} vs {seam_sig}"
     )
 
-    for impl_p, seam_p in zip(impl_params, seam_params):
+    for impl_p, seam_p in zip(impl_params, seam_params, strict=False):
         assert impl_p.name == seam_p.name, f"{impl_p.name!r} != {seam_p.name!r}"
         assert impl_p.kind == seam_p.kind, f"{impl_p.name}: kind {impl_p.kind} != {seam_p.kind}"
         assert impl_p.annotation == seam_p.annotation, (
@@ -167,9 +167,7 @@ def _signatures_match(impl_sig: inspect.Signature, seam_sig: inspect.Signature) 
             f"{impl_p.name}: optionality differs "
             f"(impl default={impl_p.default!r}, seam default={seam_p.default!r})"
         )
-        if impl_has_default and not (
-            callable(impl_p.default) and callable(seam_p.default)
-        ):
+        if impl_has_default and not (callable(impl_p.default) and callable(seam_p.default)):
             # Non-callable defaults (sentinels/literals) must match exactly; two
             # equivalent no-op ``lambda`` defaults are accepted (callable on both).
             assert impl_p.default == seam_p.default, (
@@ -177,8 +175,7 @@ def _signatures_match(impl_sig: inspect.Signature, seam_sig: inspect.Signature) 
             )
 
     assert impl_sig.return_annotation == seam_sig.return_annotation, (
-        f"return annotation {impl_sig.return_annotation!r} != "
-        f"{seam_sig.return_annotation!r}"
+        f"return annotation {impl_sig.return_annotation!r} != {seam_sig.return_annotation!r}"
     )
 
 

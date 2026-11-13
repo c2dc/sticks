@@ -36,9 +36,8 @@ _Requirements: 2.3, 3.1, 3.3_
 from __future__ import annotations
 
 import subprocess
-from collections.abc import Iterator
-from dataclasses import dataclass, field
-from typing import Callable
+from collections.abc import Callable, Iterator
+from dataclasses import dataclass
 
 import pytest
 
@@ -48,7 +47,6 @@ from app.services.environment.compose_executor import (
     DockerComposeExecutor,
     LogLine,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fake da costura (sem subprocess, sem daemon Docker, sem shell)
@@ -199,7 +197,7 @@ class _GravadorPopen:
 
     class _Stdout:
         def __init__(self, linhas: list[str]) -> None:
-            self._iter = iter([f"{l}\n" for l in linhas])
+            self._iter = iter([f"{line}\n" for line in linhas])
             self.closed = False
 
         def __iter__(self):
@@ -229,12 +227,8 @@ def test_fake_records_attach_detach_arguments_and_emits_logline(
     _Requirements: 3.1, 3.3_"""
     fake = _FakeComposeExecutor()
 
-    r_detach = fake.detach_network(
-        "nginx-target", "sticks-attack", on_log=coletor.append
-    )
-    r_attach = fake.attach_network(
-        "nginx-target", "sticks-egress-ephemeral", on_log=coletor.append
-    )
+    r_detach = fake.detach_network("nginx-target", "sticks-attack", on_log=coletor.append)
+    r_attach = fake.attach_network("nginx-target", "sticks-egress-ephemeral", on_log=coletor.append)
 
     # Argumentos registrados, na ordem (detach de ataque ANTES de attach de egresso).
     assert fake.calls == [
@@ -249,7 +243,7 @@ def test_fake_records_attach_detach_arguments_and_emits_logline(
     assert len(coletor) == 2
     assert coletor[0].step == "detach_network"
     assert coletor[1].step == "attach_network"
-    assert all(l.stream == "comando" for l in coletor)
+    assert all(line.stream == "comando" for line in coletor)
     # O ``CommandResult`` espelha a line emitida.
     assert r_detach.lines == [coletor[0]]
     assert r_attach.lines == [coletor[1]]
@@ -316,7 +310,7 @@ def test_production_attach_network_builds_connect_argv_list(
     assert result.code == 0
     # Emite a line "comando" primeiro, depois o stdout do command.
     assert coletor[0].stream == "comando"
-    assert any(l.stream == "stdout" for l in coletor)
+    assert any(line.stream == "stdout" for line in coletor)
 
 
 def test_production_detach_network_builds_disconnect_argv_list(
@@ -396,4 +390,4 @@ def test_production_new_operations_fail_closed_when_docker_absent(
     assert r_detach.code == 127
     assert r_exec.code == 127
     # Cada falha reporta a causa como uma line de stderr.
-    assert any(l.stream == "stderr" for l in coletor)
+    assert any(line.stream == "stderr" for line in coletor)

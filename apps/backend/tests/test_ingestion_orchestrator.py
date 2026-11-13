@@ -19,11 +19,13 @@ import datetime as dt
 import json
 import shutil
 import tempfile
+from collections.abc import Iterable, Iterator
 from pathlib import Path
-from typing import Any, Iterable, Iterator, Optional
+from typing import Any
 
 import pytest
 import yaml
+from _atomic_docs import documents_from_dir
 from fastapi.testclient import TestClient
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session, sessionmaker
@@ -86,11 +88,11 @@ class FakeAtomicFetcher:
         self.calls = 0
         self.fail = False
 
-    def fetch_atomics_dir(self, *, ref: str, dest: Path) -> Path:
+    def fetch_documents(self, *, ref: str) -> list:
         self.calls += 1
         if self.fail:
             raise AtomicFetchError("simulated network failure", ref=ref)
-        return self._dir
+        return documents_from_dir(self._dir)
 
 
 class FakeDockerFetcher:
@@ -99,7 +101,7 @@ class FakeDockerFetcher:
     def __init__(self, entries: list[DockerCatalogEntry]) -> None:
         self._entries = entries
         self.calls = 0
-        self.fail_after: Optional[int] = None
+        self.fail_after: int | None = None
 
     def fetch_entries(self, *, max_images: int) -> Iterable[DockerCatalogEntry]:
         self.calls += 1
@@ -250,9 +252,7 @@ class Env:
         self.orchestrator.status()  # makes sure the rows exist
         with self.factory() as session:
             session.execute(
-                update(IngestSourceState)
-                .where(IngestSourceState.source == source)
-                .values(**values)
+                update(IngestSourceState).where(IngestSourceState.source == source).values(**values)
             )
             session.commit()
 
@@ -470,7 +470,7 @@ def test_partial_docker_download_keeps_progress_and_resumes(env: Env) -> None:
 
 
 def _running(env: Env, source: IngestSource, *, age: dt.timedelta) -> None:
-    now = dt.datetime.now(dt.timezone.utc).replace(tzinfo=None)
+    now = dt.datetime.now(dt.UTC).replace(tzinfo=None)
     env.set_state(
         source,
         status=IngestStatus.RUNNING,
@@ -564,3 +564,53 @@ def test_verify_route_does_not_start_when_nothing_is_missing(env: Env) -> None:
     assert {item["status"] for item in response.json()} == {"ready"}
     env.orchestrator.join(30)
     assert (env.atomic.calls, env.docker.calls, env.corpus.list_calls) == calls
+
+
+# ---------------------------------------------------------------------------
+# Atomic: two-phase persistence through the orchestrator (task 40.3)
+# ---------------------------------------------------------------------------
+
+
+class SwitchableEmbedder(FakeEmbedder):
+    """``FakeEmbedder`` that can be switched off like a stopped Ollama."""
+
+    def __init__(self) -> None:
+        self.down = False
+
+    def _check(self) -> None:
+        if self.down:
+            from app.services.ai.embedder import EMBEDDER_UNAVAILABLE, EmbedderError
+
+            raise EmbedderError(EMBEDDER_UNAVAILABLE, "embedder is down.")
+
+    def embed(self, text: str) -> list[float]:
+        self._check()
+        return super().embed(text)
+
+    def embed_many(self, texts: list[str]) -> list[list[float]]:
+        self._check()
+        return [super(SwitchableEmbedder, self).embed(t) for t in texts]
+
+
+def test_atomic_embedder_failure_keeps_rows_and_resumes_without_network(env: Env) -> None:
+    embedder = SwitchableEmbedder()
+    embedder.down = True
+    orchestrator = IngestionOrchestrator(
+        env.factory,
+        {IngestSource.ATOMIC: AtomicSourceRunner(embedder=embedder, fetcher=env.atomic)},
+    )
+
+    orchestrator.run_source(IngestSource.ATOMIC)
+    failed = next(s for s in orchestrator.status() if s.source == IngestSource.ATOMIC)
+    assert failed.status == IngestStatus.FAILED
+    assert failed.error == "embedder_unavailable"
+    assert (failed.loaded_count, failed.embedded_count, failed.expected_count) == (2, 0, 2)
+    assert env.count(TechniqueCommand) == 2
+
+    embedder.down = False
+    orchestrator.run_source(IngestSource.ATOMIC)
+    ready = next(s for s in orchestrator.status() if s.source == IngestSource.ATOMIC)
+    assert ready.status == IngestStatus.READY
+    assert ready.loaded_count == ready.embedded_count == 2
+    assert env.atomic.calls == 1  # the resume vectorized without downloading again
+    assert env.count(TechniqueCommand) == 2

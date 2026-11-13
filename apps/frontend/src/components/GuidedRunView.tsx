@@ -2,7 +2,6 @@ import {
   useCallback,
   useEffect,
   useMemo,
-  useRef,
   useState,
   type ReactNode,
 } from "react"
@@ -21,6 +20,7 @@ import { FlowPhaseView } from "@/components/FlowPhaseView"
 import { OperationalizationScreen } from "@/components/OperationalizationScreen"
 import { Button } from "@/components/ui/button"
 import { EmptyNote } from "@/components/StageSection"
+import { campaignDisplayName } from "@/lib/campaign"
 import { cn } from "@/lib/utils"
 import {
   getAiRun,
@@ -96,14 +96,18 @@ const TERMINAL_PHASES = new Set<Phase>(["execution", "evaluation"])
 
 export function GuidedRunView({
   campaignId,
+  campaignName,
   version,
 }: {
   /** The chosen campaign key (`campaign_key` of the STIX listing). */
   campaignId: string
+  /** The campaign's readable name; falls back to a humanized key. */
+  campaignName?: string
   /** The chosen STIX base version, used by the operationalization listing. */
   version: string
 }) {
   const { t } = useTranslation("pipeline")
+  const displayName = campaignDisplayName(campaignName, campaignId)
 
   const [detail, setDetail] = useState<AiRunDetail | null>(null)
   const [runId, setRunId] = useState<number | null>(null)
@@ -113,9 +117,6 @@ export function GuidedRunView({
   // How far the Researcher has approved the robot to reveal. Index into
   // PHASE_ORDER: 0 means "operationalization shown, awaiting the review that starts the run".
   const [approvedUpTo, setApprovedUpTo] = useState(0)
-
-  const runIdRef = useRef<number | null>(null)
-  runIdRef.current = runId
 
   const start = useCallback(async () => {
     setStarting(true)
@@ -142,8 +143,8 @@ export function GuidedRunView({
     let timer: ReturnType<typeof setTimeout> | undefined
 
     const poll = async () => {
-      const id = runIdRef.current
-      if (!active || id == null) return
+      const id = runId
+      if (!active) return
       try {
         const next = await getAiRun(campaignId, id)
         if (!active) return
@@ -180,7 +181,11 @@ export function GuidedRunView({
           {starting ? t("guided.thinking") : t("guided.greeting")}
         </OrchestratorBubble>
         <div className="ml-14" data-section="guided-artifact" data-phase="operationalization">
-          <OperationalizationScreen version={version} campaignKey={campaignId} />
+          <OperationalizationScreen
+            version={version}
+            campaignKey={campaignId}
+            campaignName={displayName}
+          />
         </div>
         <div className="flex flex-col items-center gap-3">
           <Button size="lg" onClick={() => void start()} disabled={starting} className="px-8">
@@ -240,6 +245,7 @@ export function GuidedRunView({
               key={phase}
               phase={phase}
               campaignId={campaignId}
+              campaignName={displayName}
               version={version}
               output={output}
               evaluation={latest?.evaluation}
@@ -304,6 +310,7 @@ function RunHeader({ run }: { run: AiRun }) {
 function PhaseTurn({
   phase,
   campaignId,
+  campaignName,
   version,
   output,
   evaluation,
@@ -317,6 +324,7 @@ function PhaseTurn({
 }: {
   phase: Phase
   campaignId: string
+  campaignName: string
   version: string
   output?: AiStageOutput
   evaluation?: AiEvaluation | null
@@ -331,7 +339,7 @@ function PhaseTurn({
   const { t } = useTranslation("pipeline")
 
   // The robot's opening line for the phase.
-  const line = t(`guided.speech.${phase}`)
+  const line = t(`guided.speech.${phase}`, { campaign: campaignName })
   // Only the `evaluation` phase carries the verdict, so its mood reflects the
   // outcome; `execution` reports the run, not the judgement.
   const mood: OrchestratorMood =
@@ -355,7 +363,11 @@ function PhaseTurn({
       {ready ? (
         phase === "operationalization" ? (
           <div className="ml-14" data-section="guided-artifact" data-phase={phase}>
-            <OperationalizationScreen version={version} campaignKey={campaignId} />
+            <OperationalizationScreen
+              version={version}
+              campaignKey={campaignId}
+              campaignName={campaignName}
+            />
           </div>
         ) : phase === "flow" ? (
           <div className="ml-14 flex flex-col gap-3" data-section="guided-artifact" data-phase={phase}>

@@ -13,8 +13,9 @@ threadpool), which is the standard SQLite-with-FastAPI handling.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from functools import lru_cache
-from typing import Any, Iterator
+from typing import Any
 
 from sqlalchemy import Engine, create_engine
 from sqlalchemy.orm import Session, sessionmaker

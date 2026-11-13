@@ -36,9 +36,7 @@ def get_operationalization(
         return _read_persisted(
             db,
             version,
-            lambda: OperationalizationListingService(db).list_for_campaign(
-                version, campaign_key
-            ),
+            lambda: OperationalizationListingService(db).list_for_campaign(version, campaign_key),
         )
     except CampaignNotFoundError as exc:
         raise HTTPException(

@@ -10,8 +10,6 @@ This module performs no I/O of any kind: no disk, no network, no database.
 
 from __future__ import annotations
 
-from typing import Optional
-
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.enums import TranslationSource
@@ -24,9 +22,9 @@ class Executor(BaseModel):
     ``{name, platform, command}``).
     """
 
-    name: Optional[str] = None
-    platform: Optional[str] = None
-    command: Optional[str] = None
+    name: str | None = None
+    platform: str | None = None
+    command: str | None = None
 
 
 class AbilityData(BaseModel):
@@ -37,11 +35,11 @@ class AbilityData(BaseModel):
     """
 
     ability_id: str
-    name: Optional[str] = None
-    tactic: Optional[str] = None
-    technique_name: Optional[str] = None
-    technique_id: Optional[str] = None
-    description: Optional[str] = None
+    name: str | None = None
+    tactic: str | None = None
+    technique_name: str | None = None
+    technique_id: str | None = None
+    description: str | None = None
     executors: list[Executor] = Field(default_factory=list)
 
 
@@ -53,8 +51,8 @@ class AdversaryData(BaseModel):
     """
 
     id: str
-    name: Optional[str] = None
-    description: Optional[str] = None
+    name: str | None = None
+    description: str | None = None
     atomic_ordering: list[str] = Field(default_factory=list)
 
 
@@ -68,11 +66,11 @@ class FlowNode(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
-    node_id: Optional[str] = None
-    node_type: Optional[str] = None
-    technique_id: Optional[str] = None
-    technique_name: Optional[str] = None
-    tactic: Optional[str] = None
+    node_id: str | None = None
+    node_type: str | None = None
+    technique_id: str | None = None
+    technique_name: str | None = None
+    tactic: str | None = None
 
 
 class FlowData(BaseModel):
@@ -84,8 +82,9 @@ class FlowData(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
-    campaign_name: Optional[str] = None
+    campaign_name: str | None = None
     structural_nodes: list[FlowNode] = Field(default_factory=list)
+
 
 class CaseData(BaseModel):
     """Full result for one curated case, assembled from the database.
@@ -103,12 +102,12 @@ class CaseData(BaseModel):
     # ``campaign.stix_campaign_key``). The database has no column for it, so a
     # case rebuilt from the database leaves both ``None``; when set they are
     # validated.
-    stix_version: Optional[str] = Field(default=None, pattern=r"^\d+(\.\d+)+$")
-    stix_campaign_key: Optional[str] = Field(default=None, pattern=r"^C\d{4}$")
+    stix_version: str | None = Field(default=None, pattern=r"^\d+(\.\d+)+$")
+    stix_campaign_key: str | None = Field(default=None, pattern=r"^C\d{4}$")
 
     abilities: list[AbilityData] = Field(default_factory=list)
-    adversary: Optional[AdversaryData] = None
-    flow: Optional[FlowData] = None
+    adversary: AdversaryData | None = None
+    flow: FlowData | None = None
 
     @property
     def atomic_ordering(self) -> list[str]:

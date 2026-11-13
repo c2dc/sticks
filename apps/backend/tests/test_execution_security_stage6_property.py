@@ -40,7 +40,6 @@ _Requirements: 10.2, 13.4, 13.5, 14.2, 14.4, 14.5, 9.6, 9.7_
 
 from __future__ import annotations
 
-import json
 import shutil
 import tempfile
 from collections.abc import Iterator
@@ -53,7 +52,6 @@ from hypothesis import strategies as st
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, sessionmaker
 
-from tests._curated_db import SessionSeeder, db_put
 from app.core.config import Settings
 from app.db.base import Base, import_models
 from app.db.session import create_db_engine
@@ -71,10 +69,10 @@ from app.services.containment.isolation import (
     ContainerIsolationVerdict,
     IsolationResult,
 )
+from app.services.emulation.views import STAGE_EXECUTION
 from app.services.environment.execution import ExecutionStageService
 from app.services.operation.runner import OperationRunner, RunOutcome
-from app.services.emulation.views import STAGE_EXECUTION
-
+from tests._curated_db import SessionSeeder, db_put
 
 _SLUG = "shadowray"  # a curated slug (campaigns.curated row)
 
@@ -118,29 +116,40 @@ def _ephemeral_session() -> Iterator[Session]:
 
 def _seed_case(data_dir: SessionSeeder, slug: str, *, command: str) -> None:
     """Seed a minimal curated case with a single ability command (one destination)."""
-    db_put(data_dir, "ability", slug, [
+    db_put(
+        data_dir,
+        "ability",
+        slug,
+        [
             {
                 "ability_id": f"{slug}-ab-1",
                 "name": "first",
                 "technique_id": "T1059",
-                "executors": [
-                    {"name": "sh", "platform": "linux", "command": command}
-                ],
+                "executors": [{"name": "sh", "platform": "linux", "command": command}],
             }
-        ])
-    db_put(data_dir, "adversary", slug, {
+        ],
+    )
+    db_put(
+        data_dir,
+        "adversary",
+        slug,
+        {
             "id": f"{slug}-adv",
             "name": "Seed Adversary",
             "description": "seed",
             "atomic_ordering": [f"{slug}-ab-1"],
-        })
-    db_put(data_dir, "flow", slug, {
+        },
+    )
+    db_put(
+        data_dir,
+        "flow",
+        slug,
+        {
             "campaign_name": "Seed",
-            "structural_nodes": [
-                {"node_id": "n0", "technique_id": "T1059"}
-            ],
+            "structural_nodes": [{"node_id": "n0", "technique_id": "T1059"}],
             "metadata": {"total_techniques": 1},
-        })
+        },
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -160,9 +169,7 @@ def _healthy_caldera() -> CalderaClient:
         if path == ADVERSARIES_PATH:
             return httpx.Response(200, json={"adversary_id": "a"})
         if path == OPERATIONS_PATH and request.method == "POST":
-            return httpx.Response(
-                200, json={"id": "op-1", "name": "n", "state": "running"}
-            )
+            return httpx.Response(200, json={"id": "op-1", "name": "n", "state": "running"})
         if path.startswith(OPERATIONS_PATH):  # GET poll
             return httpx.Response(
                 200,
@@ -197,23 +204,20 @@ class _ConfigurableVerifier:
     def __init__(self, *, isolated_all: bool) -> None:
         self._isolated_all = isolated_all
 
-    def __call__(self, containers, inspector):  # noqa: ANN001
+    def __call__(self, containers, inspector):
         names = list(containers) if containers else []
         if self._isolated_all:
             return IsolationResult(
                 passed=True,
                 verdicts=tuple(
-                    ContainerIsolationVerdict(container=c, isolated=True, reasons=())
-                    for c in names
+                    ContainerIsolationVerdict(container=c, isolated=True, reasons=()) for c in names
                 ),
             )
         offenders = names or ["nginx"]
         return IsolationResult(
             passed=False,
             verdicts=tuple(
-                ContainerIsolationVerdict(
-                    container=c, isolated=False, reasons=("bridge externa",)
-                )
+                ContainerIsolationVerdict(container=c, isolated=False, reasons=("bridge externa",))
                 for c in offenders
             ),
         )
@@ -244,9 +248,7 @@ _DESTINATION_KINDS = ("internal", "external_ip", "external_host")
 
 def _destination_strategy() -> st.SearchStrategy[tuple[str, str]]:
     """Yield ``(kind, command)`` with exactly one destination of that kind."""
-    internal = st.sampled_from(_INTERNAL_IPS).map(
-        lambda ip: ("internal", f"curl http://{ip}/x")
-    )
+    internal = st.sampled_from(_INTERNAL_IPS).map(lambda ip: ("internal", f"curl http://{ip}/x"))
     external_ip = st.sampled_from(_EXTERNAL_IPS).map(
         lambda ip: ("external_ip", f"curl http://{ip}/x")
     )
@@ -317,9 +319,7 @@ def test_property7_no_execution_with_external_or_unisolated(
     """
     dest_kind, command = destination
     with _ephemeral_session() as session:
-        result = _run_once(
-            session, command=command, isolated_all=isolated_all
-        )
+        result = _run_once(session, command=command, isolated_all=isolated_all)
 
         # Independent oracle: only internal destination AND full isolation runs.
         expected_run = _deve_executar(dest_kind, isolated_all)

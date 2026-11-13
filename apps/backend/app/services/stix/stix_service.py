@@ -25,12 +25,14 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Any, Optional
+import threading
+import time
+from collections.abc import Callable
+from typing import Any
 
 from pydantic import BaseModel, Field
 
 from app.seeds.manifest import CURATED_STIX_VERSION
-
 
 # A version is digits separated by dots (e.g. ``18.0``); anything else is rejected
 # before a URL is built.
@@ -63,14 +65,19 @@ def _semantic_version_key(version: str) -> tuple[int, ...]:
 # Backend-maintained constants
 # ---------------------------------------------------------------------------
 
-# Known MITRE ATT&CK Enterprise versions, newest first: a backend-maintained
-# mirror of the upstream index, so listing the bases (``GET /api/stix/bases``)
-# never makes a network call. Availability (``downloaded``) comes from the
+# Known MITRE ATT&CK Enterprise versions, newest first: an OFFLINE FALLBACK
+# mirror of the upstream index. The live list comes from the upstream index
+# (``StixVersionCatalog``); this constant is used only when that lookup fails.
+# Availability (``downloaded``) comes from the
 # database, never from disk. Consumers sort defensively by semantic version, so
 # the stored order is a convenience, not a contract.
 KNOWN_VERSIONS: list[str] = [
+    "20.1",
+    "20.0",
+    "19.2",
     "19.1",
     "19.0",
+    "18.1",
     "18.0",
     "17.1",
     "17.0",
@@ -151,7 +158,6 @@ SLUG_TO_STIX: dict[str, dict[str, Any]] = {
 }
 
 
-
 # ---------------------------------------------------------------------------
 # Typed download error (Req. 2.5, 2.7)
 # ---------------------------------------------------------------------------
@@ -167,7 +173,7 @@ class StixDownloadError(Exception):
     and the base stays ``downloaded == false``.
     """
 
-    def __init__(self, detail: str, version: Optional[str] = None) -> None:
+    def __init__(self, detail: str, version: str | None = None) -> None:
         self.version = version
         self.detail = detail
         super().__init__(detail)
@@ -188,6 +194,18 @@ def latest_enterprise_version(index: Any) -> str:
     Raises:
         StixDownloadError: the index has no enterprise-attack version.
     """
+    found = enterprise_versions(index)
+    if not found:
+        raise StixDownloadError("O índice do MITRE ATT&CK não lista versões enterprise-attack.")
+    return found[0]
+
+
+def enterprise_versions(index: Any) -> list[str]:
+    """Every ``enterprise-attack`` version of the upstream ``index.json``, newest first.
+
+    Same parsing rules as :func:`latest_enterprise_version` (ICS/Mobile ignored,
+    malformed entries skipped); returns an empty list when nothing valid is found.
+    """
     found: set[str] = set()
     collections = index.get("collections") if isinstance(index, dict) else None
     for collection in collections if isinstance(collections, list) else []:
@@ -201,9 +219,169 @@ def latest_enterprise_version(index: Any) -> str:
             match = _ENTERPRISE_URL_RE.search(url)
             if match and match.group(1) == version:
                 found.add(version)
-    if not found:
-        raise StixDownloadError("O índice do MITRE ATT&CK não lista versões enterprise-attack.")
-    return max(found, key=_semantic_version_key)
+    return sorted(found, key=_semantic_version_key, reverse=True)
+
+
+class StixVersionCatalog:
+    """Cached list of the ATT&CK Enterprise versions published upstream.
+
+    ``list_versions`` never raises: it reads the upstream ``index.json`` through an
+    injectable ``fetcher`` (``fetcher(timeout) -> parsed index``), caches a success
+    for ``ttl_s`` and a failure (served as :data:`KNOWN_VERSIONS`) for the shorter
+    ``negative_ttl_s`` so an offline machine is not re-queried on every request.
+    Thread-safe; the lock is not held during the network call.
+    """
+
+    def __init__(
+        self,
+        fetcher: Callable[[float], Any] | None = None,
+        ttl_s: float = 3600.0,
+        negative_ttl_s: float = 60.0,
+        timeout_s: float = 5.0,
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None:
+        self._fetcher = fetcher or self._default_fetcher
+        self._ttl_s = ttl_s
+        self._negative_ttl_s = negative_ttl_s
+        self._timeout_s = timeout_s
+        self._clock = clock
+        self._lock = threading.Lock()
+        self._versions: list[str] | None = None
+        self._expires_at = 0.0
+        self._remote = False
+        self._refreshing = False
+        self._inflight: threading.Event | None = None
+
+    @staticmethod
+    def _default_fetcher(timeout: float) -> Any:
+        import requests  # Local import: only the network path needs it.
+
+        response = requests.get(StixService._INDEX_URL, timeout=timeout)
+        response.raise_for_status()
+        return response.json()
+
+    @staticmethod
+    def _fallback() -> list[str]:
+        return sorted(KNOWN_VERSIONS, key=_semantic_version_key, reverse=True)
+
+    def list_versions(self) -> list[str]:
+        """Versions newest→oldest: from the index, or ``KNOWN_VERSIONS`` on any failure."""
+        # Single-flight: one thread (the leader) queries upstream; concurrent callers
+        # wait for its result (bounded by the catalog timeout) and read the cache.
+        with self._lock:
+            if self._versions is not None and self._clock() < self._expires_at:
+                return list(self._versions)
+            inflight = self._inflight
+            leader = inflight is None
+            if leader:
+                inflight = self._inflight = threading.Event()
+        assert inflight is not None  # noqa: S101 -- type narrowing; inflight is always set under the lock
+        if not leader:
+            inflight.wait(timeout=self._timeout_s + 1.0)
+            with self._lock:
+                if self._versions is not None:
+                    return list(self._versions)
+            return self._fallback()
+        try:
+            try:
+                versions = enterprise_versions(self._fetcher(self._timeout_s))
+                remote = bool(versions)
+            except Exception:  # noqa: BLE001 -- offline, HTTP, JSON or fetcher error.
+                versions, remote = [], False
+            result = versions if remote else self._fallback()
+            with self._lock:
+                self._versions = result
+                self._remote = remote
+                self._expires_at = self._clock() + (self._ttl_s if remote else self._negative_ttl_s)
+            return list(result)
+        finally:
+            with self._lock:
+                self._inflight = None
+            inflight.set()
+
+    def is_known(self, version: str) -> bool:
+        """Whether ``version`` is in the current list (remote, or fallback offline)."""
+        return version in self.list_versions()
+
+    def warm_up(self) -> None:
+        """Populate the cache (for a background thread); never raises."""
+        self.list_versions()
+
+    def cached_latest(self, *, block: bool = False) -> str | None:
+        """Newest upstream version known from the index, or ``None``; never raises.
+
+        ``None`` means "no remote answer": offline, never fetched or only the
+        fallback list is cached. Without ``block`` this never touches the network on
+        the calling thread: it serves the cache (even a stale remote answer) and,
+        when the cache is cold or expired, refreshes it in a daemon thread. With
+        ``block`` a cold/expired cache is refreshed inline (bounded by the catalog
+        timeout), for callers that already run in the background.
+        """
+        with self._lock:
+            fresh = self._versions is not None and self._clock() < self._expires_at
+            if fresh or not block:
+                versions, remote = self._versions, self._remote
+        if not fresh and block:
+            self.list_versions()
+            with self._lock:
+                versions, remote = self._versions, self._remote
+        elif not fresh:
+            self._refresh_in_background()
+        return versions[0] if remote and versions else None
+
+    def _refresh_in_background(self) -> None:
+        with self._lock:
+            if self._refreshing:
+                return
+            self._refreshing = True
+
+        def _work() -> None:
+            try:
+                self.list_versions()
+            finally:
+                with self._lock:
+                    self._refreshing = False
+
+        try:
+            threading.Thread(target=_work, name="stix-version-refresh", daemon=True).start()
+        except Exception:  # noqa: BLE001 -- never break the caller
+            with self._lock:
+                self._refreshing = False
+
+    def clear(self) -> None:
+        """Drop the cache (tests)."""
+        with self._lock:
+            self._versions = None
+            self._expires_at = 0.0
+
+
+_default_catalog = StixVersionCatalog()
+
+
+def get_version_catalog() -> StixVersionCatalog:
+    """The process-wide catalog (override in tests via ``set_version_catalog``)."""
+    return _default_catalog
+
+
+def set_version_catalog(catalog: StixVersionCatalog) -> StixVersionCatalog:
+    """Replace the process-wide catalog; returns the previous one."""
+    global _default_catalog
+    previous, _default_catalog = _default_catalog, catalog
+    return previous
+
+
+def list_remote_versions(fetcher: Callable[[float], Any] | None = None) -> list[str]:
+    """Enterprise versions newest→oldest (cached; falls back to ``KNOWN_VERSIONS``).
+
+    With a ``fetcher`` a throw-away catalog is used (no shared cache).
+    """
+    catalog = StixVersionCatalog(fetcher) if fetcher else get_version_catalog()
+    return catalog.list_versions()
+
+
+def version_is_known(version: str) -> bool:
+    """Whether ``version`` is published upstream (or in the offline fallback)."""
+    return get_version_catalog().is_known(version)
 
 
 # ---------------------------------------------------------------------------
@@ -211,9 +389,8 @@ def latest_enterprise_version(index: Any) -> str:
 # ---------------------------------------------------------------------------
 
 
-
 class BaseStixInfo(BaseModel):
-    """One MITRE ATT&CK Enterprise base in the listing (Req. 2.1–2.3).
+    """One MITRE ATT&CK Enterprise base in the listing (Req. 2.1-2.3).
 
     ``downloaded`` reflects whether the version is persisted in the database and
     ``selectable == downloaded``.
@@ -256,10 +433,9 @@ class CampaignStix(BaseModel):
 
     stix_id: str
     name: str
-    description: Optional[str] = None
+    description: str | None = None
     curated: bool = False
-    curated_slug: Optional[str] = None
-
+    curated_slug: str | None = None
 
 
 class AdversaryStix(BaseModel):
@@ -273,7 +449,6 @@ class AdversaryStix(BaseModel):
 # ---------------------------------------------------------------------------
 # Service
 # ---------------------------------------------------------------------------
-
 
 
 class StixService:
@@ -312,10 +487,9 @@ class StixService:
             content = self._download_content(url)
         except StixDownloadError:
             raise
-        except Exception as exc:  # noqa: BLE001 — any client/transport error.
+        except Exception as exc:
             raise StixDownloadError(
-                f"Não foi possível obter a base v{version} do repositório "
-                f"MITRE ATT&CK: {exc}.",
+                f"Não foi possível obter a base v{version} do repositório MITRE ATT&CK: {exc}.",
                 version=version,
             ) from exc
 
@@ -336,8 +510,7 @@ class StixService:
 
     # Canonical raw base of the official MITRE ATT&CK STIX data.
     _URL_BASE_CANONICA = (
-        "https://raw.githubusercontent.com/mitre-attack/attack-stix-data/"
-        "master/enterprise-attack/"
+        "https://raw.githubusercontent.com/mitre-attack/attack-stix-data/master/enterprise-attack/"
     )
 
     # HTTP timeout (seconds) for the single network egress — finite so a hung
@@ -355,10 +528,7 @@ class StixService:
 
     # Official index of every published ATT&CK release (all domains), served by
     # the same repository as the bundles.
-    _INDEX_URL = (
-        "https://raw.githubusercontent.com/mitre-attack/attack-stix-data/"
-        "master/index.json"
-    )
+    _INDEX_URL = "https://raw.githubusercontent.com/mitre-attack/attack-stix-data/master/index.json"
 
     # The index is tiny, so a short timeout keeps an offline start fast.
     _INDEX_TIMEOUT_S = 15
@@ -378,13 +548,13 @@ class StixService:
             index = json.loads(content)
         except StixDownloadError:
             raise
-        except Exception as exc:  # noqa: BLE001 - any client/transport/JSON error.
+        except Exception as exc:
             raise StixDownloadError(
                 f"Não foi possível consultar o índice de versões do MITRE ATT&CK: {exc}."
             ) from exc
         return latest_enterprise_version(index)
 
-    def _download_content(self, url: str, timeout: Optional[float] = None) -> str:
+    def _download_content(self, url: str, timeout: float | None = None) -> str:
         """GET ``url`` and return its body as text, raising on a non-OK status.
 
         Uses the injected :attr:`_http_client` when present (tests mock the only
@@ -406,9 +576,7 @@ class StixService:
         else:
             status = getattr(response, "status_code", None)
             if isinstance(status, int) and not (200 <= status < 300):
-                raise StixDownloadError(
-                    f"Resposta HTTP inesperada ({status}) ao baixar {url}."
-                )
+                raise StixDownloadError(f"Resposta HTTP inesperada ({status}) ao baixar {url}.")
 
         text = getattr(response, "text", None)
         if text is None:
@@ -416,9 +584,7 @@ class StixService:
             if isinstance(body, (bytes, bytearray)):
                 text = body.decode("utf-8")
         if not isinstance(text, str):
-            raise StixDownloadError(
-                f"Resposta sem corpo de texto utilizável ao baixar {url}."
-            )
+            raise StixDownloadError(f"Resposta sem corpo de texto utilizável ao baixar {url}.")
         return text
 
     def dashboard(self, version: str, bundle: dict) -> DashboardStix:
@@ -519,9 +685,8 @@ class StixService:
 
         return campaigns
 
-
     @staticmethod
-    def _extract_external_id(obj: dict[str, Any]) -> Optional[str]:
+    def _extract_external_id(obj: dict[str, Any]) -> str | None:
         """Return the first usable ``external_id`` of a STIX object, or ``None``.
 
         Scans ``external_references`` and returns the first non-empty
@@ -539,7 +704,7 @@ class StixService:
         return None
 
     @classmethod
-    def _map_campaign(cls, obj: dict[str, Any]) -> Optional[CampaignStix]:
+    def _map_campaign(cls, obj: dict[str, Any]) -> CampaignStix | None:
         """Map a STIX ``campaign`` object to a :class:`CampaignStix`, or ``None``.
 
         Single source of truth for building a campaign entry — used by **both**
@@ -575,7 +740,7 @@ class StixService:
         )
 
     @staticmethod
-    def _resolve_curated_slug(obj: dict[str, Any]) -> Optional[str]:
+    def _resolve_curated_slug(obj: dict[str, Any]) -> str | None:
         """Resolve the curated-campaign slug for a STIX ``campaign`` object, or ``None``.
 
         Tolerant matching against :data:`SLUG_TO_STIX` (Req. 4.5): first by
@@ -722,9 +887,7 @@ class StixService:
         # synthetic "sem ator associado" group, in bundle order. Only add the
         # group when it would hold at least one campaign.
         unattributed = [
-            campaigns_by_id[cid]
-            for cid in campaigns_by_id
-            if cid not in attributed_campaigns
+            campaigns_by_id[cid] for cid in campaigns_by_id if cid not in attributed_campaigns
         ]
         if unattributed:
             adversaries.append(

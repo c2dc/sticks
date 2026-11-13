@@ -36,6 +36,17 @@ def test_settings_caldera_defaults_and_env_override(monkeypatch) -> None:
     assert overridden.caldera_headers == {"KEY": "OTHER"}
 
 
-def test_database_url_defaults_to_postgres_in_dev() -> None:
-    settings = get_settings()
-    assert settings.database_url.startswith("postgresql")
+def test_database_url_defaults_to_postgres_in_dev(monkeypatch) -> None:
+    """With no env override and no ``.env``, the code default is PostgreSQL."""
+    from app.core.config import Settings
+
+    monkeypatch.delenv("PIPELINE_UI_DATABASE_URL", raising=False)
+    get_settings.cache_clear()
+    try:
+        assert Settings(_env_file=None).database_url == (
+            "postgresql+psycopg://pipeline_ui:pipeline_ui@localhost:5432/pipeline_ui"
+        )
+        settings = get_settings()
+        assert settings.database_url.startswith("postgresql")
+    finally:
+        get_settings.cache_clear()

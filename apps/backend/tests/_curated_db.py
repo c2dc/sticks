@@ -15,7 +15,7 @@ import shutil
 import tempfile
 from collections.abc import Iterable, Mapping
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import Any
 
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -45,9 +45,7 @@ class CaseDb:
     def __init__(self) -> None:
         self._tmp = Path(tempfile.mkdtemp(prefix="sticks_case_db_"))
         db_path = self._tmp / "case.db"
-        self._engine = create_db_engine(
-            Settings(database_url=f"sqlite:///{db_path.as_posix()}")
-        )
+        self._engine = create_db_engine(Settings(database_url=f"sqlite:///{db_path.as_posix()}"))
         import_models()
         Base.metadata.create_all(bind=self._engine)
         self.factory: sessionmaker[Session] = sessionmaker(
@@ -63,7 +61,7 @@ class CaseDb:
         self._engine.dispose()
         shutil.rmtree(self._tmp, ignore_errors=True)
 
-    def __enter__(self) -> "CaseDb":
+    def __enter__(self) -> CaseDb:
         return self
 
     def __exit__(self, *exc: object) -> None:
@@ -84,11 +82,11 @@ def seed_case_rows(
     session: Session,
     slug: str,
     *,
-    name: Optional[str] = None,
+    name: str | None = None,
     curated: bool = True,
     abilities: Iterable[Mapping[str, Any]] = (),
-    adversary: Optional[Mapping[str, Any]] = None,
-    flow: Optional[Mapping[str, Any]] = None,
+    adversary: Mapping[str, Any] | None = None,
+    flow: Mapping[str, Any] | None = None,
 ) -> None:
     """Persist one campaign (row, abilities, adversary, flow) into ``session``."""
     ensure_case_row(session, slug, name=name, curated=curated)
@@ -114,7 +112,7 @@ def seed_case_rows(
 
 
 def ensure_case_row(
-    session: Session, slug: str, *, name: Optional[str] = None, curated: bool = True
+    session: Session, slug: str, *, name: str | None = None, curated: bool = True
 ) -> None:
     """Create the ``campaigns`` row of ``slug`` when it does not exist yet."""
     if session.get(Case, slug) is None:
@@ -149,9 +147,7 @@ def seed_case(db: CaseDb, slug: str, **kwargs: Any) -> None:
         session.close()
 
 
-def db_put(
-    target: Union[CaseDb, SessionSeeder], kind: str, slug: str, payload: Any
-) -> None:
+def db_put(target: CaseDb | SessionSeeder, kind: str, slug: str, payload: Any) -> None:
     """Persist one piece of a curated case: ``ability`` | ``adversary`` | ``flow``.
 
     ``payload`` mirrors the content the removed curated JSON files used to hold:
@@ -160,7 +156,7 @@ def db_put(
     (``curated=True``) on first use.
     """
     own_session = not isinstance(target, SessionSeeder)
-    session = target.factory() if own_session else target.session  # type: ignore[union-attr]
+    session = target.factory() if own_session else target.session  # type: ignore[union-attr] -- target is either a factory holder or a session holder depending on own_session
     try:
         ensure_case_row(session, slug)
         if kind == "ability":

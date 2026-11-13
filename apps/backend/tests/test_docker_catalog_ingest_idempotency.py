@@ -36,8 +36,9 @@ from __future__ import annotations
 
 import shutil
 import tempfile
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 import pytest
 from sqlalchemy import func, select
@@ -52,7 +53,6 @@ from app.services.docker_catalog_ingest_service import (
     DockerCatalogEntry,
     DockerCatalogIngestService,
 )
-
 
 # ---------------------------------------------------------------------------
 # Ephemeral session helper (fresh temp-file SQLite + ORM schema).
@@ -187,9 +187,7 @@ def _two_entries() -> list[DockerCatalogEntry]:
 
 def _count_rows(session: Session) -> int:
     """Count persisted ``image_catalog`` rows (the duplication check)."""
-    return int(
-        session.execute(select(func.count()).select_from(ImageCatalog)).scalar_one()
-    )
+    return int(session.execute(select(func.count()).select_from(ImageCatalog)).scalar_one())
 
 
 def _make_service(
@@ -201,7 +199,7 @@ def _make_service(
     """Build the service over a no-network fetcher and the real ExperienceMemory."""
     fetcher = _FakeFetcher(entries)
     memory = ExperienceMemory(session, embedder=embedder)
-    service = DockerCatalogIngestService(session, memory=memory, fetcher=fetcher)  # type: ignore[arg-type]
+    service = DockerCatalogIngestService(session, memory=memory, fetcher=fetcher)  # type: ignore[arg-type] -- test double stands in for the real collaborator
     return service, fetcher
 
 
@@ -257,9 +255,7 @@ def test_orchestrator_rerun_does_not_duplicate_rows_or_embeddings(
     from app.services.ingestion.orchestrator import IngestionOrchestrator
     from app.services.ingestion.runners import DockerCatalogSourceRunner
 
-    factory = sessionmaker(
-        bind=db_session.get_bind(), expire_on_commit=False, future=True
-    )
+    factory = sessionmaker(bind=db_session.get_bind(), expire_on_commit=False, future=True)
     fetcher = _FakeFetcher(_two_entries())
     orchestrator = IngestionOrchestrator(
         factory,
@@ -274,7 +270,11 @@ def test_orchestrator_rerun_does_not_duplicate_rows_or_embeddings(
         with factory() as session:
             return (
                 _count_rows(session),
-                int(session.execute(select(func.count()).select_from(ExperienceMemoryRow)).scalar_one()),
+                int(
+                    session.execute(
+                        select(func.count()).select_from(ExperienceMemoryRow)
+                    ).scalar_one()
+                ),
             )
 
     orchestrator.run_source(IngestSource.DOCKER_CATALOG)
@@ -369,3 +369,91 @@ def test_vectorization_is_best_effort_and_preserves_relational_rows(
     assert second.rows_inserted == 0
     assert second.rows_skipped == 2
     assert _count_rows(db_session) == 2
+
+
+# ===========================================================================
+# Runner plan — when the network is (not) required (task 39.3)
+# ===========================================================================
+
+
+class _ExplodingFetcher:
+    """Fails the test if the plan-driven run touches the (fake) network."""
+
+    def fetch_entries(self, *, max_images: int) -> Iterable[DockerCatalogEntry]:
+        raise AssertionError("no network access expected")
+
+
+def _plan_runner_and_orchestrator(db_session: Session, fetcher: Any) -> tuple[Any, Any]:
+    from app.models.enums import IngestSource
+    from app.services.ingestion.orchestrator import IngestionOrchestrator
+    from app.services.ingestion.runners import DockerCatalogSourceRunner
+
+    factory = sessionmaker(bind=db_session.get_bind(), expire_on_commit=False, future=True)
+    runner = DockerCatalogSourceRunner(embedder=_FakeEmbedder(), fetcher=fetcher)
+    orchestrator = IngestionOrchestrator(factory, {IngestSource.DOCKER_CATALOG: runner})
+    return runner, orchestrator
+
+
+def test_plan_fetches_when_the_catalog_is_empty(db_session: Session) -> None:
+    runner, orchestrator = _plan_runner_and_orchestrator(db_session, _ExplodingFetcher())
+    orchestrator.status()  # creates the state rows
+
+    plan = runner.plan(db_session)
+
+    assert plan.needs_fetch is True
+    assert plan.loaded_count == 0
+    assert plan.is_empty is False
+
+
+def test_plan_fetches_below_the_floor_and_is_empty_when_complete(
+    db_session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.models.enums import IngestSource, IngestStatus
+
+    monkeypatch.setenv("DOCKER_CATALOG_MIN_IMAGES", "2")
+    fetcher = _FakeFetcher(_two_entries())
+    runner, orchestrator = _plan_runner_and_orchestrator(db_session, fetcher)
+    orchestrator.run_source(IngestSource.DOCKER_CATALOG)
+    assert len(fetcher.calls) == 1
+
+    # Complete and vectorized: nothing to do, and no network is needed.
+    db_session.rollback()
+    plan = runner.plan(db_session)
+    assert plan.needs_fetch is False
+    assert plan.missing_embed == 0
+    assert plan.is_empty is True
+
+    # Below the configured floor: the catalog is fetched again.
+    db_session.rollback()
+    monkeypatch.setenv("DOCKER_CATALOG_MIN_IMAGES", "3")
+    below = runner.plan(db_session)
+    assert below.needs_fetch is True
+    assert below.loaded_count == 2
+
+    # A previous failed state also resumes the download, even above the floor.
+    monkeypatch.setenv("DOCKER_CATALOG_MIN_IMAGES", "2")
+    from app.models.domain import IngestSourceState
+
+    state = db_session.get(IngestSourceState, IngestSource.DOCKER_CATALOG)
+    assert state is not None
+    state.status = IngestStatus.FAILED
+    state.error = "network: DockerCatalogFetchError: HTTP 503 on /v2/x"
+    db_session.flush()
+    assert runner.plan(db_session).needs_fetch is True
+    db_session.rollback()
+
+
+def test_empty_plan_run_does_not_use_the_network(
+    db_session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.models.enums import IngestSource, IngestStatus
+
+    monkeypatch.setenv("DOCKER_CATALOG_MIN_IMAGES", "2")
+    _, orchestrator = _plan_runner_and_orchestrator(db_session, _FakeFetcher(_two_entries()))
+    orchestrator.run_source(IngestSource.DOCKER_CATALOG)
+
+    # Same database, a fetcher that would fail the test if it were used.
+    _, second = _plan_runner_and_orchestrator(db_session, _ExplodingFetcher())
+    second.run_source(IngestSource.DOCKER_CATALOG)
+    state = next(s for s in second.status() if s.source == IngestSource.DOCKER_CATALOG)
+    assert state.status == IngestStatus.READY

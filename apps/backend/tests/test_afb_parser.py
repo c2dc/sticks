@@ -30,7 +30,7 @@ def _load(name: str) -> bytes:
 
 def _is_acyclic(nodes: list[str], edges: list[tuple[str, str]]) -> bool:
     """Kahn's algorithm."""
-    indegree = {n: 0 for n in nodes}
+    indegree = dict.fromkeys(nodes, 0)
     out: dict[str, list[str]] = {n: [] for n in nodes}
     for src, dst in edges:
         out[src].append(dst)
@@ -138,9 +138,7 @@ def test_stix_round_trip_and_edge_derivation(name: str) -> None:
     assert len(restored.edges()) == len(expected)
     # The bundle carries the edges only as effect_refs.
     stix_pairs = {
-        (item["id"], ref)
-        for item in bundle["objects"]
-        for ref in item.get("effect_refs", [])
+        (item["id"], ref) for item in bundle["objects"] for ref in item.get("effect_refs", [])
     }
     assert stix_pairs == expected
 

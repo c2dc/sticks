@@ -86,7 +86,10 @@ def test_relational_candidates_only_corpus_flows_with_full_technique_sets(
 ) -> None:
     corpus = _add_flow(session, label="Doc", techniques=["T1", "T2", "T3"])
     _add_flow(
-        session, label="Mine", techniques=["T1"], origin=FlowOrigin.AI_GENERATED,
+        session,
+        label="Mine",
+        techniques=["T1"],
+        origin=FlowOrigin.AI_GENERATED,
         campaign_id="c1",
     )
     _add_flow(session, label="Unrelated", techniques=["T9"])
@@ -131,8 +134,9 @@ def test_vector_failure_degrades_to_relational_only(session: Session) -> None:
 def test_corpus_available_reflects_ingested_corpus(session: Session) -> None:
     retriever = FlowRetriever(session)
     assert retriever.corpus_available() is False
-    _add_flow(session, label="Mine", techniques=[], origin=FlowOrigin.AI_GENERATED,
-              campaign_id="c1")
+    _add_flow(
+        session, label="Mine", techniques=[], origin=FlowOrigin.AI_GENERATED, campaign_id="c1"
+    )
     assert retriever.corpus_available() is False
     _add_flow(session, label="Doc", techniques=["T1"])
     assert retriever.corpus_available() is True
@@ -187,8 +191,12 @@ def test_flow_service_converts_legacy_content_and_dashes_back_edges(
 
 def test_flow_service_acyclic_flow_has_no_back_edges(session: Session) -> None:
     flow_id = _add_flow(
-        session, label="Line", techniques=[], origin=FlowOrigin.AI_GENERATED,
-        campaign_id="c1", content=_legacy_content([("1", "2"), ("2", "3")]),
+        session,
+        label="Line",
+        techniques=[],
+        origin=FlowOrigin.AI_GENERATED,
+        campaign_id="c1",
+        content=_legacy_content([("1", "2"), ("2", "3")]),
     )
     detail = FlowService(session).get_flow("c1", flow_id)
 
@@ -199,12 +207,20 @@ def test_flow_service_acyclic_flow_has_no_back_edges(session: Session) -> None:
 
 def test_flow_service_list_and_campaign_scoping(session: Session) -> None:
     mine = _add_flow(
-        session, label="Mine", techniques=[], origin=FlowOrigin.AI_GENERATED,
-        campaign_id="c1", content=_legacy_content([]),
+        session,
+        label="Mine",
+        techniques=[],
+        origin=FlowOrigin.AI_GENERATED,
+        campaign_id="c1",
+        content=_legacy_content([]),
     )
     _add_flow(
-        session, label="Other", techniques=[], origin=FlowOrigin.AI_GENERATED,
-        campaign_id="c2", content=_legacy_content([]),
+        session,
+        label="Other",
+        techniques=[],
+        origin=FlowOrigin.AI_GENERATED,
+        campaign_id="c2",
+        content=_legacy_content([]),
     )
     service = FlowService(session)
 

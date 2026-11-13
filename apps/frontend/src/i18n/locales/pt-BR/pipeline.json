@@ -1,7 +1,7 @@
 {
   "stageView": {
-    "loading": "Carregando os dados do estágio…",
-    "loadError": "Não foi possível carregar os dados deste estágio."
+    "loading": "Carregando os dados…",
+    "loadError": "Não foi possível carregar os dados."
   },
   "baseStix": {
     "selected": "Base selecionada: v{{versao}}",
@@ -47,7 +47,7 @@
     "actors_other": "{{count}} atores",
     "noActors": "Nenhum ator atribuído.",
     "notExtracted": "Selecione uma campanha para extrair e exibir os seus atributos.",
-    "completed": "Atributos extraídos — Estágio 2 concluído.",
+    "completed": "Atributos extraídos.",
     "failure": "Não foi possível extrair os atributos da campanha selecionada.",
     "searchPlaceholder": "Buscar campanha pelo nome...",
     "searchLabel": "Buscar campanha",
@@ -78,7 +78,7 @@
     }
   },
   "guided": {
-    "greeting": "Olá! Eu sou o orquestrador. Vou coordenar vários agentes de IA para emular esta campanha e te conduzir por cada etapa. Quando estiver pronto, é só começar.",
+    "greeting": "Olá! Eu sou o orquestrador. Vou coordenar vários agentes de IA para emular esta campanha e te conduzir por todo o processo. Quando estiver pronto, é só começar.",
     "thinking": "Preparando os agentes…",
     "start": "Começar a emulação",
     "preparing": "Preparando…",
@@ -91,15 +91,16 @@
     "executionReport": "A emulação ofensiva rodou contra os alvos e o resultado real foi registrado.",
     "evaluationRationale": "Justificativa do avaliador",
     "speech": {
-      "flow": "Gerei o attack flow das técnicas desta campanha. Dê uma olhada: posso prosseguir com este fluxo?",
-      "operationalization": "Estes são os comandos concretos disponíveis para cada técnica desta campanha. Revise-os e comece a emulação quando estiver pronto.",
-      "environment": "Ótimo. Projetei o ambiente isolado onde a campanha será emulada com segurança. Posso prosseguir?",
-      "execution": "Executei a emulação ofensiva nos alvos e registrei o resultado real.",
-      "evaluation": "Avaliei o resultado da execução. Aqui está o veredito do avaliador."
+      "flow": "Gerei o attack flow das técnicas da campanha {{campaign}}. Dê uma olhada: posso prosseguir com este fluxo?",
+      "operationalization": "Estes são os comandos concretos disponíveis para cada técnica da campanha {{campaign}}. Revise-os e comece a emulação quando estiver pronto.",
+      "environment": "Ótimo. Projetei o ambiente isolado onde a campanha {{campaign}} será emulada com segurança. Posso prosseguir?",
+      "execution": "Executei a emulação ofensiva da campanha {{campaign}} nos alvos e registrei o resultado real.",
+      "evaluation": "Avaliei o resultado da execução da campanha {{campaign}}. Aqui está o veredito do avaliador."
     }
   },
   "operationalization": {
     "title": "Operacionalização",
+    "campaign": "Campanha: {{campaign}}",
     "description": "Para cada técnica da campanha, os comandos do Atomic Red Team que podem emulá-la.",
     "loading": "Carregando os comandos da campanha…",
     "loadError": "Não foi possível carregar a operacionalização desta campanha.",
@@ -110,8 +111,19 @@
     "commandsLabel": "Comandos de {{technique}}",
     "commandCount_one": "{{count}} comando",
     "commandCount_other": "{{count}} comandos",
-    "noCommands": "Nenhum comando do Atomic Red Team está disponível para esta técnica.",
+    "noCommands": "O Atomic Red Team não possui teste para esta técnica.",
     "noCommandsPending": "Nenhum comando encontrado ainda para esta técnica. A base do Atomic Red Team ainda está carregando, então os comandos podem aparecer em breve.",
+    "commandLabel": "Comando do Atomic Red Team",
+    "copy": "Copiar",
+    "copied": "Copiado",
+    "copyFailed": "Não foi possível copiar",
+    "unresolvedArguments": "Argumentos não resolvidos (mantidos como marcadores): {{names}}",
+    "argumentsUsed": "Argumentos usados",
+    "copyLabel": "Copiar comando de {{technique}}",
+    "copyExampleLabel": "Copiar exemplo de {{technique}}",
+    "exampleLabel": "Exemplo com valores padrão do Atomic",
+    "exampleHint": "O agente adapta esses valores ao ambiente da campanha.",
+    "templateSummary": "Template original",
     "executor": "Executor",
     "platform": "Plataforma",
     "source": "Origem",
@@ -239,6 +251,8 @@
   },
   "flow": {
     "title": "Attack flow",
+    "diagramLabel": "Diagrama do attack flow",
+    "diagramSourceLabel": "Código-fonte do diagrama do attack flow",
     "loading": "Carregando o attack flow…",
     "error": "Não foi possível carregar o attack flow.",
     "empty": "Nenhum attack flow foi gerado para esta campanha ainda.",

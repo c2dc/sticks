@@ -176,9 +176,9 @@ def _container_strategy() -> st.SearchStrategy[GenContainer]:
             min_size=0,
             max_size=2,
         ).map(tuple),
-        dns=st.lists(
-            st.sampled_from(_ACCEPTABLE_DNS + _EXTERNAL_DNS), min_size=0, max_size=3
-        ).map(tuple),
+        dns=st.lists(st.sampled_from(_ACCEPTABLE_DNS + _EXTERNAL_DNS), min_size=0, max_size=3).map(
+            tuple
+        ),
         # Rarely drop the container / a network to exercise the non-verifiable
         # fail-closed paths without overwhelming the "verifiable" cases.
         missing_container=st.booleans(),
@@ -200,7 +200,7 @@ def _unique_containers() -> st.SearchStrategy[list[GenContainer]]:
 # ---------------------------------------------------------------------------
 
 
-def _registered_network_names(containers: list["GenContainer"]) -> set[str]:
+def _registered_network_names(containers: list[GenContainer]) -> set[str]:
     """Network names that WILL be resolvable in the inspector (global view).
 
     A network name is registered by any container that owns it and is NOT
@@ -220,7 +220,7 @@ def _registered_network_names(containers: list["GenContainer"]) -> set[str]:
     return registered
 
 
-def _skipped_network_name(container: "GenContainer") -> str | None:
+def _skipped_network_name(container: GenContainer) -> str | None:
     """The single network name this container does NOT register, if any.
 
     When ``missing_network`` is set and the container has custom networks, it
@@ -292,11 +292,7 @@ def _expected_isolated(
             return False
 
     # Rule 3: no external DNS.
-    for server in container.dns:
-        if server in _EXTERNAL_DNS:
-            return False
-
-    return True
+    return all(server not in _EXTERNAL_DNS for server in container.dns)
 
 
 def _build_inspector(containers: list[GenContainer]) -> FakeInspector:
@@ -357,9 +353,7 @@ def test_property12_isolated_iff_all_targets_satisfy_rule(
     result = inspect_isolation(names, inspector=inspector)
 
     registered_names = _registered_network_names(containers)
-    expected_isolated = {
-        c.name: _expected_isolated(c, registered_names) for c in containers
-    }
+    expected_isolated = {c.name: _expected_isolated(c, registered_names) for c in containers}
     expected_all = all(expected_isolated.values())
 
     # The biconditional: aggregate is "isolado" iff ALL targets satisfy the rule.
@@ -384,9 +378,7 @@ def test_property12_isolated_iff_all_targets_satisfy_rule(
 @settings(max_examples=40, suppress_health_check=[HealthCheck.too_slow])
 @given(
     bad_index=st.integers(min_value=0),
-    containers=st.lists(
-        _container_strategy(), min_size=1, max_size=4, unique_by=lambda c: c.name
-    ),
+    containers=st.lists(_container_strategy(), min_size=1, max_size=4, unique_by=lambda c: c.name),
 )
 def test_property12_single_bad_target_breaks_the_aggregate(
     bad_index: int, containers: list[GenContainer]
@@ -455,4 +447,4 @@ def test_property12_empty_target_set_is_fail_closed() -> None:
 
 def _isolation_inspector_protocol_sanity() -> None:
     """Static sanity: FakeInspector satisfies the ContainerInspector protocol."""
-    _check: ContainerInspector = FakeInspector()  # noqa: F841
+    _check: ContainerInspector = FakeInspector()

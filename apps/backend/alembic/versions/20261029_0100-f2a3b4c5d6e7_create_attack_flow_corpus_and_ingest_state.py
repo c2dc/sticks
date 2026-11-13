@@ -29,13 +29,14 @@ Revises: e1f2a3b4c5d6
 Create Date: 2026-10-29 01:00:00.000000+00:00
 
 """
+
 from __future__ import annotations
 
 from typing import Sequence, Union
 
-from alembic import op
 import sqlalchemy as sa
 
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "f2a3b4c5d6e7"
@@ -72,12 +73,8 @@ def upgrade() -> None:
             )
         )
         batch_op.add_column(sa.Column("provenance", sa.JSON(), nullable=True))
-        batch_op.alter_column(
-            "campaign_id", existing_type=sa.String(), nullable=True
-        )
-        batch_op.create_check_constraint(
-            _ORIGIN_CHECK, _in_list("origin", _ORIGIN_VALUES)
-        )
+        batch_op.alter_column("campaign_id", existing_type=sa.String(), nullable=True)
+        batch_op.create_check_constraint(_ORIGIN_CHECK, _in_list("origin", _ORIGIN_VALUES))
 
     # (3) Partial UNIQUE index: one corpus row per source file.
     op.create_index(
@@ -107,9 +104,7 @@ def upgrade() -> None:
             name="fk_attack_flow_objects_flow_id_attack_flows",
             ondelete="CASCADE",
         ),
-        sa.UniqueConstraint(
-            "flow_id", "stix_id", name="uq_attack_flow_objects_flow_id_stix_id"
-        ),
+        sa.UniqueConstraint("flow_id", "stix_id", name="uq_attack_flow_objects_flow_id_stix_id"),
     )
     op.create_index(
         "ix_attack_flow_objects_technique_id",
@@ -171,9 +166,7 @@ def downgrade() -> None:
     op.drop_table("ingest_source_state")
     op.drop_index("ix_attack_flow_edges_flow_id", table_name="attack_flow_edges")
     op.drop_table("attack_flow_edges")
-    op.drop_index(
-        "ix_attack_flow_objects_technique_id", table_name="attack_flow_objects"
-    )
+    op.drop_index("ix_attack_flow_objects_technique_id", table_name="attack_flow_objects")
     op.drop_table("attack_flow_objects")
 
     # Corpus rows are rebuildable by re-ingestion; detach any run pointing at one.
@@ -194,9 +187,7 @@ def downgrade() -> None:
     op.drop_index(_SOURCE_INDEX, table_name="attack_flows")
     with op.batch_alter_table("attack_flows") as batch_op:
         batch_op.drop_constraint(_ORIGIN_CHECK, type_="check")
-        batch_op.alter_column(
-            "campaign_id", existing_type=sa.String(), nullable=False
-        )
+        batch_op.alter_column("campaign_id", existing_type=sa.String(), nullable=False)
         batch_op.drop_column("provenance")
         batch_op.drop_column("has_cycles")
         batch_op.drop_column("description")

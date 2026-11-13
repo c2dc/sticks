@@ -61,12 +61,13 @@ from __future__ import annotations
 import datetime as dt
 import logging
 import uuid
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:  # pragma: no cover - typing only, no runtime import
     from sqlalchemy.orm import Session
 
     from app.models.domain import AgentIteration, AgentRun
+    from app.models.enums import AgentStage
 
 logger = logging.getLogger(__name__)
 
@@ -93,9 +94,7 @@ class DependencyUnavailableError(RuntimeError):
     and no graph is invoked).
     """
 
-    def __init__(
-        self, dependency: str, cause: Optional[BaseException] = None
-    ) -> None:
+    def __init__(self, dependency: str, cause: BaseException | None = None) -> None:
         self.dependency = dependency
         self.cause = cause
         detail = f" ({type(cause).__name__}: {cause})" if cause is not None else ""
@@ -115,7 +114,7 @@ class PersistenceError(RuntimeError):
     to the caller. It carries the originating exception as ``cause``.
     """
 
-    def __init__(self, message: str, cause: Optional[BaseException] = None) -> None:
+    def __init__(self, message: str, cause: BaseException | None = None) -> None:
         self.cause = cause
         super().__init__(message)
 
@@ -137,9 +136,7 @@ class RunFailedError(RuntimeError):
     response identifying the failing node without mutating the run further.
     """
 
-    def __init__(
-        self, node: str, cause: Optional[BaseException] = None
-    ) -> None:
+    def __init__(self, node: str, cause: BaseException | None = None) -> None:
         self.node = node
         self.cause = cause
         detail = f" ({type(cause).__name__}: {cause})" if cause is not None else ""
@@ -174,7 +171,7 @@ class AgentRunService:
     perform no I/O (Req. 1.7).
     """
 
-    def __init__(self, session: "Session") -> None:
+    def __init__(self, session: Session) -> None:
         """Bind the service to an open :class:`~sqlalchemy.orm.Session`.
 
         No graph, checkpointer or LLM is built here — all heavy collaborators
@@ -185,9 +182,7 @@ class AgentRunService:
 
     # -- public API -----------------------------------------------------------
 
-    def start(
-        self, campaign_id: str, *, max_iterations: Optional[int] = None
-    ) -> "AgentRun":
+    def start(self, campaign_id: str, *, max_iterations: int | None = None) -> AgentRun:
         """Create an ``agent_runs`` row, invoke the graph, and mark the outcome.
 
         Steps (Req. 3.2, 3.4, 4.2, 11.4):
@@ -250,7 +245,7 @@ class AgentRunService:
         # persists NO AI artifact for that node (Req. 14.1, 14.2, 14.6).
         try:
             final_state = self._invoke_graph(run)
-        except Exception as exc:  # noqa: BLE001 - classify + mark FAILED (14.1/14.2)
+        except Exception as exc:
             raise self._fail_run(run, exc) from exc
 
         verdict_success = self._verdict_success(final_state)
@@ -260,9 +255,7 @@ class AgentRunService:
         # without one (Req. 3.2, 3.4). The router (``route_after_eval``) already
         # ended the graph in both cases; the COMPLETED-vs-ABORTED distinction is
         # drawn here from the final verdict.
-        run.status = (
-            AgentRunStatus.COMPLETED if verdict_success else AgentRunStatus.ABORTED
-        )
+        run.status = AgentRunStatus.COMPLETED if verdict_success else AgentRunStatus.ABORTED
         run.final_verdict_success = verdict_success
         run.iterations_used = iterations_used
         run.updated_at = _utcnow()
@@ -274,7 +267,7 @@ class AgentRunService:
         self._session.flush()
         return run
 
-    def resume(self, run_id: int) -> "AgentRun":
+    def resume(self, run_id: int) -> AgentRun:
         """Resume a run from its last checkpoint and mark the outcome (Req. 4.5).
 
         Loads the ``agent_runs`` row by ``run_id`` and re-invokes the compiled
@@ -332,15 +325,13 @@ class AgentRunService:
         # artifact for that node (Req. 14.1, 14.2, 14.6).
         try:
             final_state = self._resume_graph(run)
-        except Exception as exc:  # noqa: BLE001 - classify + mark FAILED (14.1/14.2)
+        except Exception as exc:
             raise self._fail_run(run, exc) from exc
 
         verdict_success = self._verdict_success(final_state)
         iterations_used = self._iterations_used(final_state, run.max_iterations)
 
-        run.status = (
-            AgentRunStatus.COMPLETED if verdict_success else AgentRunStatus.ABORTED
-        )
+        run.status = AgentRunStatus.COMPLETED if verdict_success else AgentRunStatus.ABORTED
         run.final_verdict_success = verdict_success
         run.iterations_used = iterations_used
         run.updated_at = _utcnow()
@@ -352,7 +343,7 @@ class AgentRunService:
 
     # -- run creation ---------------------------------------------------------
 
-    def _create_run(self, campaign_id: str, max_iterations: int) -> "AgentRun":
+    def _create_run(self, campaign_id: str, max_iterations: int) -> AgentRun:
         """Create and persist the ``agent_runs`` row in ``RUNNING`` (Req. 11.4).
 
         The row is created in ``PENDING`` with a freshly minted, non-empty,
@@ -401,7 +392,7 @@ class AgentRunService:
 
     # -- graph invocation -----------------------------------------------------
 
-    def _invoke_graph(self, run: "AgentRun") -> dict:
+    def _invoke_graph(self, run: AgentRun) -> dict:
         """Invoke the compiled graph under the run's checkpoint thread.
 
         Builds the compiled graph over the PostgreSQL checkpointer (lazily; see
@@ -421,7 +412,7 @@ class AgentRunService:
         final_state = graph.invoke(initial_state, config=config)
         return final_state if isinstance(final_state, dict) else dict(final_state)
 
-    def _resume_graph(self, run: "AgentRun") -> dict:
+    def _resume_graph(self, run: AgentRun) -> dict:
         """Continue the compiled graph from the run's last checkpoint (Req. 4.5).
 
         Builds the compiled graph over the PostgreSQL checkpointer (lazily; see
@@ -457,15 +448,11 @@ class AgentRunService:
         # never from disk (task 14.1, Req. 5.1, 5.2, 5.4). It is bound into the
         # nodes as a keyword argument, so the live Session never lands on the
         # checkpointed AgentState.
-        return build_graph(
-            checkpointer=get_checkpointer(), session=self._session
-        )
+        return build_graph(checkpointer=get_checkpointer(), session=self._session)
 
     # -- failure handling (Req. 14.1, 14.2, 14.6) -----------------------------
 
-    def _fail_run(
-        self, run: "AgentRun", exc: BaseException
-    ) -> "RunFailedError":
+    def _fail_run(self, run: AgentRun, exc: BaseException) -> RunFailedError:
         """Mark ``run`` ``FAILED``, record the cause + partial trace, and raise (2.6/4.4/14.x).
 
         Invoked when the graph invocation in :meth:`start` / :meth:`resume` raises
@@ -562,9 +549,7 @@ class AgentRunService:
             detail = str(exc).strip() or type(exc).__name__
         return f"stage '{node}' failed: {detail}"
 
-    def _persist_partial_trace(
-        self, run: "AgentRun", node: str, exc: BaseException
-    ) -> None:
+    def _persist_partial_trace(self, run: AgentRun, node: str, exc: BaseException) -> None:
         """Persist the partial Audit_Trace captured up to a stage failure (Req. 2.6).
 
         When the failing node attached the partial trace it captured in its sink
@@ -591,7 +576,7 @@ class AgentRunService:
             return None
 
         from app.models.domain import AgentIteration, AgentStageOutput
-        from app.models.enums import AgentStage, TranslationSource
+        from app.models.enums import TranslationSource
         from app.services.ai.agents._trace import persist_stage_trace
 
         stage = self._stage_for_node(node)
@@ -631,7 +616,7 @@ class AgentRunService:
                 self._session.flush()
 
                 persist_stage_trace(self._session, stage_output, trace)
-        except Exception as persist_exc:  # noqa: BLE001 - audit write is best-effort
+        except Exception as persist_exc:  # noqa: BLE001 -- audit write is best-effort
             # The partial-trace write is an auditability aid layered on top of an
             # already-FAILED run; a failure here must not mask the original run
             # failure. The SAVEPOINT already rolled the partial rows back, so the
@@ -649,7 +634,7 @@ class AgentRunService:
         return None
 
     @staticmethod
-    def _partial_trace(exc: BaseException, node: str) -> Optional[dict]:
+    def _partial_trace(exc: BaseException, node: str) -> dict | None:
         """Extract the partial ``AgentTrace`` the failing node captured (Req. 2.6).
 
         The failing node attaches the partial trace it accumulated in its sink
@@ -688,7 +673,7 @@ class AgentRunService:
         return trace
 
     @staticmethod
-    def _stage_for_node(node: str) -> "Optional[AgentStage]":
+    def _stage_for_node(node: str) -> AgentStage | None:
         """Map a short node key (``"flow"`` …) onto an :class:`AgentStage` member.
 
         The node errors name the failing stage with the router's short key
@@ -729,7 +714,7 @@ class AgentRunService:
             return node.strip()
         return "unknown"
 
-    def _initial_state(self, run: "AgentRun") -> dict:
+    def _initial_state(self, run: AgentRun) -> dict:
         """Seed the initial ``AgentState`` the graph is invoked with.
 
         Carries the ``campaign_id`` and the resolved ``max_iterations`` guard;
@@ -780,7 +765,7 @@ class AgentRunService:
 
     # -- configuration --------------------------------------------------------
 
-    def _resolve_max_iterations(self, max_iterations: Optional[int]) -> int:
+    def _resolve_max_iterations(self, max_iterations: int | None) -> int:
         """Resolve the loop guard: explicit arg (clamped) else configured default.
 
         An explicit ``max_iterations`` is clamped to the inclusive range
@@ -790,15 +775,18 @@ class AgentRunService:
         default of 3 is used. A ``bool`` is rejected (it is an ``int`` subclass)
         and treated as absent.
         """
-        if max_iterations is not None and not isinstance(max_iterations, bool):
-            if isinstance(max_iterations, int):
-                return self._clamp(max_iterations)
+        if (
+            max_iterations is not None
+            and not isinstance(max_iterations, bool)
+            and isinstance(max_iterations, int)
+        ):
+            return self._clamp(max_iterations)
 
         try:
             from app.services.ai.config import get_sepinf_settings
 
             configured: Any = get_sepinf_settings().max_iterations
-        except Exception as exc:  # noqa: BLE001 - unreadable config -> default
+        except Exception as exc:  # noqa: BLE001 -- unreadable config -> default
             logger.warning(
                 "max_iterations configuration could not be read (%s); applying "
                 "the default value of %d.",
@@ -859,13 +847,10 @@ class AgentRunService:
             # A trivial lookup forces the lazy pool to open a connection; the
             # sentinel thread is expected to have no checkpoint, so a None result
             # is healthy and only an exception signals unavailability.
-            checkpointer.get_tuple(
-                {"configurable": {"thread_id": "__availability_probe__"}}
-            )
-        except Exception as exc:  # noqa: BLE001 - any failure -> unavailable
+            checkpointer.get_tuple({"configurable": {"thread_id": "__availability_probe__"}})
+        except Exception as exc:
             logger.warning(
-                "Checkpointer availability probe failed (%s: %s); the run cannot "
-                "start or resume.",
+                "Checkpointer availability probe failed (%s: %s); the run cannot start or resume.",
                 type(exc).__name__,
                 exc,
             )
@@ -890,10 +875,8 @@ class AgentRunService:
             # A bounded existence check that references the pgvector-backed table;
             # it succeeds (returning a count) only when the table and the vector
             # extension it depends on are present and reachable.
-            self._session.execute(
-                select(func.count()).select_from(ExperienceMemoryRow).limit(1)
-            )
-        except Exception as exc:  # noqa: BLE001 - any failure -> unavailable
+            self._session.execute(select(func.count()).select_from(ExperienceMemoryRow).limit(1))
+        except Exception as exc:
             logger.warning(
                 "pgvector store availability probe failed (%s: %s); the run "
                 "cannot start or resume.",
@@ -904,7 +887,7 @@ class AgentRunService:
 
     # -- atomic per-iteration persistence (Req. 11.5-11.8) --------------------
 
-    def _persist_iterations(self, run: "AgentRun", final_state: dict) -> None:
+    def _persist_iterations(self, run: AgentRun, final_state: dict) -> None:
         """Persist the completed iteration(s) atomically (Req. 11.5-11.8).
 
         Reconstructs the iteration(s) to persist from the final ``AgentState`` and
@@ -951,9 +934,7 @@ class AgentRunService:
             # on a clean exit and rolls it back on any exception, so no partial
             # rows survive a mid-write failure (Req. 11.6, 11.7).
             with self._session.begin_nested():
-                iteration = self._persist_iteration_row(
-                    run, iteration_index, refine_stage, notes
-                )
+                iteration = self._persist_iteration_row(run, iteration_index, refine_stage, notes)
                 self._persist_stage_outputs(
                     final_state,
                     artifacts,
@@ -962,10 +943,8 @@ class AgentRunService:
                     run=run,
                 )
                 if evaluation:
-                    self._persist_evaluation_row(
-                        final_state, evaluation, iteration_id=iteration.id
-                    )
-        except Exception as exc:  # noqa: BLE001 - roll back + report (Req. 11.7)
+                    self._persist_evaluation_row(final_state, evaluation, iteration_id=iteration.id)
+        except Exception as exc:
             # The nested transaction already rolled the SAVEPOINT back on the way
             # out; surface the failure as a PersistenceError so the caller sees an
             # error indication rather than a silently partial run (Req. 11.7).
@@ -988,11 +967,11 @@ class AgentRunService:
 
     def _persist_iteration_row(
         self,
-        run: "AgentRun",
+        run: AgentRun,
         index: int,
-        refine_stage: Optional[str],
-        notes: Optional[str] = None,
-    ) -> "AgentIteration":
+        refine_stage: str | None,
+        notes: str | None = None,
+    ) -> AgentIteration:
         """Create and flush the ``agent_iterations`` row for the completed pass.
 
         The row belongs to ``run`` via ``run_id`` and records the 0-based
@@ -1018,7 +997,7 @@ class AgentRunService:
         return iteration
 
     @staticmethod
-    def _refined_stage(refine_stage: Optional[str]) -> "Optional[AgentStage]":
+    def _refined_stage(refine_stage: str | None) -> AgentStage | None:
         """Map the state's ``refine_stage`` onto an :class:`AgentStage` (Req. 15.1).
 
         The evaluator's ``_diagnose_failing_stage`` writes an :class:`AgentStage`
@@ -1048,9 +1027,7 @@ class AgentRunService:
         return short_keys.get(refine_stage)
 
     @staticmethod
-    def _iteration_notes(
-        final_state: dict, evaluation: Optional[dict]
-    ) -> Optional[str]:
+    def _iteration_notes(final_state: dict, evaluation: dict | None) -> str | None:
         """Record the per-iteration "why" for ``agent_iterations.notes`` (Req. 15.6).
 
         The evaluator produces, for every iteration, a ``rationale`` explaining
@@ -1079,7 +1056,7 @@ class AgentRunService:
         *,
         iteration_id: int,
         iteration_index: int,
-        run: "AgentRun",
+        run: AgentRun,
     ) -> None:
         """Persist the iteration's ``agent_stage_outputs`` via the factored hooks.
 
@@ -1112,7 +1089,7 @@ class AgentRunService:
         commit/rollback boundary.
         """
         from app.models.enums import AgentStage
-        from app.services.ai.agents import flow_agent, env_agent, op_agent
+        from app.services.ai.agents import env_agent, flow_agent, op_agent
 
         traces = final_state.get("traces")
 
@@ -1126,9 +1103,7 @@ class AgentRunService:
                 iteration_id=iteration_id,
                 campaign_id=run.campaign_id,
                 produced=produced_flow,
-                trace=self._trace_for(
-                    traces, AgentStage.FLOW.value, iteration_index
-                ),
+                trace=self._trace_for(traces, AgentStage.FLOW.value, iteration_index),
             )
 
         op_payload = artifacts.get("operationalization")
@@ -1154,15 +1129,11 @@ class AgentRunService:
                 self._session,
                 final_state,
                 iteration_id=iteration_id,
-                trace=self._trace_for(
-                    traces, AgentStage.ENVIRONMENT.value, iteration_index
-                ),
+                trace=self._trace_for(traces, AgentStage.ENVIRONMENT.value, iteration_index),
             )
 
     @staticmethod
-    def _trace_for(
-        traces: Any, stage: str, iteration_index: int
-    ) -> Optional[dict]:
+    def _trace_for(traces: Any, stage: str, iteration_index: int) -> dict | None:
         """Look up the ``AgentTrace`` for ``(stage, iteration_index)`` (Req. 2.1).
 
         The append-only ``traces`` channel accumulates one
@@ -1182,7 +1153,7 @@ class AgentRunService:
         """
         if not isinstance(traces, list):
             return None
-        match: Optional[dict] = None
+        match: dict | None = None
         for entry in traces:
             if not isinstance(entry, dict):
                 continue

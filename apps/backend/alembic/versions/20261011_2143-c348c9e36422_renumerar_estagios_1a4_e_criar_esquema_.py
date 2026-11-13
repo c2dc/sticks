@@ -34,17 +34,18 @@ Revises: a28d8c1ae4aa
 Create Date: 2026-10-11 21:43:01.155431+00:00
 
 """
+
 from __future__ import annotations
 
 from typing import Sequence, Union
 
-from alembic import op
 import sqlalchemy as sa
 
+from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = 'c348c9e36422'
-down_revision: Union[str, None] = 'a28d8c1ae4aa'
+revision: str = "c348c9e36422"
+down_revision: Union[str, None] = "a28d8c1ae4aa"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -55,10 +56,7 @@ def upgrade() -> None:
     # (1) Guarda (Req. 2.6): aborta sem alterar dados se houver estagio fora de
     # 1..3. Roda antes de qualquer UPDATE, dentro da transação do Alembic.
     fora = bind.execute(
-        sa.text(
-            "SELECT COUNT(*) FROM execucoes_estagio "
-            "WHERE estagio NOT BETWEEN 1 AND 3"
-        )
+        sa.text("SELECT COUNT(*) FROM execucoes_estagio WHERE estagio NOT BETWEEN 1 AND 3")
     ).scalar_one()
     if fora:
         raise RuntimeError(
@@ -71,10 +69,7 @@ def upgrade() -> None:
     # etapa_falha/caso_id, alterando apenas estagio (Req. 2.2).
     for antigo in (3, 2, 1):
         bind.execute(
-            sa.text(
-                "UPDATE execucoes_estagio SET estagio = :novo "
-                "WHERE estagio = :antigo"
-            ),
+            sa.text("UPDATE execucoes_estagio SET estagio = :novo WHERE estagio = :antigo"),
             {"novo": antigo + 1, "antigo": antigo},
         )
 
@@ -105,9 +100,7 @@ def upgrade() -> None:
     # (4) Adicionar execucoes_estagio.dag_escolhido_id (Integer nullable,
     # FK → dags.id), após criar dags (Req. 4.7).
     with op.batch_alter_table("execucoes_estagio") as batch_op:
-        batch_op.add_column(
-            sa.Column("dag_escolhido_id", sa.Integer(), nullable=True)
-        )
+        batch_op.add_column(sa.Column("dag_escolhido_id", sa.Integer(), nullable=True))
         batch_op.create_foreign_key(
             "fk_execucoes_estagio_dag_escolhido_id_dags",
             "dags",
@@ -121,9 +114,7 @@ def downgrade() -> None:
 
     # (1) Remover a FK + coluna dag_escolhido_id (inverso da etapa 4 do upgrade).
     with op.batch_alter_table("execucoes_estagio") as batch_op:
-        batch_op.drop_constraint(
-            "fk_execucoes_estagio_dag_escolhido_id_dags", type_="foreignkey"
-        )
+        batch_op.drop_constraint("fk_execucoes_estagio_dag_escolhido_id_dags", type_="foreignkey")
         batch_op.drop_column("dag_escolhido_id")
 
     # (2) Remover a tabela dags (inverso da etapa 3 do upgrade).
@@ -133,9 +124,6 @@ def downgrade() -> None:
     # colisão no sentido inverso, preservando os demais atributos (Req. 2.4).
     for antigo in (2, 3, 4):
         bind.execute(
-            sa.text(
-                "UPDATE execucoes_estagio SET estagio = :novo "
-                "WHERE estagio = :antigo"
-            ),
+            sa.text("UPDATE execucoes_estagio SET estagio = :novo WHERE estagio = :antigo"),
             {"novo": antigo - 1, "antigo": antigo},
         )

@@ -32,9 +32,9 @@ _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.7, 8.8, 11.3, 11.4, 16.2_
 from __future__ import annotations
 
 import re
-from typing import Optional, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from app.models.enums import TranslationSource
 from app.services.emulation.views import Stage2Output
@@ -43,7 +43,6 @@ from app.services.environment.operationalization import (
     RequiredService,
 )
 from app.services.flow.flow_view import FlowView
-
 
 # ---------------------------------------------------------------------------
 # Typed DTO of the Stage 4 output (task 5.2)
@@ -74,7 +73,7 @@ class ProducedOperationalization(BaseModel):
     """
 
     campaign_id: str
-    abilities: Optional[Stage2Output] = None
+    abilities: Stage2Output | None = None
     parameters: EnvironmentParameters
     origin: TranslationSource = TranslationSource.HUMAN_CURATION
 
@@ -112,7 +111,7 @@ class OperationalizerByOrigin(Protocol):
         """The :class:`~app.models.enums.TranslationSource` of this implementation."""
         ...
 
-    def operationalize(self, campaign: str, flow: "FlowView") -> "ProducedOperationalization":
+    def operationalize(self, campaign: str, flow: FlowView) -> ProducedOperationalization:
         """Produce the two Stage 4 artifacts (Abilities + ``EnvironmentParameters``).
 
         ``flow`` is the Stage 3 output (the chosen attack flow); the curation
@@ -144,7 +143,7 @@ _SERVICE_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
 )
 
 
-def _infer_services(commands: list[str], technique: Optional[str]) -> list[RequiredService]:
+def _infer_services(commands: list[str], technique: str | None) -> list[RequiredService]:
     """Infer services/vulnerabilities to provision from ``commands``.
 
     Pure and deterministic: matches each pattern of :data:`_SERVICE_PATTERNS`
@@ -166,7 +165,8 @@ def _infer_services(commands: list[str], technique: Optional[str]) -> list[Requi
             seen.add(description)
     return services
 
+
 __all__ = [
-    "ProducedOperationalization",
     "OperationalizerByOrigin",
+    "ProducedOperationalization",
 ]

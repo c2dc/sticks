@@ -51,14 +51,14 @@ def test_counts_match_the_curated_corpus() -> None:
 
 def test_manifest_matches_the_files() -> None:
     cases = _cases()
-    assert manifest.CAMPAIGN_SLUGS == tuple(sorted(p.stem for p in DATA_DIR.glob("*.json")))
-    assert manifest.CAMPAIGN_SLUGS == loader.list_slugs()
-    assert manifest.EXPECTED_COUNTS == {
+    assert tuple(sorted(p.stem for p in DATA_DIR.glob("*.json"))) == manifest.CAMPAIGN_SLUGS
+    assert loader.list_slugs() == manifest.CAMPAIGN_SLUGS
+    assert {
         "campaigns": len(cases),
         "abilities": len(_abilities()),
         "adversaries": len(cases),
         "attack_flows": len(cases),
-    }
+    } == manifest.EXPECTED_COUNTS
 
 
 def test_slugs_and_ids_are_unique_globally() -> None:
@@ -93,7 +93,10 @@ def test_costaricto_references_a_shadowray_ability_without_orphaning() -> None:
     by_slug = {c["campaign"]["id"]: c for c in _cases()}
     shadowray_ids = {a["ability_id"] for a in by_slug["shadowray"]["abilities"]}
     assert "5c0eccee-eee4-5d88-b6e5-c83b25d44eaa" in shadowray_ids
-    assert "5c0eccee-eee4-5d88-b6e5-c83b25d44eaa" in by_slug["costaricto"]["adversary"]["atomic_ordering"]
+    assert (
+        "5c0eccee-eee4-5d88-b6e5-c83b25d44eaa"
+        in by_slug["costaricto"]["adversary"]["atomic_ordering"]
+    )
 
 
 def test_attack_flows_have_the_lean_graph_content() -> None:
@@ -118,7 +121,7 @@ def test_seed_files_have_the_lean_top_level_format() -> None:
 def test_nodes_keep_only_the_live_fields() -> None:
     for case in _cases():
         for node in case["attack_flow"]["content"]["structural_nodes"]:
-            assert KEPT_NODE_KEYS >= set(node)
+            assert set(node) <= KEPT_NODE_KEYS
             assert not (set(node) & REMOVED_NODE_KEYS)
             assert node["node_id"] and node["technique_id"]
 
@@ -139,6 +142,7 @@ def test_seed_files_are_byte_stable_and_lf_only() -> None:
         data = json.loads(raw.decode("utf-8"))
         again = json.dumps(data, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
         assert again.encode("utf-8") == raw
+
 
 def test_loader_rejects_invalid_structure() -> None:
     good = json.loads((DATA_DIR / "c0010.json").read_text(encoding="utf-8"))
@@ -199,8 +203,9 @@ def test_manifest_stix_binding_matches_the_files() -> None:
     cases = _cases()
     assert set(manifest.STIX_VERSION_BY_SLUG) == set(manifest.CAMPAIGN_SLUGS)
     assert set(manifest.STIX_CAMPAIGN_KEYS) == set(manifest.CAMPAIGN_SLUGS)
-    assert manifest.REQUIRED_STIX_VERSIONS == tuple(
-        sorted({c["campaign"]["stix_version"] for c in cases})
+    assert (
+        tuple(sorted({c["campaign"]["stix_version"] for c in cases}))
+        == manifest.REQUIRED_STIX_VERSIONS
     )
     assert manifest.REQUIRED_STIX_VERSIONS == ("18.0",)
     assert manifest.CURATED_STIX_VERSION == "18.0"
@@ -217,7 +222,11 @@ def test_slug_to_stix_matches_the_seed_campaign_keys() -> None:
 
 def test_loader_rejects_an_invalid_stix_binding() -> None:
     good = json.loads((DATA_DIR / "c0010.json").read_text(encoding="utf-8"))
-    for key, bad in (("stix_version", "18"), ("stix_version", "v18.0"), ("stix_campaign_key", "C45")):
+    for key, bad in (
+        ("stix_version", "18"),
+        ("stix_version", "v18.0"),
+        ("stix_campaign_key", "C45"),
+    ):
         broken = json.loads(json.dumps(good))
         broken["campaign"][key] = bad
         with pytest.raises(loader.SeedDataError, match=key):

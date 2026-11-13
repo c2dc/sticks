@@ -7,6 +7,7 @@ import { OrchestratorAvatar } from "@/components/OrchestratorAvatar"
 import { InputScreen } from "@/components/InputScreen"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { campaignDisplayName } from "@/lib/campaign"
 
 /**
  * ExecutionWizard — the top-level AI-first flow reached from the Landing's
@@ -51,6 +52,8 @@ export function ExecutionWizard({
   // The chosen campaign's `campaign_key` — set when a campaign is selected in
   // Input. This drives the Run. Until then it is undefined.
   const [campaignId, setCampaignId] = useState<string | undefined>(undefined)
+  // The chosen campaign's readable name, shown wherever the slug would be.
+  const [campaignName, setCampaignName] = useState<string | undefined>(undefined)
 
   // The campaign is selected AND its overview loaded. The Researcher stays on
   // Input to review the campaign overview, then advances explicitly via the
@@ -69,7 +72,8 @@ export function ExecutionWizard({
   }
 
   /** A campaign was selected. Its key becomes the Run's campaignId. */
-  const handleCampaignSelected = (campaignKey: string) => {
+  const handleCampaignSelected = (campaignKey: string, name?: string) => {
+    setCampaignName(campaignDisplayName(name, campaignKey))
     // Record the selection and reveal the overview + Next action; do NOT
     // jump to the Run here, so the Researcher can review the campaign first.
     setCampaignId(campaignKey)
@@ -100,7 +104,9 @@ export function ExecutionWizard({
             </CardTitle>
             <div className="flex items-center gap-3">
               <span className="text-sm text-muted-foreground">
-                {t("input.run.campaign", { campanha: campaignId })}
+                {t("input.run.campaign", {
+                  campanha: campaignDisplayName(campaignName, campaignId),
+                })}
               </span>
               <Button
                 variant="outline"
@@ -115,7 +121,11 @@ export function ExecutionWizard({
           </div>
         </CardHeader>
         <CardContent>
-          <GuidedRunView campaignId={campaignId} version={selectedVersion} />
+          <GuidedRunView
+            campaignId={campaignId}
+            campaignName={campaignName}
+            version={selectedVersion}
+          />
         </CardContent>
       </Card>
     )

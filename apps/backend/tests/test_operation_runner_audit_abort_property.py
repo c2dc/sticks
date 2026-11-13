@@ -128,8 +128,7 @@ def _isolated_verifier(containers: list[str], _inspector: object) -> IsolationRe
     variable (the audit-write failure) from the isolation gate too.
     """
     verdicts = tuple(
-        ContainerIsolationVerdict(container=name, isolated=True, reasons=())
-        for name in containers
+        ContainerIsolationVerdict(container=name, isolated=True, reasons=()) for name in containers
     )
     return IsolationResult(passed=True, verdicts=verdicts)
 
@@ -174,9 +173,7 @@ class ChainCaldera:
         if method == "POST" and path == ABILITIES_PATH:
             return httpx.Response(200, json=json.loads(request.content.decode("utf-8")))
         if method == "POST" and path == OPERATIONS_PATH:
-            return httpx.Response(
-                200, json={"id": "op-test", "name": "run", "state": "running"}
-            )
+            return httpx.Response(200, json={"id": "op-test", "name": "run", "state": "running"})
         if method == "GET" and path == f"{OPERATIONS_PATH}/op-test":
             return httpx.Response(
                 200,
@@ -206,18 +203,17 @@ class _FailingAuditLogger(AuditLogger):
         self._fail_at = fail_at
         self.calls = 0
 
-    def log_command(self, **kwargs: object) -> AuditLogEntry:  # type: ignore[override]
+    def log_command(self, **kwargs: object) -> AuditLogEntry:  # type: ignore[override] -- test double narrows the signature to keyword-only
         self.calls += 1
         if self.calls == self._fail_at:
             command = str(kwargs.get("command") or "(command não informado)")
             container = str(kwargs.get("target_container") or "(desconhecido)")
             raise AuditPersistenceError(
-                "Falha simulada ao persistir o registro de audit "
-                f"(passo {self._fail_at}).",
+                f"Falha simulada ao persistir o registro de audit (passo {self._fail_at}).",
                 command=command,
                 target_container=container,
             )
-        return super().log_command(**kwargs)  # type: ignore[arg-type]
+        return super().log_command(**kwargs)  # type: ignore[arg-type] -- kwargs are forwarded untouched from the caller
 
 
 # ---------------------------------------------------------------------------
@@ -274,9 +270,7 @@ def _build_abilities(num: int) -> list[FakeAbility]:
                 {
                     "name": "sh",
                     "platform": "linux",
-                    "command": _INTERNAL_COMMAND_TEMPLATES[
-                        i % len(_INTERNAL_COMMAND_TEMPLATES)
-                    ],
+                    "command": _INTERNAL_COMMAND_TEMPLATES[i % len(_INTERNAL_COMMAND_TEMPLATES)],
                 },
             ),
         )

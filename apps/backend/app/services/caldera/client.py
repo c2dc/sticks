@@ -43,8 +43,9 @@ from __future__ import annotations
 import base64
 import binascii
 import time
+from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Any, Mapping
+from typing import Any
 
 import httpx
 
@@ -91,9 +92,7 @@ class CalderaUnavailable(RuntimeError):
         self.url = url
         self.timeout = timeout
         self.reason = reason
-        super().__init__(
-            f"Caldera indisponível em {url} (timeout {timeout:g}s): {reason}"
-        )
+        super().__init__(f"Caldera indisponível em {url} (timeout {timeout:g}s): {reason}")
 
 
 class CalderaApiError(RuntimeError):
@@ -109,9 +108,7 @@ class CalderaApiError(RuntimeError):
         self.path = path
         self.status_code = status_code
         self.body = body
-        super().__init__(
-            f"Caldera respondeu HTTP {status_code} para {method} {path}: {body[:200]}"
-        )
+        super().__init__(f"Caldera respondeu HTTP {status_code} para {method} {path}: {body[:200]}")
 
 
 @dataclass(frozen=True)
@@ -164,7 +161,7 @@ class AbilityRef:
     raw: Mapping[str, Any] = field(default_factory=dict)
 
     @classmethod
-    def from_payload(cls, payload: Mapping[str, Any]) -> "AbilityRef":
+    def from_payload(cls, payload: Mapping[str, Any]) -> AbilityRef:
         return cls(
             ability_id=str(payload.get("ability_id", "")),
             name=payload.get("name"),
@@ -193,7 +190,7 @@ class AdversaryRef:
     raw: Mapping[str, Any] = field(default_factory=dict)
 
     @classmethod
-    def from_payload(cls, payload: Mapping[str, Any]) -> "AdversaryRef":
+    def from_payload(cls, payload: Mapping[str, Any]) -> AdversaryRef:
         ordering = payload.get("atomic_ordering") or []
         return cls(
             adversary_id=str(payload.get("adversary_id", "")),
@@ -231,7 +228,7 @@ class AgentRef:
     raw: Mapping[str, Any] = field(default_factory=dict)
 
     @classmethod
-    def from_payload(cls, payload: Mapping[str, Any]) -> "AgentRef":
+    def from_payload(cls, payload: Mapping[str, Any]) -> AgentRef:
         return cls(
             paw=str(payload.get("paw", "")),
             group=payload.get("group"),
@@ -260,7 +257,7 @@ class CreatedOperation:
     raw: Mapping[str, Any] = field(default_factory=dict)
 
     @classmethod
-    def from_payload(cls, payload: Mapping[str, Any]) -> "CreatedOperation":
+    def from_payload(cls, payload: Mapping[str, Any]) -> CreatedOperation:
         return cls(
             operation_id=str(payload.get("id", "")),
             name=payload.get("name"),
@@ -303,7 +300,7 @@ class OperationLink:
     raw: Mapping[str, Any] = field(default_factory=dict)
 
     @classmethod
-    def from_payload(cls, payload: Mapping[str, Any]) -> "OperationLink":
+    def from_payload(cls, payload: Mapping[str, Any]) -> OperationLink:
         ability = payload.get("ability") or {}
         ability_id = ability.get("ability_id") if isinstance(ability, Mapping) else None
         status_code = payload.get("status")
@@ -337,12 +334,10 @@ class OperationStateResult:
     raw: Mapping[str, Any] = field(default_factory=dict)
 
     @classmethod
-    def from_payload(cls, payload: Mapping[str, Any]) -> "OperationStateResult":
+    def from_payload(cls, payload: Mapping[str, Any]) -> OperationStateResult:
         chain = payload.get("chain") or payload.get("links") or []
         links = tuple(
-            OperationLink.from_payload(link)
-            for link in chain
-            if isinstance(link, Mapping)
+            OperationLink.from_payload(link) for link in chain if isinstance(link, Mapping)
         )
         return cls(
             operation_id=str(payload.get("id", "")),
@@ -359,9 +354,7 @@ _LINK_STATUS_RUNNING = -3
 # Terminal Caldera operation `state` strings. Centralized here (Req. 3.2) so both
 # the operation runner's incremental collection loop and the WS progress channel
 # share a single source of truth instead of re-declaring the set inline.
-TERMINAL_OPERATION_STATES: frozenset[str] = frozenset(
-    {"finished", "out_of_time", "cleanup"}
-)
+TERMINAL_OPERATION_STATES: frozenset[str] = frozenset({"finished", "out_of_time", "cleanup"})
 
 
 def _derive_link_status(status_code: int | None) -> AbilityResultStatus:
@@ -462,9 +455,7 @@ class CalderaClient:
             ValueError: if both ``client`` and ``transport`` are supplied.
         """
         if client is not None and transport is not None:
-            raise ValueError(
-                "forneça 'client' OU 'transport', não ambos"
-            )
+            raise ValueError("forneça 'client' OU 'transport', não ambos")
 
         self._settings = settings or get_settings()
         self._timeout_seconds = float(timeout)
@@ -525,7 +516,7 @@ class CalderaClient:
             self._client.close()
             self._client = None
 
-    def __enter__(self) -> "CalderaClient":
+    def __enter__(self) -> CalderaClient:
         return self
 
     def __exit__(self, *exc_info: object) -> None:
@@ -559,9 +550,7 @@ class CalderaClient:
             The raw :class:`httpx.Response` (callers decode / raise as needed).
         """
         client = self._get_client()
-        return client.request(
-            method, path, json=json, params=params, timeout=self.timeout
-        )
+        return client.request(method, path, json=json, params=params, timeout=self.timeout)
 
     def _request_json(
         self,
@@ -693,6 +682,7 @@ class CalderaClient:
                 reason=result.reason,
             )
         return result
+
     # -- abilities (task 6.2) ------------------------------------------------
 
     def load_ability(self, ability: Mapping[str, Any]) -> AbilityRef:
@@ -722,16 +712,12 @@ class CalderaClient:
             # so loading the curated set is repeatable across lab runs.
             ability_id = str(body.get("ability_id", ""))
             if exc.status_code == 400 and "already exists" in exc.body and ability_id:
-                payload = self._request_json(
-                    "PUT", f"{ABILITIES_PATH}/{ability_id}", json=body
-                )
+                payload = self._request_json("PUT", f"{ABILITIES_PATH}/{ability_id}", json=body)
             else:
                 raise
         return AbilityRef.from_payload(payload or {})
 
-    def load_abilities(
-        self, abilities: list[Mapping[str, Any]]
-    ) -> list[AbilityRef]:
+    def load_abilities(self, abilities: list[Mapping[str, Any]]) -> list[AbilityRef]:
         """Create/load a list of curated Abilities (convenience over :meth:`load_ability`).
 
         Each Ability is loaded with its own ``POST /api/v2/abilities`` request so
@@ -754,11 +740,7 @@ class CalderaClient:
         """
         payload = self._request_json("GET", ADVERSARIES_PATH)
         items = payload or []
-        return [
-            AdversaryRef.from_payload(item)
-            for item in items
-            if isinstance(item, Mapping)
-        ]
+        return [AdversaryRef.from_payload(item) for item in items if isinstance(item, Mapping)]
 
     def load_adversary(self, adversary: Mapping[str, Any]) -> AdversaryRef:
         """Create/load a curated Adversary via `POST /api/v2/adversaries` (Req. 4.2).
@@ -785,9 +767,7 @@ class CalderaClient:
         except CalderaApiError as exc:
             adversary_id = str(body.get("adversary_id", ""))
             if exc.status_code == 400 and "already exists" in exc.body and adversary_id:
-                payload = self._request_json(
-                    "PUT", f"{ADVERSARIES_PATH}/{adversary_id}", json=body
-                )
+                payload = self._request_json("PUT", f"{ADVERSARIES_PATH}/{adversary_id}", json=body)
             else:
                 raise
         return AdversaryRef.from_payload(payload or {})
@@ -798,9 +778,7 @@ class CalderaClient:
         Mirrors the ``adversary_exists`` check in ``sticks/lib/operation.py`` but
         over the v2 API and returning a bool rather than exiting the process.
         """
-        return any(
-            adv.adversary_id == adversary_id for adv in self.list_adversaries()
-        )
+        return any(adv.adversary_id == adversary_id for adv in self.list_adversaries())
 
     # -- agents (task 2.1) ---------------------------------------------------
 
@@ -827,11 +805,7 @@ class CalderaClient:
         """
         payload = self._request_json("GET", AGENTS_PATH)
         items = payload or []
-        agents = [
-            AgentRef.from_payload(item)
-            for item in items
-            if isinstance(item, Mapping)
-        ]
+        agents = [AgentRef.from_payload(item) for item in items if isinstance(item, Mapping)]
         if group is None:
             return agents
         return [agent for agent in agents if agent.group == group]

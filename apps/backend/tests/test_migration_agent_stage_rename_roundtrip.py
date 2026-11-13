@@ -44,20 +44,25 @@ from types import ModuleType
 import pytest
 from alembic.migration import MigrationContext
 from alembic.operations import Operations
+from alembic.script import ScriptDirectory
 from sqlalchemy import (
+    JSON,
+    Boolean,
     CheckConstraint,
     Column,
     DateTime,
     ForeignKey,
+    ForeignKeyConstraint,
     Integer,
-    JSON,
     MetaData,
     String,
     Table,
     Text,
     create_engine,
     insert,
+    inspect,
     select,
+    text,
 )
 from sqlalchemy.engine import Engine
 
@@ -95,7 +100,7 @@ _STAGE_MAP = _MIGRATION._STAGE_MAP
 
 # The three legacy values and the three semantic values they map to.
 _LEGACY_VALUES: tuple[str, ...] = tuple(legacy for legacy, _sem in _STAGE_MAP)
-_SEMANTIC_OF: dict[str, str] = {legacy: sem for legacy, sem in _STAGE_MAP}
+_SEMANTIC_OF: dict[str, str] = dict(_STAGE_MAP)
 
 # A fixed naive-UTC timestamp for every NOT-NULL ``*_at`` column.
 _TS = dt.datetime(2026, 10, 27, 1, 0, 0)
@@ -262,16 +267,15 @@ def _run_migration_step(engine: Engine, step: str) -> None:
     Operations proxy bound to the ISOLATED temp engine (``render_as_batch=True``
     so SQLite rebuilds the tables — the project's ``env.py`` contract)."""
     func = getattr(_MIGRATION, step)
-    with engine.connect() as conn:
-        with conn.begin():
-            ctx = MigrationContext.configure(connection=conn, opts={"render_as_batch": True})
-            op_proxy = Operations(ctx)
-            original_op = _MIGRATION.op
-            _MIGRATION.op = op_proxy
-            try:
-                func()
-            finally:
-                _MIGRATION.op = original_op
+    with engine.connect() as conn, conn.begin():
+        ctx = MigrationContext.configure(connection=conn, opts={"render_as_batch": True})
+        op_proxy = Operations(ctx)
+        original_op = _MIGRATION.op
+        _MIGRATION.op = op_proxy
+        try:
+            func()
+        finally:
+            _MIGRATION.op = original_op
 
 
 def _read_stage(engine: Engine, metadata: MetaData, table: str, column: str) -> str:
@@ -297,9 +301,7 @@ def test_agent_stage_rename_roundtrip_is_lossless() -> None:
     """
     engine, db_path, metadata = _build_pre_migration_engine()
     try:
-        stage_columns = [
-            (table, column) for (table, column, _nullable, _cn) in _COLUMNS
-        ]
+        stage_columns = [(table, column) for (table, column, _nullable, _cn) in _COLUMNS]
 
         # Precondition: every AgentStage-backed row holds the legacy value.
         for table, column in stage_columns:
@@ -345,8 +347,6 @@ def test_agent_stage_rename_roundtrip_is_lossless() -> None:
 # over the dag-era value set).
 # ===========================================================================
 
-from alembic.script import ScriptDirectory  # noqa: E402
-from sqlalchemy import Boolean, ForeignKeyConstraint, func, inspect, text  # noqa: E402
 
 _M1 = _load_migration(
     "_migration_e1f2a3b4c5d6",
@@ -397,9 +397,7 @@ def _build_pre_m1_engine() -> tuple[Engine, Path]:
         Column("id", Integer, primary_key=True),
         Column("campaign_id", String, ForeignKey("campaigns.id"), nullable=False),
         Column("chosen_dag_id", Integer, nullable=True),
-        ForeignKeyConstraint(
-            ["chosen_dag_id"], ["dags.id"], name=_M1._FK_OLD_NAME
-        ),
+        ForeignKeyConstraint(["chosen_dag_id"], ["dags.id"], name=_M1._FK_OLD_NAME),
     )
     Table(
         "agent_runs",
@@ -421,9 +419,7 @@ def _build_pre_m1_engine() -> tuple[Engine, Path]:
         Column("index", Integer, nullable=False),
         Column("refined_stage", String(), nullable=True),
         Column("created_at", DateTime, nullable=False),
-        _dag_check(
-            "refined_stage", check_names[("agent_iterations", "refined_stage")]
-        ),
+        _dag_check("refined_stage", check_names[("agent_iterations", "refined_stage")]),
     )
     Table(
         "agent_stage_outputs",
@@ -477,7 +473,13 @@ def _build_pre_m1_engine() -> tuple[Engine, Path]:
             insert(md.tables["agent_iterations"]),
             [
                 {"id": 1, "run_id": 1, "index": 0, "refined_stage": "dag", "created_at": _TS},
-                {"id": 2, "run_id": 1, "index": 1, "refined_stage": "environment", "created_at": _TS},
+                {
+                    "id": 2,
+                    "run_id": 1,
+                    "index": 1,
+                    "refined_stage": "environment",
+                    "created_at": _TS,
+                },
                 {"id": 3, "run_id": 1, "index": 2, "refined_stage": None, "created_at": _TS},
             ],
         )
@@ -485,14 +487,32 @@ def _build_pre_m1_engine() -> tuple[Engine, Path]:
             insert(md.tables["agent_stage_outputs"]),
             [
                 {"id": 1, "iteration_id": 1, "stage": "dag", "payload": {}, "created_at": _TS},
-                {"id": 2, "iteration_id": 1, "stage": "execution", "payload": {}, "created_at": _TS},
+                {
+                    "id": 2,
+                    "iteration_id": 1,
+                    "stage": "execution",
+                    "payload": {},
+                    "created_at": _TS,
+                },
             ],
         )
         conn.execute(
             insert(md.tables["experience_memory"]),
             [
-                {"id": 1, "campaign_id": "ai_only", "stage": "dag", "content": "a", "created_at": _TS},
-                {"id": 2, "campaign_id": "ai_only", "stage": "evaluation", "content": "b", "created_at": _TS},
+                {
+                    "id": 1,
+                    "campaign_id": "ai_only",
+                    "stage": "dag",
+                    "content": "a",
+                    "created_at": _TS,
+                },
+                {
+                    "id": 2,
+                    "campaign_id": "ai_only",
+                    "stage": "evaluation",
+                    "content": "b",
+                    "created_at": _TS,
+                },
             ],
         )
     return engine, db_path
@@ -500,15 +520,14 @@ def _build_pre_m1_engine() -> tuple[Engine, Path]:
 
 def _run_m1(engine: Engine, step: str) -> None:
     func_ = getattr(_M1, step)
-    with engine.connect() as conn:
-        with conn.begin():
-            ctx = MigrationContext.configure(connection=conn, opts={"render_as_batch": True})
-            original_op = _M1.op
-            _M1.op = Operations(ctx)
-            try:
-                func_()
-            finally:
-                _M1.op = original_op
+    with engine.connect() as conn, conn.begin():
+        ctx = MigrationContext.configure(connection=conn, opts={"render_as_batch": True})
+        original_op = _M1.op
+        _M1.op = Operations(ctx)
+        try:
+            func_()
+        finally:
+            _M1.op = original_op
 
 
 def _counts(engine: Engine, flow_table: str) -> dict[str, int]:
@@ -516,7 +535,7 @@ def _counts(engine: Engine, flow_table: str) -> dict[str, int]:
     with engine.connect() as conn:
         return {
             t: conn.execute(
-                text(f"SELECT COUNT(*) FROM {flow_table if t == 'dags' else t}")
+                text(f"SELECT COUNT(*) FROM {flow_table if t == 'dags' else t}")  # noqa: S608 -- table names come from fixed test constants, no external input
             ).scalar_one()
             for t in _M1_TABLES_COUNTED
         }
@@ -526,7 +545,7 @@ def _stage_values(engine: Engine) -> dict[tuple[str, str], list[str | None]]:
     out: dict[tuple[str, str], list[str | None]] = {}
     with engine.connect() as conn:
         for table, column in _M1_STAGE_TABLES:
-            rows = conn.execute(text(f"SELECT {column} FROM {table} ORDER BY id")).all()
+            rows = conn.execute(text(f"SELECT {column} FROM {table} ORDER BY id")).all()  # noqa: S608 -- table and column names come from fixed test constants
             out[(table, column)] = [r[0] for r in rows]
     return out
 
@@ -584,9 +603,7 @@ def test_m1_roundtrip_maps_dag_to_flow_and_preserves_rows() -> None:
 
         # The regenerated CHECK accepts ``flow`` and rejects ``dag``.
         with engine.begin() as conn:
-            conn.execute(
-                text("UPDATE experience_memory SET stage = 'flow' WHERE id = 2")
-            )
+            conn.execute(text("UPDATE experience_memory SET stage = 'flow' WHERE id = 2"))
         for bad in ("dag",):
             try:
                 with engine.begin() as conn:
@@ -594,14 +611,12 @@ def test_m1_roundtrip_maps_dag_to_flow_and_preserves_rows() -> None:
                         text("UPDATE experience_memory SET stage = :s WHERE id = 2"),
                         {"s": bad},
                     )
-            except Exception:
+            except Exception:  # noqa: BLE001, S110 -- any database rejection proves the constraint
                 pass
             else:
                 raise AssertionError(f"CHECK still accepts {bad!r} after upgrade")
         with engine.begin() as conn:
-            conn.execute(
-                text("UPDATE experience_memory SET stage = 'evaluation' WHERE id = 2")
-            )
+            conn.execute(text("UPDATE experience_memory SET stage = 'evaluation' WHERE id = 2"))
 
         # --- downgrade ---------------------------------------------------
         _run_m1(engine, "downgrade")
@@ -617,9 +632,12 @@ def test_m1_roundtrip_maps_dag_to_flow_and_preserves_rows() -> None:
         assert _counts(engine, "dags") == before_counts
         assert _stage_values(engine) == before_stages
         with engine.connect() as conn:
-            assert conn.execute(
-                text("SELECT id, campaign_id, origin, content FROM dags ORDER BY id")
-            ).all() == before_flows
+            assert (
+                conn.execute(
+                    text("SELECT id, campaign_id, origin, content FROM dags ORDER BY id")
+                ).all()
+                == before_flows
+            )
             assert conn.execute(
                 text("SELECT chosen_dag_id FROM stage_runs ORDER BY id")
             ).scalars().all() == [1, None]
@@ -673,7 +691,8 @@ def test_alembic_has_single_head_and_m1_is_chained_on_previous_head() -> None:
     assert script.get_revision("d6e7f8a9b0c1").down_revision == "c5d6e7f8a9b0"
     assert script.get_revision("e7f8a9b0c1d2").down_revision == "d6e7f8a9b0c1"
     assert script.get_revision("f8a9b0c1d2e3").down_revision == "e7f8a9b0c1d2"
-    assert heads == ["f8a9b0c1d2e3"]
+    assert script.get_revision("a9b0c1d2e3f4").down_revision == "f8a9b0c1d2e3"
+    assert heads == ["a9b0c1d2e3f4"]
 
 
 # ===========================================================================
@@ -689,15 +708,14 @@ _M2 = _load_migration(
 
 
 def _run_m2(engine: Engine, step: str) -> None:
-    with engine.connect() as conn:
-        with conn.begin():
-            ctx = MigrationContext.configure(connection=conn, opts={"render_as_batch": True})
-            original_op = _M2.op
-            _M2.op = Operations(ctx)
-            try:
-                getattr(_M2, step)()
-            finally:
-                _M2.op = original_op
+    with engine.connect() as conn, conn.begin():
+        ctx = MigrationContext.configure(connection=conn, opts={"render_as_batch": True})
+        original_op = _M2.op
+        _M2.op = Operations(ctx)
+        try:
+            getattr(_M2, step)()
+        finally:
+            _M2.op = original_op
 
 
 def test_m2_roundtrip_adds_corpus_schema_and_restores_previous_one() -> None:
@@ -737,7 +755,14 @@ def test_m2_roundtrip_adds_corpus_schema_and_restores_previous_one() -> None:
 
         insp = inspect(engine)
         cols = {c["name"]: c for c in insp.get_columns("attack_flows")}
-        for name in ("source_key", "source_sha", "scope", "description", "has_cycles", "provenance"):
+        for name in (
+            "source_key",
+            "source_sha",
+            "scope",
+            "description",
+            "has_cycles",
+            "provenance",
+        ):
             assert name in cols
         assert cols["campaign_id"]["nullable"] is True
         assert {"attack_flow_objects", "attack_flow_edges", "ingest_source_state"} <= set(
@@ -767,7 +792,7 @@ def test_m2_roundtrip_adds_corpus_schema_and_restores_previous_one() -> None:
         try:
             with engine.begin() as conn:
                 conn.execute(text(ins), {"i": 11, "k": "a.afb"})
-        except Exception:
+        except Exception:  # noqa: BLE001, S110 -- any database rejection proves the constraint
             pass
         else:
             raise AssertionError("duplicate source_key was accepted")
@@ -775,7 +800,7 @@ def test_m2_roundtrip_adds_corpus_schema_and_restores_previous_one() -> None:
         try:
             with engine.begin() as conn:
                 conn.execute(text("UPDATE attack_flows SET origin = 'bogus' WHERE id = 1"))
-        except Exception:
+        except Exception:  # noqa: BLE001, S110 -- any database rejection proves the constraint
             pass
         else:
             raise AssertionError("origin CHECK accepts an unknown value")
@@ -815,15 +840,14 @@ _M3 = _load_migration(
 
 
 def _run_m3(engine: Engine, step: str) -> None:
-    with engine.connect() as conn:
-        with conn.begin():
-            ctx = MigrationContext.configure(connection=conn, opts={"render_as_batch": True})
-            original_op = _M3.op
-            _M3.op = Operations(ctx)
-            try:
-                getattr(_M3, step)()
-            finally:
-                _M3.op = original_op
+    with engine.connect() as conn, conn.begin():
+        ctx = MigrationContext.configure(connection=conn, opts={"render_as_batch": True})
+        original_op = _M3.op
+        _M3.op = Operations(ctx)
+        try:
+            getattr(_M3, step)()
+        finally:
+            _M3.op = original_op
 
 
 def test_m3_roundtrip_renames_stage_output_flow_column_and_keeps_fk_and_rows() -> None:
@@ -927,15 +951,14 @@ _M4 = _load_migration(
 
 
 def _run_m4(engine: Engine, step: str) -> None:
-    with engine.connect() as conn:
-        with conn.begin():
-            ctx = MigrationContext.configure(connection=conn, opts={"render_as_batch": True})
-            original_op = _M4.op
-            _M4.op = Operations(ctx)
-            try:
-                getattr(_M4, step)()
-            finally:
-                _M4.op = original_op
+    with engine.connect() as conn, conn.begin():
+        ctx = MigrationContext.configure(connection=conn, opts={"render_as_batch": True})
+        original_op = _M4.op
+        _M4.op = Operations(ctx)
+        try:
+            getattr(_M4, step)()
+        finally:
+            _M4.op = original_op
 
 
 def test_m4_roundtrip_drops_campaign_file_columns_and_recreates_them_nullable() -> None:
@@ -972,16 +995,19 @@ def test_m4_roundtrip_drops_campaign_file_columns_and_recreates_them_nullable() 
         cols = {c["name"] for c in inspect(engine).get_columns("campaigns")}
         assert cols == {"id", "name", "curated"}
         with engine.connect() as conn:
-            rows = conn.execute(
-                text("SELECT id, name, curated FROM campaigns ORDER BY id")
-            ).all()
+            rows = conn.execute(text("SELECT id, name, curated FROM campaigns ORDER BY id")).all()
         assert [tuple(r) for r in rows] == [("a", "A", 1), ("b", "B", 0)]
 
         _run_m4(engine, "downgrade")
 
         by_name = {c["name"]: c for c in inspect(engine).get_columns("campaigns")}
         assert set(by_name) == {
-            "id", "name", "curated", "ability_file", "adversary_file", "flow_file",
+            "id",
+            "name",
+            "curated",
+            "ability_file",
+            "adversary_file",
+            "flow_file",
         }
         for column in ("ability_file", "adversary_file", "flow_file"):
             assert by_name[column]["nullable"] is True
@@ -1014,15 +1040,14 @@ _M5 = _load_migration(
 
 
 def _run_m5(engine: Engine, step: str) -> None:
-    with engine.connect() as conn:
-        with conn.begin():
-            ctx = MigrationContext.configure(connection=conn, opts={"render_as_batch": True})
-            original_op = _M5.op
-            _M5.op = Operations(ctx)
-            try:
-                getattr(_M5, step)()
-            finally:
-                _M5.op = original_op
+    with engine.connect() as conn, conn.begin():
+        ctx = MigrationContext.configure(connection=conn, opts={"render_as_batch": True})
+        original_op = _M5.op
+        _M5.op = Operations(ctx)
+        try:
+            getattr(_M5, step)()
+        finally:
+            _M5.op = original_op
 
 
 def test_m5_roundtrip_adds_stix_packages_source_and_drops_source_file() -> None:
@@ -1071,13 +1096,17 @@ def test_m5_roundtrip_adds_stix_packages_source_and_drops_source_file() -> None:
         _run_m5(engine, "upgrade")
 
         assert {c["name"] for c in inspect(engine).get_columns("stix_packages")} == {
-            "id", "version", "name",
+            "id",
+            "version",
+            "name",
         }
         with engine.connect() as conn:
-            assert [tuple(r) for r in conn.execute(text("SELECT id, version, name FROM stix_packages"))] == [
-                (1, "18.0", "v18")
-            ]
-            states = dict(conn.execute(text("SELECT source, status FROM ingest_source_state")).all())
+            assert [
+                tuple(r) for r in conn.execute(text("SELECT id, version, name FROM stix_packages"))
+            ] == [(1, "18.0", "v18")]
+            states = dict(
+                conn.execute(text("SELECT source, status FROM ingest_source_state")).all()
+            )
         assert states == {
             "atomic": "ready",
             "docker_catalog": "pending",
@@ -1091,14 +1120,17 @@ def test_m5_roundtrip_adds_stix_packages_source_and_drops_source_file() -> None:
         assert set(by_name) == {"id", "version", "name", "source_file"}
         assert by_name["source_file"]["nullable"] is True
         with engine.connect() as conn:
-            states = dict(conn.execute(text("SELECT source, status FROM ingest_source_state")).all())
+            states = dict(
+                conn.execute(text("SELECT source, status FROM ingest_source_state")).all()
+            )
         assert states == {"atomic": "ready", "docker_catalog": "pending", "attack_flow": "failed"}
         # The previous CHECK is back: the new source is rejected again.
-        with pytest.raises(IntegrityError):
-            with engine.begin() as conn:
-                conn.execute(
-                    text("INSERT INTO ingest_source_state (source, status) VALUES ('stix_packages', 'pending')")
+        with pytest.raises(IntegrityError), engine.begin() as conn:
+            conn.execute(
+                text(
+                    "INSERT INTO ingest_source_state (source, status) VALUES ('stix_packages', 'pending')"
                 )
+            )
     finally:
         engine.dispose()
         try:
@@ -1106,6 +1138,7 @@ def test_m5_roundtrip_adds_stix_packages_source_and_drops_source_file() -> None:
             db_path.parent.rmdir()
         except OSError:
             pass
+
 
 # ===========================================================================
 # Migration M6 ``d6e7f8a9b0c1`` (agentic-only-flow-redesign task 24.2).
@@ -1119,15 +1152,14 @@ _M6 = _load_migration(
 
 
 def _run_m6(engine: Engine, step: str) -> None:
-    with engine.connect() as conn:
-        with conn.begin():
-            ctx = MigrationContext.configure(connection=conn, opts={"render_as_batch": True})
-            original_op = _M6.op
-            _M6.op = Operations(ctx)
-            try:
-                getattr(_M6, step)()
-            finally:
-                _M6.op = original_op
+    with engine.connect() as conn, conn.begin():
+        ctx = MigrationContext.configure(connection=conn, opts={"render_as_batch": True})
+        original_op = _M6.op
+        _M6.op = Operations(ctx)
+        try:
+            getattr(_M6, step)()
+        finally:
+            _M6.op = original_op
 
 
 def test_m6_roundtrip_adds_curated_seed_source_and_restores_previous_check() -> None:
@@ -1163,18 +1195,23 @@ def test_m6_roundtrip_adds_curated_seed_source_and_restores_previous_check() -> 
             )
         _run_m6(engine, "upgrade")
         with engine.connect() as conn:
-            states = dict(conn.execute(text("SELECT source, status FROM ingest_source_state")).all())
+            states = dict(
+                conn.execute(text("SELECT source, status FROM ingest_source_state")).all()
+            )
         assert states == {**before, "curated_seed": "pending"}
         _run_m6(engine, "downgrade")
         with engine.connect() as conn:
-            states = dict(conn.execute(text("SELECT source, status FROM ingest_source_state")).all())
+            states = dict(
+                conn.execute(text("SELECT source, status FROM ingest_source_state")).all()
+            )
         assert states == before
         # The previous CHECK is back: the new source is rejected again.
-        with pytest.raises(IntegrityError):
-            with engine.begin() as conn:
-                conn.execute(
-                    text("INSERT INTO ingest_source_state (source, status) VALUES ('curated_seed', 'pending')")
+        with pytest.raises(IntegrityError), engine.begin() as conn:
+            conn.execute(
+                text(
+                    "INSERT INTO ingest_source_state (source, status) VALUES ('curated_seed', 'pending')"
                 )
+            )
     finally:
         engine.dispose()
         try:
@@ -1182,6 +1219,7 @@ def test_m6_roundtrip_adds_curated_seed_source_and_restores_previous_check() -> 
             db_path.parent.rmdir()
         except OSError:
             pass
+
 
 # ===========================================================================
 # Migration M7 ``e7f8a9b0c1d2`` (agentic-only-flow-redesign task 30.3).
@@ -1198,15 +1236,14 @@ _M7 = _load_migration(
 
 
 def _run_m7(engine: Engine, step: str) -> None:
-    with engine.connect() as conn:
-        with conn.begin():
-            ctx = MigrationContext.configure(connection=conn, opts={"render_as_batch": True})
-            original_op = _M7.op
-            _M7.op = Operations(ctx)
-            try:
-                getattr(_M7, step)()
-            finally:
-                _M7.op = original_op
+    with engine.connect() as conn, conn.begin():
+        ctx = MigrationContext.configure(connection=conn, opts={"render_as_batch": True})
+        original_op = _M7.op
+        _M7.op = Operations(ctx)
+        try:
+            getattr(_M7, step)()
+        finally:
+            _M7.op = original_op
 
 
 def _build_pre_m7_engine(db_path: Path) -> Engine:
@@ -1267,10 +1304,14 @@ def test_m7_roundtrip_drops_dead_columns_and_table_and_recreates_them() -> None:
             conn.execute(text("INSERT INTO campaigns (id) VALUES ('c1')"))
             conn.execute(text("INSERT INTO attack_flows (id) VALUES (1)"))
             conn.execute(
-                text("INSERT INTO stage_runs (id, stage, chosen_flow_id) VALUES (1, 1, 1), (2, 2, NULL)")
+                text(
+                    "INSERT INTO stage_runs (id, stage, chosen_flow_id) VALUES (1, 1, 1), (2, 2, NULL)"
+                )
             )
             conn.execute(
-                text("INSERT INTO stix_versions (version, curated, curated_artifacts_path) VALUES ('18.0', 1, NULL)")
+                text(
+                    "INSERT INTO stix_versions (version, curated, curated_artifacts_path) VALUES ('18.0', 1, NULL)"
+                )
             )
             conn.execute(
                 text(
@@ -1286,19 +1327,27 @@ def test_m7_roundtrip_drops_dead_columns_and_table_and_recreates_them() -> None:
         assert {c["name"] for c in insp.get_columns("stage_runs")} == {"id", "stage"}
         assert {c["name"] for c in insp.get_columns("stix_versions")} == {"version", "curated"}
         assert {c["name"] for c in insp.get_columns("technique_emulability")} == {
-            "technique_id", "emulability",
+            "technique_id",
+            "emulability",
         }
         with engine.connect() as conn:
-            assert [tuple(r) for r in conn.execute(text("SELECT id, stage FROM stage_runs ORDER BY id"))] == [
-                (1, 1), (2, 2),
+            assert [
+                tuple(r) for r in conn.execute(text("SELECT id, stage FROM stage_runs ORDER BY id"))
+            ] == [
+                (1, 1),
+                (2, 2),
             ]
-            assert [tuple(r) for r in conn.execute(text("SELECT version, curated FROM stix_versions"))] == [
+            assert [
+                tuple(r) for r in conn.execute(text("SELECT version, curated FROM stix_versions"))
+            ] == [
                 ("18.0", 1),
             ]
             assert [
                 tuple(r)
                 for r in conn.execute(
-                    text("SELECT technique_id, emulability FROM technique_emulability ORDER BY technique_id")
+                    text(
+                        "SELECT technique_id, emulability FROM technique_emulability ORDER BY technique_id"
+                    )
                 )
             ] == [("T1003", "not_container"), ("T1059", "container")]
 
@@ -1313,15 +1362,25 @@ def test_m7_roundtrip_drops_dead_columns_and_table_and_recreates_them() -> None:
             (["chosen_flow_id"], "attack_flows"),
         ]
         assert {c["name"]: c["nullable"] for c in insp.get_columns("stix_versions")} == {
-            "version": False, "curated": False, "curated_artifacts_path": True,
+            "version": False,
+            "curated": False,
+            "curated_artifacts_path": True,
         }
         assert {c["name"]: c["nullable"] for c in insp.get_columns("technique_emulability")} == {
-            "technique_id": False, "emulability": False, "rationale": True,
+            "technique_id": False,
+            "emulability": False,
+            "rationale": True,
         }
         env_cols = {c["name"]: c for c in insp.get_columns("provisioned_environment")}
         assert set(env_cols) == {
-            "id", "campaign_id", "platform", "content", "origin", "ready",
-            "created_at", "updated_at",
+            "id",
+            "campaign_id",
+            "platform",
+            "content",
+            "origin",
+            "ready",
+            "created_at",
+            "updated_at",
         }
         assert all(c["nullable"] is False for c in env_cols.values())
         assert insp.get_pk_constraint("provisioned_environment")["constrained_columns"] == ["id"]
@@ -1330,8 +1389,11 @@ def test_m7_roundtrip_drops_dead_columns_and_table_and_recreates_them() -> None:
             for fk in insp.get_foreign_keys("provisioned_environment")
         ] == [(["campaign_id"], "campaigns")]
         with engine.connect() as conn:
-            assert [tuple(r) for r in conn.execute(text("SELECT id, stage FROM stage_runs ORDER BY id"))] == [
-                (1, 1), (2, 2),
+            assert [
+                tuple(r) for r in conn.execute(text("SELECT id, stage FROM stage_runs ORDER BY id"))
+            ] == [
+                (1, 1),
+                (2, 2),
             ]
             assert conn.execute(text("SELECT count(*) FROM technique_emulability")).scalar() == 2
             assert conn.execute(text("SELECT count(*) FROM stix_versions")).scalar() == 1
@@ -1384,15 +1446,14 @@ _M8 = _load_migration(
 
 
 def _run_m8(engine: Engine, step: str) -> None:
-    with engine.connect() as conn:
-        with conn.begin():
-            ctx = MigrationContext.configure(connection=conn, opts={"render_as_batch": True})
-            original_op = _M8.op
-            _M8.op = Operations(ctx)
-            try:
-                getattr(_M8, step)()
-            finally:
-                _M8.op = original_op
+    with engine.connect() as conn, conn.begin():
+        ctx = MigrationContext.configure(connection=conn, opts={"render_as_batch": True})
+        original_op = _M8.op
+        _M8.op = Operations(ctx)
+        try:
+            getattr(_M8, step)()
+        finally:
+            _M8.op = original_op
 
 
 def _build_pre_m8_engine(db_path: Path) -> Engine:
@@ -1424,7 +1485,8 @@ def test_m8_roundtrip_drops_stix_versions_and_restores_it_with_the_seed_row() ->
         _run_m8(engine, "downgrade")
         insp = inspect(engine)
         assert {c["name"]: c["nullable"] for c in insp.get_columns("stix_versions")} == {
-            "version": False, "curated": False,
+            "version": False,
+            "curated": False,
         }
         assert insp.get_pk_constraint("stix_versions")["constrained_columns"] == ["version"]
         with engine.connect() as conn:

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest"
-import { screen, waitFor } from "@testing-library/react"
+import { screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 
 import { renderWithI18n } from "@/test/render"
@@ -38,7 +38,7 @@ vi.mock("@/components/BaseStixView", async () => {
       ue(() => {
         onVersionSelected?.("18.0")
         onCompletionChange?.(baseStixAutoComplete)
-      }, []) // eslint-disable-line
+      }, [])
       return <div data-testid="base-stix-view" />
     },
   }
@@ -52,7 +52,7 @@ vi.mock("@/components/CampaignView", () => ({
     onCompleted,
   }: {
     version: string
-    onCompleted?: (campaignKey: string) => void
+    onCompleted?: (campaignKey: string, campaignName?: string) => void
   }) => (
     <div data-testid="campaign-view">
       <span data-testid="campaign-view-version">{version}</span>
@@ -63,14 +63,40 @@ vi.mock("@/components/CampaignView", () => ({
       >
         select
       </button>
+      <button
+        type="button"
+        data-testid="select-named-campaign"
+        onClick={() => onCompleted?.("outer_space", "Outer Space")}
+      >
+        select named
+      </button>
+      <button
+        type="button"
+        data-testid="select-unnamed-campaign"
+        onClick={() => onCompleted?.("outer_space")}
+      >
+        select unnamed
+      </button>
     </div>
   ),
 }))
 
-// GuidedRunView stub (Layer 2): echoes the campaign key and version it is handed.
+// GuidedRunView stub (Layer 2): echoes the campaign key and version it is handed,
+// and the campaign name in a separate node.
 vi.mock("@/components/GuidedRunView", () => ({
-  GuidedRunView: ({ campaignId, version }: { campaignId: string; version: string }) => (
-    <div data-testid="guided-run-view">{`${campaignId}@${version}`}</div>
+  GuidedRunView: ({
+    campaignId,
+    campaignName,
+    version,
+  }: {
+    campaignId: string
+    campaignName?: string
+    version: string
+  }) => (
+    <div data-testid="guided-run-view">
+      {`${campaignId}@${version}`}
+      <span data-testid="guided-run-name">{campaignName}</span>
+    </div>
   ),
 }))
 
@@ -175,6 +201,29 @@ describe("ExecutionWizard (unified Input + guided Run)", () => {
     expect(await screen.findByTestId("base-stix-view")).toBeInTheDocument()
     expect(await screen.findByTestId("campaign-view")).toBeInTheDocument()
     expect(screen.queryByTestId("guided-run-view")).toBeNull()
+  })
+
+  it("shows the campaign name, not the slug, in the Run header and passes it down", async () => {
+    renderWithI18n(<ExecutionWizard />)
+    await screen.findByTestId("campaign-view")
+    await userEvent.click(screen.getByTestId("select-named-campaign"))
+    await userEvent.click(await screen.findByTestId("advance-to-run"))
+
+    const wizard = await screen.findByTestId("execution-wizard")
+    expect(wizard).toHaveTextContent("Campanha: Outer Space")
+    expect(wizard.textContent).not.toContain("Campanha: outer_space")
+    expect(screen.getByTestId("guided-run-name")).toHaveTextContent("Outer Space")
+  })
+
+  it("falls back to the humanized key in the Run header when the name is absent", async () => {
+    renderWithI18n(<ExecutionWizard />)
+    await screen.findByTestId("campaign-view")
+    await userEvent.click(screen.getByTestId("select-unnamed-campaign"))
+    await userEvent.click(await screen.findByTestId("advance-to-run"))
+
+    const wizard = await screen.findByTestId("execution-wizard")
+    expect(wizard).toHaveTextContent("Campanha: Outer Space")
+    expect(screen.getByTestId("guided-run-name")).toHaveTextContent("Outer Space")
   })
 
   it("the chosen base version drives the campaign listing (no probe slug)", async () => {

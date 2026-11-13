@@ -30,7 +30,6 @@ Isolation (no real files / no real network):
 
 from __future__ import annotations
 
-import json
 import shutil
 import tempfile
 from pathlib import Path
@@ -213,22 +212,17 @@ def _valid_bundle(draw: st.DrawFn) -> list[dict]:
         objects.append({"type": "malware", "id": _stix_id("malware", counter)})
         counter += 1
     for _ in range(draw(st.integers(min_value=0, max_value=3))):
-        objects.append(
-            {"type": "x-mitre-tactic", "id": _stix_id("x-mitre-tactic", counter)}
-        )
+        objects.append({"type": "x-mitre-tactic", "id": _stix_id("x-mitre-tactic", counter)})
         counter += 1
 
     # Shuffle so object ordering never influences persistence.
     return list(draw(st.permutations(objects)))
 
 
-
 def _row_counts(session: Session) -> dict[str, int]:
     """Row count of every one of the six STIX tables."""
     return {
-        model.__tablename__: session.execute(
-            select(func.count()).select_from(model)
-        ).scalar_one()
+        model.__tablename__: session.execute(select(func.count()).select_from(model)).scalar_one()
         for model in (
             StixPackage,
             StixTypeCount,
@@ -266,12 +260,8 @@ def _content_snapshot(session: Session) -> dict[str, list[tuple]]:
     )
     # Join grandchildren back to the stable stix_id so the snapshot survives the
     # id churn of a re-persistence.
-    campaign_stix_by_id = {
-        c.id: c.stix_id for c in session.execute(select(StixCampaign)).scalars()
-    }
-    actor_stix_by_id = {
-        a.id: a.stix_id for a in session.execute(select(StixActor)).scalars()
-    }
+    campaign_stix_by_id = {c.id: c.stix_id for c in session.execute(select(StixCampaign)).scalars()}
+    actor_stix_by_id = {a.id: a.stix_id for a in session.execute(select(StixActor)).scalars()}
     techniques = sorted(
         (
             campaign_stix_by_id[t.campaign_id],
@@ -282,10 +272,7 @@ def _content_snapshot(session: Session) -> dict[str, list[tuple]]:
         )
         for t in session.execute(select(StixCampaignTechnique)).scalars()
     )
-    actors = sorted(
-        (a.stix_id, a.name)
-        for a in session.execute(select(StixActor)).scalars()
-    )
+    actors = sorted((a.stix_id, a.name) for a in session.execute(select(StixActor)).scalars())
     attributions = sorted(
         (actor_stix_by_id[ac.actor_id], campaign_stix_by_id[ac.campaign_id])
         for ac in session.execute(select(StixActorCampaign)).scalars()
@@ -350,7 +337,6 @@ def test_property6_idempotencia_da_re_persistencia_preservada(
             ).scalar_one()
             first_package_id = first_package.id
             first_downloaded_at = first_package.downloaded_at
-
 
             # f(f(x)): re-persist the same bundle content.
             service.persist_bundle(version, bundle)

@@ -13,7 +13,7 @@ import os
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
 DEFAULT_REF = "v4.1.0"
 _REPO = "center-for-threat-informed-defense/attack-flow"
@@ -41,8 +41,8 @@ class AttackFlowCorpusFetcher:
     def __init__(
         self,
         *,
-        ref: Optional[str] = None,
-        token: Optional[str] = None,
+        ref: str | None = None,
+        token: str | None = None,
         timeout: float = 60.0,
     ) -> None:
         self._ref = ref or os.environ.get("ATTACK_FLOW_REF") or DEFAULT_REF
@@ -53,7 +53,7 @@ class AttackFlowCorpusFetcher:
     def ref(self) -> str:
         return self._ref
 
-    def list_files(self, ref: Optional[str] = None) -> list[CorpusFile]:
+    def list_files(self, ref: str | None = None) -> list[CorpusFile]:
         """Single ``git/trees/{ref}?recursive=1`` call, filtered to corpus ``.afb``."""
         resolved = ref or self._ref
         url = (
@@ -76,12 +76,12 @@ class AttackFlowCorpusFetcher:
                 and isinstance(sha, str)
                 and path.startswith(_CORPUS_PREFIX)
                 and path.endswith(_CORPUS_SUFFIX)
-                and "/" not in path[len(_CORPUS_PREFIX):]
+                and "/" not in path[len(_CORPUS_PREFIX) :]
             ):
-                files.append(CorpusFile(name=path[len(_CORPUS_PREFIX):], sha=sha))
+                files.append(CorpusFile(name=path[len(_CORPUS_PREFIX) :], sha=sha))
         return sorted(files, key=lambda f: f.name)
 
-    def fetch(self, corpus_file: CorpusFile, ref: Optional[str] = None) -> bytes:
+    def fetch(self, corpus_file: CorpusFile, ref: str | None = None) -> bytes:
         """Download one file; the name is percent-encoded (spaces, ``&``)."""
         resolved = ref or self._ref
         url = (
@@ -90,25 +90,23 @@ class AttackFlowCorpusFetcher:
         )
         return self._get(url)
 
-    def _get(self, url: str, *, accept: Optional[str] = None) -> bytes:
+    def _get(self, url: str, *, accept: str | None = None) -> bytes:
         headers: dict[str, Any] = {"User-Agent": "sticks-attack-flow-ingest"}
         if accept:
             headers["Accept"] = accept
         if self._token:
             headers["Authorization"] = f"Bearer {self._token}"
-        request = urllib.request.Request(url, headers=headers)  # noqa: S310
+        request = urllib.request.Request(url, headers=headers)  # noqa: S310 -- URL comes from the pinned corpus release, not user input
         try:
-            with urllib.request.urlopen(request, timeout=self._timeout) as response:  # noqa: S310
+            with urllib.request.urlopen(request, timeout=self._timeout) as response:  # noqa: S310 -- URL comes from the pinned corpus release, not user input
                 return response.read()
-        except Exception as exc:  # noqa: BLE001 - normalize; never leak the token
-            raise CorpusFetchError(
-                f"could not fetch {url}: {type(exc).__name__}: {exc}"
-            ) from exc
+        except Exception as exc:
+            raise CorpusFetchError(f"could not fetch {url}: {type(exc).__name__}: {exc}") from exc
 
 
 __all__ = [
+    "DEFAULT_REF",
     "AttackFlowCorpusFetcher",
     "CorpusFetchError",
     "CorpusFile",
-    "DEFAULT_REF",
 ]

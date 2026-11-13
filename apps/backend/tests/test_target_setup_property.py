@@ -150,8 +150,6 @@ def test_classification_is_deterministic_and_safe_by_default(
         assert classified.phase == oracle
 
         # (3) Safe by default: a command matching no ONLINE pattern is OFFLINE.
-        matches_online = any(
-            p.search(classified.command) for p in _ORACLE_ONLINE_PATTERNS
-        )
+        matches_online = any(p.search(classified.command) for p in _ORACLE_ONLINE_PATTERNS)
         if not matches_online:
             assert classified.phase == SetupPhase.OFFLINE

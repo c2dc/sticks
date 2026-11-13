@@ -120,9 +120,7 @@ def resume_run(saver: object, thread_id: str, *, start_new) -> object:
     config = {"configurable": {"thread_id": thread_id}}
     restored = saver.get_tuple(config)
     if restored is None:
-        raise NoCheckpointError(
-            f"no checkpoint exists for thread_id {thread_id!r}"
-        )
+        raise NoCheckpointError(f"no checkpoint exists for thread_id {thread_id!r}")
     return restored
 
 
@@ -147,7 +145,7 @@ def run_with_checkpoints(saver: object, thread_id: str, checkpoints: list) -> No
     for checkpoint in checkpoints:
         try:
             saver.put(config, checkpoint)
-        except Exception as exc:  # noqa: BLE001 - surfaced as the failure cause
+        except Exception as exc:
             raise RunHalted(_FAILED, str(exc)) from exc
 
 
@@ -172,10 +170,10 @@ def test_import_opens_no_network_connection() -> None:
         def _forbid(*_a, **_k):
             raise AssertionError("import opened a network connection")
 
-        socket.socket.connect = _forbid  # type: ignore[assignment]
-        socket.create_connection = _forbid  # type: ignore[assignment]
+        socket.socket.connect = _forbid  # type: ignore[assignment] -- test replaces the stdlib function to forbid network access
+        socket.create_connection = _forbid  # type: ignore[assignment] -- test replaces the stdlib function to forbid network access
 
-        import app.services.ai.checkpointer  # noqa: F401
+        import app.services.ai.checkpointer  # noqa: F401 -- import under the network guard proves it makes no connection
 
         sys.exit(0)
         """
@@ -187,8 +185,7 @@ def test_import_opens_no_network_connection() -> None:
         cwd=str(Path(__file__).resolve().parents[1]),
     )
     assert result.returncode == 0, (
-        "importing the AI checkpointer module performed network I/O:\n"
-        f"{result.stderr}"
+        f"importing the AI checkpointer module performed network I/O:\n{result.stderr}"
     )
 
 
@@ -206,9 +203,7 @@ def test_get_checkpointer_defers_heavy_imports_to_body() -> None:
     assert "\nfrom langgraph.checkpoint.postgres import PostgresSaver" not in source
     # They appear deferred inside the factory body (indented).
     assert "    from psycopg_pool import ConnectionPool" in source
-    assert (
-        "    from langgraph.checkpoint.postgres import PostgresSaver" in source
-    )
+    assert "    from langgraph.checkpoint.postgres import PostgresSaver" in source
 
 
 def _patch_pool_and_saver(monkeypatch, *, open_raises: Exception | None = None):
@@ -225,7 +220,7 @@ def _patch_pool_and_saver(monkeypatch, *, open_raises: Exception | None = None):
     events: list[str] = []
 
     class _FakePool:
-        def __init__(self, *, conninfo, open, kwargs):  # noqa: A002
+        def __init__(self, *, conninfo, open, kwargs):
             events.append(f"pool_ctor(open={open})")
             self.conninfo = conninfo
             self.kwargs = kwargs
@@ -294,9 +289,7 @@ def test_get_checkpointer_propagates_pool_open_failure(
     therefore propagate the open failure rather than hand back a half-built saver.
     """
     boom = RuntimeError("could not connect to server")
-    events, _FakePool, _FakeSaver = _patch_pool_and_saver(
-        monkeypatch, open_raises=boom
-    )
+    events, _FakePool, _FakeSaver = _patch_pool_and_saver(monkeypatch, open_raises=boom)
 
     get_checkpointer.cache_clear()
     try:
@@ -310,15 +303,36 @@ def test_get_checkpointer_propagates_pool_open_failure(
         get_checkpointer.cache_clear()
 
 
-def test_get_checkpointer_is_cached_single_pool() -> None:
-    """The factory is cached so the whole process shares one saver/pool."""
+def test_get_checkpointer_is_cached_single_pool(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The factory is cached so the whole process shares one saver/pool.
+
+    Runs against an explicit fake URL and a faked pool/saver: no real database
+    connection is ever opened, whatever the developer's environment holds.
+    """
+    from app.core.config import get_settings
+
+    monkeypatch.setenv(
+        "PIPELINE_UI_DATABASE_URL",
+        "postgresql+psycopg://fake:fake@fake-host.invalid:5432/fake",
+    )
+    events, _FakePool, _FakeSaver = _patch_pool_and_saver(monkeypatch)
+
+    get_settings.cache_clear()
     get_checkpointer.cache_clear()
     try:
         first = get_checkpointer()
         second = get_checkpointer()
         assert first is second
+        assert isinstance(first, _FakeSaver)
+        # One pool, one saver, despite two calls; the DSN is the fake one.
+        assert events.count("pool_ctor(open=False)") == 1
+        assert events.count("saver_ctor") == 1
+        assert first.conn.conninfo == "postgresql://fake:fake@fake-host.invalid:5432/fake"
     finally:
         get_checkpointer.cache_clear()
+        get_settings.cache_clear()
 
 
 def test_setup_checkpointer_defers_connection_to_setup_call(
@@ -337,9 +351,7 @@ def test_setup_checkpointer_defers_connection_to_setup_call(
         def setup(self) -> None:
             calls.append("setup")
 
-    monkeypatch.setattr(
-        checkpointer_module, "get_checkpointer", lambda: _SaverStub()
-    )
+    monkeypatch.setattr(checkpointer_module, "get_checkpointer", lambda: _SaverStub())
 
     setup_checkpointer()
 
@@ -357,10 +369,7 @@ def test_to_libpq_dsn_strips_driver_marker() -> None:
 
 def test_to_libpq_dsn_passes_through_plain_scheme() -> None:
     """A URL without a ``+driver`` marker is returned unchanged."""
-    assert (
-        _to_libpq_dsn("postgresql://u:p@host:9090/db")
-        == "postgresql://u:p@host:9090/db"
-    )
+    assert _to_libpq_dsn("postgresql://u:p@host:9090/db") == "postgresql://u:p@host:9090/db"
 
 
 def test_to_libpq_dsn_returns_non_url_unchanged() -> None:
@@ -484,9 +493,7 @@ def test_failed_persist_halts_before_subsequent_checkpoints() -> None:
     saver = FakeCheckpointSaver(fail_on=failing)
 
     with pytest.raises(RunHalted):
-        run_with_checkpoints(
-            saver, "t-halt", [{"iteration": 0, "node": "flow"}, failing, never]
-        )
+        run_with_checkpoints(saver, "t-halt", [{"iteration": 0, "node": "flow"}, failing, never])
 
     attempted = [checkpoint for _tid, checkpoint in saver.put_calls]
     assert never not in attempted, "run must not persist past the failure"

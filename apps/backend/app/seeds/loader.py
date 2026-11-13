@@ -86,8 +86,7 @@ def _validate(slug: str, data: Any) -> dict[str, Any]:
             raise SeedDataError(f"{name}: missing key {key!r}")
         if not isinstance(data[key], expected):
             raise SeedDataError(
-                f"{name}: key {key!r} must be {expected.__name__}, "
-                f"got {type(data[key]).__name__}"
+                f"{name}: key {key!r} must be {expected.__name__}, got {type(data[key]).__name__}"
             )
     _require_keys(f"{name}: campaign", data["campaign"], _CAMPAIGN_KEYS)
     if data["campaign"]["id"] != slug:

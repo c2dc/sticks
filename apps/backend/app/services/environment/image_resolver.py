@@ -62,8 +62,9 @@ _Requirements: 5.4, 14.1, 14.2, 14.4, 14.5_
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
-from typing import Any, Callable, Iterable, Optional, Protocol, runtime_checkable
+from collections.abc import Callable, Iterable
+from dataclasses import dataclass
+from typing import Any, Protocol, runtime_checkable
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -187,14 +188,14 @@ class DockerHubLookup(Protocol):
     catalog.
     """
 
-    def __call__(self, need: ImageNeed) -> Optional[str]:  # pragma: no cover - protocol
+    def __call__(self, need: ImageNeed) -> str | None:  # pragma: no cover - protocol
         ...
 
 
 def detect_target_os(
     *,
-    platforms: Optional[Iterable[str]] = None,
-    commands: Optional[Iterable[str]] = None,
+    platforms: Iterable[str] | None = None,
+    commands: Iterable[str] | None = None,
 ) -> str:
     """Detect the ``Target_OS`` (``linux`` | ``windows``) from the operationalization (Req. 14.2).
 
@@ -268,8 +269,8 @@ class ImageResolver:
         self,
         session: Session,
         *,
-        catalog_matcher: Optional[Callable[["ImageNeed"], Iterable[str]]] = None,
-        docker_hub_lookup: Optional[Callable[["ImageNeed"], Optional[str]]] = None,
+        catalog_matcher: Callable[[ImageNeed], Iterable[str]] | None = None,
+        docker_hub_lookup: Callable[[ImageNeed], str | None] | None = None,
     ) -> None:
         self._session = session
         self._catalog_matcher = catalog_matcher
@@ -332,7 +333,7 @@ class ImageResolver:
 
     # ---- catalog semantic match (Req. 5.4) ---------------------------------
 
-    def _resolve_from_catalog_semantic(self, need: ImageNeed) -> Optional[str]:
+    def _resolve_from_catalog_semantic(self, need: ImageNeed) -> str | None:
         """Return a semantically matched catalog image confirmed relationally, or ``None``.
 
         Asks the injected :class:`CatalogSemanticMatcher` for candidate image
@@ -352,7 +353,7 @@ class ImageResolver:
             return None
         try:
             candidates = self._catalog_matcher(need)
-        except Exception as exc:  # noqa: BLE001 - semantic match is best-effort
+        except Exception as exc:  # noqa: BLE001 -- semantic match is best-effort
             logger.info(
                 "Catalog semantic match unavailable for target_os %s (%s: %s); "
                 "falling back to the relational image_catalog.",
@@ -395,7 +396,7 @@ class ImageResolver:
 
     # ---- Docker Hub online fallback (Req. 5.4, 14.5) -----------------------
 
-    def _resolve_online(self, need: ImageNeed) -> Optional[str]:
+    def _resolve_online(self, need: ImageNeed) -> str | None:
         """Return an image from the injected Docker Hub lookup, or ``None`` if unavailable.
 
         This is the LAST-resort fallback, reached only after the
@@ -411,7 +412,7 @@ class ImageResolver:
             return None
         try:
             image = self._docker_hub_lookup(need)
-        except Exception as exc:  # noqa: BLE001 - any network error means "offline"
+        except Exception as exc:  # noqa: BLE001 -- any network error means "offline"
             logger.info(
                 "Docker Hub lookup unavailable for target_os %s (%s: %s); "
                 "falling back to the image_catalog.",
@@ -425,7 +426,7 @@ class ImageResolver:
 
     # ---- catalog relational match (Req. 5.4, 14.4) ------------------------
 
-    def _resolve_from_catalog(self, need: ImageNeed) -> Optional[str]:
+    def _resolve_from_catalog(self, need: ImageNeed) -> str | None:
         """Resolve an image from the relational ``image_catalog`` filtered by target OS.
 
         Reads the :class:`~app.models.domain.ImageCatalog` rows for
@@ -465,9 +466,7 @@ class ImageResolver:
         Shared by the semantic confirmation and the relational match so both
         apply the same coverage rule (Req. 5.4, 14.4).
         """
-        wanted = {
-            s.lower() for s in need.services if isinstance(s, str) and s.strip()
-        }
+        wanted = {s.lower() for s in need.services if isinstance(s, str) and s.strip()}
         if not wanted:
             return True
         covered = {token.lower() for token in _clean_tokens(row_services)}
@@ -492,7 +491,7 @@ def build_catalog_semantic_matcher(
     *,
     campaign_id: str,
     k: int = _DEFAULT_SEMANTIC_K,
-) -> Callable[["ImageNeed"], list[str]]:
+) -> Callable[[ImageNeed], list[str]]:
     """Build a :class:`CatalogSemanticMatcher` backed by the Vector_Store (Req. 5.4).
 
     Wraps an :class:`~app.services.ai.memory.ExperienceMemory` so the
@@ -549,7 +548,7 @@ def _semantic_query(need: ImageNeed) -> str:
     return f"docker image for {need.target_os} services: {services}".strip()
 
 
-def _catalog_hit_image(hit: Any, target_os: str) -> Optional[str]:
+def _catalog_hit_image(hit: Any, target_os: str) -> str | None:
     """Extract a catalog image reference from a retrieval hit, or ``None``.
 
     Keeps only hits stamped with the Docker catalog provenance
@@ -602,17 +601,17 @@ def _clean_tokens(values: Any) -> list[str]:
 
 
 __all__ = [
-    "ImageResolver",
-    "ImageResolution",
-    "ImageNeed",
-    "ImageUnavailableError",
-    "CatalogSemanticMatcher",
-    "DockerHubLookup",
-    "detect_target_os",
-    "TARGET_OS_LINUX",
-    "TARGET_OS_WINDOWS",
     "SOURCE_DOCKER_HUB",
     "SOURCE_IMAGE_CATALOG",
     "SOURCE_IMAGE_CATALOG_SEMANTIC",
+    "TARGET_OS_LINUX",
+    "TARGET_OS_WINDOWS",
+    "CatalogSemanticMatcher",
+    "DockerHubLookup",
+    "ImageNeed",
+    "ImageResolution",
+    "ImageResolver",
+    "ImageUnavailableError",
     "build_catalog_semantic_matcher",
+    "detect_target_os",
 ]

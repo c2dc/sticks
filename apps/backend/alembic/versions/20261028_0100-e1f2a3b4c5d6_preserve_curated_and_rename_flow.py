@@ -41,13 +41,14 @@ Revises: d1e2f3a4b5c6
 Create Date: 2026-10-28 01:00:00.000000+00:00
 
 """
+
 from __future__ import annotations
 
 from typing import Sequence, Union
 
-from alembic import op
 import sqlalchemy as sa
 
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "e1f2a3b4c5d6"
@@ -104,14 +105,12 @@ def _regenerate(
         batch_op.drop_constraint(check_name, type_="check")
 
     op.get_bind().execute(
-        sa.text(f"UPDATE {table} SET {column} = :dst WHERE {column} = :src"),
+        sa.text(f"UPDATE {table} SET {column} = :dst WHERE {column} = :src"),  # noqa: S608 -- table and column names come from module constants; values are bound
         {"dst": dst, "src": src},
     )
 
     with op.batch_alter_table(table) as batch_op:
-        batch_op.create_check_constraint(
-            check_name, _check_expr(column, dst_values)
-        )
+        batch_op.create_check_constraint(check_name, _check_expr(column, dst_values))
 
 
 def upgrade() -> None:
@@ -142,9 +141,7 @@ def upgrade() -> None:
         batch_op.drop_constraint(_FK_OLD_NAME, type_="foreignkey")
         batch_op.alter_column("chosen_dag_id", new_column_name="chosen_flow_id")
     with op.batch_alter_table("stage_runs") as batch_op:
-        batch_op.create_foreign_key(
-            _FK_NEW_NAME, "attack_flows", ["chosen_flow_id"], ["id"]
-        )
+        batch_op.create_foreign_key(_FK_NEW_NAME, "attack_flows", ["chosen_flow_id"], ["id"])
 
     # (3) AgentStage CHECKs: dag -> flow on the three columns.
     for table, column, check_name in _COLUMNS:

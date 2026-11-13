@@ -42,7 +42,6 @@ genuinely cross-checks the implementation.
 
 from __future__ import annotations
 
-import json
 import os
 import tempfile
 from pathlib import Path
@@ -58,7 +57,6 @@ from app.db.session import create_db_engine
 from app.models.domain import StixCampaign
 from app.services.stix.stix_persistence_service import StixPersistenceService
 from app.services.stix.stix_service import KNOWN_VERSIONS, SLUG_TO_STIX, StixService
-
 
 # A single shared iteration budget so the property runs >= 100 examples. Each
 # example does disk I/O (ephemeral SQLite + a bundle file), whose cost varies
@@ -154,9 +152,7 @@ def _mixed_campaign_bundle(draw) -> list[dict]:
         "plain",  # guaranteed non-curated
     ]
     # Then a variable tail of arbitrary flavours.
-    extra = draw(
-        st.lists(st.sampled_from(["code", "name", "plain"]), min_size=0, max_size=6)
-    )
+    extra = draw(st.lists(st.sampled_from(["code", "name", "plain"]), min_size=0, max_size=6))
     flavours.extend(extra)
 
     objects: list[dict] = []
@@ -168,9 +164,7 @@ def _mixed_campaign_bundle(draw) -> list[dict]:
         if flavour == "code":
             code = draw(st.sampled_from(_CURATED_CODES))
             campaign["name"] = f"Campaign {index}"
-            campaign["external_references"] = [
-                {"source_name": "mitre-attack", "external_id": code}
-            ]
+            campaign["external_references"] = [{"source_name": "mitre-attack", "external_id": code}]
         elif flavour == "name":
             campaign["name"] = draw(st.sampled_from(_CURATED_NAMES))
         else:  # plain — never matches a curated slug.
@@ -181,7 +175,6 @@ def _mixed_campaign_bundle(draw) -> list[dict]:
         objects.append(campaign)
 
     return objects
-
 
 
 def _cleanup(*bases: Path) -> None:
@@ -227,11 +220,7 @@ def test_property3_curated_flag_consistency(objects: list[dict]) -> None:
         # stix_campaigns.curated = (curated_slug is not None).
         service.persist_bundle(_VERSION, bundle)
 
-        rows = (
-            session.execute(select(StixCampaign))
-            .scalars()
-            .all()
-        )
+        rows = session.execute(select(StixCampaign)).scalars().all()
 
         # Every generated campaign is persisted (none dropped).
         assert len(rows) == len(objects)
