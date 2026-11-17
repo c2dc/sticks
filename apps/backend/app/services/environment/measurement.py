@@ -1,9 +1,9 @@
-"""MeasurementService — Stage 6 procedural-sufficiency measurement (task 8.3).
+"""MeasurementService — the execution phase procedural-sufficiency measurement (task 8.3).
 
-This module is the **measurement** layer of the Stage 6 output (Execution +
+This module is the **measurement** layer of the execution phase output (Execution +
 measurement + report). The execution itself **reuses** the
 :class:`~app.services.operation.runner.OperationRunner` (stitched by task 8.2 in
-:class:`~app.services.environment.execution.ExecutionStageService`), which
+:class:`~app.services.environment.execution.ExecutionPhaseService`), which
 persists one :class:`~app.models.domain.AbilityResult` per Ability; this task
 **derives** the :class:`~app.services.environment.report.SufficiencyMetrics` from
 those per-Ability results **plus the curated attack flow** and consolidates everything
@@ -55,7 +55,7 @@ from dataclasses import dataclass, field
 
 from app.models.enums import AbilityResultStatus
 from app.services.curated_case_models import CaseData, FlowData, FlowNode
-from app.services.emulation.views import Stage3AbilityResult
+from app.services.emulation.views import OperationAbilityResult
 from app.services.environment.report import (
     ExecutionReport,
     SufficiencyMetrics,
@@ -72,7 +72,7 @@ class AbilityMeasurementResult:
     """The normalized measurement input — one result per executed Ability.
 
     A thin, neutral layer over the system's various per-Ability result sources
-    (the historical :class:`~app.services.emulation.views.Stage3AbilityResult`
+    (the historical :class:`~app.services.emulation.views.OperationAbilityResult`
     or the :class:`~app.services.environment.execution.ExecutionAbilityResult` of
     the task 8.2 seam). The measurement consumes **only** what it needs, staying
     decoupled from the concrete result shape.
@@ -93,8 +93,8 @@ class AbilityMeasurementResult:
     telemetry: tuple[str, ...] = ()
 
     @classmethod
-    def from_stage3(cls, result: Stage3AbilityResult) -> AbilityMeasurementResult:
-        """Normalize a :class:`Stage3AbilityResult` (no time/telemetry)."""
+    def from_operation_result(cls, result: OperationAbilityResult) -> AbilityMeasurementResult:
+        """Normalize a :class:`OperationAbilityResult` (no time/telemetry)."""
         return cls(ability_id=result.ability_id, status=result.status)
 
     @classmethod
@@ -262,7 +262,7 @@ class MeasurementService:
         Args:
             results: The execution's per-Ability results (normalized into
                 :class:`AbilityMeasurementResult`), in execution order.
-            flow: The Campaign's curated attack flow (Stage 3 output); defines the universe
+            flow: The Campaign's curated attack flow (flow phase output); defines the universe
                 of techniques (the denominator). ``None``/empty ⇒ zeroed metrics.
             technique_by_ability: The ``ability_id`` → ``technique_id`` map of the
                 curated Abilities (the result → technique bridge). An Ability with
@@ -349,15 +349,15 @@ class MeasurementService:
         *,
         campaign_id: str,
         metrics: SufficiencyMetrics,
-        results: Sequence[Stage3AbilityResult] | None = None,
+        results: Sequence[OperationAbilityResult] | None = None,
         environment_deprovisioned: bool = False,
         generated_at: dt.datetime | None = None,
     ) -> ExecutionReport:
         """Consolidate the metrics + the results into an :class:`ExecutionReport`.
 
-        The Stage 6 output (Req. 10.6, 10.7, 15.7): joins the measured
+        The execution phase output (Req. 10.6, 10.7, 15.7): joins the measured
         :class:`SufficiencyMetrics` (preserved in full, **without** recomputing),
-        the :class:`~app.services.emulation.views.Stage3AbilityResult` reused
+        the :class:`~app.services.emulation.views.OperationAbilityResult` reused
         from the execution, the environment deprovisioning flag (Req. 12, filled
         by task 8.4) and the generation timestamp.
 
@@ -366,9 +366,9 @@ class MeasurementService:
                 report.
             metrics: The metrics derived by :meth:`measure`.
             results: The per-Ability results reused from the historical execution
-                stage (``Stage3*``); default: empty.
+                phase (``OperationAbilityResult``); default: empty.
             environment_deprovisioned: ``True`` iff the environment has already
-                been deprovisioned (filled at the end of Stage 6 — Req. 12).
+                been deprovisioned (filled at the end of the execution phase — Req. 12).
             generated_at: The generation timestamp; default: now (UTC).
         """
         return ExecutionReport(
@@ -407,22 +407,22 @@ class MeasurementService:
         *,
         campaign: CaseData,
         ability_results: Sequence[AbilityMeasurementResult],
-        stage3_results: Sequence[Stage3AbilityResult],
+        operation_results: Sequence[OperationAbilityResult],
         environment_deprovisioned: bool = False,
         generated_at: dt.datetime | None = None,
     ) -> ExecutionReport:
-        """Measure and consolidate in a single step — the complete Stage 6 output.
+        """Measure and consolidate in a single step — the complete the execution phase output.
 
         Combines :meth:`measure_from_campaign` and :meth:`consolidate`: derives the
         metrics from the Campaign + the per-Ability results and packs the report
-        with the reused ``Stage3AbilityResult``. It is the composition point the
+        with the reused ``OperationAbilityResult``. It is the composition point the
         API/seam layer uses to produce the final :class:`ExecutionReport`.
         """
         metrics = self.measure_from_campaign(campaign=campaign, results=ability_results)
         return self.consolidate(
             campaign_id=campaign.id,
             metrics=metrics,
-            results=stage3_results,
+            results=operation_results,
             environment_deprovisioned=environment_deprovisioned,
             generated_at=generated_at,
         )

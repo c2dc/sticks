@@ -1,10 +1,10 @@
-"""Environment-parameter DTOs — 2nd Output of Stage 4 (Operationalization).
+"""Environment-parameter DTOs — 2nd Output of the operationalization phase.
 
 This module defines the typed (Pydantic) models of the **second** Output of
-Stage 4 (Operationalization): the :class:`EnvironmentParameters`. The first
-Output is the ordered Abilities (reusing ``Stage2*``/``build_case_from_db``); this is a
-**separate** typed artifact, destined for Stage 5 (Environment creation), and
-**derived** by the operationalizer from the Stage 4 commands and the attack
+the operationalization phase: the :class:`EnvironmentParameters`. The first
+Output is the ordered Abilities (reusing ``Operationalization*``/``build_case_from_db``); this is a
+**separate** typed artifact, destined for the environment phase (Environment creation), and
+**derived** by the operationalizer from the operationalization phase commands and the attack
 flow techniques: target hosts (label, address, host type, vulnerabilities),
 inferred services and per-node network notes (Req. 8.3, 8.4, 8.7).
 
@@ -41,7 +41,7 @@ from app.models.enums import EnvironmentPlatform, TranslationSource
 
 
 class TargetHost(BaseModel):
-    """A target host derived from the Stage 4 operationalization commands (Req. 8.3).
+    """A target host derived from the operationalization commands (Req. 8.3).
 
     Attributes:
         label: Logical label of the host in the attack flow (e.g. ``"host_a"``,
@@ -78,17 +78,17 @@ class RequiredService(BaseModel):
 
 
 class EnvironmentParameters(BaseModel):
-    """Environment parameters — 2nd Output of Stage 4 (Req. 8.3, 8.4, 8.7).
+    """Environment parameters — 2nd Output of the operationalization phase (Req. 8.3, 8.4, 8.7).
 
-    A typed artifact SEPARATE from the Abilities, destined for Stage 5. Derived
-    from the Stage 4 commands and the attack flow techniques (hosts, inferred
+    A typed artifact SEPARATE from the Abilities, destined for the environment phase. Derived
+    from the operationalization phase commands and the attack flow techniques (hosts, inferred
     services and per-node network notes).
 
     Attributes:
         campaign_id: *Slug* of the Campaign these parameters belong to.
         platform: Environment platform — always ``CONTAINER`` in this spec
             (Req. 17.1); VM admitted with no redesign (Req. 17.2).
-        hosts: Target hosts derived from the Stage 4 commands.
+        hosts: Target hosts derived from the operationalization phase commands.
         services: Services/vulnerabilities inferred from the commands.
         network_context: Per-node network notes describing the lab network.
         origin: Derivation origin — ``curadoria_humana`` today; extensible to

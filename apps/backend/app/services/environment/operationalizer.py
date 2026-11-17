@@ -1,18 +1,18 @@
 """Operationalization seam: ``OperationalizerByOrigin`` + curation.
 
-This module defines the **per-origin extension point** of Stage 4
-(Operationalization) in the six-stage pipeline. It separates *how* a Campaign is
+This module defines the **per-origin extension point** of the operationalization phase
+(Operationalization) in the agentic pipeline. It separates *how* a Campaign is
 operationalized (today by curation, reading the curated artifacts from disk;
 tomorrow by an AI agent) from the *rest* of the system, so a ``gerado_ia``
 implementation can be plugged in later **without** changing this signature (Req.
-8.6, 16.2, 16.4), following the precedent of ``FlowGenerator`` (Stage 3) and
-``EnvironmentProvisioner`` (Stage 5).
+8.6, 16.2, 16.4), following the precedent of ``FlowGenerator`` (the flow phase) and
+``EnvironmentProvisioner`` (the environment phase).
 
 Dual Output (two **separate** typed artifacts — Req. 8.4, 8.7):
 
 ``ProducedOperationalization``
-    The typed (Pydantic) result of Stage 4 — carries **the ordered Abilities**
-    (as a ``Stage2Output``, with
+    The typed (Pydantic) result of the operationalization phase — carries **the ordered Abilities**
+    (as a ``OperationalizationOutput``, with
     ``atomic_ordering`` and ``translation_source``) and **the
     ``EnvironmentParameters``** derived from the commands and techniques. The two
     artifacts live in distinct fields, never mixed.
@@ -37,7 +37,7 @@ from typing import Protocol, runtime_checkable
 from pydantic import BaseModel
 
 from app.models.enums import TranslationSource
-from app.services.emulation.views import Stage2Output
+from app.services.emulation.views import OperationalizationOutput
 from app.services.environment.operationalization import (
     EnvironmentParameters,
     RequiredService,
@@ -45,20 +45,20 @@ from app.services.environment.operationalization import (
 from app.services.flow.flow_view import FlowView
 
 # ---------------------------------------------------------------------------
-# Typed DTO of the Stage 4 output (task 5.2)
+# Typed DTO of the operationalization phase output (task 5.2)
 # ---------------------------------------------------------------------------
 
 
 class ProducedOperationalization(BaseModel):
-    """Stage 4 output — the **two** separate typed artifacts (Req. 8.4, 8.7).
+    """The operationalization phase output — the **two** separate typed artifacts (Req. 8.4, 8.7).
 
-    Stage 4 (Operationalization) has a **dual** output: the Abilities ordered by
+    the operationalization phase has a **dual** output: the Abilities ordered by
     the attack flow and the environment parameters derived from the commands. These
     live in **distinct** fields of this result, never mixed (Req. 8.7):
 
     Attributes:
         campaign_id: *Slug* of the operationalized Campaign.
-        abilities: 1st artifact — the :class:`~app.services.emulation.views.Stage2Output`
+        abilities: 1st artifact — the :class:`~app.services.emulation.views.OperationalizationOutput`
             with the Abilities (command per executor), the order
             (``atomic_ordering``), the Adversary and ``translation_source``
             (``curadoria_humana``) — (Req. 8.2, 8.5, 8.6). ``None`` when the operationalization is
@@ -66,30 +66,30 @@ class ProducedOperationalization(BaseModel):
         parameters: 2nd artifact — the
             :class:`~app.services.environment.operationalization.EnvironmentParameters`
             derived from the commands (hosts/services/``network_context``),
-            destined for Stage 5 (Req. 8.3, 8.4).
+            destined for the environment phase (Req. 8.3, 8.4).
         origin: Operationalization origin — ``curadoria_humana`` today;
             extensible to ``gerado_ia`` without changing the model (Req. 8.6,
             16.2, 16.4).
     """
 
     campaign_id: str
-    abilities: Stage2Output | None = None
+    abilities: OperationalizationOutput | None = None
     parameters: EnvironmentParameters
     origin: TranslationSource = TranslationSource.HUMAN_CURATION
 
 
 # ---------------------------------------------------------------------------
-# Per-origin seam (Protocol) — Stage 4 (task 5.2)
+# Per-origin seam (Protocol) — the operationalization phase (task 5.2)
 # ---------------------------------------------------------------------------
 
 
 @runtime_checkable
 class OperationalizerByOrigin(Protocol):
-    """Per-**origin** Stage 4 (Operationalization) seam — Req. 8.6, 16.2.
+    """Per-**origin** operationalization phase seam — Req. 8.6, 16.2.
 
     A ``@runtime_checkable Protocol`` that defines the **extension point** of the
     operationalization, following the precedent of the other per-origin seams
-    (``FlowGenerator`` in Stage 3, ``EnvironmentProvisioner`` in Stage 5): each
+    (``FlowGenerator`` in the flow phase, ``EnvironmentProvisioner`` in the environment phase): each
     origin (``curadoria_humana`` today, ``gerado_ia`` in the future) is an
     implementation interchangeable by injection, **without** redesign (Req. 16.2,
     16.4).
@@ -100,9 +100,9 @@ class OperationalizerByOrigin(Protocol):
     - ``origin()`` — the :class:`~app.models.enums.TranslationSource` this
       implementation stamps on the output (``ProducedOperationalization.origin``
       and ``EnvironmentParameters.origin``).
-    - ``operationalize(campaign, flow)`` — produces the **two** typed Stage 4
+    - ``operationalize(campaign, flow)`` — produces the **two** typed operationalization phase
       artifacts (ordered Abilities + ``EnvironmentParameters``) from the
-      Campaign's *slug* and the attack flow (Stage 3 output).
+      Campaign's *slug* and the attack flow (flow phase output).
 
     The AI implementation is ``AiOperationalizer`` (Req. 16.2).
     """
@@ -112,9 +112,9 @@ class OperationalizerByOrigin(Protocol):
         ...
 
     def operationalize(self, campaign: str, flow: FlowView) -> ProducedOperationalization:
-        """Produce the two Stage 4 artifacts (Abilities + ``EnvironmentParameters``).
+        """Produce the two operationalization phase artifacts (Abilities + ``EnvironmentParameters``).
 
-        ``flow`` is the Stage 3 output (the chosen attack flow); the curation
+        ``flow`` is the flow phase output (the chosen attack flow); the curation
         implementation uses its presence as a signal of the curated path and
         derives the parameters from the persisted data (no network, no AI —
         Req. 11.3, 11.4).

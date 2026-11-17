@@ -1,28 +1,28 @@
 """SessionStateService — read/write the Session State (task 9.1).
 
 The Session State gives the Researcher continuity across machines (Req. 9):
-it records the **current case** (``current_campaign``), the **completed stages per
+it records the **current case** (``current_campaign``), the **completed phases per
 case** and the **per-Ability operation results per case**. Only the current
 case is stored directly on the ``session_state`` row (``SessionState``); the
-completed stages and the results are **derived** from the ``StageRun`` and
-``Operation``/``AbilityResult`` rows already persisted by the Stage/Operation
+completed phases and the results are **derived** from the ``PhaseRun`` and
+``Operation``/``AbilityResult`` rows already persisted by the phase/Operation
 services, associated with the case (Req. 9.1, 9.7). This avoids duplicating —
-and risking divergence from — the authoritative stage/operation tables.
+and risking divergence from — the authoritative phase/operation tables.
 
 What this service does (task 9.1)
 ---------------------------------
 * :meth:`SessionStateService.get_session_state` — retrieve the persisted state
-  on open (Req. 9.4): the current case plus the completed-stages-per-case map.
+  on open (Req. 9.4): the current case plus the completed-phases-per-case map.
   When **no** session state exists (Req. 9.5) it returns a clean *default*
-  state (``current_campaign is None`` and an empty completed-stages map) that the UI
-  renders as every case with all stages "nao_iniciado". If the persisted state
+  state (``current_campaign is None`` and an empty completed-phases map) that the UI
+  renders as every case with all phases "nao_iniciado". If the persisted state
   cannot be read (Req. 9.6) it returns a typed result flagged
   ``restore_failed=True`` carrying a "could not restore progress" message
   **without discarding** the persisted row.
 * :meth:`SessionStateService.set_current_case` — persist the current case
   (``current_campaign``) so re-opening on another machine restores it (Req. 9.4).
-* :meth:`SessionStateService.get_completed_stages` — completed stages per case
-  derived from ``StageRun`` (Req. 9.1).
+* :meth:`SessionStateService.get_completed_phases` — completed phases per case
+  derived from ``PhaseRun`` (Req. 9.1).
 * :meth:`SessionStateService.get_operation_results` — per-Ability operation
   results for a case, derived from ``Operation`` (``campaign_id``) →
   ``AbilityResult`` (Req. 9.1, 9.7).
@@ -39,24 +39,24 @@ database) and the ephemeral test SQLite.
 Scope boundaries
 ----------------
 * This module implements reading/writing the current case + deriving the
-  completed-stages/results views (task 9.1) **and** the "preserve the previously
-  persisted state on a stage-completion persist failure" guard (task 9.2, via
-  :meth:`SessionStateService.persist_stage_completion`). It does not run any
-  stage/operation logic itself.
+  completed-phases/results views (task 9.1) **and** the "preserve the previously
+  persisted state on a phase-completion persist failure" guard (task 9.2, via
+  :meth:`SessionStateService.persist_phase_completion`). It does not run any
+  phase/operation logic itself.
 * Preferences (theme/language) persistence is handled at the API level in
   tasks 13/14; it is intentionally **not** part of this service.
 
-Stage-completion persistence with previous-state preservation (task 9.2)
+Phase-completion persistence with previous-state preservation (task 9.2)
 ------------------------------------------------------------------------
-When the Researcher concludes a Stage of a case, that conclusion must be
+When the Researcher concludes a phase of a case, that conclusion must be
 persisted **before** it is reported as done (Req. 9.2), and the completed
-stages per case are the ``StageRun`` rows in the ``completed`` state (Req. 9.1).
-:meth:`SessionStateService.persist_stage_completion` upserts the
-``StageRun`` for ``(campaign_id, stage)`` to ``completed`` and bumps the
+phases per case are the ``PhaseRun`` rows in the ``completed`` state (Req. 9.1).
+:meth:`SessionStateService.persist_phase_completion` upserts the
+``PhaseRun`` for ``(campaign_id, phase)`` to ``completed`` and bumps the
 session-state ``updated_at`` in a **single transaction**. If that commit
 fails, the service rolls back — leaving the previously persisted state exactly
 as it was, with **no partial mutation** — and returns a typed
-:class:`StageCompletionResult` flagged ``saved=False`` carrying the "completion
+:class:`PhaseCompletionResult` flagged ``saved=False`` carrying the "completion
 was not saved" message (Req. 9.3). Either the completion is fully persisted or
 nothing changes (atomicity).
 
@@ -75,10 +75,15 @@ from sqlalchemy.orm import Session
 from app.models.domain import (
     AbilityResult,
     Operation,
+    PhaseRun,
     SessionState,
-    StageRun,
 )
-from app.models.enums import AbilityResultStatus, OperationState, StageState
+from app.models.enums import (
+    PHASE_ORDER,
+    AbilityResultStatus,
+    OperationState,
+    PhaseState,
+)
 
 # ---------------------------------------------------------------------------
 # Typed views (Input/Output for the API / UI later — task 11.1)
@@ -89,10 +94,10 @@ class AbilityResultView(BaseModel):
     """One per-Ability operation result (status + command output) — Req. 9.1.
 
     Mirrors :class:`~app.models.domain.AbilityResult`, carrying the status and
-    the command output so the UI can render the Emulation (Stage 4) output per
+    the command output so the UI can render the operationalization output per
     Ability, plus the owning ``operation_id`` for grouping.
 
-    For the live technique-by-technique tracking of Stage 6 (Req. 2.4), the view
+    For the live technique-by-technique tracking of the execution phase (Req. 2.4), the view
     also carries the additive, backward-compatible fields now persisted on
     :class:`~app.models.domain.AbilityResult`: the concrete ``command`` of the
     link, the ``target_container`` (e.g. ``"nginx (192.168.20.30)"``) and the
@@ -105,7 +110,7 @@ class AbilityResultView(BaseModel):
     ability_id: str | None = None
     status: AbilityResultStatus
     command_output: str | None = None
-    # Additive per-Ability fields for Stage 6 live tracking (Req. 2.4). ``None``
+    # Additive per-Ability fields for execution-phase live tracking (Req. 2.4). ``None``
     # when not yet collected — the UI shows "não disponível" (Req. 2.5).
     command: str | None = None
     target_container: str | None = None
@@ -154,10 +159,10 @@ class SessionStateView(BaseModel):
     current_campaign:
         The persisted current case, or ``None`` when there is no session state
         yet (default state — Req. 9.5) or none was ever set.
-    completed_stages_by_campaign:
-        Map of ``campaign_id -> [completed stage numbers]`` derived from
-        ``StageRun`` (Req. 9.1). A case absent from the map (or with an empty
-        list) has no completed stage; the UI renders its stages as
+    completed_phases_by_campaign:
+        Map of ``campaign_id -> [completed Phase_Names]`` derived from
+        ``PhaseRun`` (Req. 9.1), in phase order. A case absent from the map (or
+        with an empty list) has no completed phase; the UI renders its phases as
         "nao_iniciado" (Req. 9.5).
     updated_at:
         When the session-state row was last updated, or ``None`` in the default
@@ -175,7 +180,7 @@ class SessionStateView(BaseModel):
     """
 
     current_campaign: str | None = None
-    completed_stages_by_campaign: dict[str, list[int]] = Field(default_factory=dict)
+    completed_phases_by_campaign: dict[str, list[str]] = Field(default_factory=dict)
     updated_at: dt.datetime | None = None
     exists: bool = False
     restore_failed: bool = False
@@ -187,26 +192,26 @@ class SessionStateView(BaseModel):
     preferences: PreferencesView | None = None
 
 
-class StageCompletionResult(BaseModel):
-    """Outcome of persisting a Stage completion (Req. 9.2, 9.3).
+class PhaseCompletionResult(BaseModel):
+    """Outcome of persisting a phase completion (Req. 9.2, 9.3).
 
-    Returned by :meth:`SessionStateService.persist_stage_completion`. It signals
+    Returned by :meth:`SessionStateService.persist_phase_completion`. It signals
     whether the completion was actually persisted and carries the completed
-    stages per case as they stand **after** the attempt, so the caller (and the
+    phases per case as they stand **after** the attempt, so the caller (and the
     Property 9 test) can confirm the previously persisted state is intact when a
     persist failure occurred.
 
     Attributes
     ----------
     saved:
-        ``True`` when the Stage completion was fully persisted; ``False`` when
+        ``True`` when the phase completion was fully persisted; ``False`` when
         the persist failed and the previously persisted state was preserved
         unchanged (Req. 9.3). The Backend must not report the conclusion to the
         Researcher when this is ``False`` (Req. 9.2).
-    campaign_id / stage:
-        The case and Stage number the completion was for.
-    completed_stages_by_campaign:
-        The completed-stages-per-case map (derived from ``StageRun``) as it
+    campaign_id / phase:
+        The case and Phase_Name the completion was for.
+    completed_phases_by_campaign:
+        The completed-phases-per-case map (derived from ``PhaseRun``) as it
         stands after the attempt: it *includes* the new completion on success,
         and is *identical to the previously persisted state* on failure.
     message:
@@ -217,8 +222,8 @@ class StageCompletionResult(BaseModel):
 
     saved: bool
     campaign_id: str
-    stage: int
-    completed_stages_by_campaign: dict[str, list[int]] = Field(default_factory=dict)
+    phase: str
+    completed_phases_by_campaign: dict[str, list[str]] = Field(default_factory=dict)
     message: str | None = None
 
 
@@ -229,13 +234,18 @@ RESTORE_FAILED_MESSAGE = (
     "está indisponível ou não pôde ser lido."
 )
 
-# Message surfaced when persisting a Stage completion fails (Req. 9.3). The
+# Message surfaced when persisting a phase completion fails (Req. 9.3). The
 # previously persisted Session State is preserved unchanged; the UI turns
 # this into the user-facing "the completion was not saved" notice.
 SAVE_FAILED_MESSAGE = (
-    "A conclusão do Estágio não foi salva: falha ao persistir na base de dados. "
+    "A conclusão da fase não foi salva: falha ao persistir na base de dados. "
     "O progresso anteriormente registrado foi preservado sem alteração."
 )
+
+
+# Order in which completed phases are listed: the user ``input`` phase, then the
+# agentic phases in ``PHASE_ORDER``.
+_PHASE_SEQUENCE: tuple[str, ...] = ("input", *PHASE_ORDER)
 
 
 def _utcnow() -> dt.datetime:
@@ -265,10 +275,10 @@ class SessionStateService:
         Behavior:
 
         * **State present** (Req. 9.4): returns the persisted ``current_campaign`` and
-          the completed-stages-per-case map derived from ``StageRun``.
+          the completed-phases-per-case map derived from ``PhaseRun``.
         * **No state** (Req. 9.5): returns a default view (``current_campaign`` is
-          ``None``, empty completed-stages map, ``exists=False``) that the UI
-          renders as every case with all stages "nao_iniciado".
+          ``None``, empty completed-phases map, ``exists=False``) that the UI
+          renders as every case with all phases "nao_iniciado".
         * **Unreadable state** (Req. 9.6): returns a view flagged
           ``restore_failed=True`` with :data:`RESTORE_FAILED_MESSAGE`, **without
           deleting or overwriting** the persisted row. The API turns this into
@@ -295,7 +305,7 @@ class SessionStateService:
             return SessionStateView(exists=False)
 
         try:
-            completed = self.get_completed_stages()
+            completed = self.get_completed_phases()
         except SQLAlchemyError:
             # The session row exists but the derived view could not be read —
             # still a "could not restore progress" case (Req. 9.6), without
@@ -311,30 +321,31 @@ class SessionStateService:
 
         return SessionStateView(
             current_campaign=state.current_campaign,
-            completed_stages_by_campaign=completed,
+            completed_phases_by_campaign=completed,
             updated_at=state.updated_at,
             exists=True,
         )
 
-    def get_completed_stages(self) -> dict[str, list[int]]:
-        """Completed stages per case, derived from ``StageRun`` (Req. 9.1).
+    def get_completed_phases(self) -> dict[str, list[str]]:
+        """Completed phases per case, derived from ``PhaseRun`` (Req. 9.1).
 
-        Returns a map ``campaign_id -> [stage numbers in ``completed`` state]`` with
-        the stage numbers sorted ascending. Cases with no completed stage are
-        omitted (the UI treats them as all "nao_iniciado" — Req. 9.5). Rows with
+        Returns a map ``campaign_id -> [Phase_Names in ``completed`` state]`` in
+        phase order (``input`` first, then the agentic phases). Cases with no
+        completed phase are omitted (the UI treats them as all "nao_iniciado" — Req. 9.5). Rows with
         a ``NULL`` ``campaign_id`` are ignored.
         """
         stmt = (
-            select(StageRun.campaign_id, StageRun.stage)
-            .where(StageRun.state == StageState.COMPLETED)
-            .where(StageRun.campaign_id.is_not(None))
+            select(PhaseRun.campaign_id, PhaseRun.phase)
+            .where(PhaseRun.state == PhaseState.COMPLETED)
+            .where(PhaseRun.campaign_id.is_not(None))
         )
-        completed: dict[str, list[int]] = {}
-        for campaign_id, stage in self._session.execute(stmt).all():
-            completed.setdefault(campaign_id, []).append(stage)
-        for campaign_id in completed:
-            completed[campaign_id] = sorted(set(completed[campaign_id]))
-        return completed
+        completed: dict[str, set[str]] = {}
+        for campaign_id, phase in self._session.execute(stmt).all():
+            completed.setdefault(campaign_id, set()).add(phase)
+        return {
+            campaign_id: [phase for phase in _PHASE_SEQUENCE if phase in phases]
+            for campaign_id, phases in completed.items()
+        }
 
     def get_operation_results(self, campaign_id: str) -> list[OperationResultView]:
         """Per-Ability operation results for a case (Req. 9.1, 9.7).
@@ -399,7 +410,7 @@ class SessionStateService:
 
         Note (task 9.2 seam): this write commits directly. Task 9.2 will add the
         "preserve the previously persisted state on a persist failure" guard
-        around stage-completion persistence; the read side above does not need to
+        around phase-completion persistence; the read side above does not need to
         change for that.
 
         Raises
@@ -420,12 +431,12 @@ class SessionStateService:
         self._session.refresh(state)
         return state
 
-    def persist_stage_completion(self, campaign_id: str, stage: int) -> StageCompletionResult:
-        """Persist the completion of a Stage, preserving prior state on failure.
+    def persist_phase_completion(self, campaign_id: str, phase: str) -> PhaseCompletionResult:
+        """Persist the completion of a phase, preserving prior state on failure.
 
-        When the Researcher concludes a Stage of a case, that conclusion is the
-        ``StageRun`` for ``(campaign_id, stage)`` transitioning to ``completed``
-        (Req. 9.1). This method upserts that ``StageRun`` to ``completed`` and
+        When the Researcher concludes a phase of a case, that conclusion is the
+        ``PhaseRun`` for ``(campaign_id, phase)`` transitioning to ``completed``
+        (Req. 9.1). This method upserts that ``PhaseRun`` to ``completed`` and
         bumps the session-state ``updated_at`` in a **single transaction**,
         so the persisted Session State advances atomically before the
         conclusion is reported to the Researcher (Req. 9.2).
@@ -434,14 +445,14 @@ class SessionStateService:
         --------------------------------------------------
         Either the completion is **fully** persisted, or **nothing** changes:
 
-        * **Success** — returns :class:`StageCompletionResult` with
-          ``saved=True`` and the completed-stages map *including* the new
+        * **Success** — returns :class:`PhaseCompletionResult` with
+          ``saved=True`` and the completed-phases map *including* the new
           completion.
         * **Persist failure** — the session is rolled back, which discards the
-          pending ``StageRun``/``session_state`` mutations, leaving the
+          pending ``PhaseRun``/``session_state`` mutations, leaving the
           previously persisted state **exactly as it was** (no partial update).
-          Returns :class:`StageCompletionResult` with ``saved=False``, the
-          completed-stages map *as previously persisted* (re-read after
+          Returns :class:`PhaseCompletionResult` with ``saved=False``, the
+          completed-phases map *as previously persisted* (re-read after
           rollback), and :data:`SAVE_FAILED_MESSAGE` so the UI can report that
           the conclusion was not saved. It does **not** raise — the failure is a
           typed signal in the returned result, matching the read-side contract.
@@ -449,30 +460,27 @@ class SessionStateService:
         Parameters
         ----------
         campaign_id:
-            The case whose Stage was completed.
-        stage:
-            The Stage number (1..5) that was completed. The pipeline
-            spans five Stages (1 Structural Modeling, 2 attack flow Generation,
-            3 Operationalization, 4 Environment Provisioning, 5 Campaign
-            Execution); this method only persists the completion and does not
-            bound the stage number itself — the authoritative 1..5 range is
-            enforced by the stage constants.
+            The case whose phase was completed.
+        phase:
+            The Phase_Name that was completed (``input``, ``operationalization``,
+            ``flow``, ``environment`` or ``execution``). A name with no persisted
+            phase row raises ``ValueError``.
 
         Returns
         -------
-        StageCompletionResult
+        PhaseCompletionResult
             ``saved=True`` on success; ``saved=False`` (with
             :data:`SAVE_FAILED_MESSAGE`) on a persist failure, in which case the
             previously persisted state is preserved unchanged.
         """
-        stage_run = self._get_or_create_stage_run(campaign_id, stage=stage)
-        stage_run.state = StageState.COMPLETED
-        stage_run.progress = 100
-        # Clear any prior error markers now that the stage is concluded.
-        stage_run.error_message = None
-        stage_run.failed_step = None
+        phase_run = self._get_or_create_phase_run(campaign_id, phase=phase)
+        phase_run.state = PhaseState.COMPLETED
+        phase_run.progress = 100
+        # Clear any prior error markers now that the phase is concluded.
+        phase_run.error_message = None
+        phase_run.failed_step = None
         now = _utcnow()
-        stage_run.updated_at = now
+        phase_run.updated_at = now
 
         # Advance the single session-state row's timestamp in the same
         # transaction so the completion and the Session State commit (or roll
@@ -483,34 +491,34 @@ class SessionStateService:
         try:
             self._session.commit()
         except SQLAlchemyError:
-            # Persist failed: roll back so the pending StageRun/session_state
+            # Persist failed: roll back so the pending PhaseRun/session_state
             # mutations are discarded, leaving the previously persisted state
             # exactly as it was (Req. 9.3 — no partial update).
             self._session.rollback()
-            # Re-read the completed stages as they stand *after* the rollback:
+            # Re-read the completed phases as they stand *after* the rollback:
             # this is the previously persisted state, unchanged.
             try:
-                preserved = self.get_completed_stages()
+                preserved = self.get_completed_phases()
             except SQLAlchemyError:
                 # The DB is unreadable even for the read-back; still report the
                 # completion as not saved and surface an empty view rather than
                 # raising. The persisted rows are not discarded.
                 self._session.rollback()
                 preserved = {}
-            return StageCompletionResult(
+            return PhaseCompletionResult(
                 saved=False,
                 campaign_id=campaign_id,
-                stage=stage,
-                completed_stages_by_campaign=preserved,
+                phase=phase,
+                completed_phases_by_campaign=preserved,
                 message=SAVE_FAILED_MESSAGE,
             )
 
-        self._session.refresh(stage_run)
-        return StageCompletionResult(
+        self._session.refresh(phase_run)
+        return PhaseCompletionResult(
             saved=True,
             campaign_id=campaign_id,
-            stage=stage,
-            completed_stages_by_campaign=self.get_completed_stages(),
+            phase=phase,
+            completed_phases_by_campaign=self.get_completed_phases(),
         )
 
     # ---- helpers ----------------------------------------------------------
@@ -532,23 +540,28 @@ class SessionStateService:
             self._session.add(state)
         return state
 
-    def _get_or_create_stage_run(self, campaign_id: str, *, stage: int) -> StageRun:
-        """Return the ``StageRun`` for ``(campaign_id, stage)``, creating it if absent.
+    def _get_or_create_phase_run(self, campaign_id: str, *, phase: str) -> PhaseRun:
+        """Return the ``PhaseRun`` for ``(campaign_id, phase)``, creating it if absent.
 
-        One row per ``(campaign_id, stage)`` is kept (upsert contract), so persisting a
+        One row per ``(campaign_id, phase)`` is kept (upsert contract), so persisting a
         completion updates the existing run rather than piling up rows.
         """
+        if phase not in _PHASE_SEQUENCE:
+            raise ValueError(f"Unknown phase for a persisted run: {phase!r}")
         stmt = (
-            select(StageRun)
-            .where(StageRun.campaign_id == campaign_id)
-            .where(StageRun.stage == stage)
-            .order_by(StageRun.id.asc())
+            select(PhaseRun)
+            .where(PhaseRun.campaign_id == campaign_id)
+            .where(PhaseRun.phase == phase)
+            .order_by(PhaseRun.id.asc())
         )
-        stage_run = self._session.execute(stmt).scalars().first()
-        if stage_run is None:
-            stage_run = StageRun(campaign_id=campaign_id, stage=stage)
-            self._session.add(stage_run)
-        return stage_run
+        phase_run = self._session.execute(stmt).scalars().first()
+        if phase_run is None:
+            # ``input`` keeps the former number 1 (``stix_package``) so the migration
+            # ``downgrade`` can map every row back to a legacy number.
+            subphase = "stix_package" if phase == "input" else None
+            phase_run = PhaseRun(campaign_id=campaign_id, phase=phase, subphase=subphase)
+            self._session.add(phase_run)
+        return phase_run
 
 
 __all__ = [
@@ -556,7 +569,7 @@ __all__ = [
     "SAVE_FAILED_MESSAGE",
     "AbilityResultView",
     "OperationResultView",
+    "PhaseCompletionResult",
     "SessionStateService",
     "SessionStateView",
-    "StageCompletionResult",
 ]

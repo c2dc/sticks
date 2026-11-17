@@ -13,7 +13,7 @@
     <text x="0" y="0" font-size="12.5" font-weight="800" fill="#1d6fe0">TOOL LAYER (wrappers over existing services)</text>
     <g font-size="10.5">
       <rect x="0" y="12" width="250" height="40" rx="9" fill="#eaf2fe" stroke="#1d6fe0"/><text x="12" y="30" font-weight="700" fill="#0f1726">STIX / ATT&amp;CK reader</text><text x="12" y="45" fill="#64748b">StixService / CaseService</text>
-      <rect x="0" y="60" width="250" height="40" rx="9" fill="#eaf2fe" stroke="#1d6fe0"/><text x="12" y="78" font-weight="700" fill="#0f1726">Atomic Red Team lookup</text><text x="12" y="93" fill="#64748b">command source (Stage 4)</text>
+      <rect x="0" y="60" width="250" height="40" rx="9" fill="#eaf2fe" stroke="#1d6fe0"/><text x="12" y="78" font-weight="700" fill="#0f1726">Atomic Red Team lookup</text><text x="12" y="93" fill="#64748b">command source (operationalization)</text>
       <rect x="0" y="108" width="250" height="40" rx="9" fill="#eaf2fe" stroke="#1d6fe0"/><text x="12" y="126" font-weight="700" fill="#0f1726">Command parser + containment</text><text x="12" y="141" fill="#64748b">services.containment</text>
       <rect x="0" y="156" width="250" height="40" rx="9" fill="#eaf2fe" stroke="#1d6fe0"/><text x="12" y="174" font-weight="700" fill="#0f1726">Docker/compose + Caldera</text><text x="12" y="189" fill="#64748b">ComposeExecutor / CalderaClient</text>
     </g>
@@ -42,42 +42,42 @@
     <!-- orchestrator -->
     <rect x="26" y="56" width="688" height="44" rx="10" fill="#ffffff" stroke="#8b2fd6"/>
     <text x="40" y="76" font-size="12.5" font-weight="800" fill="#8b2fd6">Orchestrator</text>
-    <text x="40" y="92" font-size="9.5" fill="#64748b">seeds state + RAG retrieval; drives nodes; one specialized agent per curated stage</text>
+    <text x="40" y="92" font-size="9.5" fill="#64748b">seeds state + RAG retrieval; drives nodes; one specialized agent per phase</text>
 
     <!-- agents row -->
     <g>
       <rect x="26" y="114" width="220" height="104" rx="10" fill="#f3eafe" stroke="#6b43d6"/>
-      <text x="40" y="136" font-size="12" font-weight="800" fill="#6b43d6">Flow agent, phase 3</text>
-      <text x="40" y="155" font-size="9.5" fill="#334155">plans the ordered</text>
-      <text x="40" y="169" font-size="9.5" fill="#334155">technique graph</text>
-      <text x="40" y="188" font-size="9" font-weight="700" fill="#6b43d6">implements FlowGenerator</text>
-      <text x="40" y="206" font-size="9" font-weight="700" fill="#6b43d6">origin = gerado_ia</text>
+      <text x="40" y="136" font-size="12" font-weight="800" fill="#6b43d6">Operationalization agent</text>
+      <text x="40" y="155" font-size="9.5" fill="#334155">picks/parametrizes</text>
+      <text x="40" y="169" font-size="9.5" fill="#334155">commands + env params</text>
+      <text x="40" y="188" font-size="9" font-weight="700" fill="#6b43d6">first agent phase (core)</text>
+      <text x="40" y="206" font-size="9" font-weight="700" fill="#6b43d6">origin = ai_generated</text>
 
       <rect x="260" y="114" width="220" height="104" rx="10" fill="#f3eafe" stroke="#8b2fd6"/>
-      <text x="274" y="136" font-size="12" font-weight="800" fill="#8b2fd6">Operationalize, Stage 4</text>
-      <text x="274" y="155" font-size="9.5" fill="#334155">picks/parametrizes</text>
-      <text x="274" y="169" font-size="9.5" fill="#334155">commands + env params</text>
-      <text x="274" y="188" font-size="9" font-weight="700" fill="#8b2fd6">build FIRST (core)</text>
-      <text x="274" y="206" font-size="9" font-weight="700" fill="#8b2fd6">origin = gerado_ia</text>
+      <text x="274" y="136" font-size="12" font-weight="800" fill="#8b2fd6">Flow agent</text>
+      <text x="274" y="155" font-size="9.5" fill="#334155">builds the attack flow:</text>
+      <text x="274" y="169" font-size="9.5" fill="#334155">exact | adapted | created</text>
+      <text x="274" y="188" font-size="9" font-weight="700" fill="#8b2fd6">follows operationalization</text>
+      <text x="274" y="206" font-size="9" font-weight="700" fill="#8b2fd6">origin = ai_generated</text>
 
       <rect x="494" y="114" width="220" height="104" rx="10" fill="#f6ebf3" stroke="#b52e9e"/>
-      <text x="508" y="136" font-size="12" font-weight="800" fill="#b52e9e">Env agent, Stage 5</text>
+      <text x="508" y="136" font-size="12" font-weight="800" fill="#b52e9e">Environment agent</text>
       <text x="508" y="155" font-size="9.5" fill="#334155">designs &amp; provisions</text>
       <text x="508" y="169" font-size="9.5" fill="#334155">the isolated lab</text>
       <text x="508" y="188" font-size="9" font-weight="700" fill="#b52e9e">implements Provisioner</text>
-      <text x="508" y="206" font-size="9" font-weight="700" fill="#b52e9e">origin = gerado_ia</text>
+      <text x="508" y="206" font-size="9" font-weight="700" fill="#b52e9e">origin = ai_generated</text>
     </g>
 
     <!-- execute + evaluate -->
     <rect x="26" y="232" width="454" height="66" rx="10" fill="#fdeeec" stroke="#e1322f"/>
-    <text x="40" y="254" font-size="12" font-weight="800" fill="#e1322f">Execute node, Stage 6 (existing OperationRunner, UNCHANGED)</text>
+    <text x="40" y="254" font-size="12" font-weight="800" fill="#e1322f">Execution node (existing OperationRunner, UNCHANGED)</text>
     <text x="40" y="272" font-size="9.5" fill="#334155">containment → isolation (read-only, fail-closed) → preview/confirm →</text>
-    <text x="40" y="287" font-size="9.5" fill="#334155">contained execution → 1:1 audit → procedural-sufficiency report</text>
+    <text x="40" y="287" font-size="9.5" fill="#334155">contained execution → 1:1 audit → run results</text>
 
     <rect x="494" y="232" width="220" height="66" rx="10" fill="#ffffff" stroke="#8b2fd6"/>
-    <text x="508" y="254" font-size="12" font-weight="800" fill="#8b2fd6">Evaluator node</text>
-    <text x="508" y="272" font-size="9.5" fill="#334155">reads verdict + failed</text>
-    <text x="508" y="287" font-size="9.5" fill="#334155">nodes → refine / finish</text>
+    <text x="508" y="254" font-size="12" font-weight="800" fill="#8b2fd6">Evaluation node</text>
+    <text x="508" y="272" font-size="9.5" fill="#334155">measures sufficiency,</text>
+    <text x="508" y="287" font-size="9.5" fill="#334155">reads failed nodes → refine / finish</text>
 
     <!-- flow arrows -->
     <g stroke="#64748b" stroke-width="2" fill="none">
@@ -98,9 +98,9 @@
     <text x="40" y="394" font-size="9.5" fill="#334155">no gate bypass · agent never runs on the host · every command re-validated by containment</text>
 
     <rect x="26" y="412" width="688" height="98" rx="10" fill="#ffffff" stroke="#cbd5e1"/>
-    <text x="40" y="432" font-size="11" font-weight="800" fill="#0f1726">Plugs into the existing six-stage pipeline via origin seams</text>
-    <text x="40" y="452" font-size="9.5" fill="#334155">Flow → FlowGenerator · Operationalization → OperationalizerByOrigin · Environment → EnvironmentProvisioner</text>
-    <text x="40" y="470" font-size="9.5" fill="#334155">AI artifacts persisted with origin = gerado_ia (already accepted by the DB CHECK, no migration)</text>
+    <text x="40" y="432" font-size="11" font-weight="800" fill="#0f1726">Plugs into the existing phase pipeline via origin seams</text>
+    <text x="40" y="452" font-size="9.5" fill="#334155">Operationalization → OperationalizerByOrigin · Flow → FlowGenerator · Environment → EnvironmentProvisioner</text>
+    <text x="40" y="470" font-size="9.5" fill="#334155">AI artifacts persisted with origin = ai_generated (already accepted by the DB CHECK, no migration)</text>
     <text x="40" y="492" font-size="9.5" fill="#64748b">Learning: in-campaign via the loop + across-campaign via RAG. No model fine-tuning.</text>
   </g>
 

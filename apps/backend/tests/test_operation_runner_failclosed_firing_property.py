@@ -1,7 +1,7 @@
-"""Property-based test for Property 6 of the stage6-execution-redesign design
+"""Property-based test for Property 6 of the execution redesign (historical spec) design
 (task 4.2) — the non-negotiable fail-closed command-firing gate.
 
-# Feature: stage6-execution-redesign, Property 6: Fail-closed de disparo de
+# Feature: execution redesign (historical spec), Property 6: Fail-closed de disparo de
 # comando (gate inegociável). Para qualquer combinação de confirmação explícita
 # e veredito de isolamento, se algum comando de ataque é disparado, então
 # necessariamente a confirmação é exatamente True E o veredito de isolamento é
@@ -295,7 +295,7 @@ def _build_ephemeral_session() -> tuple[Session, Path, object]:
     and remove the file afterward. A temp file (not ``:memory:``) matches the dev
     SQLite default exactly for ``create_all``/NOT NULL behavior.
     """
-    tmp_dir = tempfile.mkdtemp(prefix="stage6_failclosed_firing_")
+    tmp_dir = tempfile.mkdtemp(prefix="execution_failclosed_firing_")
     db_path = Path(tmp_dir) / "runner.db"
     settings_obj = Settings(database_url=f"sqlite:///{db_path.as_posix()}")
 
@@ -357,7 +357,7 @@ def test_property6_command_fires_iff_confirmed_and_isolated(
 ) -> None:
     """Property 6: a command fires iff (confirmed is True AND isolation passed).
 
-    # Feature: stage6-execution-redesign, Property 6: Fail-closed de disparo de
+    # Feature: execution redesign (historical spec), Property 6: Fail-closed de disparo de
     # comando (gate inegociável).
     Validates: Requirements 1.2, 1.6, 6.2, 6.5
 

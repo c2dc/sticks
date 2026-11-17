@@ -8,7 +8,7 @@ inject it in place of the curation generator with no downstream change
 (Requirements 2.1, 2.7).
 
 Unlike curation — which ignores ``modeling`` because the curated graph already
-exists on disk — this agent **uses** the Structural Modeling (Stage 1): it builds
+exists on disk — this agent **uses** the Structural Modeling (input phase): it builds
 a prompt from the modeling plus the cross-campaign experience retrieved from the
 RAG memory, asks the LLM for an **ordered technique graph**, validates and (on
 malformed output) repairs the structure **exactly once**, and returns a single
@@ -40,7 +40,7 @@ import uuid
 from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any
 
-from app.models.enums import AgentStage, FlowOrigin, FlowProvenance
+from app.models.enums import AgentPhase, FlowOrigin, FlowProvenance
 from app.services.attack_flow.cycles import annotate_flow_cycles
 from app.services.attack_flow.model import (
     AttackFlow,
@@ -53,7 +53,7 @@ from app.services.flow.generator import ProducedFlow, StructuralModeling
 if TYPE_CHECKING:  # pragma: no cover - typing only, no runtime import
     from sqlalchemy.orm import Session
 
-    from app.models.domain import AgentStageOutput
+    from app.models.domain import AgentPhaseOutput
     from app.services.ai.memory import ExperienceMemory
     from app.services.ai.state import AgentState
 
@@ -63,7 +63,7 @@ __all__ = [
     "FlowAgent",
     "FlowGenerationError",
     "node",
-    "persist_flow_stage_output",
+    "persist_flow_phase_output",
 ]
 
 # The agent asks the LLM for a graph, then performs AT MOST this many additional
@@ -567,7 +567,7 @@ class FlowAgent:
             return
         self._trace_sink.append(
             {
-                "stage": AgentStage.FLOW.value,
+                "phase": AgentPhase.FLOW.value,
                 "iteration": None,
                 "agent_input": {
                     "modeling": modeling.model_dump(mode="json"),
@@ -668,7 +668,7 @@ class FlowAgent:
         model is explicitly told what to correct (Requirement 14.3).
         """
         system = (
-            "You are the Stage 3 attack flow planner for an adversary-emulation pipeline. "
+            "You are the attack flow planner (flow phase) for an adversary-emulation pipeline. "
             "Given the Structural Modeling (ATT&CK techniques and their "
             "relationships) and optional past experience, produce an ORDERED "
             "directed acyclic graph of techniques. Respond with ONLY a JSON object "
@@ -713,9 +713,9 @@ class FlowAgent:
         relationships = [{"source": r.source, "target": r.target} for r in modeling.relationships]
         lines = [
             f"Campaign: {campaign}",
-            "Structural Modeling techniques (Stage 1):",
+            "Structural Modeling techniques (input phase):",
             json.dumps(techniques, ensure_ascii=False),
-            "Structural Modeling relationships (Stage 1):",
+            "Structural Modeling relationships (input phase):",
             json.dumps(relationships, ensure_ascii=False),
         ]
         index = self._command_index()
@@ -1059,28 +1059,28 @@ class _FlowParseError(ValueError):
 # LangGraph node wrapper + persistence hook (task 10.3)
 # ---------------------------------------------------------------------------
 #
-# ``node`` is the Stage 3 :class:`FlowAgent` wrapped as a LangGraph node: it
+# ``node`` is the Flow phase :class:`FlowAgent` wrapped as a LangGraph node: it
 # builds the generator with a lazily-resolved chat model and (optional) RAG
-# memory, reads the Structural Modeling (Stage 1) out of the shared
+# memory, reads the Structural Modeling (input phase) out of the shared
 # :class:`~app.services.ai.state.AgentState`, runs :meth:`FlowAgent.generate`
 # and returns the ``artifacts.flow`` state delta the design prescribes
 # (Requirement 2.4). It performs NO persistence and opens NO database — the graph
 # nodes only mutate the checkpointed state.
 #
-# Persisting the AI-origin attack flow and the ``agent_stage_outputs`` bookkeeping row is
+# Persisting the AI-origin attack flow and the ``agent_phase_outputs`` bookkeeping row is
 # a SEPARATE, Session-bound concern owned by the ``AgentRunService`` (tasks 15.x),
 # which is the only layer that holds the injected ``Session`` and the enclosing
 # ``agent_iterations`` row. It is factored here as the standalone
-# :func:`persist_flow_stage_output` helper so the Run_Service can drive it after a
+# :func:`persist_flow_phase_output` helper so the Run_Service can drive it after a
 # node produces ``artifacts.flow`` (Requirement 11.5), without this module ever
 # importing the graph runtime or opening a connection at import time
 # (Requirement 1.7).
 
 
 def _modeling_from_state(state: AgentState) -> StructuralModeling:
-    """Reconstruct the :class:`StructuralModeling` (Stage 1) from the agent state.
+    """Reconstruct the :class:`StructuralModeling` (input phase) from the agent state.
 
-    The attack flow (Stage 3) is derived from the Structural Modeling (Stage 1), so the
+    The attack flow (flow phase) is derived from the Structural Modeling (input phase), so the
     node reads the modeling the orchestrator seeded into the shared state. The
     modeling may already be a :class:`StructuralModeling`, a serialized ``dict``
     (``{"techniques": [...], "relationships": [...]}``, e.g. a
@@ -1279,12 +1279,12 @@ def _command_ref_resolver_for_session(
 
 
 def node(state: AgentState, *, session: Any = None) -> dict:
-    """LangGraph Stage 3 node: produce the AI attack flow and write ``artifacts.flow``.
+    """LangGraph Flow phase node: produce the AI attack flow and write ``artifacts.flow``.
 
     Builds an :class:`FlowAgent` with a lazily-resolved SEPINF chat model
     (:func:`app.services.ai.llm.make_chat_model`) and the RAG
     :class:`~app.services.ai.memory.ExperienceMemory` when one was seeded on the
-    state, reads the Structural Modeling (Stage 1) via
+    state, reads the Structural Modeling (input phase) via
     :func:`_modeling_from_state`, calls :meth:`FlowAgent.generate` for the
     ``campaign_id``, and returns the state delta the design prescribes
     (Requirement 2.4)::
@@ -1294,9 +1294,9 @@ def node(state: AgentState, *, session: Any = None) -> dict:
 
     The chat model and memory are resolved **inside** the node so importing this
     module performs no I/O (Requirement 1.7). Persistence of the AI-origin ``AttackFlowRow``
-    row and the ``agent_stage_outputs`` bookkeeping is intentionally **not** done
+    row and the ``agent_phase_outputs`` bookkeeping is intentionally **not** done
     here — it is the Session-bound Run_Service's job, driven through
-    :func:`persist_flow_stage_output` once this node has produced ``artifacts.flow``
+    :func:`persist_flow_phase_output` once this node has produced ``artifacts.flow``
     (Requirement 11.5).
     """
     # Lazy import so importing this module requires neither the LangChain client
@@ -1374,7 +1374,7 @@ def node(state: AgentState, *, session: Any = None) -> dict:
     modeling = _modeling_from_state(state)
     if not modeling.techniques and profile["techniques"]:
         # The flow phase runs after operationalization and no longer receives a
-        # Stage 1 modeling: the campaign techniques come from the database.
+        # Input phase modeling: the campaign techniques come from the database.
         modeling = StructuralModeling(techniques=profile["techniques"])
     produced = generator.generate(state["campaign_id"], modeling)
 
@@ -1392,18 +1392,18 @@ def node(state: AgentState, *, session: Any = None) -> dict:
     }
 
 
-def persist_flow_stage_output(
+def persist_flow_phase_output(
     session: Session,
     *,
     iteration_id: int,
     campaign_id: str,
     produced: ProducedFlow,
     trace: dict | None = None,
-) -> AgentStageOutput:
-    """Persist a produced AI attack flow as an ``agent_stage_outputs`` row (Requirement 11.5).
+) -> AgentPhaseOutput:
+    """Persist a produced AI attack flow as an ``agent_phase_outputs`` row (Requirement 11.5).
 
     This is the Session-bound persistence hook the ``AgentRunService`` (tasks
-    15.x) drives after the Stage 3 :func:`node` has produced ``artifacts.flow``.
+    15.x) drives after the Flow phase :func:`node` has produced ``artifacts.flow``.
     It is factored out of the LangGraph node so the graph runtime stays free of
     database access and the Run_Service — the only layer that holds the injected
     ``Session`` and the enclosing ``agent_iterations`` row — owns the write.
@@ -1418,21 +1418,21 @@ def persist_flow_stage_output(
        ``attack_flows.campaign_id`` FK, then the ``AttackFlowRow`` row is reconciled **idempotently**
        on ``(campaign_id, origin, identifier)`` — an equivalent AI-origin attack flow is
        reused rather than duplicated (Req. 4.5).
-    2. Insert the ``agent_stage_outputs`` row for ``iteration_id`` with
-       ``stage = flow``, ``origin = gerado_ia``, the serialized
+    2. Insert the ``agent_phase_outputs`` row for ``iteration_id`` with
+       ``phase = flow``, ``origin = gerado_ia``, the serialized
        ``payload`` (``produced.model_dump()``) and ``flow_id`` linking the
        AI-origin ``AttackFlowRow`` row from step 1.
 
     Both rows are added and flushed (so ``id``/``flow_id`` are assigned) but **not**
     committed — the transaction boundary belongs to the Run_Service, which commits
     the whole iteration atomically. Returns the persisted
-    :class:`~app.models.domain.AgentStageOutput`.
+    :class:`~app.models.domain.AgentPhaseOutput`.
 
     Audit_Trace (Req. 2.1, 2.5): when ``trace`` is supplied — the matching
     :class:`~app.services.ai.state.AgentTrace` dict the Run_Service looked up from
-    ``final_state["traces"]`` by ``(stage, iteration)`` — one 1:1
-    ``agent_stage_traces`` row is written for the just-flushed stage output in the
-    SAME flush (via :func:`app.services.ai.agents._trace.persist_stage_trace`),
+    ``final_state["traces"]`` by ``(phase, iteration)`` — one 1:1
+    ``agent_phase_traces`` row is written for the just-flushed phase output in the
+    SAME flush (via :func:`app.services.ai.agents._trace.persist_phase_trace`),
     inside the Run_Service's existing SAVEPOINT. Absent processing elements are
     carried with the explicit ``None`` sentinel.
     """
@@ -1440,14 +1440,14 @@ def persist_flow_stage_output(
     # any circular-import risk (Requirement 1.7).
     from sqlalchemy import select
 
-    from app.models.domain import AgentStageOutput, AttackFlowRow
-    from app.models.enums import AgentStage, TranslationSource
+    from app.models.domain import AgentPhaseOutput, AttackFlowRow
+    from app.models.enums import AgentPhase, TranslationSource
     from app.services.curated_case_reader import upsert_case_row
     from app.services.curated_case_reader import utcnow as _utcnow
 
     # Persist the AI-origin AttackFlowRow row:
     # ensure the Case row exists (FK), then reconcile idempotently on
-    # (campaign_id, origin, identifier) so re-running a stage does not duplicate.
+    # (campaign_id, origin, identifier) so re-running a phase does not duplicate.
     upsert_case_row(session, campaign_id, produced.label)
 
     flow_id = (
@@ -1475,9 +1475,9 @@ def persist_flow_stage_output(
         session.flush()
         flow_id = flow_row.id
 
-    row = AgentStageOutput(
+    row = AgentPhaseOutput(
         iteration_id=iteration_id,
-        stage=AgentStage.FLOW,
+        phase=AgentPhase.FLOW,
         origin=TranslationSource.AI_GENERATED,
         payload=produced.model_dump(),
         flow_id=flow_id,
@@ -1485,9 +1485,9 @@ def persist_flow_stage_output(
     session.add(row)
     session.flush()
 
-    # Write the 1:1 Audit_Trace row for this stage output in the same flush, so
+    # Write the 1:1 Audit_Trace row for this phase output in the same flush, so
     # it lands inside the Run_Service's per-iteration SAVEPOINT (Req. 2.1, 2.5).
-    from app.services.ai.agents._trace import persist_stage_trace
+    from app.services.ai.agents._trace import persist_phase_trace
 
-    persist_stage_trace(session, row, trace)
+    persist_phase_trace(session, row, trace)
     return row

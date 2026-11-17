@@ -57,8 +57,8 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.db.base import Base
 from app.models.enums import (
     AbilityResultStatus,
+    AgentPhase,
     AgentRunStatus,
-    AgentStage,
     EnvironmentPlatform,
     EvaluatorDecision,
     FlowOrigin,
@@ -66,7 +66,7 @@ from app.models.enums import (
     IngestStatus,
     Language,
     OperationState,
-    StageState,
+    PhaseState,
     TechniqueEmulabilityKind,
     Theme,
     TranslationSource,
@@ -195,7 +195,7 @@ class AttackFlowRow(Base):
     A Campaign (``Case``) can have N attack flows: each row references a ``Case`` by
     ``campaign_id`` (FK → ``campaigns.id``), establishing the 1 Campaign → N Flows
     relation (Req. 4.1, 4.2) — in the same FK style already used by ``Ability``/
-    ``Adversary``/``StageRun``.
+    ``Adversary``/``PhaseRun``.
 
     ``origin`` is an explicit, extensible attribute (``FlowOrigin``), persisted
     with ``native_enum=False`` (VARCHAR + CHECK) via ``_portable_enum``: the
@@ -254,27 +254,28 @@ class AttackFlowRow(Base):
     created_at: Mapped[dt.datetime] = mapped_column(DateTime, nullable=False)
 
 
-class StageRun(Base):
-    """Run of a Stage of a Campaign (states, progress, failure)."""
+class PhaseRun(Base):
+    """Run of a phase of a Campaign (states, progress, failure)."""
 
-    __tablename__ = "stage_runs"
+    __tablename__ = "phase_runs"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     campaign_id: Mapped[str | None] = mapped_column(
         String, ForeignKey("campaigns.id"), nullable=True
     )
-    # Pipeline stage in the range 1..6 (plain Integer column, no range CHECK:
-    # the range is accommodated by the column itself — Req. 1.2).
-    stage: Mapped[int] = mapped_column(Integer, nullable=False)  # 1..6
-    state: Mapped[StageState] = mapped_column(
-        _portable_enum(StageState, "stage_state"),
-        default=StageState.NOT_STARTED,
+    # Phase_Name (``input``, ``flow``, ``operationalization``, ``environment``,
+    # ``execution``); ``input`` runs are told apart by ``subphase``.
+    phase: Mapped[str] = mapped_column(String, nullable=False)
+    subphase: Mapped[str | None] = mapped_column(String, nullable=True)
+    state: Mapped[PhaseState] = mapped_column(
+        _portable_enum(PhaseState, "phase_state"),
+        default=PhaseState.NOT_STARTED,
         nullable=False,
     )
     progress: Mapped[int] = mapped_column(Integer, default=0, nullable=False)  # 0..100
     # cause of the failure, when state == error
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
-    # modeling step at which it failed (Stage 1)
+    # modeling step at which it failed (input phase)
     failed_step: Mapped[str | None] = mapped_column(String, nullable=True)
     updated_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
 
@@ -354,7 +355,7 @@ class Operation(Base):
 class AbilityResult(Base):
     """Per-Ability result of an Operation (status + command output).
 
-    For the live technique-by-technique tracking of Stage 6 (Req. 2.4), the
+    For the live technique-by-technique tracking of the execution phase (Req. 2.4), the
     per-Ability result carries, besides the pre-existing ``status`` and
     ``command_output``, the fields shown in the UI. These additive, nullable
     columns are mapped by ``OperationRunner._reconcile`` from the Caldera
@@ -420,8 +421,8 @@ class AuditLogEntry(Base):
 class SessionState(Base):
     """Session state — continuity across machines (Req. 9.1, 9.7).
 
-    The completed stages per campaign and the results are derived from the
-    ``StageRun``/``Operation`` rows associated with the corresponding campaign.
+    The completed phases per campaign and the results are derived from the
+    ``PhaseRun``/``Operation`` rows associated with the corresponding campaign.
     """
 
     __tablename__ = "session_state"
@@ -452,9 +453,9 @@ class UserPreferences(Base):
 
 
 class EnvironmentParametersRow(Base):
-    """Stage 4 environment parameters (Operationalization) — Req. 8.3.
+    """Operationalization environment parameters — Req. 8.3.
 
-    The second typed Output of Stage 4 (``EnvironmentParameters``) is persisted
+    The second typed Output of the operationalization phase (``EnvironmentParameters``) is persisted
     in a single portable JSON column (``content``), like ``AttackFlowRow.content``, avoiding
     unnecessary normalization (Req. 8.3, 17.1).
 
@@ -496,12 +497,12 @@ class EnvironmentParametersRow(Base):
 
 
 class ExecutionReport(Base):
-    """Stage 6 report/metrics (execution, measurement and report) — Req. 15.7.
+    """Execution report/metrics (execution, measurement and report) — Req. 15.7.
 
     The ``SufficiencyMetrics`` are persisted in a portable JSON column
     (``metrics``), like ``AttackFlowRow.content``. ``success_verdict`` stores the overall
     execution verdict (Req. 15.6) and ``environment_deprovisioned`` records
-    whether the environment was deprovisioned at the end of Stage 6 (Req. 12.1).
+    whether the environment was deprovisioned at the end of the execution phase (Req. 12.1).
     """
 
     __tablename__ = "execution_reports"
@@ -517,7 +518,7 @@ class ExecutionReport(Base):
     success_verdict: Mapped[bool] = mapped_column(Boolean, nullable=False)
     environment_deprovisioned: Mapped[bool] = mapped_column(Boolean, nullable=False)
     # Structured teardown result from the ``DeprovisioningResult`` produced at
-    # Stage 6 completion (Req. 7.3). ``deprovisioned`` records whether the
+    # Execution completion (Req. 7.3). ``deprovisioned`` records whether the
     # environment was removed; ``remaining_resources`` lists the resources that
     # remained when the teardown failed. Both are nullable so legacy/pre-teardown
     # rows (and reports persisted before the environment was torn down) stay valid.
@@ -530,7 +531,7 @@ class ExecutionReport(Base):
 # AI curation agent bookkeeping (task 3.1)
 #
 # The five tables below are the ONLY new persistence introduced by the AI
-# curation agents: the agent-run bookkeeping (runs → iterations → per-stage
+# curation agents: the agent-run bookkeeping (runs → iterations → per-phase
 # outputs, plus the evaluator readings) and the pgvector experience memory.
 # They follow the design's ER diagram and table notes exactly.
 #
@@ -540,7 +541,7 @@ class ExecutionReport(Base):
 #   * Portable enums persist as VARCHAR + CHECK via ``_portable_enum`` (no
 #     native PostgreSQL ENUM), storing the enum *values*.
 #   * FK links reuse the existing style (``ForeignKey("table.column")``) into
-#     ``campaigns``, ``attack_flows``, ``environment_parameters`` and the Stage 6
+#     ``campaigns``, ``attack_flows``, ``environment_parameters`` and the execution
 #     ``execution_reports``.
 #
 # _Requirements: 11.1, 11.4, 11.8, 11.9_
@@ -577,7 +578,7 @@ class AgentRun(Base):
     thread_id: Mapped[str] = mapped_column(String, nullable=False)
     # Overall verdict summary; nullable until the run reaches a terminal state.
     final_verdict_success: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
-    # Structured failure cause written by ``_fail_run`` (failing stage + the
+    # Structured failure cause written by ``_fail_run`` (failing phase + the
     # absent-input/cause message) and surfaced by the read endpoint (Req. 2.6,
     # 2.7). Additive and nullable so existing rows need no backfill.
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -589,10 +590,10 @@ class AgentIteration(Base):
     """One pass through the plan→execute→measure→improve loop (Req. 11.5).
 
     Belongs to an :class:`AgentRun` via ``run_id`` (1 run → N iterations).
-    ``index`` is the 0-based iteration number; ``refined_stage`` records which
-    stage node the evaluator routed back into and is null on the first pass.
+    ``index`` is the 0-based iteration number; ``refined_phase`` records which
+    phase node the evaluator routed back into and is null on the first pass.
 
-    ``refined_stage`` persists as VARCHAR + CHECK from :class:`AgentStage`
+    ``refined_phase`` persists as VARCHAR + CHECK from :class:`AgentPhase`
     (``flow`` / ``operationalization`` / ``environment``).
     """
 
@@ -602,26 +603,26 @@ class AgentIteration(Base):
     run_id: Mapped[int] = mapped_column(Integer, ForeignKey("agent_runs.id"), nullable=False)
     # 0-based iteration number within the run.
     index: Mapped[int] = mapped_column(Integer, nullable=False)
-    # Which stage the evaluator refined into this iteration (null on first pass).
-    refined_stage: Mapped[AgentStage | None] = mapped_column(
-        _portable_enum(AgentStage, "agent_stage"),
+    # Which phase the evaluator refined into this iteration (null on first pass).
+    refined_phase: Mapped[AgentPhase | None] = mapped_column(
+        _portable_enum(AgentPhase, "agent_phase"),
         nullable=True,
     )
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=_utcnow, nullable=False)
 
 
-class AgentStageOutput(Base):
-    """The per-stage agent artifact of an iteration (Req. 11.5).
+class AgentPhaseOutput(Base):
+    """The per-phase agent artifact of an iteration (Req. 11.5).
 
     Belongs to an :class:`AgentIteration` via ``iteration_id`` (1 iteration →
-    N stage outputs). The serialized artifact (``ProducedFlow`` |
+    N phase outputs). The serialized artifact (``ProducedFlow`` |
     ``ProducedOperationalization`` | ``ProvisionedEnvironment``) lives in the
     portable JSON ``payload`` column. Where it corresponds to an existing
     persisted entity it is linked via ``flow_id`` (the AI-origin ``AttackFlowRow`` row
     persisted by the flow agent) or ``params_id`` (the
     ``EnvironmentParameters`` row); both FKs are nullable because only one
-    applies per stage.
+    applies per phase.
 
     ``origin`` is always ``ai_generated`` here — persisted via the existing
     :class:`TranslationSource` portable enum, whose CHECK already admits
@@ -629,14 +630,14 @@ class AgentStageOutput(Base):
     (Req. 11.8).
     """
 
-    __tablename__ = "agent_stage_outputs"
+    __tablename__ = "agent_phase_outputs"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     iteration_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("agent_iterations.id"), nullable=False
     )
-    stage: Mapped[AgentStage] = mapped_column(
-        _portable_enum(AgentStage, "agent_stage"),
+    phase: Mapped[AgentPhase] = mapped_column(
+        _portable_enum(AgentPhase, "agent_phase"),
         nullable=False,
     )
     # Always ``ai_generated`` for AI-produced artifacts (Req. 11.8); reuses the
@@ -646,10 +647,10 @@ class AgentStageOutput(Base):
         default=TranslationSource.AI_GENERATED,
         nullable=False,
     )
-    # Serialized stage artifact (ProducedFlow | ProducedOperationalization |
+    # Serialized phase artifact (ProducedFlow | ProducedOperationalization |
     # ProvisionedEnvironment).
     payload: Mapped[Any] = mapped_column(JSON, nullable=False)
-    # Linked AI-origin AttackFlowRow row (when this is a flow stage output); nullable.
+    # Linked AI-origin AttackFlowRow row (when this is a flow phase output); nullable.
     flow_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("attack_flows.id"), nullable=True
     )
@@ -662,10 +663,10 @@ class AgentStageOutput(Base):
 
 
 class AgentEvaluation(Base):
-    """The evaluator's reading of the Stage 6 report for an iteration (Req. 11.9).
+    """The evaluator's reading of the execution report for an iteration (Req. 11.9).
 
     Belongs to an :class:`AgentIteration` via ``iteration_id`` (0..1 per
-    iteration). ``report_id`` links the Stage 6 ``execution_reports`` row the
+    iteration). ``report_id`` links the execution ``execution_reports`` row the
     evaluator keyed on. The metrics it read (``success_rate``,
     ``procedural_coverage``, ``verdict_success``, ``failed_nodes``) are stored
     alongside the ``decision`` that drives the conditional edge and the LLM
@@ -690,7 +691,7 @@ class AgentEvaluation(Base):
     iteration_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("agent_iterations.id"), nullable=False
     )
-    # Stage 6 execution report the evaluator read.
+    # Execution report the evaluator read.
     report_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("execution_reports.id"), nullable=True
     )
@@ -718,8 +719,8 @@ class ExperienceMemory(Base):
     snippet (technique, command, node, params); ``metadata`` carries the
     technique id, verdict and metrics used to filter retrieval.
 
-    ``stage`` and ``outcome`` persist as VARCHAR + CHECK via the portable enums
-    (:class:`AgentStage` and :class:`AbilityResultStatus` — whose ``success`` /
+    ``phase`` and ``outcome`` persist as VARCHAR + CHECK via the portable enums
+    (:class:`AgentPhase` and :class:`AbilityResultStatus` — whose ``success`` /
     ``failure`` values bound the stored outcome).
     """
 
@@ -740,8 +741,8 @@ class ExperienceMemory(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     campaign_id: Mapped[str] = mapped_column(String, ForeignKey("campaigns.id"), nullable=False)
-    stage: Mapped[AgentStage] = mapped_column(
-        _portable_enum(AgentStage, "agent_stage"),
+    phase: Mapped[AgentPhase] = mapped_column(
+        _portable_enum(AgentPhase, "agent_phase"),
         nullable=False,
     )
     # Outcome of the stored curation, bounded to ``success | failure`` by the
@@ -756,19 +757,19 @@ class ExperienceMemory(Base):
     created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=_utcnow, nullable=False)
 
 
-class AgentStageTrace(Base):
-    """Per-stage-output Audit_Trace — the Agent_Input + processing (Req. 2.1, 2.7).
+class AgentPhaseTrace(Base):
+    """Per-phase-output Audit_Trace — the Agent_Input + processing (Req. 2.1, 2.7).
 
-    One row per :class:`AgentStageOutput`, in a strict 1:1 relationship via the
-    non-null ``stage_output_id`` FK: the FK carries a UNIQUE constraint so each
-    stage output has at most one trace (design §Data Models — Audit_Trace).
+    One row per :class:`AgentPhaseOutput`, in a strict 1:1 relationship via the
+    non-null ``phase_output_id`` FK: the FK carries a UNIQUE constraint so each
+    phase output has at most one trace (design §Data Models — Audit_Trace).
     Keeping the trace in its own table isolates the large, optional
-    prompt/response/reasoning payload from the hot ``agent_stage_outputs`` path.
+    prompt/response/reasoning payload from the hot phase-output path.
 
     The trace content is stored in two portable JSON columns, following the
-    precedent of ``AgentStageOutput.payload``:
+    precedent of ``AgentPhaseOutput.payload``:
 
-    * ``agent_input`` — the data the agent received (prior-stage artifacts,
+    * ``agent_input`` — the data the agent received (prior-phase artifacts,
       campaign context, retrieved cross-campaign experience, the ATT&CK/STIX
       attack context).
     * ``processing`` — what the agent performed (the LLM prompt and response,
@@ -779,14 +780,14 @@ class AgentStageTrace(Base):
     :func:`_utcnow`, matching the other AI bookkeeping rows.
     """
 
-    __tablename__ = "agent_stage_traces"
+    __tablename__ = "agent_phase_traces"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    # 1:1 with the stage output: non-null FK + UNIQUE so each output has at
+    # 1:1 with the phase output: non-null FK + UNIQUE so each output has at
     # most one trace row.
-    stage_output_id: Mapped[int] = mapped_column(
+    phase_output_id: Mapped[int] = mapped_column(
         Integer,
-        ForeignKey("agent_stage_outputs.id"),
+        ForeignKey("agent_phase_outputs.id"),
         nullable=False,
         unique=True,
     )

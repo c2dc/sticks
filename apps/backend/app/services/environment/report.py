@@ -1,8 +1,8 @@
-"""Metric and report DTOs — Stage 6 Output (Execution + measurement + report).
+"""Metric and report DTOs — the execution phase Output (Execution + measurement + report).
 
 This module defines the typed (Pydantic) models of the procedural-sufficiency
-measurement and of the consolidated report produced at the end of Stage 6. The
-execution itself **reuses** the ``OperationRunner``/``Stage3*`` (which persists
+measurement and of the consolidated report produced at the end of the execution phase. The
+execution itself **reuses** the ``OperationRunner``/``OperationAbilityResult`` (which persists
 the ``AbilityResult`` per Ability); these DTOs are the **measurement** layer over
 those results plus the attack flow, consolidated into an :class:`ExecutionReport`.
 
@@ -16,15 +16,15 @@ those results plus the attack flow, consolidated into an :class:`ExecutionReport
 - :class:`DeprovisioningView` — the structured teardown outcome exposed on the
   report (``deprovisioned`` + ``remaining_resources``), recovered from the
   persisted ``execution_reports`` row at read time (Req. 7.2, 7.3).
-- :class:`ExecutionReport` — the Stage 6 Output: the consolidated metrics, the
-  :class:`~app.services.emulation.views.Stage3AbilityResult` reused from the
-  historical execution stage, the environment deprovisioning flag (Req. 12), the
+- :class:`ExecutionReport` — the execution phase Output: the consolidated metrics, the
+  :class:`~app.services.emulation.views.OperationAbilityResult` reused from the
+  historical execution phase, the environment deprovisioning flag (Req. 12), the
   structured teardown ``deprovisioning`` (Req. 7.2, 7.3) and the generation
   timestamp (Req. 10.6, 10.7, 15.7).
 
 The technique status reuses :class:`~app.models.enums.AbilityResultStatus`
 (``pendente``/``em_execucao``/``sucesso``/``falha``), the same source of truth as
-``Stage3AbilityResult``.
+``OperationAbilityResult``.
 
 _Requirements: 15.1, 15.2, 15.3, 15.4, 15.5, 15.6, 15.7, 15.8_
 """
@@ -36,7 +36,7 @@ import datetime as dt
 from pydantic import BaseModel, Field
 
 from app.models.enums import AbilityResultStatus
-from app.services.emulation.views import Stage3AbilityResult
+from app.services.emulation.views import OperationAbilityResult
 
 
 class TechniqueMetric(BaseModel):
@@ -95,7 +95,7 @@ class DeprovisioningView(BaseModel):
 
     Mirrors the persisted fields of the
     :class:`~app.services.environment.provisioner.DeprovisioningResult` produced
-    at the end of Stage 6 and written to the ``execution_reports`` row: the
+    at the end of the execution phase and written to the ``execution_reports`` row: the
     boolean ``deprovisioned`` and the ``remaining_resources`` that remained when
     the teardown failed. The read path (``GET .../report``) recovers them from the
     persisted row so the report screen can indicate teardown success/failure and,
@@ -116,14 +116,14 @@ class DeprovisioningView(BaseModel):
 
 
 class ExecutionReport(BaseModel):
-    """Stage 6 Output — consolidated report (Req. 10.6, 10.7, 15.7).
+    """The execution phase Output — consolidated report (Req. 10.6, 10.7, 15.7).
 
     Attributes:
         campaign_id: *Slug* of the Campaign whose execution produced the report.
         metrics: The execution's :class:`SufficiencyMetrics`.
         results: The
-            :class:`~app.services.emulation.views.Stage3AbilityResult`
-            per Ability, reused from the historical execution stage (``Stage3*``).
+            :class:`~app.services.emulation.views.OperationAbilityResult`
+            per Ability, reused from the historical execution phase (``OperationAbilityResult``).
         environment_deprovisioned: ``True`` iff the campaign environment was
             deprovisioned at the end (Req. 12). Legacy boolean preserved for
             backward compatibility.
@@ -136,7 +136,7 @@ class ExecutionReport(BaseModel):
 
     campaign_id: str
     metrics: SufficiencyMetrics
-    results: list[Stage3AbilityResult] = Field(default_factory=list)
+    results: list[OperationAbilityResult] = Field(default_factory=list)
     environment_deprovisioned: bool = False
     deprovisioning: DeprovisioningView | None = None
     generated_at: dt.datetime

@@ -232,7 +232,7 @@
 }
 
 /* ============================================================
-   Flow candidate cards (flow agent / Stage 3 slide)
+   Flow candidate cards (flow agent / flow phase slide)
    The three candidate graphs use the SAME technique set arranged
    differently, so node counts per "row" differ and the raw Mermaid
    SVGs render at very different heights (the 7-deep linear chain is

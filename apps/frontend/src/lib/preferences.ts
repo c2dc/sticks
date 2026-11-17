@@ -32,7 +32,7 @@ export type PreferencesUpdate = Partial<Preferences>
 /**
  * Session state (`GET /api/session-state`). Only the `preferences` block is
  * consumed here; the rest of the session state (current campaign, per-campaign
- * stages, operation results) is handled elsewhere (Req. 9). `preferences` may be
+ * phases, operation results) is handled elsewhere (Req. 9). `preferences` may be
  * absent on first visit, in which case there is nothing persisted to restore.
  */
 export interface SessionState {

@@ -1,7 +1,7 @@
 import type { ReactNode } from "react"
 import { useTranslation } from "react-i18next"
 
-import type { AiStageOutput } from "@/lib/ai"
+import type { AiPhaseOutput } from "@/lib/ai"
 
 /**
  * AgentTracePanel — the three-part Input → Processing → Output view of a single
@@ -17,7 +17,7 @@ import type { AiStageOutput } from "@/lib/ai"
  *   reasoning, tools invoked, repair attempts render as compact summaries; the
  *   long raw LLM prompt + raw LLM response are tucked behind a collapsible
  *   "show details" disclosure CLOSED by default (Req. 6.2, 6.3).
- * - **Output** — the Agent_Output artifact produced for the stage (`payload`),
+ * - **Output** — the Agent_Output artifact produced for the phase (`payload`),
  *   stamped with its AI-generated `origin` (Req. 6.4).
  *
  * Any processing element the backend returned as the literal `"not_available"`
@@ -34,12 +34,12 @@ const NOT_AVAILABLE_SENTINEL = "not_available"
 /** Raw LLM processing keys shown only behind the collapsed "show details" disclosure. */
 const RAW_PROCESSING_KEYS = ["llm_prompt", "llm_response"] as const
 
-/** The semantic `AgentStage` value whose processing trace carries the environment specifics. */
-const ENVIRONMENT_STAGE = "environment"
+/** The semantic `AgentPhase` value whose processing trace carries the environment specifics. */
+const ENVIRONMENT_PHASE = "environment"
 
 /**
  * The Environment agent's specialized processing keys (task 6.3). For the
- * environment stage these render through {@link EnvironmentStepDetails} — the
+ * environment phase these render through {@link EnvironmentStepDetails} — the
  * fixed-vs-agent-decided split, BOTH gate verdicts and the provisioner
  * sub-phases — instead of falling through to the generic JSON entry list.
  */
@@ -47,28 +47,28 @@ const ENVIRONMENT_PROCESSING_KEYS = [
   "fixed_infrastructure",
   "agent_decided",
   "gates",
-  "substages",
+  "subphases",
 ] as const
 
 export function AgentTracePanel({
-  stageName,
-  stageOutput,
+  phaseName,
+  phaseOutput,
 }: {
-  /** Meaningful English stage name already resolved by the caller (e.g. "Flow generation agent"). */
-  stageName: string
-  /** The `agent_stage_outputs` row with its 1:1 Audit_Trace for this agent step. */
-  stageOutput: AiStageOutput
+  /** Meaningful English phase name already resolved by the caller (e.g. "Flow generation agent"). */
+  phaseName: string
+  /** The `agent_phase_outputs` row with its 1:1 Audit_Trace for this agent step. */
+  phaseOutput: AiPhaseOutput
 }) {
   const { t } = useTranslation("pipeline")
-  const { origin, payload, trace } = stageOutput
+  const { origin, payload, trace } = phaseOutput
   const input = trace?.agent_input ?? {}
   const processing = trace?.processing ?? {}
-  const isEnvironment = stageOutput.stage === ENVIRONMENT_STAGE
+  const isEnvironment = phaseOutput.phase === ENVIRONMENT_PHASE
 
   // Split the processing trace: the long raw LLM prompt/response go behind the
   // collapsed disclosure; everything else renders as a compact summary. For the
   // Environment agent the specialized `fixed_infrastructure` / `agent_decided` /
-  // `gates` / `substages` keys are lifted out of the generic summary and rendered
+  // `gates` / `subphases` keys are lifted out of the generic summary and rendered
   // by `EnvironmentStepDetails` instead (task 6.3, task 9.5).
   const summaryProcessing = Object.entries(processing).filter(([key]) => {
     if (RAW_PROCESSING_KEYS.includes(key as (typeof RAW_PROCESSING_KEYS)[number])) return false
@@ -88,10 +88,10 @@ export function AgentTracePanel({
     <div
       className="flex flex-col gap-3 rounded-md border p-3"
       data-section="agent-trace-panel"
-      data-stage={stageOutput.stage}
+      data-phase={phaseOutput.phase}
     >
       <div className="flex items-center justify-between gap-2">
-        <span className="text-sm font-semibold">{stageName}</span>
+        <span className="text-sm font-semibold">{phaseName}</span>
         <span
           className="text-xs font-medium uppercase tracking-wide text-muted-foreground"
           data-part="origin"
@@ -162,7 +162,7 @@ export function AgentTracePanel({
 /**
  * EnvironmentStepDetails — the Environment agent step's specialized rendering of
  * the design §E trace (task 6.3, task 9.5, Req. 1.1, 1.5). Delegated to by
- * {@link AgentTracePanel} when `stage === "environment"`, it surfaces the
+ * {@link AgentTracePanel} when `phase === "environment"`, it surfaces the
  * four environment processing keys as structured UI instead of raw JSON:
  *
  * - **fixed_infrastructure** — the fixed-vs-agent-decided split's SYSTEM half:
@@ -173,7 +173,7 @@ export function AgentTracePanel({
  * - **gates** — BOTH gate verdicts: the code-level `ResourceGate` (approved +
  *   reasons) and the fail-closed `isolation` gate (approved + per-container
  *   verdicts).
- * - **substages** — the provisioner sub-phases (build online → close egress →
+ * - **subphases** — the provisioner sub-phases (build online → close egress →
  *   verify egress lost → apply offline configuration) + per-host egress verdicts.
  *
  * Every string is routed through i18next under the `aiRun.environment.*` keys;
@@ -184,14 +184,14 @@ function EnvironmentStepDetails({ processing }: { processing: Record<string, unk
   const fixed = asRecord(processing.fixed_infrastructure)
   const decided = asRecord(processing.agent_decided)
   const gates = asRecord(processing.gates)
-  const substages = asRecord(processing.substages)
+  const subphases = asRecord(processing.subphases)
 
   return (
     <div className="mt-1 flex flex-col gap-2" data-section="environment-step-details">
       {fixed ? <FixedInfrastructureBlock fixed={fixed} /> : null}
       {decided ? <AgentDecidedBlock decided={decided} /> : null}
       {gates ? <GateVerdictsBlock gates={gates} /> : null}
-      {substages ? <SubStagesBlock substages={substages} /> : null}
+      {subphases ? <SubPhasesBlock subphases={subphases} /> : null}
     </div>
   )
 }
@@ -466,36 +466,36 @@ function IsolationVerdicts({ verdicts }: { verdicts: unknown }) {
   )
 }
 
-/** The provisioner sub-phases (design §E `substages`) + per-host egress verdicts. */
-function SubStagesBlock({ substages }: { substages: Record<string, unknown> }) {
+/** The provisioner sub-phases (design §E `subphases`) + per-host egress verdicts. */
+function SubPhasesBlock({ subphases }: { subphases: Record<string, unknown> }) {
   const { t } = useTranslation("pipeline")
-  const egressVerdicts = Array.isArray(substages.egress_verdicts)
-    ? (substages.egress_verdicts as unknown[])
+  const egressVerdicts = Array.isArray(subphases.egress_verdicts)
+    ? (subphases.egress_verdicts as unknown[])
     : []
 
   return (
-    <EnvBlock section="environment-substages" title={t("aiRun.environment.substages.title")}>
+    <EnvBlock section="environment-subphases" title={t("aiRun.environment.subphases.title")}>
       <dl className="grid gap-1.5 sm:grid-cols-2">
-        <SubStageFlag label={t("aiRun.environment.substages.buildOnline")} ok={substages.build_online_ok === true} />
-        <SubStageFlag
-          label={t("aiRun.environment.substages.egressClosed")}
-          ok={substages.egress_closed === true}
+        <SubPhaseFlag label={t("aiRun.environment.subphases.buildOnline")} ok={subphases.build_online_ok === true} />
+        <SubPhaseFlag
+          label={t("aiRun.environment.subphases.egressClosed")}
+          ok={subphases.egress_closed === true}
         />
-        <SubStageFlag
-          label={t("aiRun.environment.substages.egressLostVerified")}
-          ok={substages.egress_lost_verified === true}
+        <SubPhaseFlag
+          label={t("aiRun.environment.subphases.egressLostVerified")}
+          ok={subphases.egress_lost_verified === true}
         />
-        <SubStageFlag
-          label={t("aiRun.environment.substages.offlineApplied")}
-          ok={substages.offline_applied === true}
+        <SubPhaseFlag
+          label={t("aiRun.environment.subphases.offlineApplied")}
+          ok={subphases.offline_applied === true}
         />
       </dl>
       <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        {t("aiRun.environment.substages.egressVerdicts")}
+        {t("aiRun.environment.subphases.egressVerdicts")}
       </span>
       {egressVerdicts.length === 0 ? (
         <span className="text-xs text-muted-foreground">
-          {t("aiRun.environment.substages.noEgressVerdicts")}
+          {t("aiRun.environment.subphases.noEgressVerdicts")}
         </span>
       ) : (
         <ul className="flex flex-col gap-1.5">
@@ -509,16 +509,16 @@ function SubStagesBlock({ substages }: { substages: Record<string, unknown> }) {
               >
                 <span className="text-xs font-medium">{formatScalar(record?.container)}</span>
                 <EnvField
-                  label={t("aiRun.environment.substages.egressLost")}
+                  label={t("aiRun.environment.subphases.egressLost")}
                   value={boolLabel(record?.egress_lost === true, t)}
                 />
                 <EnvField
-                  label={t("aiRun.environment.substages.conclusive")}
+                  label={t("aiRun.environment.subphases.conclusive")}
                   value={boolLabel(record?.conclusive === true, t)}
                 />
                 {record?.reason ? (
                   <EnvField
-                    label={t("aiRun.environment.substages.reason")}
+                    label={t("aiRun.environment.subphases.reason")}
                     value={formatScalar(record.reason)}
                   />
                 ) : null}
@@ -531,8 +531,8 @@ function SubStagesBlock({ substages }: { substages: Record<string, unknown> }) {
   )
 }
 
-/** A yes/no sub-stage flag line. */
-function SubStageFlag({ label, ok }: { label: string; ok: boolean }) {
+/** A yes/no sub-phase flag line. */
+function SubPhaseFlag({ label, ok }: { label: string; ok: boolean }) {
   const { t } = useTranslation("pipeline")
   return (
     <div className="flex items-center justify-between gap-2 rounded border p-1.5">
@@ -577,7 +577,7 @@ function ReasonList({ reasons, emptyKey }: { reasons: string[]; emptyKey?: strin
 
 /** Resolve a boolean to the localized yes/no label. */
 function boolLabel(value: boolean, t: (key: string) => string): string {
-  return value ? t("aiRun.environment.substages.yes") : t("aiRun.environment.substages.no")
+  return value ? t("aiRun.environment.subphases.yes") : t("aiRun.environment.subphases.no")
 }
 
 /** A nested object (plain record), or `null` for anything else / the sentinel. */

@@ -22,9 +22,9 @@ npm run lint     # type-check without emitting
 - `src/lib/ws.ts` — WebSocket utility (real-time channels).
 - `src/components/theme-provider.tsx` — light/dark theme (`dark` class).
 - `src/components/AppLayout.tsx` — base layout.
-- `src/components/PipelineOverview.tsx` — real-time view of the three stages.
+- `src/components/PipelineOverview.tsx` — real-time view of the pipeline phases.
 - `src/components/PreferencesPanel.tsx` — persisted theme and language.
 - `src/components/ui/` — shadcn/ui components.
 
-The stage screens, the campaign selector, and the emulation confirmation are
+The phase screens, the campaign selector, and the emulation confirmation are
 already implemented. Detailed progress is in `../../docs/project-status.md`.

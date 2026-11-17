@@ -21,7 +21,7 @@ two memories per the Memory_Rule (design §F):
   Relational_Store is the source of truth (same contract as the STIX vector
   indexer, Req. 8.3).
 
-Stage 5 consults :meth:`derive` (or the persisted ``provisioning_map`` row) as
+The environment phase consults :meth:`derive` (or the persisted ``provisioning_map`` row) as
 the source of the recommended environment (Req. 8.4); the wiring is additive and
 does not change the existing provisioner flow.
 
@@ -79,7 +79,7 @@ class ProvisioningMap:
     8.2): the campaign it was derived for, the recommended ``target_os``
     (``linux`` | ``windows``) and the fixed inventory ``content``
     (images/services/topology). The ``row_id`` is the primary key of the
-    persisted row so the caller (e.g. Stage 5) can correlate the DTO with the
+    persisted row so the caller (e.g. The environment phase) can correlate the DTO with the
     relational row it reads (Req. 8.4).
     """
 
@@ -121,7 +121,7 @@ class ProvisioningMapService:
         never fails the relational derivation.
 
         Returns a typed :class:`ProvisioningMap` DTO mirroring the persisted row
-        (the source Stage 5 consults — Req. 8.4). The relational row is
+        (the source the environment phase consults — Req. 8.4). The relational row is
         ``flush``ed into the session; the ``commit`` is the caller's, so the
         derivation can share the caller's unit of work.
         """
@@ -214,7 +214,7 @@ class ProvisioningMapService:
         Deterministic given the derived ``target_os`` and the sorted
         techniques/platforms, so re-deriving an unchanged campaign writes the exact
         same ``content`` (idempotency — Req. 8.2). The inventory is the per-campaign
-        *recommendation* the Stage 5 provisioner consults (Req. 8.4), not a
+        *recommendation* the environment phase provisioner consults (Req. 8.4), not a
         provisioning decision.
         """
         image = _DEFAULT_IMAGE_BY_OS.get(target_os, _DEFAULT_IMAGE_BY_OS[TARGET_OS_LINUX])

@@ -1,7 +1,7 @@
-"""Stage 4 services — Environment Provisioning.
+"""Environment phase services — Environment Provisioning.
 
 The ``environment`` package implements the Environment Provisioning component
-described in the design (Stage 4). It is split into focused modules:
+described in the design (the environment phase). It is split into focused modules:
 
 - ``topology_builder``: the **single source** of the contained-lab topology
   building logic — the static host/role/network map (derived from
@@ -25,15 +25,15 @@ _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7, 9.2, 9.3, 9.4, 10.2_
 from __future__ import annotations
 
 from app.services.environment.completion import (
-    CompletionStage6Result,
-    CompletionStage6Service,
     DbReportSink,
+    ExecutionCompletionResult,
+    ExecutionCompletionService,
     ReportSink,
 )
 from app.services.environment.execution import (
     ExecutionAbilityResult,
+    ExecutionPhaseService,
     ExecutionResult,
-    ExecutionStageService,
     RunnerFactory,
 )
 from app.services.environment.health import (
@@ -111,13 +111,11 @@ __all__ = [
     # topology_builder (reusable pure construction)
     "HOST_ROLES",
     "NETWORK_MEMBERS",
-    # measurement (procedural-sufficiency measurement + report — Stage 6, task 8.3)
+    # measurement (procedural-sufficiency measurement + report — the execution phase, task 8.3)
     "AbilityMeasurementResult",
-    # provisioner (seam + Stage 5 DTOs + curation)
+    # provisioner (seam + the environment phase DTOs + curation)
     "CalderaLoader",
-    "CompletionStage6Result",
-    "CompletionStage6Service",
-    # health (read-only target-container health check — Stage 5, task 2.1)
+    # health (read-only target-container health check — the environment phase, task 2.1)
     "ContainerStateInfo",
     "ContainerStateInspector",
     "ContainerStateNotFound",
@@ -128,13 +126,15 @@ __all__ = [
     "DockerSdkHostResourceInspector",
     "DockerSdkStateInspector",
     "EnvironmentParameters",
-    # operationalization (environment-parameter DTOs — Stage 4, task 5.1)
+    # operationalization (environment-parameter DTOs — the operationalization phase, task 5.1)
     "EnvironmentPlatform",
     "EnvironmentProvisioner",
     "ExecutionAbilityResult",
+    "ExecutionCompletionResult",
+    "ExecutionCompletionService",
+    "ExecutionPhaseService",
     "ExecutionReport",
     "ExecutionResult",
-    "ExecutionStageService",
     "HealthSummary",
     "HealthVerdict",
     "HostResourceInspector",
@@ -143,15 +143,15 @@ __all__ = [
     "IsolationSummary",
     "MeasurementService",
     "NetworkView",
-    # operationalizer (seam + dual-Output DTO of Stage 4 — task 5.2)
+    # operationalizer (seam + dual-Output DTO of the operationalization phase — task 5.2)
     "OperationalizerByOrigin",
     "ProducedOperationalization",
     "ProposedTarget",
     "ProvisionedEnvironment",
-    # log_buffer (per-campaign provisioning log buffer — Stage 5, task 4.2)
+    # log_buffer (per-campaign provisioning log buffer — the environment phase, task 4.2)
     "ProvisioningLogBuffer",
     "ProvisioningResult",
-    # completion (deprovisioning + Stage 6 completion — task 8.4)
+    # completion (deprovisioning + the execution phase completion — task 8.4)
     "ReportSink",
     "RequiredService",
     "ResourceGate",
@@ -159,11 +159,11 @@ __all__ = [
     # resource_gate (deterministic host-resource authority — Axis 3, task 5.1)
     "ResourceLimits",
     "ResourcePlan",
-    # execution (Stage 6 Execution seam reusing OperationRunner — task 8.2)
+    # execution (the execution phase Execution seam reusing OperationRunner — task 8.2)
     "RunnerFactory",
     "SufficiencyMetrics",
     "TargetHost",
-    # report (metric and report DTOs — Stage 6, task 8.1)
+    # report (metric and report DTOs — the execution phase, task 8.1)
     "TechniqueMetric",
     "TopologyResponse",
     "build_hosts",

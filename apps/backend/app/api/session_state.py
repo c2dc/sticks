@@ -55,7 +55,7 @@ def _load_preferences(db: Session) -> PreferencesView | None:
 def get_session_state(db: Session = Depends(get_db)) -> SessionStateView:
     """Retrieve the persisted session state (Req. 9.4).
 
-    Returns the current case + completed-stages-per-case map, plus the persisted
+    Returns the current case + completed-phases-per-case map, plus the persisted
     theme/language preferences so the frontend can restore them on open
     (Req. 7.5, 8.5). A missing state yields the default view (``exists=False``);
     an unreadable state yields ``restore_failed=True`` without discarding the

@@ -1,7 +1,7 @@
-"""Per-case provisioning log buffer (Stage 5).
+"""Per-case provisioning log buffer (the environment phase).
 
 This module defines :class:`ProvisioningLogBuffer` — the **in-memory**, per-case
-buffer of the Stage 5 provisioning log lines. It is the structure that the
+buffer of the environment phase provisioning log lines. It is the structure that the
 the provisioning service (tasks
 5.1/5.2) feeds with each :class:`~app.services.environment.compose_executor.LogLine`
 emitted by the executor and the pipeline steps, and from which the WebSocket
@@ -15,7 +15,7 @@ channel (``ws/channels.py``, task 4.3) and the REST endpoints (task 6.x) read fo
 
 By design it is **ephemeral** (in-memory, per-process): it serves live tracking
 and reconnection of the current execution (Req. 2.5, 2.7), **not** a persistent
-audit history — the per-command audit of the *execution* (Stage 6, via
+audit history — the per-command audit of the *execution* (the execution phase, via
 ``AuditLogEntry``) is out of scope for this spec.
 
 Design decisions
@@ -150,7 +150,7 @@ class ProvisioningLogBuffer:
                 stream=line.stream,
                 text=line.text,
                 at=self._clock(),
-                substage=line.substage,
+                subphase=line.subphase,
             )
             buffer = self._buffers.setdefault(campaign_id, [])
             buffer.append(view)
@@ -206,7 +206,7 @@ class ProvisioningLogBuffer:
 
 
 # ---------------------------------------------------------------------------
-# Process-level shared provider (Stage 5 — tasks 5.1/4.3/6.x)
+# Process-level shared provider (the environment phase — tasks 5.1/4.3/6.x)
 # ---------------------------------------------------------------------------
 #
 # The provisioning log buffer must be **a single instance per process**, shared
@@ -214,9 +214,9 @@ class ProvisioningLogBuffer:
 #
 # * the the provisioning service,
 #   which **appends** each :class:`LogLine` emitted by the pipeline (task 5.1);
-# * the Stage WebSocket channel (``app.ws.channels.run_stage_progress_channel``),
+# * the phase WebSocket channel (``app.ws.channels.run_phase_progress_channel``),
 #   which **reads** the buffer to feed the screen's live terminal (task 4.3); and
-# * the Stage 5 REST endpoints (``GET .../stage/5`` and ``.../stage/5/logs``),
+# * the environment phase REST endpoints (the environment state and log endpoints),
 #   which **read** the current buffer (task 6.x).
 #
 # Since the three seams run in the same FastAPI process, a module-level
@@ -230,8 +230,8 @@ def get_log_buffer() -> ProvisioningLogBuffer:
     """Return the process-level shared :class:`ProvisioningLogBuffer`.
 
     It is the **same** instance that the the provisioning service feeds
-    (appending each pipeline :class:`LogLine`), that the Stage WebSocket channel
-    reads for the live terminal (Req. 2.2) and that the Stage 5 REST endpoints
+    (appending each pipeline :class:`LogLine`), that the phase WebSocket channel
+    reads for the live terminal (Req. 2.2) and that the environment phase REST endpoints
     read to return the current buffer (Req. 2.5, 2.7). In production it returns the
     module *singleton* :data:`_LOG_BUFFER`; tests **override** this dependency
     (``dependency_overrides``) to inject an isolated buffer.

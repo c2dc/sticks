@@ -1,6 +1,6 @@
-"""Streaming Docker-lab execution seam (Stage 5).
+"""Streaming Docker-lab execution seam (the environment phase).
 
-This module defines the **injection point** that Stage 5 (Environment
+This module defines the **injection point** that the environment phase (Environment
 provisioning) uses to **up** and **down** the contained lab of the curated
 ``docker/docker-compose.yml``, emitting each ``stdout``/``stderr`` line to a
 callback — so the service forwards the lines to the screen's live log terminal
@@ -74,14 +74,14 @@ class LogLine:
             step marker). The screen distinguishes visually by this field
             (Req. 2.4).
         text: The textual content of the line (the command or the output line).
-        substage: The Stage-5 sub-stage that emitted the line — ``"5.1"`` (Build
-            online) or ``"5.2"`` (Runtime isolated) —, or ``None`` for the
+        subphase: The environment-phase subphase that emitted the line — ``"build_online"`` (Build
+            online) or ``"runtime_isolated"`` (Runtime isolated) —, or ``None`` for the
             **inherited** steps (``subir_conteineres``/``aguardar_saude``/
             ``carregar_abilities``/``verificar_isolamento``) that predate the
-            sub-stage split (Req. 6.3). It is **optional** with a ``None`` default,
+            subphase split (Req. 6.3). It is **optional** with a ``None`` default,
             so every existing ``LogLine(step=..., stream=..., text=...)`` call site
             stays valid unchanged (backward compatibility) and the inherited lines
-            carry no sub-stage marker. The ``LogLineView`` of the WS channel
+            carry no subphase marker. The ``LogLineView`` of the WS channel
             propagates it to the frontend, preserving the existing order and
             monotonic ``seq``.
     """
@@ -89,7 +89,7 @@ class LogLine:
     step: str
     stream: str
     text: str
-    substage: str | None = None
+    subphase: str | None = None
 
 
 @dataclass(frozen=True)
@@ -120,7 +120,7 @@ class CommandResult:
 class ComposeExecutor(Protocol):
     """Run the Docker lab in streaming (injection point — Req. 3).
 
-    A ``@runtime_checkable Protocol`` that defines the minimal surface Stage 5
+    A ``@runtime_checkable Protocol`` that defines the minimal surface the environment phase
     uses to **up** and **down** the contained lab, following the precedent of the
     package's other injectable seams (``CalderaLoader``, ``ContainerInspector``):
     any object that exposes ``up`` and ``down`` with these signatures satisfies
@@ -182,9 +182,9 @@ class ComposeExecutor(Protocol):
     ) -> CommandResult:
         """``docker network connect [--ip <ip>] <network> <container>`` (mutates the network).
 
-        A **provisioning action** used by Stage-5 sub-stages 5.1/5.2 to attach a
+        A **provisioning action** used by environment-phase subphases build_online/runtime_isolated to attach a
         target container to a network — the egress bridge during the build window
-        (5.1) or the ``internal: true`` attack networks when re-isolating (5.2).
+        (build_online) or the ``internal: true`` attack networks when re-isolating (runtime_isolated).
         It is **not** a verification step: the isolation gate and the egress probe
         remain read-only (Req. 9.2). Each output line becomes a :class:`LogLine`
         pushed through ``on_log``; ``code != 0`` indicates a failure.
@@ -206,9 +206,9 @@ class ComposeExecutor(Protocol):
     ) -> CommandResult:
         """``docker network disconnect <network> <container>`` (mutates the network).
 
-        A **provisioning action** used by Stage-5 sub-stages 5.1/5.2 to detach a
+        A **provisioning action** used by environment-phase subphases build_online/runtime_isolated to detach a
         target container from a network — the attack networks before opening the
-        egress window (5.1) or the egress bridge before re-isolating (5.2). The
+        egress window (build_online) or the egress bridge before re-isolating (runtime_isolated). The
         strict ``detach`` (attack) *before* ``attach`` (egress) order is what
         guarantees the containment invariant: a target is never simultaneously on
         the internet and on the attack networks (Req. 5.2, 5.3). Each output line
@@ -232,10 +232,10 @@ class ComposeExecutor(Protocol):
     ) -> CommandResult:
         """``docker exec <container> <argv...>`` (``argv`` is a list; no shell).
 
-        A **provisioning action** used by Stage-5 sub-stages 5.1/5.2 to run the
+        A **provisioning action** used by environment-phase subphases build_online/runtime_isolated to run the
         host setup inside a target container — online prerequisites during the
-        build window (5.1) and the offline setup once egress loss is verified
-        (5.2). The ``argv`` is passed as an **argument list** (never ``shell=True``
+        build window (build_online) and the offline setup once egress loss is verified
+        (runtime_isolated). The ``argv`` is passed as an **argument list** (never ``shell=True``
         at the subprocess layer); the curated setup commands derived from
         ``vulnerabilities`` are handed in as ``["bash", "-lc", <command>]``, so the
         injection surface stays contained to curated (human) content, never
@@ -258,7 +258,7 @@ class ComposeExecutor(Protocol):
     def create_network(self, network: str, *, on_log: Callable[[LogLine], None]) -> CommandResult:
         """``docker network create <network>`` — create the ephemeral egress network.
 
-        A **provisioning action** used by sub-stage 5.1 to create the egress
+        A **provisioning action** used by subphase build_online to create the egress
         bridge before attaching a target to it. Idempotent (an already-existing
         network is treated as success). ``network`` is a backend constant.
         """
@@ -267,8 +267,8 @@ class ComposeExecutor(Protocol):
     def remove_network(self, network: str, *, on_log: Callable[[LogLine], None]) -> CommandResult:
         """``docker network rm <network>`` — remove an ephemeral network (teardown).
 
-        A **teardown action** used by the Stage-6 deprovision to sweep the
-        ephemeral egress network (``EGRESS_NETWORK``) that sub-stage 5.1 may have
+        A **teardown action** used by the execution phase deprovision to sweep the
+        ephemeral egress network (``EGRESS_NETWORK``) that subphase build_online may have
         created and that could have **survived an error** (Req. 10.2). It is a
         best-effort cleanup: a *not-found* network (already gone) is **not** a
         residue — the deprovision treats it as success. ``network`` is a backend
@@ -500,8 +500,8 @@ class DockerComposeExecutor:
         """``docker network connect [--ip <ip>] <network> <container>`` (argument-list form, no shell).
 
         Attaches ``container`` to ``network`` — the egress bridge during the build
-        window (5.1) or an ``internal: true`` attack network when re-isolating
-        (5.2). ``container``/``network`` are backend-controlled values (never
+        window (build_online) or an ``internal: true`` attack network when re-isolating
+        (runtime_isolated). ``container``/``network`` are backend-controlled values (never
         interpolated from end-user input); together with the absence of a shell
         this closes command injection (security steering). Each output line becomes
         a ``LogLine(step="attach_network", ...)`` pushed through ``on_log``;
@@ -520,7 +520,7 @@ class DockerComposeExecutor:
             "network",
             "connect",
         ]
-        # Restore the host's FIXED compose IP on re-isolation (5.2) so the attack
+        # Restore the host's FIXED compose IP on re-isolation (runtime_isolated) so the attack
         # plane topology is byte-for-byte the curated one (abilities target fixed
         # IPs like 192.168.20.30). Without ``--ip`` Docker assigns a dynamic
         # address and the attacker can no longer route to the target.
@@ -535,8 +535,8 @@ class DockerComposeExecutor:
         """``docker network disconnect <network> <container>`` (argument-list form, no shell).
 
         Detaches ``container`` from ``network`` — the attack networks before
-        opening the egress window (5.1) or the egress bridge before re-isolating
-        (5.2). The strict ``detach`` (attack) before ``attach`` (egress) order
+        opening the egress window (build_online) or the egress bridge before re-isolating
+        (runtime_isolated). The strict ``detach`` (attack) before ``attach`` (egress) order
         preserves the containment invariant (Req. 5.2, 5.3). ``container``/
         ``network`` are backend-controlled values (never from end-user input).
         Each output line becomes a ``LogLine(step="detach_network", ...)`` pushed
@@ -593,8 +593,8 @@ class DockerComposeExecutor:
         """``docker exec <container> <argv...>`` (``argv`` is a list; no shell).
 
         Runs ``argv`` inside ``container`` to apply the host setup — online
-        prerequisites during the build window (5.1) and the offline setup once
-        egress loss is verified (5.2). The curated setup commands derived from
+        prerequisites during the build window (build_online) and the offline setup once
+        egress loss is verified (runtime_isolated). The curated setup commands derived from
         ``vulnerabilities`` are handed in as ``["bash", "-lc", <command>]``: the
         list is passed verbatim to ``docker exec`` in the **argument-list form**
         (``shell=False`` at the subprocess layer — see :meth:`_run`), so the
@@ -622,7 +622,7 @@ class DockerComposeExecutor:
     def create_network(self, network: str, *, on_log: Callable[[LogLine], None]) -> CommandResult:
         """``docker network create --driver bridge <network>`` (argument-list form, no shell).
 
-        Creates the ephemeral egress network of sub-stage 5.1 — a **bridge**
+        Creates the ephemeral egress network of subphase build_online — a **bridge**
         network (NOT ``internal: true``) that grants a single target controlled
         internet access while its build window is open. Idempotent: a network
         that already exists makes ``docker network create`` exit non-zero with an
@@ -667,7 +667,7 @@ class DockerComposeExecutor:
     def remove_network(self, network: str, *, on_log: Callable[[LogLine], None]) -> CommandResult:
         """``docker network rm <network>`` (argument-list form, no shell).
 
-        Removes the ephemeral egress network during the Stage-6 deprovision
+        Removes the ephemeral egress network during the execution phase deprovision
         teardown — it sweeps :data:`~app.services.environment.egress.EGRESS_NETWORK`
         if it survived an error (Req. 10.2). ``network`` is a backend constant
         (never interpolated from end-user input); together with the absence of a

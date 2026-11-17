@@ -112,8 +112,8 @@ class EnvironmentPlatform(enum.StrEnum):
     VM = "virtual_machine"  # declared for the CHECK; not exercised this spec (Req. 17.2)
 
 
-class StageState(enum.StrEnum):
-    """State of a Stage (Req. 1.4, 5.3)."""
+class PhaseState(enum.StrEnum):
+    """State of a phase run (Req. 1.4, 5.3)."""
 
     NOT_STARTED = "not_started"
     IN_PROGRESS = "in_progress"
@@ -159,7 +159,7 @@ class AgentRunStatus(enum.StrEnum):
 
     Subclasses ``str`` so members serialize to their pt-BR values — the strings
     persisted in the database and exchanged over the REST/JSON API — following
-    the precedent of :class:`OperationState`/:class:`StageState`. The column
+    the precedent of :class:`OperationState`/:class:`PhaseState`. The column
     that stores this enum persists with ``native_enum=False`` (VARCHAR + CHECK)
     via ``_portable_enum`` in ``app/models/domain.py``, so the generated CHECK
     bounds the value set to exactly these members.
@@ -177,14 +177,14 @@ class AgentRunStatus(enum.StrEnum):
     ABORTED = "aborted"  # hit the max-iteration guard without a passing verdict
 
 
-class AgentStage(enum.StrEnum):
+class AgentPhase(enum.StrEnum):
     """Which agentic phase an agent output belongs to.
 
     Subclasses ``str`` so members serialize to their values, matching the
     precedent of the other domain enums. The values are the **semantic,
     number-free** phase names of the agentic-centric model
     (``operationalization``, ``flow``, ``environment``, ``execution``,
-    ``evaluation``); the legacy ``stage_N_*`` numbering is removed. ``input``
+    ``evaluation``); the values carry no numbering. ``input``
     (the STIX base + campaign selection) is a user Input_Phase, not an agent
     phase, so it is intentionally absent here. ``execution`` and ``evaluation``
     are distinct, ordered phases: ``evaluation`` observes the real execution
@@ -212,7 +212,7 @@ class AgentStage(enum.StrEnum):
 # ``environment``; ``evaluation`` follows ``execution``). Consumers that need a
 # canonical ordering of the agentic phases reference this tuple rather than
 # hardcoding the sequence.
-PHASE_ORDER: tuple[str, ...] = tuple(member.value for member in AgentStage)
+PHASE_ORDER: tuple[str, ...] = tuple(member.value for member in AgentPhase)
 
 
 class TechniqueEmulabilityKind(enum.StrEnum):
@@ -248,7 +248,7 @@ class EvaluatorDecision(enum.StrEnum):
     """The evaluator's routing decision for the conditional edge (Req. 2.4, 2.5).
 
     Subclasses ``str`` so members serialize to their values. ``REFINE`` routes
-    the graph back to a curation stage for another pass; ``FINISH`` ends the run
+    the graph back to a curation phase for another pass; ``FINISH`` ends the run
     on a passing verdict.
 
     _Requirements: 2.4, 2.5_

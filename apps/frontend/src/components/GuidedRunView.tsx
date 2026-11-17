@@ -19,7 +19,7 @@ import { AgentTracePanel } from "@/components/AgentTracePanel"
 import { FlowPhaseView } from "@/components/FlowPhaseView"
 import { OperationalizationScreen } from "@/components/OperationalizationScreen"
 import { Button } from "@/components/ui/button"
-import { EmptyNote } from "@/components/StageSection"
+import { EmptyNote } from "@/components/PhaseSection"
 import { campaignDisplayName } from "@/lib/campaign"
 import { cn } from "@/lib/utils"
 import {
@@ -29,7 +29,7 @@ import {
   type AiIteration,
   type AiRun,
   type AiRunDetail,
-  type AiStageOutput,
+  type AiPhaseOutput,
 } from "@/lib/ai"
 
 /**
@@ -53,9 +53,9 @@ import {
  *                             step (Req. 2.5, 7.3).
  *
  * Under the hood this drives the SAME backend run as `AiRunView`: after the
- * Researcher reviews the operationalization, it starts a run, polls `getAiRun` (≤5s) and reads the per-stage Agent_Output artifacts of
+ * Researcher reviews the operationalization, it starts a run, polls `getAiRun` (≤5s) and reads the per-phase Agent_Output artifacts of
  * the latest iteration. The "phases" are a presentational projection of those
- * stage outputs — the robot simply gates how many are revealed, so the
+ * phase outputs — the robot simply gates how many are revealed, so the
  * Researcher is conducted through the multi-agent pipeline rather than shown
  * everything at once.
  */
@@ -69,7 +69,7 @@ function isTerminal(run: AiRun | null | undefined): boolean {
 
 /**
  * The ordered conductor phases the robot reveals, mapped to the semantic,
- * number-free backend `AgentStage` values: `operationalization → flow →
+ * number-free backend `AgentPhase` values: `operationalization → flow →
  * environment → execution → evaluation`, without any numbered labels (Req. 2.2,
  * 5.7, 6.1).
  *
@@ -89,7 +89,7 @@ type Phase = (typeof PHASE_ORDER)[number]
 
 /**
  * The phases whose artifact is derived from the terminal run state (the verdict)
- * rather than from a per-stage Agent_Output row: `execution` (the emulation ran)
+ * rather than from a per-phase Agent_Output row: `execution` (the emulation ran)
  * and `evaluation` (the evaluator verdict).
  */
 const TERMINAL_PHASES = new Set<Phase>(["execution", "evaluation"])
@@ -164,11 +164,11 @@ export function GuidedRunView({
   }, [campaignId, runId])
 
   // The latest iteration drives the conversation (the newest plan the robot
-  // produced). Its stage outputs are keyed by stage for phase lookup.
+  // produced). Its phase outputs are keyed by phase for phase lookup.
   const latest: AiIteration | undefined = detail?.iterations.at(-1)
-  const outputsByStage = useMemo(() => {
-    const map = new Map<string, AiStageOutput>()
-    for (const out of latest?.stage_outputs ?? []) map.set(out.stage, out)
+  const outputsByPhase = useMemo(() => {
+    const map = new Map<string, AiPhaseOutput>()
+    for (const out of latest?.phase_outputs ?? []) map.set(out.phase, out)
     return map
   }, [latest])
 
@@ -200,7 +200,7 @@ export function GuidedRunView({
 
   const run = detail.run
   const running = !isTerminal(run)
-  const noPlanYet = !latest || latest.stage_outputs.length === 0
+  const noPlanYet = !latest || latest.phase_outputs.length === 0
 
   // While the first plan is still being produced, the robot is "thinking".
   if (noPlanYet && running) {
@@ -228,7 +228,7 @@ export function GuidedRunView({
         {PHASE_ORDER.map((phase, index) => {
           if (index > approvedUpTo) return null
           const isTerminalPhase = TERMINAL_PHASES.has(phase)
-          const output = isTerminalPhase ? undefined : outputsByStage.get(phase)
+          const output = isTerminalPhase ? undefined : outputsByPhase.get(phase)
           // A phase is "ready" once its artifact exists (or, for the terminal
           // execution/evaluation phases, once the run reaches a terminal state).
           // The operationalization listing is read-only and always ready.
@@ -326,7 +326,7 @@ function PhaseTurn({
   campaignId: string
   campaignName: string
   version: string
-  output?: AiStageOutput
+  output?: AiPhaseOutput
   evaluation?: AiEvaluation | null
   ready: boolean
   running: boolean
@@ -416,14 +416,14 @@ function PhaseArtifact({
   bare = false,
 }: {
   phase: Phase
-  output: AiStageOutput
+  output: AiPhaseOutput
   bare?: boolean
 }) {
   const { t } = useTranslation("pipeline")
   const panel = (
     <AgentTracePanel
-      stageName={t(`aiRun.stageName.${output.stage}`, { defaultValue: output.stage })}
-      stageOutput={output}
+      phaseName={t(`aiRun.phaseName.${output.phase}`, { defaultValue: output.phase })}
+      phaseOutput={output}
     />
   )
   if (bare) return panel

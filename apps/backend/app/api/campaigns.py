@@ -1,6 +1,6 @@
 """REST endpoints for campaigns (agentic-only product).
 
-The curated six-stage pipeline (``/stage/N``, ``/dag``, ``/dags*``, ``/reset``)
+The curated step-by-step pipeline endpoints (``/dag``, ``/dags*``, ``/reset``)
 was removed. The campaign flow now runs through ``/ai``, ``/flows``, ``/stix``,
 ``/ingestion`` and the operationalization endpoints. This module keeps the
 campaign read endpoints that do not belong to the pipeline.
@@ -26,7 +26,7 @@ from app.models.domain import ExecutionReport as ExecutionReportRow
 from app.models.enums import OperationState, TranslationSource
 from app.services.curated_case_models import AbilityData, AdversaryData
 from app.services.curated_case_reader import build_case_from_db
-from app.services.emulation.views import Stage3AbilityResult
+from app.services.emulation.views import OperationAbilityResult
 from app.services.environment.measurement import (
     AbilityMeasurementResult,
     MeasurementService,
@@ -262,13 +262,13 @@ def detail_campaign(
 @router.get(
     "/campaigns/{campaign}/report",
     response_model=ExecutionReport,
-    summary="Stage 6: execution report + procedural-sufficiency metrics",
+    summary="The execution phase: execution report + procedural-sufficiency metrics",
 )
 def get_report(
     campaign: str = Path(..., description="Curated campaign slug"),
     db: Session = Depends(get_db),
 ) -> ExecutionReport:
-    """Return the consolidated report + the Stage 6 metrics (Req. 10.7, 15.7).
+    """Return the consolidated report + the execution phase metrics (Req. 10.7, 15.7).
 
     It derives the :class:`ExecutionReport` from the Campaign's **persisted**
     per-Ability results (:meth:`SessionStateService.get_operation_results`) plus
@@ -282,14 +282,14 @@ def get_report(
     The per-Ability results of **all** the Campaign's Operations are flattened (a
     curated Campaign runs a single Operation; defensively we consolidate all) and
     normalized into :class:`AbilityMeasurementResult` for the measurement and into
-    :class:`Stage3AbilityResult` for the report. The ``environment_deprovisioned``
+    :class:`OperationAbilityResult` for the report. The ``environment_deprovisioned``
     flag reflects the aggregate result of the finished Operations: since the
     curated environment is **always** deprovisioned at the end of a completed
     execution (Req. 10.8, 12.1), it is ``True`` when there is at least one finished
     Operation; otherwise ``False`` (no execution completed yet).
 
     The structured ``deprovisioning`` field (Req. 7.2, 7.3) is populated from the
-    persisted ``execution_reports`` row written at the end of Stage 6 (task 1): the
+    persisted ``execution_reports`` row written at the end of the execution phase (task 1): the
     most recent row for the Campaign that recorded a teardown (non-null
     ``deprovisioned``) supplies the boolean outcome and the ``remaining_resources``
     that stayed provisioned on a failed teardown. When no teardown has been
@@ -309,7 +309,7 @@ def get_report(
 
     operations = SessionStateService(db).get_operation_results(campaign)
     ability_results: list[AbilityMeasurementResult] = []
-    stage3_results: list[Stage3AbilityResult] = []
+    operation_results: list[OperationAbilityResult] = []
     any_finished = False
     # Real total execution time derived from the Operation instants (Req. 4.1,
     # 4.3): ``finished_at - started_at`` in seconds, accumulated over the
@@ -324,8 +324,8 @@ def get_report(
             ability_results.append(
                 AbilityMeasurementResult(ability_id=ability.ability_id, status=ability.status)
             )
-            stage3_results.append(
-                Stage3AbilityResult(
+            operation_results.append(
+                OperationAbilityResult(
                     ability_id=ability.ability_id or "",
                     status=ability.status,
                     command_output=ability.command_output,
@@ -335,7 +335,7 @@ def get_report(
     report = MeasurementService().report_from_campaign(
         campaign=case,
         ability_results=ability_results,
-        stage3_results=stage3_results,
+        operation_results=operation_results,
         environment_deprovisioned=any_finished,
     )
     # Replace the per-technique ``execution_time_s`` sum (always ``None`` on the

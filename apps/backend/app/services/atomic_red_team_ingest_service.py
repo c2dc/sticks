@@ -546,12 +546,12 @@ class AtomicRedTeamIngestService:
         techniques = 0
         parsed_entries = 0
 
-        with scratch_dir("atomic_red_team", only_configured=True) as stage:
+        with scratch_dir("atomic_red_team", only_configured=True) as spool_dir:
             for document in sorted(documents, key=lambda d: d.name):
                 if document.error is not None:
                     skipped.append({"item": document.name, "reason": document.error})
                     continue
-                data = self._stage_and_read(document, stage)
+                data = self._spool_and_read(document, spool_dir)
                 parsed, error = self._parse_atomic(data, document.name)
                 if error is not None:
                     skipped.append({"item": document.name, "reason": error[:200]})
@@ -564,11 +564,11 @@ class AtomicRedTeamIngestService:
         return list(unique.values()), techniques, parsed_entries, skipped
 
     @staticmethod
-    def _stage_and_read(document: AtomicDocument, stage: Path | None) -> bytes:
+    def _spool_and_read(document: AtomicDocument, spool_dir: Path | None) -> bytes:
         """Round-trip the file through the work directory when one is configured."""
-        if stage is None:
+        if spool_dir is None:
             return document.data
-        target = stage / document.name / f"{document.name}.yaml"
+        target = spool_dir / document.name / f"{document.name}.yaml"
         try:
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(document.data)

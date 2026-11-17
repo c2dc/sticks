@@ -36,13 +36,20 @@ npm run export-notes  # PDF of the speaker notes
   `public/images/` — the custom SVG diagrams (ATT&CK matrix, pipeline, lab
   topology, AI architecture) plus the CC0 photos.
 
-## Outline (4 sections, 22 slides)
+## Outline
 
 1. Cover · Motivation · Agenda
 2. **Background & Building Blocks** — ATT&CK matrix · Caldera & the lab · Atomic Red Team · provisioning types
-3. **The Six-Stage Pipeline** — overview + one slide per stage (Input · Processing · Output)
-4. **The Gap & My Proposal** — the manual gap · the AI curation agent · architecture · components ×2
+3. **The Phase Pipeline** — overview + one slide per phase, named by what it does:
+   `input → operationalization → flow → environment → execution → evaluation`
+   (Input · Processing · Output). The old numbering was replaced by these names.
+4. **The Gap & My Proposal** — the manual gap · the AI curation agent · architecture · one slide per agent component
 5. **Evidence & Close** — what's proven · roadmap · Q&A
+6. **Appendix** — the agentic phase model (ingestion, input and one slide per phase)
+
+The phase screenshots in `public/images/` are named by phase (`input-stix-package.png`,
+`input-stix-dashboard.png`, `input-campaign.png`, `operationalization.png`, `flow.png`,
+`environment.png`, `execution.png`).
 
 ## Image credits
 

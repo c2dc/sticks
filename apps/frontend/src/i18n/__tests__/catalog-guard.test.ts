@@ -11,7 +11,7 @@ import enStix from "@/i18n/locales/en/stix.json"
 
 import {
   type JsonValue,
-  findLegacyStageWording,
+  findLegacyPhaseWording,
   findUnusedKeys,
   flattenKeys,
 } from "@/i18n/__tests__/catalog-utils"
@@ -19,7 +19,7 @@ import {
 /**
  * Guard test for the Locale_Catalog (agentic-only-flow-redesign, task 42.3).
  * Fails with the offending keys when a key is unused, exists in only one
- * locale, or a value carries Legacy_Stage_Wording.
+ * locale, or a value carries Legacy_Phase_Wording.
  *
  * Validates: Requirements 9.6, 9.7, 9.8
  */
@@ -35,7 +35,7 @@ const NAMESPACES: Array<{ name: string; en: JsonValue; pt: JsonValue }> = [
   { name: "stix", en: enStix as JsonValue, pt: ptStix as JsonValue },
 ]
 
-// Values that legitimately use "stage"/"etapa" with a non-pipeline meaning.
+// Values that legitimately use legacy phase wording with a non-pipeline meaning.
 // Add entries as `"<locale>:<namespace>:<key>"` with a comment explaining why.
 const LEGACY_WORDING_EXCEPTIONS = new Set<string>([])
 
@@ -57,7 +57,7 @@ const SOURCES = Object.entries(rawSources)
   .map(([, text]) => text)
 
 describe("Locale_Catalog guard", () => {
-  it("has no unused keys, keeps en/pt-BR parity and has no legacy stage wording", () => {
+  it("has no unused keys, keeps en/pt-BR parity and has no legacy phase wording", () => {
     expect(SOURCES.length).toBeGreaterThan(10)
 
     const unused: string[] = []
@@ -71,7 +71,7 @@ describe("Locale_Catalog guard", () => {
         for (const key of findUnusedKeys(flattenKeys(catalog), SOURCES)) {
           unused.push(`${locale}:${ns.name}:${key}`)
         }
-        for (const [key, value] of findLegacyStageWording(catalog)) {
+        for (const [key, value] of findLegacyPhaseWording(catalog)) {
           if (LEGACY_WORDING_EXCEPTIONS.has(`${locale}:${ns.name}:${key}`)) continue
           legacy.push(`${locale}:${ns.name}:${key} = "${value}"`)
         }

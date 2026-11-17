@@ -1,6 +1,6 @@
-"""Health check of the target containers (Stage 5) — read-only.
+"""Health check of the target containers (the environment phase) — read-only.
 
-This module implements the ``await_health`` step of the Stage 5 provisioning
+This module implements the ``await_health`` step of the environment phase provisioning
 pipeline (Simulation-environment creation): **confirming**, through a read-only
 Docker inspection, that **all** the lab's target containers are in the
 ``running`` state and, when the service defines a ``healthcheck`` in the
@@ -167,11 +167,11 @@ class HealthVerdict(BaseModel):
 class HealthSummary(BaseModel):
     """Typed health summary — per-container + overall verdict (Req. 5.1, 5.6).
 
-    Serializable projection for the Stage 5 output and the JSON contracts,
+    Serializable projection for the environment phase output and the JSON contracts,
     analogous to the
     :class:`~app.services.environment.provisioner.IsolationSummary` of the
     isolation. Carries the **overall** result (``approved``) and the **per-
-    container** verdict (``verdicts``), so the Stage 5 screen shows the reason for
+    container** verdict (``verdicts``), so the environment phase screen shows the reason for
     each unhealthy container (Req. 5.6, 7.2).
 
     Attributes:

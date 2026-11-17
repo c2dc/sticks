@@ -1,6 +1,6 @@
 """Agent state schema and reducers.
 
-Defines the ``StageArtifacts``, ``EvaluationResult`` and ``AgentState``
+Defines the ``PhaseArtifacts``, ``EvaluationResult`` and ``AgentState``
 TypedDicts along with the append-only ``history`` reducer
 (``Annotated[list[dict], add]``) used by the LangGraph ``StateGraph``.
 
@@ -17,8 +17,8 @@ from operator import add
 from typing import Annotated, TypedDict
 
 
-class StageArtifacts(TypedDict, total=False):
-    """Serialized per-stage outputs produced in the current iteration."""
+class PhaseArtifacts(TypedDict, total=False):
+    """Serialized per-phase outputs produced in the current iteration."""
 
     flow: dict  # ProducedFlow.model_dump()
     operationalization: dict  # ProducedOperationalization.model_dump()
@@ -30,7 +30,7 @@ class ExecutionResult(TypedDict, total=False):
 
     This is the explicit contract that decouples the verdict from the execution
     step (Req. 2.1, 2.2): the ``execution`` node (:func:`app.services.ai.graph.
-    execute_node`) computes this structured view from the live Stage 6 runner
+    execute_node`) computes this structured view from the live Execution phase runner
     result — the runner ``verdict`` (its :class:`~app.services.operation.runner.
     RunOutcome` value), the containment/isolation booleans and whether the
     Operation executed to completion — and the ``evaluation`` node reads it as its
@@ -55,7 +55,7 @@ class ExecutionResult(TypedDict, total=False):
 
 
 class EvaluationResult(TypedDict, total=False):
-    """Evaluator output for the last pass over the Stage 6 report."""
+    """Evaluator output for the last pass over the Execution phase report."""
 
     success_rate: float
     procedural_coverage: float
@@ -70,13 +70,13 @@ class AgentTrace(TypedDict, total=False):
 
     Appended to the append-only ``traces`` channel by each AI agent's node.
     The produced output is already carried in ``artifacts[...]`` and linked
-    back to this trace by the ``(stage, iteration)`` pair.
+    back to this trace by the ``(phase, iteration)`` pair.
     """
 
-    stage: str  # English AgentStage value: flow | operationalization | environment | execution | evaluation
+    phase: str  # English AgentPhase value: flow | operationalization | environment | execution | evaluation
     iteration: int
     agent_input: (
-        dict  # prior-stage artifacts, selected-campaign context, retrieved experience, attack/stix
+        dict  # prior-phase artifacts, selected-campaign context, retrieved experience, attack/stix
     )
     processing: dict  # llm_prompt, llm_response, reasoning, tools_invoked, repair_attempts, retrieved_experience, prior_artifacts
 
@@ -92,11 +92,11 @@ class AgentState(TypedDict, total=False):
     iteration: int  # 0-based, incremented on each loop
     max_iterations: int  # guard
     retrieved_experience: list[dict]  # RAG hits injected into prompts
-    artifacts: StageArtifacts  # outputs of the current iteration
-    report: dict | None  # Stage 6 report of the last execute
+    artifacts: PhaseArtifacts  # outputs of the current iteration
+    report: dict | None  # Execution phase report of the last execute
     execution_result: ExecutionResult | None  # structured result execution -> evaluation
     evaluation: EvaluationResult | None  # evaluator output of the last pass
-    refine_stage: str | None  # AgentStage to re-enter, or None
+    refine_phase: str | None  # AgentPhase to re-enter, or None
     history: Annotated[list[dict], add]  # append-only per-node trace (reducer)
     traces: Annotated[list[dict], add]  # NEW: per-node input+processing trace
     error: str | None

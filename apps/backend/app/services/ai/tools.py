@@ -351,7 +351,7 @@ def tool_compose(
 
     Returns:
         A ``dict`` with the ``action``, the exit ``code`` (``0`` == success) and
-        the emitted ``lines`` (each ``{"step", "stream", "text", "substage"}``).
+        the emitted ``lines`` (each ``{"step", "stream", "text", "subphase"}``).
     """
     from app.services.environment.compose_executor import (
         DockerComposeExecutor,
@@ -395,7 +395,7 @@ def tool_compose(
                 "step": line.step,
                 "stream": line.stream,
                 "text": line.text,
-                "substage": line.substage,
+                "subphase": line.subphase,
             }
             for line in result.lines
         ],

@@ -1,14 +1,14 @@
-"""ExecutionStageService — Stage 6 Execution seam (task 8.2).
+"""ExecutionPhaseService — execution phase seam (task 8.2).
 
-Stage 6 (Execution + measurement + report) of the six-stage pipeline **fully
+The execution phase (Execution + measurement + report) of the agentic pipeline **fully
 reuses** the already-built :class:`~app.services.operation.runner.OperationRunner`
-(the old Stage 5 "Campaign Execution" of the five-stage scheme), without
+(the former "Campaign Execution" step), without
 reimplementing any of its safety logic. This module is the *session-bound*
-**seam** that ties the runner to the new stage number
-(:data:`~app.services.emulation.views.STAGE_EXECUTION` ``= 6``), exposing the
-**preview** as a visible precondition and marking the Stage 6 completion through
+**seam** that ties the runner to the execution phase
+(:data:`~app.services.emulation.views.PHASE_EXECUTION` ``= "execution"``), exposing the
+**preview** as a visible precondition and marking the execution phase completion through
 the single completion path
-(:meth:`SessionStateService.persist_stage_completion`).
+(:meth:`SessionStateService.persist_phase_completion`).
 
 It is, for Execution, the counterpart of the environment auto-completion
 (the provisioning service): same
@@ -18,7 +18,7 @@ It is, for Execution, the counterpart of the environment auto-completion
 
 The four gates — full REUSE of the ``OperationRunner``
 ------------------------------------------------------
-:meth:`ExecutionStageService.execute` only delegates to
+:meth:`ExecutionPhaseService.execute` only delegates to
 :meth:`OperationRunner.run`, which already applies, **in the design order** (Req.
 13.1), the four gates before starting any Operation:
 
@@ -48,20 +48,20 @@ execution request.
 persistence — it only passes the ``Session`` to the runner.
 
 **Preview as a visible precondition** (Req. 13.6, 13.7): before any execution,
-:meth:`ExecutionStageService.preview` exposes
+:meth:`ExecutionPhaseService.preview` exposes
 :func:`~app.services.containment.preview_abilities` — the full list of concrete
 commands with each one's target container and the external-target flag. It is the
 same presentation the confirmation modal renders *before* the confirmation; the
 preview **presents**, it does not **execute** nor create an Operation.
 
-Stage 6 completion
+The execution phase completion
 ------------------
 Only when the execution actually completes (``RunOutcome.COMPLETED`` **and**
-``OperationState.FINISHED``) is Stage 6 (:data:`STAGE_EXECUTION`) marked
+``OperationState.FINISHED``) is the execution phase (:data:`PHASE_EXECUTION`) marked
 ``completed`` through the single completion path
-(:meth:`SessionStateService.persist_stage_completion`, transactional and
+(:meth:`SessionStateService.persist_phase_completion`, transactional and
 idempotent). ``ABORTED`` (audit-trail failure, Req. 10.2), ``NOT_CONFIRMED``
-and the gate refusals do **not** complete the stage. A failure to persist the
+and the gate refusals do **not** complete the phase. A failure to persist the
 completion does **not** bring down the execution already performed — it is a typed
 signal in the result.
 
@@ -69,7 +69,7 @@ signal in the result.
     The **deprovisioning** at the end (Req. 10.8, 12) and the **measurement** of
     procedural sufficiency + the report (Req. 15) are stitched by tasks 8.3/8.4
     on top of this same seam; here the completion reflects only the execution
-    (the REST endpoints are task 8.5). This task confirms/wires the Stage 6
+    (the REST endpoints are task 8.5). This task confirms/wires the execution phase
     Execution seam reusing the ``OperationRunner`` with the four gates.
 
 _Requirements: 10.1, 10.2, 10.3, 13.1, 13.2, 13.3, 13.4, 13.5, 13.6, 13.7, 14.4,
@@ -89,7 +89,7 @@ from app.services.caldera import CalderaUnavailable
 from app.services.containment import EmulationPreview, preview_abilities
 from app.services.curated_case_models import AbilityData, CaseData
 from app.services.curated_case_reader import build_case_from_db, is_curated
-from app.services.emulation.views import STAGE_EXECUTION
+from app.services.emulation.views import PHASE_EXECUTION
 from app.services.operation.runner import (
     OperationRunner,
     OperationRunResult,
@@ -177,12 +177,12 @@ def _adversary_payload(case: CaseData) -> dict[str, object] | None:
 
 
 # ---------------------------------------------------------------------------
-# Typed result of the Stage 6 execution
+# Typed result of the execution phase execution
 # ---------------------------------------------------------------------------
 
 
 class ExecutionAbilityResult(BaseModel):
-    """Per-Ability result of a Stage 6 execution.
+    """Per-Ability result of a the execution phase execution.
 
     Serializable projection of the
     :class:`~app.services.operation.runner.AbilityRunResult` that the runner
@@ -205,14 +205,14 @@ class ExecutionAbilityResult(BaseModel):
 
 
 class ExecutionResult(BaseModel):
-    """Typed result of :meth:`ExecutionStageService.execute` (Stage 6).
+    """Typed result of :meth:`ExecutionPhaseService.execute` (the execution phase).
 
     Instead of raising exceptions for the expected paths, the execution returns
     this typed result (same contract as ``AutoProvisioningResult`` /
-    ``StageCompletionResult``): ``started`` indicates whether the Operation
+    ``PhaseCompletionResult``): ``started`` indicates whether the Operation
     actually ran; ``result`` is the runner's :class:`RunOutcome` (confirmation,
     containment, isolation, availability or execution/abort); ``completed``
-    indicates whether Stage 6 moved to ``completed`` by this call.
+    indicates whether the execution phase moved to ``completed`` by this call.
 
     Attributes:
         campaign_id: The Campaign whose execution was requested.
@@ -225,11 +225,11 @@ class ExecutionResult(BaseModel):
         total_success: Aggregate of Abilities in ``success`` (Req. 10.4 source).
         total_failure: Aggregate of Abilities in ``failure``.
         results: Per-Ability results, in execution order.
-        completed: ``True`` iff Stage 6 was marked ``completed`` by this
+        completed: ``True`` iff the execution phase was marked ``completed`` by this
             execution (only ``COMPLETED`` + ``FINISHED``).
-        completion_persisted: ``True`` iff the Stage 6 completion was actually
+        completion_persisted: ``True`` iff the execution phase completion was actually
             saved; ``False`` if the completion ``commit`` failed (execution
-            preserved, previous stage state preserved).
+            preserved, previous phase state preserved).
         violations: Descriptions of the containment violations, when refused.
         non_isolated_containers: Containers that failed isolation, when aborted
             by isolation.
@@ -254,12 +254,12 @@ class ExecutionResult(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# The session-bound Stage 6 Execution seam
+# The session-bound the execution phase Execution seam
 # ---------------------------------------------------------------------------
 
 
-class ExecutionStageService:
-    """Stage 6 Execution seam reusing the ``OperationRunner`` (task 8.2).
+class ExecutionPhaseService:
+    """The execution phase Execution seam reusing the ``OperationRunner`` (task 8.2).
 
     Same mold as the other *session-bound* services
     (the provisioning service):
@@ -278,7 +278,7 @@ class ExecutionStageService:
 
     * exposes the **preview** as a visible precondition (:meth:`preview`);
     * calls ``run(...)`` **exactly once** per request (no retry — Req. 18.3);
-    * marks Stage 6 ``completed`` through the single completion path when — and
+    * marks the execution phase ``completed`` through the single completion path when — and
       only when — the execution completes (``COMPLETED`` + ``FINISHED``).
 
     _Requirements: 10.1, 10.2, 10.3, 13.1, 13.2, 13.3, 13.6, 14.4, 14.5, 18.3_
@@ -290,14 +290,14 @@ class ExecutionStageService:
         *,
         runner_factory: RunnerFactory,
     ) -> None:
-        """Assemble the Stage 6 Execution seam.
+        """Assemble the execution phase Execution seam.
 
         Args:
             session: Open :class:`~sqlalchemy.orm.Session`, injected by the
                 caller. The service does not open or close it; the
                 ``OperationRunner`` ``commit``s the transitions/aggregation and the
-                stage completion is persisted through the single path
-                (``persist_stage_completion``).
+                phase completion is persisted through the single path
+                (``persist_phase_completion``).
             runner_factory: ``(session) -> OperationRunner`` factory that builds
                 the runner bound to the request ``Session``. Injected to keep the
                 seam thin and allow a full *override* in the tests (Caldera client
@@ -325,7 +325,7 @@ class ExecutionStageService:
     # -- execution (full REUSE of the OperationRunner, Req. 13.1) ------------
 
     def execute(self, campaign: str, *, confirmed: bool, complete: bool = True) -> ExecutionResult:
-        """Execute Stage 6 of Campaign ``campaign`` reusing the ``OperationRunner``.
+        """Execute the execution phase of Campaign ``campaign`` reusing the ``OperationRunner``.
 
         Resolves the Campaign's curated Abilities + Adversary, builds the
         :class:`OperationRunner` bound to the request ``Session`` (via the
@@ -339,9 +339,9 @@ class ExecutionStageService:
         This seam does **not** reimplement any gate nor the audit; it only
         projects the runner's typed :class:`OperationRunResult` into an
         :class:`ExecutionResult` and, **only** when the execution actually
-        completes (``COMPLETED`` + ``FINISHED``), marks Stage 6
-        (:data:`STAGE_EXECUTION`) ``completed`` through the single completion
-        path (:meth:`SessionStateService.persist_stage_completion`). A failure to
+        completes (``COMPLETED`` + ``FINISHED``), marks the execution phase
+        (:data:`PHASE_EXECUTION`) ``completed`` through the single completion
+        path (:meth:`SessionStateService.persist_phase_completion`). A failure to
         persist the completion does **not** bring down the execution already
         performed — it is a typed signal in ``completion_persisted=False``.
 
@@ -350,8 +350,8 @@ class ExecutionStageService:
         Operation is created before the gate passes, so the state stays untouched.
 
         When ``complete`` is ``False`` the execution runs normally but the
-        **Stage 6 completion is deferred** to the caller — it is the point the
-        Stage 6 completion seam (:class:`CompletionStage6Service`, task 8.4) uses
+        **the execution phase completion is deferred** to the caller — it is the point the
+        the execution phase completion seam (:class:`ExecutionCompletionService`, task 8.4) uses
         to only complete **after** measuring, generating the report and
         **deprovisioning** the environment (Req. 10.9). The default ``True``
         preserves the historical behavior (execution + immediate completion).
@@ -374,23 +374,23 @@ class ExecutionStageService:
         """``True`` iff the execution of ``result`` actually completed (COMPLETED + FINISHED).
 
         Single criterion for "the execution completed" (Req. 10.9) reused by the
-        Stage 6 completion seam: only a ``COMPLETED`` + ``FINISHED`` execution
+        the execution phase completion seam: only a ``COMPLETED`` + ``FINISHED`` execution
         enables the completion (after the deprovisioning). ``ABORTED`` /
         ``NOT_CONFIRMED`` / gate refusal do **not** enable the completion.
         """
         return result.result is RunOutcome.COMPLETED and result.state is OperationState.FINISHED
 
-    def complete_stage6(self, campaign: str) -> bool:
-        """Mark Stage 6 ``completed`` through the single path; return whether it persisted.
+    def complete_execution(self, campaign: str) -> bool:
+        """Mark the execution phase ``completed`` through the single path; return whether it persisted.
 
-        Delegates to :meth:`SessionStateService.persist_stage_completion`
+        Delegates to :meth:`SessionStateService.persist_phase_completion`
         (transactional and idempotent). Called by the completion seam (task 8.4)
         **only after** the execution completes and the environment is
         deprovisioned (Req. 10.9). A persistence failure returns ``False`` without
         bringing down the execution already performed.
         """
-        completion = SessionStateService(self._session).persist_stage_completion(
-            campaign, STAGE_EXECUTION
+        completion = SessionStateService(self._session).persist_phase_completion(
+            campaign, PHASE_EXECUTION
         )
         return completion.saved
 
@@ -399,7 +399,7 @@ class ExecutionStageService:
     def _to_result(
         self, campaign: str, result: OperationRunResult, *, complete: bool = True
     ) -> ExecutionResult:
-        """Project the runner's result and complete Stage 6 on a success case.
+        """Project the runner's result and complete the execution phase on a success case.
 
         When ``complete`` is ``False`` the projection is made but the completion
         is **deferred** (``completed``/``completion_persisted`` stay ``False``);
@@ -437,13 +437,13 @@ class ExecutionStageService:
             and result.outcome is RunOutcome.COMPLETED
             and result.state is OperationState.FINISHED
         ):
-            completion = SessionStateService(self._session).persist_stage_completion(
-                campaign, STAGE_EXECUTION
+            completion = SessionStateService(self._session).persist_phase_completion(
+                campaign, PHASE_EXECUTION
             )
             completion_persisted = completion.saved
             # A persistence failure does NOT bring down the execution already
-            # performed; the stage is not marked completed, but the execution
-            # result is returned in full (previous stage state preserved).
+            # performed; the phase is not marked completed, but the execution
+            # result is returned in full (previous phase state preserved).
             completed = completion.saved
 
         return ExecutionResult(
@@ -485,7 +485,7 @@ class ExecutionStageService:
 __all__ = [
     "CalderaUnavailable",
     "ExecutionAbilityResult",
+    "ExecutionPhaseService",
     "ExecutionResult",
-    "ExecutionStageService",
     "RunnerFactory",
 ]

@@ -1,5 +1,5 @@
 // Helpers for the Locale_Catalog guard test (`catalog-guard.test.ts`): key
-// flattening, unused-key detection and legacy stage wording detection. Value-only
+// flattening, unused-key detection and legacy phase wording detection. Value-only
 // (no i18next, no React), run against the raw locale JSON.
 
 /** A JSON value as loaded from a locale resource file. */
@@ -160,16 +160,16 @@ function extractKeyReferences(sources: string[]): KeyReferences {
   return { literals, prefixes }
 }
 
-/** Numbered-stage wording inherited from the curated pipeline (Req. 9.4). */
-export const LEGACY_STAGE_WORDING_PATTERN = /\b(stage|etapa)\b/i
+/** Numbered-phase wording inherited from the curated pipeline (Req. 9.4). */
+export const LEGACY_PHASE_WORDING_PATTERN = /\b(stage|etapa)\b/i // sweep-allow: legacy-wording detector
 
 /**
  * Return the `[key, value]` pairs of a locale resource whose string value
- * contains Legacy_Stage_Wording ("Stage 2", "Etapa 2", "stage", "etapa").
- * Placeholders such as `{{stage}}` are ignored since they sit inside values
+ * contains Legacy_Phase_Wording (numbered or generic legacy terms for a phase).
+ * Placeholders such as `{{phase}}` are ignored since they sit inside values
  * as interpolation names, not as rendered copy.
  */
-export function findLegacyStageWording(
+export function findLegacyPhaseWording(
   catalog: JsonValue,
 ): Array<[string, string]> {
   const offenders: Array<[string, string]> = []
@@ -179,7 +179,7 @@ export function findLegacyStageWording(
       continue
     }
     const rendered = value.replace(PLACEHOLDER_PATTERN, "")
-    if (LEGACY_STAGE_WORDING_PATTERN.test(rendered)) {
+    if (LEGACY_PHASE_WORDING_PATTERN.test(rendered)) {
       offenders.push([key, value])
     }
   }

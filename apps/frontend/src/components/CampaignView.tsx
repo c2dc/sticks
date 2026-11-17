@@ -70,7 +70,7 @@ function CampaignViewForVersion({ version, onCompleted }: CampaignViewProps) {
 
   const campaignsState = useAsyncData<StixCampaignSummary[]>(version, () => getCampaigns(version))
   const campaigns = campaignsState.data
-  const loadError = campaignsState.error ? t("stageView.loadError") : null
+  const loadError = campaignsState.error ? t("phaseView.loadError") : null
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null)
   const [selecting, setSelecting] = useState(false)
   // Distinguish "no selection yet" from "selection attempted".
@@ -175,7 +175,7 @@ function CampaignViewForVersion({ version, onCompleted }: CampaignViewProps) {
   if (!campaigns) {
     return (
       <p className="text-sm text-muted-foreground" role="status">
-        {t("stageView.loading")}
+        {t("phaseView.loading")}
       </p>
     )
   }
@@ -291,7 +291,7 @@ function CampaignList({
  * Per-campaign Container_Emulability marking in the campaign list (Req. 6.4,
  * 6.5). Shows a container icon ONLY on campaigns marked container-emulable
  * (`container_emulable === true`) — the only ones runnable end-to-end at this
- * stage. A non-emulable campaign (`container_emulable === false`) stays in the
+ * phase. A non-emulable campaign (`container_emulable === false`) stays in the
  * list (never removed) with an accessible, screen-reader-only reason naming the
  * blocking techniques when known. A campaign whose marking has not been derived
  * yet (`null`/`undefined`) renders nothing, so the absence of an icon is never

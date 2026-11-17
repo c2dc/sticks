@@ -4,7 +4,7 @@
 # it never joins the internal attack networks. It talks to the backend over
 # the application-layer bridge network (service name: backend).
 #
-# Multi-stage build:
+# Multi-stage build:  (sweep-allow: Docker term)
 #   1. `build`   — installs ALL dependencies (including devDependencies) so the
 #                  `tsc -b && vite build` step can resolve types and plugins.
 #   2. runtime   — installs the dependencies needed to run `vite preview` and
@@ -15,7 +15,7 @@
 # @types/*), which the build and `vite preview` require.
 
 # ---------------------------------------------------------------------------
-# Stage 1 — builder: full toolchain, produces dist/
+# Builder image: full toolchain, produces dist/
 # ---------------------------------------------------------------------------
 FROM node:20-slim AS build
 
@@ -41,7 +41,7 @@ COPY . .
 RUN npm run build
 
 # ---------------------------------------------------------------------------
-# Stage 2 — runtime: lean image that serves the built bundle via vite preview
+# Runtime image: lean image that serves the built bundle via vite preview
 # ---------------------------------------------------------------------------
 FROM node:20-slim
 
@@ -52,7 +52,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --include=dev
 
-# Bring in only the built artifacts from the builder stage.
+# Bring in only the built artifacts from the builder image.
 COPY --from=build /app/dist ./dist
 
 # vite preview serves the built bundle. --host makes it reachable from outside
