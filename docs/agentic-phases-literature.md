@@ -39,8 +39,8 @@ Fundamentação:
 
 - **[F1]** conclui que a maioria das implementações de agentes segue o processo
   **planejar → agir → avaliar** ("plan, act, and evaluate") de forma iterativa,
-  tratando a avaliação como etapa distinta da ação. O framework AgentVerse
-  **[F5]**, citado por [F1], define quatro estágios explícitos, entre eles
+  tratando a avaliação como passo distinto da ação. O framework AgentVerse
+  **[F5]**, citado por [F1], define quatro fases explícitas, entre eles
   "independent action execution" e "evaluation" como fases **separadas**, que se
   repetem até o objetivo ser alcançado.
 - **[F2]** modela o agente como um laço de controle com interfaces explícitas a
@@ -101,7 +101,7 @@ Observação: pela literatura, Operationalization, Environment e Execution são
 todas da família "ação via ferramentas"; nós as mantemos como fases distintas
 porque cada uma produz um artefato próprio e verificável, e porque a **fronteira
 de rede** cai ENTRE Environment e Execution (ver abaixo) — uma decisão de
-engenharia compatível com [F1], que admite múltiplas etapas de ação encadeadas.
+engenharia compatível com [F1], que admite múltiplos passos de ação encadeadas.
 
 ## Fronteira de rede: provisionar (egress aberto) → isolar → executar (rede interna contida)
 
@@ -158,9 +158,9 @@ nomenclatura do repositório). Decisões fixadas:
   `execution`, `evaluation`. O artefato da fase `flow` é chamado de
   **attack flow** (formato MITRE Attack Flow [F8]); o termo antigo de grafo
   acíclico não é mais usado, porque o corpus publicado não é estritamente acíclico.
-- A numeração legada `stage_3/4/5/6` (herança do pipeline curado de 6 estágios)
-  será **removida**: os nomes passam a ser semânticos, sem número, porque a
-  contagem de fases agênticas começa na operationalization (não no "stage 3").
+- Os nomes das fases são semânticos, sem número: as fases agênticas começam
+  na `operationalization`, e a numeração herdada do pipeline curado antigo foi
+  removida.
 
 ## Setup (ingestion) vs Input — conceitos distintos
 
@@ -176,7 +176,7 @@ Há **três** conceitos no sistema, não dois. "Setup (instalação + ingestão)
 Relação: **Ingestion enche os bancos → Input lê deles** para montar o contexto
 inicial → as fases agênticas rodam. A ingestão é pré-requisito de tudo.
 
-Decisão: **NÃO renomear "Input" para "Ingest".** São etapas diferentes, em
+Decisão: **NÃO renomear "Input" para "Ingest".** São passos diferentes, em
 momentos diferentes, com consumidores diferentes. A ingestão roda
 **automaticamente no primeiro start** e é **verificada em todo start**; a
 entrada roda a cada campanha.
@@ -193,7 +193,7 @@ ficou pendente. Um segundo início concorrente da mesma fonte é rejeitado.
 
 Variáveis de ambiente: `STICKS_INGEST_ON_START` (liga/desliga a ingestão no
 start), `ATTACK_FLOW_REF` (tag do repositório Attack Flow), `GITHUB_TOKEN`
-(opcional, para a listagem no GitHub), `OLLAMA_BASE_URL` e `OLLAMA_EMBED_MODEL`
+(opcional, para consultar o GitHub), `OLLAMA_BASE_URL` e `OLLAMA_EMBED_MODEL`
 (serviço e modelo de embeddings).
 
 ### Fontes de ingestão (o que alimenta os bancos)

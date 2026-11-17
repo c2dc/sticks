@@ -56,14 +56,14 @@ router = APIRouter(prefix="/api", tags=["ai"])
 
 # The explicit "not available" sentinel the read endpoint emits for any
 # Agent_Processing element that is genuinely absent (recorded as ``None`` /
-# missing by the trace sink — a stage that ran without an LLM call, a curation
+# missing by the trace sink — a phase that ran without an LLM call, a curation
 # fallback that captured nothing). The serialization layer maps null/absent
-# processing elements to this marker rather than omitting the stage or agent, so
+# processing elements to this marker rather than omitting the phase or agent, so
 # the frontend renders an explicit indicator instead of a blank field
 # (Req. 1.6; design §A/§C "Not available" indicator).
 NOT_AVAILABLE = "not_available"
 
-# The Agent_Processing elements an ``agent_stage_traces.processing`` payload
+# The Agent_Processing elements an ``agent_phase_traces.processing`` payload
 # always carries (mirrors ``_trace._PROCESSING_KEYS``): each is normalized to the
 # explicit ``None`` sentinel at persist time, so the read layer resolves a null /
 # missing element to :data:`NOT_AVAILABLE` for every one of these keys even when
@@ -84,9 +84,9 @@ def _resolve_processing(processing: dict | None) -> dict:
     Every known processing key (:data:`_PROCESSING_KEYS`) is present in the
     result: a ``None`` or missing element resolves to :data:`NOT_AVAILABLE` so the
     frontend renders an explicit "not available" indicator rather than omitting
-    the Stage or Agent (Req. 1.6). Any extra keys the agent captured (e.g. the
+    the Phase or Agent (Req. 1.6). Any extra keys the agent captured (e.g. the
     Environment agent's ``fixed_infrastructure`` / ``agent_decided`` / ``gates`` /
-    ``substages``) are preserved as-is, with a ``None`` value likewise resolved to
+    ``subphases``) are preserved as-is, with a ``None`` value likewise resolved to
     the sentinel.
     """
     source = dict(processing) if isinstance(processing, dict) else {}
@@ -152,7 +152,7 @@ class AiRunResponse(BaseModel):
         default=None,
         description=(
             "Structured failure cause surfaced from agent_runs.error (the failing "
-            "stage + the absent-input/cause message) when the run failed; null on "
+            "phase + the absent-input/cause message) when the run failed; null on "
             "runs that did not fail (Req. 2.6, 4.4)."
         ),
     )
@@ -182,10 +182,10 @@ class AiEvaluationView(BaseModel):
 
 
 class AiAgentTraceView(BaseModel):
-    """The Audit_Trace (Agent_Input + Agent_Processing) of a stage output.
+    """The Audit_Trace (Agent_Input + Agent_Processing) of a phase output.
 
-    Carries the 1:1 ``agent_stage_traces`` row for a stage output (Req. 1.2, 1.3,
-    2.1): ``agent_input`` is the data the agent received (prior-stage artifacts,
+    Carries the 1:1 ``agent_phase_traces`` row for a phase output (Req. 1.2, 1.3,
+    2.1): ``agent_input`` is the data the agent received (prior-phase artifacts,
     the Selected_Campaign context, the retrieved cross-campaign experience, the
     ATT&CK/STIX attack context); ``processing`` is what the agent performed (the
     LLM prompt sent, the LLM response received, reasoning, tools invoked, repair
@@ -198,7 +198,7 @@ class AiAgentTraceView(BaseModel):
     agent_input: dict = Field(
         default_factory=dict,
         description=(
-            "Agent_Input: prior-stage artifacts, Selected_Campaign context, "
+            "Agent_Input: prior-phase artifacts, Selected_Campaign context, "
             "retrieved cross-campaign experience, and the ATT&CK/STIX attack "
             "context the agent received (Req. 1.2)."
         ),
@@ -213,21 +213,21 @@ class AiAgentTraceView(BaseModel):
     )
 
 
-class AiStageOutputView(BaseModel):
-    """One ``agent_stage_outputs`` row with its 1:1 Audit_Trace (Req. 1.1, 1.4, 2.4).
+class AiPhaseOutputView(BaseModel):
+    """One ``agent_phase_outputs`` row with its 1:1 Audit_Trace (Req. 1.1, 1.4, 2.4).
 
-    The Agent_Output artifact (``payload``) produced for a Stage and Iteration,
+    The Agent_Output artifact (``payload``) produced for a Phase and Iteration,
     stamped with the AI-generated ``origin``, paired with the ``trace`` carrying
     that agent's Agent_Input + Agent_Processing. Presented as the three distinct
     parts of an Agent's contribution (input / processing / output) grouped by
-    Stage within an Iteration (Req. 1.1, 1.5).
+    Phase within an Iteration (Req. 1.1, 1.5).
     """
 
-    id: int = Field(..., description="Primary key of the agent_stage_outputs row.")
-    stage: str = Field(
+    id: int = Field(..., description="Primary key of the agent_phase_outputs row.")
+    phase: str = Field(
         ...,
         description=(
-            "Semantic AgentStage value the output belongs to (flow / "
+            "Semantic AgentPhase value the output belongs to (flow / "
             "operationalization / environment / execution / evaluation)."
         ),
     )
@@ -237,7 +237,7 @@ class AiStageOutputView(BaseModel):
     )
     payload: dict = Field(
         default_factory=dict,
-        description="The serialized Agent_Output artifact produced for the stage.",
+        description="The serialized Agent_Output artifact produced for the phase.",
     )
     trace: AiAgentTraceView = Field(
         ...,
@@ -246,10 +246,10 @@ class AiStageOutputView(BaseModel):
 
 
 class AiIterationView(BaseModel):
-    """One iteration of a run with its stage outputs and evaluator verdict.
+    """One iteration of a run with its phase outputs and evaluator verdict.
 
-    Carries the ``agent_iterations`` row plus the per-stage ``agent_stage_outputs``
-    rows (each with its 1:1 Audit_Trace, ordered by stage — Req. 1.1, 1.5, 2.4)
+    Carries the ``agent_iterations`` row plus the per-phase ``agent_phase_outputs``
+    rows (each with its 1:1 Audit_Trace, ordered by phase — Req. 1.1, 1.5, 2.4)
     and the optional ``agent_evaluations`` verdict recorded for that iteration
     (0..1 per iteration).
     """
@@ -258,25 +258,25 @@ class AiIterationView(BaseModel):
 
     id: int = Field(..., description="Primary key of the agent_iterations row.")
     index: int = Field(..., description="0-based iteration number within the run.")
-    refined_stage: str | None = Field(
+    refined_phase: str | None = Field(
         default=None,
-        description=("Stage the evaluator refined into this iteration; null on the first pass."),
+        description=("Phase the evaluator refined into this iteration; null on the first pass."),
     )
     notes: str | None = Field(default=None, description="Free-form iteration notes.")
     created_at: dt.datetime = Field(
         ..., description="Naive-UTC creation timestamp of the iteration."
     )
-    stage_outputs: list[AiStageOutputView] = Field(
+    phase_outputs: list[AiPhaseOutputView] = Field(
         default_factory=list,
         description=(
-            "The iteration's per-stage Agent_Output artifacts, each with its 1:1 "
-            "Audit_Trace, ordered by stage (Req. 1.1, 1.4, 2.4)."
+            "The iteration's per-phase Agent_Output artifacts, each with its 1:1 "
+            "Audit_Trace, ordered by phase (Req. 1.1, 1.4, 2.4)."
         ),
     )
     failing_agent: str | None = Field(
         default=None,
         description=(
-            "Identity of the failing Stage/Agent captured on a failed Run; null "
+            "Identity of the failing Phase/Agent captured on a failed Run; null "
             "unless this iteration carries the failure anchor (Req. 2.6)."
         ),
     )
@@ -290,7 +290,7 @@ class AiRunDetailResponse(BaseModel):
     """``GET /api/campaigns/{campaign}/ai/runs/{id}`` payload (Req. 1.4, 2.4, 13.2).
 
     The run summary (with its ``error`` cause when the run failed) plus its
-    iterations (oldest first), each carrying its per-stage Agent_Output artifacts
+    iterations (oldest first), each carrying its per-phase Agent_Output artifacts
     with their 1:1 Audit_Trace and its evaluator verdict.
     """
 
@@ -298,14 +298,14 @@ class AiRunDetailResponse(BaseModel):
     iterations: list[AiIterationView] = Field(
         default_factory=list,
         description=(
-            "The run's iterations with their stage outputs + Audit_Trace and "
+            "The run's iterations with their phase outputs + Audit_Trace and "
             "evaluator verdicts, oldest first."
         ),
     )
 
 
-class GroundTruthStageComparison(BaseModel):
-    """The AI-output-vs-human-curation comparison for one Stage (design §H).
+class GroundTruthPhaseComparison(BaseModel):
+    """The AI-output-vs-human-curation comparison for one Phase (design §H).
 
     Compares the serialized sets the AI Run produced against the equivalent sets
     read from the campaign's human curation in the database — read-only and on demand.
@@ -313,14 +313,14 @@ class GroundTruthStageComparison(BaseModel):
     AI matched, missed, and added relative to ground truth.
     """
 
-    stage: str = Field(..., description="English AgentStage value this comparison belongs to.")
+    phase: str = Field(..., description="English AgentPhase value this comparison belongs to.")
     ai_items: list[str] = Field(
         default_factory=list,
-        description="The identifiers the AI Run produced for this stage (sorted).",
+        description="The identifiers the AI Run produced for this phase (sorted).",
     )
     curated_items: list[str] = Field(
         default_factory=list,
-        description="The identifiers the human curation carries for this stage (sorted).",
+        description="The identifiers the human curation carries for this phase (sorted).",
     )
     matched: list[str] = Field(
         default_factory=list,
@@ -349,9 +349,9 @@ class GroundTruthComparisonResponse(BaseModel):
         ..., description="The Curated_Campaign slug compared (server-side curated)."
     )
     run_id: int = Field(..., description="The completed Run compared.")
-    stages: list[GroundTruthStageComparison] = Field(
+    phases: list[GroundTruthPhaseComparison] = Field(
         default_factory=list,
-        description="Per-stage AI-output-vs-curation comparisons.",
+        description="Per-phase AI-output-vs-curation comparisons.",
     )
 
 
@@ -503,26 +503,26 @@ def get_ai_run(
     id: int = Path(..., description="Id of the agent_runs row to read"),
     db: Session = Depends(get_db),
 ) -> AiRunDetailResponse:
-    """Read a run with its iterations, stage outputs + trace, and verdict.
+    """Read a run with its iterations, phase outputs + trace, and verdict.
 
     Loads the ``agent_runs`` row by ``id`` (scoped to ``campaign``), its
     ``agent_iterations`` rows (oldest first), and for each iteration its
-    ``agent_stage_outputs`` rows ordered by stage — each paired with its 1:1
-    ``agent_stage_traces`` row (Agent_Input + Agent_Processing) and the
+    ``agent_phase_outputs`` rows ordered by phase — each paired with its 1:1
+    ``agent_phase_traces`` row (Agent_Input + Agent_Processing) and the
     ``agent_evaluations`` verdict recorded for the iteration (Req. 1.1, 1.4,
     2.4, 13.2). Null/absent Agent_Processing elements are resolved to the
     explicit "not available" sentinel the frontend renders (Req. 1.6). When the
     run failed, ``AiRunResponse.error`` surfaces ``agent_runs.error`` and the
-    failing Stage is reported on the iteration's ``failing_agent`` (Req. 2.6,
+    failing Phase is reported on the iteration's ``failing_agent`` (Req. 2.6,
     4.4). An unknown id — or an id that belongs to a different campaign — is a
     404.
     """
     from app.models.domain import (
         AgentEvaluation,
         AgentIteration,
+        AgentPhaseOutput,
+        AgentPhaseTrace,
         AgentRun,
-        AgentStageOutput,
-        AgentStageTrace,
     )
     from app.models.enums import AgentRunStatus
 
@@ -547,52 +547,52 @@ def get_ai_run(
 
     iterations: list[AiIterationView] = []
     for iteration in iteration_rows:
-        # Load the iteration's stage outputs ordered by stage, each paired with
-        # its 1:1 agent_stage_traces row (left outer join so a stage output with
+        # Load the iteration's phase outputs ordered by phase, each paired with
+        # its 1:1 agent_phase_traces row (left outer join so a phase output with
         # no trace still surfaces — its trace renders fully "not available").
-        stage_output_rows = db.execute(
-            select(AgentStageOutput, AgentStageTrace)
+        phase_output_rows = db.execute(
+            select(AgentPhaseOutput, AgentPhaseTrace)
             .outerjoin(
-                AgentStageTrace,
-                AgentStageTrace.stage_output_id == AgentStageOutput.id,
+                AgentPhaseTrace,
+                AgentPhaseTrace.phase_output_id == AgentPhaseOutput.id,
             )
-            .where(AgentStageOutput.iteration_id == iteration.id)
-            .order_by(AgentStageOutput.stage.asc(), AgentStageOutput.id.asc())
+            .where(AgentPhaseOutput.iteration_id == iteration.id)
+            .order_by(AgentPhaseOutput.phase.asc(), AgentPhaseOutput.id.asc())
         ).all()
 
-        stage_outputs: list[AiStageOutputView] = []
+        phase_outputs: list[AiPhaseOutputView] = []
         failing_agent: str | None = None
-        for stage_output, trace in stage_output_rows:
-            stage_value = getattr(stage_output.stage, "value", stage_output.stage)
-            origin_value = getattr(stage_output.origin, "value", stage_output.origin)
+        for phase_output, trace in phase_output_rows:
+            phase_value = getattr(phase_output.phase, "value", phase_output.phase)
+            origin_value = getattr(phase_output.origin, "value", phase_output.origin)
             agent_input = (
                 trace.agent_input
                 if trace is not None and isinstance(trace.agent_input, dict)
                 else {}
             )
             processing = trace.processing if trace is not None else None
-            stage_outputs.append(
-                AiStageOutputView(
-                    id=stage_output.id,
-                    stage=stage_value,
+            phase_outputs.append(
+                AiPhaseOutputView(
+                    id=phase_output.id,
+                    phase=phase_value,
                     origin=origin_value,
-                    payload=stage_output.payload if isinstance(stage_output.payload, dict) else {},
+                    payload=phase_output.payload if isinstance(phase_output.payload, dict) else {},
                     trace=AiAgentTraceView(
                         agent_input=agent_input,
                         processing=_resolve_processing(processing),
                     ),
                 )
             )
-            # On a failed run the failing stage is anchored on a MINIMAL stage
+            # On a failed run the failing phase is anchored on a MINIMAL phase
             # output (empty payload sentinel — no valid artifact was produced);
-            # surface that stage as the failing Agent so the failure is auditable
+            # surface that phase as the failing Agent so the failure is auditable
             # (Req. 2.6). The first such anchor in the iteration identifies it.
             if (
                 run_failed
                 and failing_agent is None
-                and not (isinstance(stage_output.payload, dict) and stage_output.payload)
+                and not (isinstance(phase_output.payload, dict) and phase_output.payload)
             ):
-                failing_agent = stage_value
+                failing_agent = phase_value
 
         # The evaluator records 0..1 verdict per iteration; take the latest row
         # for the iteration when present.
@@ -606,7 +606,7 @@ def get_ai_run(
             .first()
         )
         view = AiIterationView.model_validate(iteration)
-        view.stage_outputs = stage_outputs
+        view.phase_outputs = phase_outputs
         view.failing_agent = failing_agent
         if evaluation_row is not None:
             view.evaluation = AiEvaluationView.model_validate(evaluation_row)
@@ -631,9 +631,9 @@ def get_ai_run(
 
 
 def _technique_ids_from_flow_payload(payload: Any) -> set[str]:
-    """Collect the technique ids an AI flow stage output produced.
+    """Collect the technique ids an AI flow phase output produced.
 
-    The attack flow stage output ``payload`` is a serialized ``ProducedFlow`` whose
+    The attack flow phase output ``payload`` is a serialized ``ProducedFlow`` whose
     ``content`` mirrors the curation format
     ``{"structural_nodes": [...], "arestas": [...]}``; each structural node
     carries an optional ``technique_id``. Returns the non-empty technique ids as
@@ -655,18 +655,20 @@ def _technique_ids_from_flow_payload(payload: Any) -> set[str]:
 
 
 def _ability_ids_from_op_payload(payload: Any) -> set[str]:
-    """Collect the ability ids an AI operationalization stage output produced.
+    """Collect the ability ids an AI operationalization phase output produced.
 
     The operationalization ``payload`` is a serialized
     ``ProducedOperationalization`` whose ``abilities`` field is a serialized
-    ``Stage2Output`` carrying an ``abilities`` list; each entry carries an
+    ``OperationalizationOutput`` carrying an ``abilities`` list; each entry carries an
     ``ability_id``. Returns the non-empty ability ids as a set.
     """
     if not isinstance(payload, dict):
         return set()
-    stage2 = payload.get("abilities")
-    stage2 = stage2 if isinstance(stage2, dict) else {}
-    ability_views = stage2.get("abilities")
+    operationalization_abilities = payload.get("abilities")
+    operationalization_abilities = (
+        operationalization_abilities if isinstance(operationalization_abilities, dict) else {}
+    )
+    ability_views = operationalization_abilities.get("abilities")
     ids: set[str] = set()
     if isinstance(ability_views, list):
         for ability in ability_views:
@@ -677,12 +679,12 @@ def _ability_ids_from_op_payload(payload: Any) -> set[str]:
     return ids
 
 
-def _build_stage_comparison(
-    stage: str, ai_items: set[str], curated_items: set[str]
-) -> GroundTruthStageComparison:
-    """Assemble one stage's symmetric AI-vs-curation comparison (sorted, stable)."""
-    return GroundTruthStageComparison(
-        stage=stage,
+def _build_phase_comparison(
+    phase: str, ai_items: set[str], curated_items: set[str]
+) -> GroundTruthPhaseComparison:
+    """Assemble one phase's symmetric AI-vs-curation comparison (sorted, stable)."""
+    return GroundTruthPhaseComparison(
+        phase=phase,
         ai_items=sorted(ai_items),
         curated_items=sorted(curated_items),
         matched=sorted(ai_items & curated_items),
@@ -717,7 +719,7 @@ def compare_ai_run_with_curation(
     offered on the eight Curated_Campaigns. For any other campaign a clear
     "not a curated campaign" 404 is returned (Req. 5.2) rather than a comparison.
 
-    For a curated campaign the handler reads the Run's AI stage outputs (the attack flow
+    For a curated campaign the handler reads the Run's AI phase outputs (the attack flow
     technique ids and the operationalization ability ids it produced) and
     compares them — on demand — against the campaign's human curation read from
     the database (the curated flow techniques and the curated ability ids). Curation is used ONLY as the
@@ -728,11 +730,11 @@ def compare_ai_run_with_curation(
     from app.models.domain import Ability as AbilityModel
     from app.models.domain import (
         AgentIteration,
+        AgentPhaseOutput,
         AgentRun,
-        AgentStageOutput,
         Case,
     )
-    from app.models.enums import AgentStage
+    from app.models.enums import AgentPhase
     from app.services.curated_case_reader import resolve_flow_data_from_db
 
     run = db.get(AgentRun, id)
@@ -763,10 +765,10 @@ def compare_ai_run_with_curation(
         )
 
     # ---- AI side: the technique ids / ability ids the Run produced ----------
-    stage_output_rows = (
+    phase_output_rows = (
         db.execute(
-            select(AgentStageOutput)
-            .join(AgentIteration, AgentStageOutput.iteration_id == AgentIteration.id)
+            select(AgentPhaseOutput)
+            .join(AgentIteration, AgentPhaseOutput.iteration_id == AgentIteration.id)
             .where(AgentIteration.run_id == run.id)
         )
         .scalars()
@@ -775,11 +777,11 @@ def compare_ai_run_with_curation(
 
     ai_technique_ids: set[str] = set()
     ai_ability_ids: set[str] = set()
-    for row in stage_output_rows:
-        stage_value = getattr(row.stage, "value", row.stage)
-        if stage_value == AgentStage.FLOW.value:
+    for row in phase_output_rows:
+        phase_value = getattr(row.phase, "value", row.phase)
+        if phase_value == AgentPhase.FLOW.value:
             ai_technique_ids |= _technique_ids_from_flow_payload(row.payload)
-        elif stage_value == AgentStage.OPERATIONALIZATION.value:
+        elif phase_value == AgentPhase.OPERATIONALIZATION.value:
             ai_ability_ids |= _ability_ids_from_op_payload(row.payload)
 
     # ---- Curation side: the baseline read from the database, on demand ------
@@ -808,10 +810,10 @@ def compare_ai_run_with_curation(
         if aid:
             curated_ability_ids.add(aid)
 
-    stages = [
-        _build_stage_comparison(AgentStage.FLOW.value, ai_technique_ids, curated_technique_ids),
-        _build_stage_comparison(
-            AgentStage.OPERATIONALIZATION.value,
+    phases = [
+        _build_phase_comparison(AgentPhase.FLOW.value, ai_technique_ids, curated_technique_ids),
+        _build_phase_comparison(
+            AgentPhase.OPERATIONALIZATION.value,
             ai_ability_ids,
             curated_ability_ids,
         ),
@@ -820,5 +822,5 @@ def compare_ai_run_with_curation(
     return GroundTruthComparisonResponse(
         campaign_id=campaign,
         run_id=run.id,
-        stages=stages,
+        phases=phases,
     )

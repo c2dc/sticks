@@ -1,19 +1,19 @@
-"""CompletionStage6Service — deprovisioning + Stage 6 completion (task 8.4).
+"""ExecutionCompletionService — deprovisioning + the execution phase completion (task 8.4).
 
-Stage 6 (execution + measurement + report) has three phases already built by
+The execution phase (execution + measurement + report) has three steps already built by
 earlier tasks: the **execution** reuses ``OperationRunner`` with the four gates
-(task 8.2, :class:`~app.services.environment.execution.ExecutionStageService`);
+(task 8.2, :class:`~app.services.environment.execution.ExecutionPhaseService`);
 the **measurement + report** derives the procedural-sufficiency metrics and
 consolidates the :class:`~app.services.environment.report.ExecutionReport` (task
-8.3, :class:`~app.services.environment.measurement.MeasurementService`); and Stage 5
+8.3, :class:`~app.services.environment.measurement.MeasurementService`); and the environment phase
 (task 7.x) defined the :class:`~app.services.environment.provisioner.EnvironmentProvisioner`
 seam with the ``deprovision`` method.
 
 This task is the **completion seam** that ties the three phases in the order
 required by the design (Req. 10.8, 10.9, 12):
 
-1. **Runs** Stage 6 reusing ``ExecutionStageService`` with **deferred
-   completion** (``complete=False``) — the stage completion does **not** happen
+1. **Runs** the execution phase reusing ``ExecutionPhaseService`` with **deferred
+   completion** (``complete=False``) — the phase completion does **not** happen
    during execution; this seam decides when to complete (Req. 10.9).
 2. **Measures and generates the report** from the execution results + the curated
    Attack flow (via ``MeasurementService``), on technique success **or** failure.
@@ -23,14 +23,14 @@ required by the design (Req. 10.8, 10.9, 12):
    12.1). The teardown removes the created containers (Req. 12.2); a teardown
    failure is reported identifying the **remaining resources** (Req. 12.3),
    without bringing down the flow.
-4. **Completes Stage 6** through the single completion path
-   (``persist_stage_completion``) **only** when (a) execution actually completed
+4. **Completes the execution phase** through the single completion path
+   (``persist_phase_completion``) **only** when (a) execution actually completed
    (``COMPLETED`` + ``FINISHED``), (b) the environment was deprovisioned and
    (c) the results + the report are persisted (Req. 10.9). If any condition
-   fails, the stage does **not** complete.
+   fails, the phase does **not** complete.
 
 The report stamps ``environment_deprovisioned`` with the real teardown result
-(Req. 12), so the Stage 6 output reflects whether the environment was actually
+(Req. 12), so the execution phase output reflects whether the environment was actually
 cleaned up. Persisting the :class:`ExecutionReport` is delegated to an
 **injectable persister** (``report_sink``) — the ``execution_reports`` table is
 task 10.1/10.2; here the seam only requires that *some* sink confirms the
@@ -56,10 +56,10 @@ from sqlalchemy.orm import Session
 from app.models.domain import ExecutionReport as ExecutionReportRow
 from app.services.curated_case_models import CaseData
 from app.services.curated_case_reader import build_case_from_db, is_curated
-from app.services.emulation.views import Stage3AbilityResult
+from app.services.emulation.views import OperationAbilityResult
 from app.services.environment.execution import (
+    ExecutionPhaseService,
     ExecutionResult,
-    ExecutionStageService,
     RunnerFactory,
 )
 from app.services.environment.measurement import AbilityMeasurementResult, MeasurementService
@@ -71,7 +71,7 @@ from app.services.environment.provisioner import (
 from app.services.environment.report import ExecutionReport
 
 #: A persister for the execution's :class:`ExecutionReport`. It confirms the
-#: persistence (``True``) before completing Stage 6 (Req. 10.9). Injectable so
+#: persistence (``True``) before completing the execution phase (Req. 10.9). Injectable so
 #: the tests use an in-memory sink without the table.
 #:
 #: The sink may optionally accept the :class:`DeprovisioningResult` of the
@@ -117,7 +117,7 @@ class DbReportSink:
 
     Persists the consolidated :class:`ExecutionReport` into the
     :class:`~app.models.domain.ExecutionReport` table (``execution_reports``) and
-    records the **structured teardown** of the end of Stage 6 (Req. 7.3): the
+    records the **structured teardown** of the end of the execution phase (Req. 7.3): the
     boolean ``deprovisioned`` and the ``remaining_resources`` that remained when
     the teardown failed, recovered later by the report read path.
 
@@ -143,7 +143,7 @@ class DbReportSink:
         """Persist ``report`` + the ``deprovisioning`` teardown; confirm on success.
 
         Returns ``True`` when the row was written (the completion precondition of
-        Req. 10.9). A persistence failure is turned into ``False`` (the stage does
+        Req. 10.9). A persistence failure is turned into ``False`` (the phase does
         not complete) without propagating, consistent with the seam treating the
         persistence as a confirmable precondition.
         """
@@ -184,16 +184,16 @@ class DbReportSink:
         self._session.flush()
 
 
-class CompletionStage6Result(BaseModel):
-    """Typed result of the Stage 6 completion — execution + report + teardown.
+class ExecutionCompletionResult(BaseModel):
+    """Typed result of the execution phase completion — execution + report + teardown.
 
-    Serializable projection of the full Stage 6 flow, for the API layer
+    Serializable projection of the full execution phase flow, for the API layer
     (task 8.5) and for the tests. Carries the execution result, the consolidated
-    report, the deprovisioning result and whether the stage was actually
+    report, the deprovisioning result and whether the phase was actually
     completed.
 
     Attributes:
-        campaign_id: The *slug* of the Campaign whose Stage 6 was executed.
+        campaign_id: The *slug* of the Campaign whose execution phase was executed.
         execution: The :class:`~app.services.environment.execution.ExecutionResult`
             of the execution (with deferred completion — ``execution.completed`` is
             always ``False`` here; the real completion is ``completed`` below).
@@ -205,7 +205,7 @@ class CompletionStage6Result(BaseModel):
             remaining resources (Req. 12.3).
         report_persisted: ``True`` iff the report was persisted by the sink
             (precondition of completion, Req. 10.9).
-        completed: ``True`` iff Stage 6 was marked ``completed`` by this call —
+        completed: ``True`` iff the execution phase was marked ``completed`` by this call —
             that is, execution completed, the environment was deprovisioned and
             the results + report are persisted (Req. 10.9).
     """
@@ -218,12 +218,12 @@ class CompletionStage6Result(BaseModel):
     completed: bool = False
 
 
-class CompletionStage6Service:
-    """Stage 6 completion seam — always teardown + gated completion (task 8.4).
+class ExecutionCompletionService:
+    """The execution phase completion seam — always teardown + gated completion (task 8.4).
 
-    Orchestrates the three Stage 6 phases in the design order, **without**
+    Orchestrates the three steps of the execution phase in the design order, **without**
     reimplementing any of them: it delegates execution to
-    :class:`~app.services.environment.execution.ExecutionStageService` (deferred
+    :class:`~app.services.environment.execution.ExecutionPhaseService` (deferred
     completion), measurement/report to
     :class:`~app.services.environment.measurement.MeasurementService`, and the
     teardown to the :class:`~app.services.environment.provisioner.EnvironmentProvisioner`
@@ -242,14 +242,14 @@ class CompletionStage6Service:
         report_sink: ReportSink,
         measurement: MeasurementService | None = None,
     ) -> None:
-        """Assemble the Stage 6 completion seam.
+        """Assemble the execution phase completion seam.
 
         Args:
             session: Open :class:`~sqlalchemy.orm.Session`, injected by the
-                caller — passed through to ``ExecutionStageService`` and the
+                caller — passed through to ``ExecutionPhaseService`` and the
                 completion path. The service does not open or close it.
             runner_factory: ``(session) -> OperationRunner`` factory passed through
-                to ``ExecutionStageService`` (the tests inject a fake runner or a
+                to ``ExecutionPhaseService`` (the tests inject a fake runner or a
                 real one with *fakes*).
             provisioner: The
                 :class:`~app.services.environment.provisioner.EnvironmentProvisioner`
@@ -262,7 +262,7 @@ class CompletionStage6Service:
                 Default: a new instance.
         """
         self._session = session
-        self._execution = ExecutionStageService(
+        self._execution = ExecutionPhaseService(
             session,
             runner_factory=runner_factory,
         )
@@ -277,15 +277,15 @@ class CompletionStage6Service:
         confirmed: bool,
         environment: ProvisionedEnvironment,
         generated_at: dt.datetime | None = None,
-    ) -> CompletionStage6Result:
+    ) -> ExecutionCompletionResult:
         """Run, measure, generate the report, **deprovision** and complete (Req. 10.8-10.9, 12).
 
         The flow, in the design order:
 
-        1. Runs Stage 6 with **deferred completion** (``complete=False``):
-           ``ExecutionStageService`` applies the four gates and, on success,
+        1. Runs the execution phase with **deferred completion** (``complete=False``):
+           ``ExecutionPhaseService`` applies the four gates and, on success,
            persists the ``AbilityResult``/``AuditLogEntry`` per command — but
-           does **not** complete the stage yet (Req. 10.9).
+           does **not** complete the phase yet (Req. 10.9).
         2. Measures procedural sufficiency and consolidates the
            :class:`ExecutionReport` from the execution results + the curated attack flow,
            on technique success **or** failure (Req. 10.4-10.7).
@@ -295,22 +295,22 @@ class CompletionStage6Service:
            ``report.environment_deprovisioned`` (Req. 12). A teardown failure is
            reported with the remaining resources (Req. 12.3) and does **not**
            bring down the flow.
-        4. Persists the report (via the ``report_sink``) and completes Stage 6
+        4. Persists the report (via the ``report_sink``) and completes the execution phase
            **only** when execution completed, the environment was deprovisioned
-           and the report was persisted (Req. 10.9). Otherwise the stage does
+           and the report was persisted (Req. 10.9). Otherwise the phase does
            **not** complete.
 
         Args:
             campaign: The *slug* of the curated Campaign to execute.
             confirmed: Explicit confirmation of the execution (runner gate 1).
-            environment: The :class:`ProvisionedEnvironment` from Stage 5 — the
+            environment: The :class:`ProvisionedEnvironment` from the environment phase — the
                 target of the deprovisioning at the end (Req. 12.1, 12.2).
             generated_at: Report generation timestamp; default: now (UTC).
 
         Returns:
-            The :class:`CompletionStage6Result` with the execution, the report
-            (with the deprovisioning flag), the teardown result and whether Stage
-            6 was completed.
+            The :class:`ExecutionCompletionResult` with the execution, the report
+            (with the deprovisioning flag), the teardown result and whether the
+            execution phase was completed.
         """
         case = self._load_case(campaign)
 
@@ -320,8 +320,8 @@ class CompletionStage6Service:
 
         # 2) Measurement + report, on technique success OR failure (Req. 10.6, 10.7).
         ability_results = [AbilityMeasurementResult.from_execution(r) for r in execution.results]
-        stage3_results = [
-            Stage3AbilityResult(
+        operation_results = [
+            OperationAbilityResult(
                 ability_id=r.ability_id or "",
                 status=r.status,
                 command_output=r.output,
@@ -336,7 +336,7 @@ class CompletionStage6Service:
         report = self._measurement.report_from_campaign(
             campaign=case,
             ability_results=ability_results,
-            stage3_results=stage3_results,
+            operation_results=operation_results,
             environment_deprovisioned=deprovisioning.deprovisioned,
             generated_at=generated_at,
         )
@@ -356,9 +356,9 @@ class CompletionStage6Service:
             and deprovisioning.deprovisioned
             and report_persisted
         ):
-            completed = self._execution.complete_stage6(campaign)
+            completed = self._execution.complete_execution(campaign)
 
-        return CompletionStage6Result(
+        return ExecutionCompletionResult(
             campaign_id=campaign,
             execution=execution,
             report=report,
@@ -396,7 +396,7 @@ class CompletionStage6Service:
         """
         try:
             return self._provisioner.deprovision(environment)
-        except Exception as exc:  # noqa: BLE001 -- teardown never brings down Stage 6
+        except Exception as exc:  # noqa: BLE001 -- teardown never brings down the execution phase
             return DeprovisioningResult(
                 deprovisioned=False,
                 remaining_resources=list(environment.target_containers),
@@ -423,8 +423,8 @@ class CompletionStage6Service:
 
 
 __all__ = [
-    "CompletionStage6Result",
-    "CompletionStage6Service",
     "DbReportSink",
+    "ExecutionCompletionResult",
+    "ExecutionCompletionService",
     "ReportSink",
 ]

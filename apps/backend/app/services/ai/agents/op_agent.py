@@ -1,7 +1,7 @@
-"""Stage 4 ``AiOperationalizer`` — the ``gerado_ia`` operationalization agent.
+"""Operationalization phase ``AiOperationalizer`` — the ``gerado_ia`` operationalization agent.
 
 This module hosts :class:`AiOperationalizer`, the AI implementation of the
-Stage 4 :class:`~app.services.environment.operationalizer.OperationalizerByOrigin`
+Operationalization phase :class:`~app.services.environment.operationalizer.OperationalizerByOrigin`
 seam (task 7.2). It is the **command-semantics core** of the agent system and the
 first shippable agent: it plugs into the *existing* per-origin seam with no change
 to the seam signature, exactly like the curation implementation
@@ -12,10 +12,10 @@ What it does (Req. 2.2, 2.4, 2.5, 8.1):
 * ``origin()`` stamps :attr:`TranslationSource.AI_GENERATED` (``"gerado_ia"``) on
   everything it produces — the ``ProducedOperationalization.origin`` and the
   derived ``EnvironmentParameters.origin``.
-* ``operationalize(campaign, flow)`` walks the Stage 3 :class:`FlowView`, and for
+* ``operationalize(campaign, flow)`` walks the Flow phase :class:`FlowView`, and for
   each node's ATT&CK technique **selects and parametrizes** concrete Atomic Red
   Team commands (via the ``tool_atomic_lookup`` command pool), assembles the two
-  separate Stage 4 artifacts — the ordered Abilities (``Stage2Output``) and the
+  separate Operationalization phase artifacts — the ordered Abilities (``OperationalizationOutput``) and the
   derived :class:`EnvironmentParameters` — and returns them in a
   :class:`ProducedOperationalization` with ``origin=gerado_ia``.
 
@@ -46,13 +46,13 @@ import re
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
-from app.models.enums import AgentStage, TranslationSource
+from app.models.enums import AgentPhase, TranslationSource
 from app.services.environment.operationalizer import ProducedOperationalization
 
 if TYPE_CHECKING:  # pragma: no cover - typing only, no runtime import
     from app.services.ai.memory import ExperienceMemory
     from app.services.ai.state import AgentState
-    from app.services.emulation.views import Stage2Output
+    from app.services.emulation.views import OperationalizationOutput
     from app.services.environment.operationalization import (
         EnvironmentParameters,
         TargetHost,
@@ -70,7 +70,7 @@ def _has_leftover_tokens(command: str) -> bool:
 
 
 class AiOperationalizer:
-    """Stage 4 agent satisfying :class:`OperationalizerByOrigin` structurally.
+    """Operationalization phase agent satisfying :class:`OperationalizerByOrigin` structurally.
 
     Selects and parametrizes concrete commands from the Atomic Red Team command
     pool for each attack flow node, and derives the :class:`EnvironmentParameters`. The
@@ -133,18 +133,18 @@ class AiOperationalizer:
     # -- Seam API -----------------------------------------------------------
 
     def origin(self) -> TranslationSource:
-        """Stamp ``gerado_ia`` on the Stage 4 output (Req. 2.4, 2.5)."""
+        """Stamp ``gerado_ia`` on the Operationalization phase output (Req. 2.4, 2.5)."""
         return TranslationSource.AI_GENERATED
 
     def operationalize(self, campaign: str, flow: FlowView) -> ProducedOperationalization:
-        """Produce the two Stage 4 artifacts for ``campaign`` with ``origin=gerado_ia``.
+        """Produce the two Operationalization phase artifacts for ``campaign`` with ``origin=gerado_ia``.
 
-        Walks the Stage 3 :class:`FlowView` and, per node, looks up the Atomic Red
+        Walks the Flow phase :class:`FlowView` and, per node, looks up the Atomic Red
         Team command pool for the node's technique, selects/parametrizes the
         commands (LLM-primed by RAG when available, deterministic otherwise), and
         assembles:
 
-        1. the **ordered Abilities** (``Stage2Output`` with ``atomic_ordering``
+        1. the **ordered Abilities** (``OperationalizationOutput`` with ``atomic_ordering``
            and ``translation_source=gerado_ia``); ``None`` when the attack flow yields no
            operationalizable technique (Req. 8.1), mirroring the curation seam's
            suppressed output; and
@@ -162,7 +162,7 @@ class AiOperationalizer:
         injected an ``trace_sink`` (a ``list[dict]``) into the constructor, the
         agent appends a single :class:`~app.services.ai.state.AgentTrace` dict
         capturing its LLM call sites — ``agent_input`` carrying the attack flow (the
-        prior-stage artifact used as the modeling for this stage), the retrieved
+        prior-phase artifact used as the modeling for this phase), the retrieved
         experience and the (absent) attack context / prior artifacts;
         ``processing`` carrying the per-node ``llm_prompt`` / raw ``llm_response``,
         the ``reasoning``, the ``tools_invoked`` and the (absent) repair fields.
@@ -192,7 +192,7 @@ class AiOperationalizer:
                 tools_invoked.insert(0, "experience_memory.retrieve")
             self._trace_sink.append(
                 {
-                    "stage": AgentStage.OPERATIONALIZATION.value,
+                    "phase": AgentPhase.OPERATIONALIZATION.value,
                     "iteration": None,
                     "agent_input": {
                         "modeling": self._flow_summary(flow),
@@ -690,11 +690,11 @@ class AiOperationalizer:
 
     # -- Artifact assembly --------------------------------------------------
 
-    def _build_abilities(self, selections: list[dict[str, Any]]) -> Stage2Output | None:
+    def _build_abilities(self, selections: list[dict[str, Any]]) -> OperationalizationOutput | None:
         """Assemble the ordered Abilities (1st artifact) from the selections.
 
-        Mirrors the curation ``Stage2Output`` shape — one
-        ``Stage2AbilityView`` per operationalized node (its executors are the
+        Mirrors the curation ``OperationalizationOutput`` shape — one
+        ``OperationalizationAbilityView`` per operationalized node (its executors are the
         proposed commands), the ``atomic_ordering`` following attack flow order, and
         ``translation_source=gerado_ia``. Returns ``None`` when nothing was
         operationalizable (suppressed output — Req. 8.1).
@@ -704,19 +704,19 @@ class AiOperationalizer:
 
         # Imported lazily so importing this module stays light.
         from app.services.emulation.views import (
-            Stage2AbilityView,
-            Stage2AdversaryView,
-            Stage2ExecutorView,
-            Stage2Output,
+            OperationalizationAbilityView,
+            OperationalizationAdversaryView,
+            OperationalizationExecutorView,
+            OperationalizationOutput,
         )
 
-        ability_views: list[Stage2AbilityView] = []
+        ability_views: list[OperationalizationAbilityView] = []
         ordering: list[str] = []
         for selection in selections:
             ability_id = selection["ability_id"]
             ordering.append(ability_id)
             ability_views.append(
-                Stage2AbilityView(
+                OperationalizationAbilityView(
                     ability_id=ability_id,
                     name=selection.get("technique_name"),
                     technique_id=selection.get("technique_id"),
@@ -724,7 +724,7 @@ class AiOperationalizer:
                     tactic=selection.get("tactic"),
                     description=None,
                     executors=[
-                        Stage2ExecutorView(
+                        OperationalizationExecutorView(
                             name=command.get("name"),
                             platform=command.get("platform"),
                             command=command.get("command"),
@@ -736,7 +736,7 @@ class AiOperationalizer:
                 )
             )
 
-        adversary_view = Stage2AdversaryView(
+        adversary_view = OperationalizationAdversaryView(
             id=f"adversary-{selections[0]['node_id']}",
             name="Adversário gerado por IA",
             description=(
@@ -747,7 +747,7 @@ class AiOperationalizer:
             translation_source=TranslationSource.AI_GENERATED,
         )
 
-        return Stage2Output(
+        return OperationalizationOutput(
             abilities=ability_views,
             ordering=ordering,
             adversary=adversary_view,
@@ -834,7 +834,7 @@ class AiOperationalizer:
 # LangGraph node wrapper + persistence hook (task 7.3)
 # ---------------------------------------------------------------------------
 #
-# The ``node`` below is the LangGraph node that drives the Stage 4 agent inside
+# The ``node`` below is the LangGraph node that drives the Operationalization phase agent inside
 # the compiled StateGraph (assembled later in task 14.2). It is a plain
 # module-level function ``node(state) -> dict`` returning a *state delta* — the
 # ``StateGraph`` merges the returned keys into the running ``AgentState`` — so it
@@ -843,15 +843,15 @@ class AiOperationalizer:
 #
 # Persistence is deliberately **factored out** of the node (Req. 11.5): the node
 # only produces the artifact and writes it into the state; the
-# ``persist_stage_output`` helper is the Run_Service hook (tasks 15.x) that, given
+# ``persist_phase_output`` helper is the Run_Service hook (tasks 15.x) that, given
 # an injected ``Session`` and the owning ``agent_iterations`` row, writes the
-# ``agent_stage_outputs`` row (``origin=gerado_ia``) within the service's atomic
+# ``agent_phase_outputs`` row (``origin=gerado_ia``) within the service's atomic
 # per-iteration transaction and links ``params_id`` to the persisted
 # ``EnvironmentParameters`` row. Keeping it separate means the node stays pure of
 # any DB session (and import-time DB deps) while the Run_Service owns the
 # transaction boundary.
 
-__all__ = ["AiOperationalizer", "build_agent", "node", "persist_stage_output"]
+__all__ = ["AiOperationalizer", "build_agent", "node", "persist_phase_output"]
 
 
 def build_agent(
@@ -861,7 +861,7 @@ def build_agent(
     session: Any = None,
     trace_sink: list[dict] | None = None,
 ) -> AiOperationalizer:
-    """Build the Stage 4 :class:`AiOperationalizer`, resolving collaborators lazily.
+    """Build the Operationalization phase :class:`AiOperationalizer`, resolving collaborators lazily.
 
     Resolves the LLM chat model (:func:`app.services.ai.llm.make_chat_model`) and
     the RAG :class:`~app.services.ai.memory.ExperienceMemory` on demand so that
@@ -995,7 +995,7 @@ def _techniques_from_state(state: AgentState, session: Any = None) -> FlowView:
 
 
 def node(state: AgentState, *, session: Any = None) -> dict:
-    """LangGraph node for Stage 4 — operationalize the campaign techniques.
+    """LangGraph node for Operationalization phase — operationalize the campaign techniques.
 
     Builds the :class:`AiOperationalizer` with lazily-resolved collaborators
     (:func:`build_agent`), reads the campaign techniques from ``stix_campaign_techniques``,
@@ -1003,11 +1003,11 @@ def node(state: AgentState, *, session: Any = None) -> dict:
     result into the returned **state delta** under
     ``artifacts.operationalization`` (``origin=gerado_ia`` — Req. 2.4). The node
     performs no persistence itself; the Run_Service drives
-    :func:`persist_stage_output` to write the ``agent_stage_outputs`` row within
+    :func:`persist_phase_output` to write the ``agent_phase_outputs`` row within
     its atomic per-iteration transaction (Req. 11.5).
 
     The returned dict preserves the rest of ``state["artifacts"]`` so the attack flow and
-    any other stage output already present survive the merge. A ``history`` entry
+    any other phase output already present survive the merge. A ``history`` entry
     records the node's pass for the append-only trace.
 
     Args:
@@ -1058,7 +1058,7 @@ def node(state: AgentState, *, session: Any = None) -> dict:
     }
 
 
-def persist_stage_output(
+def persist_phase_output(
     session: Any,
     iteration_id: int,
     produced: ProducedOperationalization,
@@ -1066,7 +1066,7 @@ def persist_stage_output(
     persist_parameters: bool = True,
     trace: dict | None = None,
 ) -> Any:
-    """Run_Service hook: persist the Stage 4 output as an ``agent_stage_outputs`` row.
+    """Run_Service hook: persist the Operationalization phase output as an ``agent_phase_outputs`` row.
 
     Factored out of :func:`node` so the ``AgentRunService`` (tasks 15.x) can drive
     it inside its atomic per-iteration transaction (Req. 11.5): the node stays
@@ -1074,39 +1074,39 @@ def persist_stage_output(
     ``add``s and ``flush``es onto the **injected** ``session`` but never commits,
     leaving the transaction boundary to the caller.
 
-    It writes one :class:`~app.models.domain.AgentStageOutput` for the
-    operationalization stage with ``origin=gerado_ia`` (Req. 2.4) and the
+    It writes one :class:`~app.models.domain.AgentPhaseOutput` for the
+    operationalization phase with ``origin=gerado_ia`` (Req. 2.4) and the
     serialized :class:`ProducedOperationalization` as the JSON ``payload``. When
     ``persist_parameters`` is true it first persists the derived
     :class:`EnvironmentParameters` as an
     :class:`~app.models.domain.EnvironmentParametersRow` (``origin=gerado_ia``)
     and links its id via ``params_id`` — the ``params_id`` branch of the
-    per-stage-output FK, exactly as the attack flow stage output links ``flow_id`` (design
-    §agent_stage_outputs).
+    per-phase-output FK, exactly as the attack flow phase output links ``flow_id`` (design
+    §agent_phase_outputs).
 
     Args:
         session: The injected SQLAlchemy ``Session`` (the Run_Service's unit of
             work). This helper only ``add``/``flush``es; it does not commit.
         iteration_id: The owning ``agent_iterations`` row id.
-        produced: The Stage 4 artifact to persist.
+        produced: The Operationalization phase artifact to persist.
         persist_parameters: When true, persist the derived
             :class:`EnvironmentParameters` and link ``params_id``; when false, the
             caller already holds a params row (or none applies) and only the
-            stage-output row is written.
+            phase-output row is written.
         trace: The matching :class:`~app.services.ai.state.AgentTrace` dict the
             Run_Service looked up from ``final_state["traces"]`` by
-            ``(stage, iteration)``. When supplied, one 1:1 ``agent_stage_traces``
-            row is written for the just-flushed stage output in the SAME flush,
+            ``(phase, iteration)``. When supplied, one 1:1 ``agent_phase_traces``
+            row is written for the just-flushed phase output in the SAME flush,
             inside the Run_Service's existing SAVEPOINT (Req. 2.1, 2.5). Absent
             processing elements are carried with the explicit ``None`` sentinel.
 
     Returns:
-        The persisted :class:`~app.models.domain.AgentStageOutput` instance
+        The persisted :class:`~app.models.domain.AgentPhaseOutput` instance
         (flushed, so its ``id`` and ``params_id`` are populated).
     """
     # Imported lazily so importing this module needs no DB/model deps (Req. 1.7).
-    from app.models.domain import AgentStageOutput, EnvironmentParametersRow
-    from app.models.enums import AgentStage, TranslationSource
+    from app.models.domain import AgentPhaseOutput, EnvironmentParametersRow
+    from app.models.enums import AgentPhase, TranslationSource
 
     params_id: int | None = None
     if persist_parameters:
@@ -1122,22 +1122,22 @@ def persist_stage_output(
         session.flush()
         params_id = params_row.id
 
-    stage_output = AgentStageOutput(
+    phase_output = AgentPhaseOutput(
         iteration_id=iteration_id,
-        stage=AgentStage.OPERATIONALIZATION,
+        phase=AgentPhase.OPERATIONALIZATION,
         origin=TranslationSource.AI_GENERATED,
         payload=produced.model_dump(mode="json"),
         params_id=params_id,
     )
-    session.add(stage_output)
+    session.add(phase_output)
     session.flush()
 
-    # Write the 1:1 Audit_Trace row for this stage output in the same flush, so
+    # Write the 1:1 Audit_Trace row for this phase output in the same flush, so
     # it lands inside the Run_Service's per-iteration SAVEPOINT (Req. 2.1, 2.5).
-    from app.services.ai.agents._trace import persist_stage_trace
+    from app.services.ai.agents._trace import persist_phase_trace
 
-    persist_stage_trace(session, stage_output, trace)
-    return stage_output
+    persist_phase_trace(session, phase_output, trace)
+    return phase_output
 
 
 def _utcnow():

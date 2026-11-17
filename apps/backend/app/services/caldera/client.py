@@ -206,7 +206,7 @@ class AgentRef:
     """A registered agent as returned by ``GET /api/v2/agents`` (Req. 4.1/4.3/4.4).
 
     Agents are the Caldera processes running on the attacking host (``kali``)
-    that beacon and execute commands. The Stage 5 health gate uses these to
+    that beacon and execute commands. The environment phase health gate uses these to
     require **≥ 1 agent with ``alive=true``** in the expected group and to detect
     **orphan** agents (``alive=false``) left behind by rebuilt images.
 
@@ -787,7 +787,7 @@ class CalderaClient:
 
         Maps each agent payload to a typed :class:`AgentRef`. When ``group`` is
         given, only agents whose ``group`` matches it are returned; otherwise all
-        agents are returned. The Stage 5 health gate uses this to require ≥ 1
+        agents are returned. The environment phase health gate uses this to require ≥ 1
         agent with ``alive=true`` in the expected group and to detect orphan
         (``alive=false``) agents, using the current v2 route and the running
         environment's host/group names (Req. 4.4).

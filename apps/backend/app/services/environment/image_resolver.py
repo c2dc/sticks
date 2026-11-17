@@ -47,7 +47,7 @@ Resolution order (Req. 5.4, 14.4, 14.5):
    raised error or empty result is treated as "unavailable".
 4. **Nothing covers the need →** raise :class:`ImageUnavailableError` naming the
    requested ``target_os`` (and the services it needed), so the env agent can
-   treat it as a stage insufficiency the evaluator may route an environment
+   treat it as a phase insufficiency the evaluator may route an environment
    refinement for (design §"Geração de ambiente").
 
 Conventions carried over from the other Session-injected services
@@ -135,7 +135,7 @@ class ImageUnavailableError(RuntimeError):
     """Raised when neither Docker Hub nor the catalog can cover an :class:`ImageNeed`.
 
     Names the requested ``target_os`` (and the services it needed) so the env
-    agent can surface the stage insufficiency and the evaluator can route an
+    agent can surface the phase insufficiency and the evaluator can route an
     environment refinement (design §"Geração de ambiente", Req. 14.4).
     """
 
@@ -214,7 +214,7 @@ def detect_target_os(
     * ``platforms`` — the executor/technique platform tokens (e.g. the
       ``abilities.executors[].platform`` values the operationalization carries).
       A single Windows platform token is a strong signal and selects Windows.
-    * ``commands`` — the concrete command strings (the Stage 4 output, Req.
+    * ``commands`` — the concrete command strings (the operationalization phase output, Req.
       14.1). Scanned for Windows command-shell tokens (``powershell``, ``cmd``,
       …) so a campaign whose commands are clearly Windows is detected even when
       the platform tokens are absent.

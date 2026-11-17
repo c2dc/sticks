@@ -1,4 +1,4 @@
-"""Pure construction of the contained target-network topology (Stage 4 — Provisioning).
+"""Pure construction of the contained target-network topology (the environment phase — Provisioning).
 
 This module is the **single source** of the contained-lab topology-building
 logic: the static host/role/network map (derived from
@@ -47,7 +47,7 @@ HOST_ROLES: dict[str, str] = {
 
 # Human-facing container names (post-rename) for display. These are the SAME
 # container names the isolation pre-flight inspects, so the Provisioner can
-# verify exactly the containers the Execution (Stage 5) will target.
+# verify exactly the containers the Execution (the environment phase) will target.
 HOST_CONTAINERS: dict[str, str] = {
     "caldera": "sticks-caldera-attacker",
     "kali": "sticks-kali-attacker",
@@ -128,7 +128,7 @@ def target_container_names() -> list[str]:
     the real network. The attacker/C2 hosts are intentionally excluded: they
     are not attacked, and the C2 needs a management network to be operated.
     This mirrors what the Execution gate (``OperationRunner``) verifies, so the
-    Stage 5 panel and the Stage 6 gate agree on the same contract.
+    The environment phase panel and the execution phase gate agree on the same contract.
     """
     return [
         HOST_CONTAINERS.get(host, host) for host, role in HOST_ROLES.items() if role == "target"

@@ -1,5 +1,5 @@
 {
-  "stageView": {
+  "phaseView": {
     "loading": "Carregando os dados…",
     "loadError": "Não foi possível carregar os dados."
   },
@@ -154,7 +154,7 @@
       "rejected": "Reprovado",
       "pending": "Aguardando veredito"
     },
-    "stageName": {
+    "phaseName": {
       "flow": "Agente de geração do attack flow",
       "operationalization": "Agente de operacionalização",
       "environment": "Agente de ambiente",
@@ -183,7 +183,7 @@
         "fixed_infrastructure": "Infraestrutura fixa",
         "agent_decided": "Decidido pelo agente",
         "gates": "Gates",
-        "substages": "Subestágios"
+        "subphases": "Subfases"
       },
       "raw": {
         "llm_prompt": "Prompt do LLM",
@@ -233,7 +233,7 @@
           "externalDns": "DNS externo"
         }
       },
-      "substages": {
+      "subphases": {
         "title": "Subfases do provisionador",
         "buildOnline": "Build online obtido",
         "egressClosed": "Egresso encerrado",

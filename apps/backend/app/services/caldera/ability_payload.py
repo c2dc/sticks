@@ -15,7 +15,7 @@ loops:
 
 Both copied ``technique_name`` only when ``getattr(ability, "technique_name",
 None)`` was not ``None``. Ability sources that do not expose the attribute
-(notably ``Stage2AbilityView`` on the AI path) therefore produced a payload with
+(notably ``OperationalizationAbilityView`` on the AI path) therefore produced a payload with
 the key omitted, and this Caldera version raises ``KeyError: 'technique_name'``
 when loading such an ability (``data_svc.py:189``) → HTTP 500 → the run is marked
 FAILED.
@@ -95,7 +95,7 @@ def build_caldera_ability_payloads(
 ) -> list[dict[str, Any]]:
     """Project ability objects into ``POST /api/v2/abilities`` payload dicts.
 
-    Accepts SQLAlchemy ``Ability`` rows, ``Stage2AbilityView`` instances or any
+    Accepts SQLAlchemy ``Ability`` rows, ``OperationalizationAbilityView`` instances or any
     duck-typed equivalent; copies the fields Caldera's v2 ability schema uses and
     guarantees a non-empty ``technique_name`` on every payload.
 

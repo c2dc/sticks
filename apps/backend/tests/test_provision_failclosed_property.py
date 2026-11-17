@@ -1,8 +1,8 @@
 """Property test — a failure never leaves a target with egress (task 8.1).
 
-# Feature: stage5-target-provisioning, Property 4: Falha nunca deixa um alvo com
-# egresso. Independentemente do ponto em que a orquestração 5.1/5.2 de
-# ``provision`` falhe, o Estágio 5 termina NÃO concluído (``ready is False``) com
+# Feature: environment target provisioning (historical spec), Property 4: Falha nunca deixa um alvo com
+# egresso. Independentemente do ponto em que a orquestração build_online/runtime_isolated de
+# ``provision`` falhe, a fase environment termina NÃO concluído (``ready is False``) com
 # o ``failed_step`` correto, e o estado final de CADA host-alvo é seguro — isolado
 # (sem a rede de egresso) ou desprovisionado —, NUNCA deixando um alvo anexado à
 # rede de egresso. O invariante de contenção (nunca egresso + rede de ataque
@@ -10,7 +10,7 @@
 
 Validates: Requirements 8.3, 8.4
 
-Esta é uma property test de *feature* (``stage5-target-provisioning`` é uma
+Esta é uma property test de *feature* (``environment target provisioning (historical spec)`` é uma
 feature, não um bugfix): a propriedade deve **valer** sobre a orquestração atual
 de :meth:`~app.services.environment.provisioner.CurationEnvironmentProvisioner.provision`,
 que chama ``_fail_safe``/``_fail_safe_all`` em TODO caminho de erro para encerrar
@@ -40,7 +40,7 @@ escolhido):
 * ``offline_apply_fail`` — ``TargetSetup.apply(OFFLINE)`` com ``code != 0`` →
   ``setup_offline``;
 * ``isolation_reproves`` — o portão final de isolamento reprova → ``verificar_isolamento``;
-* ``unexpected_exception`` — uma exceção inesperada escapa dentro da 5.1 (o
+* ``unexpected_exception`` — uma exceção inesperada escapa dentro da subfase build_online (o
   ``except`` chama ``_fail_safe_all``) → ``build_online``.
 
 IMPORTANTE — por que o estado final é observável: a produção ``_fail_safe`` fecha
@@ -52,7 +52,7 @@ fechadas), esse host nunca teve egresso — igualmente seguro.
 
 Para cada exemplo o teste assere, após ``provision`` retornar:
 
-* **Estágio 5 não concluído** — ``environment.ready is False`` com o
+* **Fase environment não concluída** — ``environment.ready is False`` com o
   ``failed_step`` esperado para o ponto de falha injetado (Req. 8.1 em apoio);
 * **Nenhum alvo com egresso** — o estado final de rede de TODO host NÃO contém
   ``EGRESS_NETWORK`` (Req. 8.3): cada host é isolado (apenas redes de ataque, ou
@@ -214,7 +214,7 @@ class _StatefulComposeExecutor:
     ``attach_network``/``detach_network`` drive the SAME shared state model (the
     ``reisolar`` step reattaches the attack networks; the fail-safe path detaches
     egress through the window). Exposing the extended surface makes
-    ``_substages_supported`` return True so the real 5.1/5.2 orchestration runs.
+    ``_subphases_supported`` return True so the real build_online/runtime_isolated orchestration runs.
 
     When ``failpoint == "reisolar_fail"`` and the reattach targets ``fail_host``,
     ``attach_network`` returns ``code != 0`` WITHOUT mutating the state, so the
@@ -259,7 +259,7 @@ class _StatefulTargetSetup:
     * ``online_apply_fail`` — ONLINE phase of ``fail_host`` returns ``code != 0``;
     * ``offline_apply_fail`` — OFFLINE phase of ``fail_host`` returns ``code != 0``;
     * ``unexpected_exception`` — ONLINE phase of ``fail_host`` RAISES, so the
-      exception escapes the per-host 5.1 loop and the orchestration's ``except``
+      exception escapes the per-host build_online loop and the orchestration's ``except``
       runs ``_fail_safe_all`` (closing every window).
     """
 
@@ -289,7 +289,7 @@ class _StatefulTargetSetup:
 class _StatefulEgressProber:
     """Fake ``EgressProber`` — egress loss positively verified, with injection.
 
-    Normally reports egress conclusively lost (approves 5.2). When ``failpoint``
+    Normally reports egress conclusively lost (approves runtime_isolated). When ``failpoint``
     targets ``fail_host``:
     * ``probe_present`` — reports egress STILL present (``egress_lost=False``);
     * ``probe_inconclusive`` — reports an inconclusive probe (``conclusive=False``),
@@ -335,7 +335,7 @@ class _FakeInspector:
     """In-memory read-only container/network inspector (no Docker daemon).
 
     Independent of the mutable ``_NetworkState`` (the final isolation gate verifies
-    the resolved containment topology, not the transient 5.1/5.2 attaches). When a
+    the resolved containment topology, not the transient build_online/runtime_isolated attaches). When a
     container is marked ``non_isolated`` it is attached to an external bridge, so
     the gate reproves ``verificar_isolamento``.
     """
@@ -459,7 +459,7 @@ def _assert_invariant_over_history(state: _NetworkState) -> None:
 # Three dimensions vary INDEPENDENTLY:
 #   * ``hosts`` — which targets participate and in which order (the real domain;
 #     the lab resolves only ``nginx``/``db``);
-#   * ``failpoint`` — WHERE in the 5.1/5.2 orchestration the injected failure
+#   * ``failpoint`` — WHERE in the build_online/runtime_isolated orchestration the injected failure
 #     fires (the property's core: every point must stay egress-safe);
 #   * ``label_salt`` — a wide integer perturbing only the cosmetic host ``label``,
 #     widening the draw space without changing the semantics.
@@ -483,7 +483,7 @@ _label_salt_strategy = st.integers(min_value=0, max_value=2**16)
 def test_failure_never_leaves_a_target_with_egress(
     hosts: list[str], failpoint: str, label_salt: int, data: st.DataObject
 ) -> None:
-    # Feature: stage5-target-provisioning, Property 4: Falha nunca deixa um alvo com egresso.
+    # Feature: environment target provisioning (historical spec), Property 4: Falha nunca deixa um alvo com egresso.
     containers = _resolver(hosts)
     # The failing host is one of the participating targets.
     fail_host = data.draw(st.sampled_from(containers), label="fail_host")
@@ -512,9 +512,9 @@ def test_failure_never_leaves_a_target_with_egress(
     finally:
         tmp.dispose()
 
-    # Stage 5 is NOT complete, with the ``failed_step`` matching the injected point.
+    # The environment phase is NOT complete, with the ``failed_step`` matching the injected point.
     assert environment.ready is False, (
-        f"ponto de falha {failpoint!r} não deixou o Estágio 5 incompleto"
+        f"ponto de falha {failpoint!r} não deixou a fase environment incompleta"
     )
     assert environment.failed_step == _FAILPOINTS[failpoint], (
         f"ponto de falha {failpoint!r}: failed_step={environment.failed_step!r} "

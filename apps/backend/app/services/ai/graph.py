@@ -26,10 +26,10 @@ logger = logging.getLogger(__name__)
 # to the Phase-4 graph tasks (14.x) and are intentionally NOT defined here, to
 # keep this task's surface minimal and avoid collisions with those tasks.
 #
-# Stage 6 reuse (Req. 1.4, 8.1, 8.4, 9.3, 9.5):
+# Execution phase reuse (Req. 1.4, 8.1, 8.4, 9.3, 9.5):
 #
 # ``execute_node`` hands the AI-origin artifacts to the EXISTING, UNCHANGED
-# Stage 6 :class:`~app.services.operation.runner.OperationRunner`. The runner is
+# Execution phase :class:`~app.services.operation.runner.OperationRunner`. The runner is
 # the single enforcement point of the design's emulation sequence — it runs, in
 # order, the unchanged safety machinery:
 #
@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 #
 # The agent executes NOTHING itself and never runs on the host (Req. 9.3, 9.5):
 # it only adapts the serialized ``ProducedOperationalization`` (origin
-# ``gerado_ia``) into the runner's inputs and reads back the Stage 6 report. No
+# ``gerado_ia``) into the runner's inputs and reads back the Execution phase report. No
 # gate is modified, bypassed or re-implemented here — the agent proposes, the
 # existing machinery disposes. Every command the AI produced is still subject to
 # the same containment check and isolation gate the curated path passes through,
@@ -56,10 +56,10 @@ def execute_node(
     runner: Any = None,
     session: Any = None,
 ) -> dict:
-    """Stage 6 node: run the EXISTING pipeline unchanged over the AI artifacts.
+    """Execution phase node: run the EXISTING pipeline unchanged over the AI artifacts.
 
     Hands the current iteration's AI-origin artifacts (``state["artifacts"]``,
-    stamped ``gerado_ia``) to the unchanged Stage 6
+    stamped ``gerado_ia``) to the unchanged Execution phase
     :class:`~app.services.operation.runner.OperationRunner`, which enforces the
     full safety sequence (containment -> isolation -> preview/confirm ->
     execution -> 1:1 audit -> report). The agent itself executes nothing and
@@ -69,7 +69,7 @@ def execute_node(
     ``ProducedOperationalization`` into the runner-facing abilities + adversary,
     invokes the runner with ``confirmed=True`` (the explicit confirmation of an
     orchestrated run; the runner's own confirmation/containment/isolation gates
-    remain authoritative), and returns the Stage 6 report as a state delta.
+    remain authoritative), and returns the Execution phase report as a state delta.
 
     A gate rejection (external destination, non-isolated container, missing
     confirmation) is NOT an error here: the runner returns a non-executed result
@@ -88,7 +88,7 @@ def execute_node(
             ``SessionLocal`` and closed before returning.
 
     Returns:
-        A state delta ``{"report": <serialized Stage 6 report>, "execution_result":
+        A state delta ``{"report": <serialized Execution phase report>, "execution_result":
         <structured execution result>}``. ``report`` is the runner's result
         serialized to a plain dict (as the design sketches,
         ``report.model_dump()``); ``execution_result`` is the explicit,
@@ -104,7 +104,7 @@ def execute_node(
     operationalization = artifacts.get("operationalization") or {}
     abilities, adversary_id, adversary_payload = _runner_inputs(operationalization)
 
-    # Build (or reuse) the UNCHANGED Stage 6 runner and invoke it. Everything is
+    # Build (or reuse) the UNCHANGED Execution phase runner and invoke it. Everything is
     # resolved lazily so importing this module does no I/O (Req. 1.7).
     if runner is not None:
         # Materialize the AI-generated abilities into ``abilities`` before the
@@ -176,7 +176,7 @@ class _RunnerAbility:
     unchanged :class:`OperationRunner` reads ``ability_id`` / ``name`` /
     ``executors`` off each ability and builds the Caldera payload straight from
     ``executors`` (which must be JSON-serialisable). Reconstructed here from the
-    serialized :class:`Stage2AbilityView` so the runner consumes an AI-origin
+    serialized :class:`OperationalizationAbilityView` so the runner consumes an AI-origin
     ability exactly like a curated one.
     """
 
@@ -214,16 +214,16 @@ def _materialize_ai_abilities(
     campaign_id: Any,
     abilities: list[_RunnerAbility],
 ) -> None:
-    """Upsert the AI-generated abilities into ``abilities`` before Stage 6 writes.
+    """Upsert the AI-generated abilities into ``abilities`` before Execution phase writes.
 
     Mirrors the curated upsert in
-    the former curated stage persistence (~lines
+    the former curated phase persistence (~lines
     2037-2045): for each runner-facing ability, fetch the existing
     :class:`Ability` row by ``ability_id`` or create one, then set the metadata
     the AI artifact already carries (``campaign_id``, ``name``, ``tactic``,
     ``technique_name``, ``technique_id``, ``description``, ``executors``) and
     stamp ``translation_source = AI_GENERATED``. The upsert runs in the SAME
-    session the Stage 6 :class:`OperationRunner` uses, so the parent rows are
+    session the Execution phase :class:`OperationRunner` uses, so the parent rows are
     visible before the runner's ``AbilityResult`` insert, satisfying
     ``resultados_ability_ability_id_fkey`` (Req. 2.1, 2.2).
 
@@ -298,13 +298,13 @@ def _runner_inputs(
 ) -> tuple[list[_RunnerAbility], str, dict[str, Any] | None]:
     """Adapt the serialized AI operationalization into the runner's ``run`` inputs.
 
-    The AI Stage 4 artifact is a serialized
+    The AI Operationalization phase artifact is a serialized
     :class:`~app.services.environment.operationalizer.ProducedOperationalization`
     whose ``abilities`` field is a serialized
-    :class:`~app.services.emulation.views.Stage2Output`. From it we rebuild:
+    :class:`~app.services.emulation.views.OperationalizationOutput`. From it we rebuild:
 
     * the ordered runner-facing abilities (one :class:`_RunnerAbility` per
-      ``Stage2AbilityView``, in the adversary's ``atomic_ordering`` when present),
+      ``OperationalizationAbilityView``, in the adversary's ``atomic_ordering`` when present),
     * the ``adversary_id`` (the serialized adversary's id), and
     * the raw ``adversary_payload`` dict Caldera's v2 adversary endpoint expects
       (``adversary_id`` + ``name`` + ``description`` + ``atomic_ordering``),
@@ -315,9 +315,9 @@ def _runner_inputs(
     the runner then has an empty chain, which the evaluator reads as a
     failed/blocked iteration.
     """
-    stage2 = operationalization.get("abilities") or {}
-    ability_views = stage2.get("abilities") or []
-    adversary = stage2.get("adversary") or {}
+    operationalization_abilities = operationalization.get("abilities") or {}
+    ability_views = operationalization_abilities.get("abilities") or []
+    adversary = operationalization_abilities.get("adversary") or {}
 
     by_id: dict[str, _RunnerAbility] = {}
     order: list[str] = []
@@ -330,9 +330,11 @@ def _runner_inputs(
         by_id[ability.ability_id] = ability
         order.append(ability.ability_id)
 
-    # Prefer the adversary's atomic ordering; fall back to the Stage2 ordering,
+    # Prefer the adversary's atomic ordering; fall back to the operationalization ordering,
     # then to discovery order, keeping only ids we actually have an ability for.
-    ordering = adversary.get("atomic_ordering") or stage2.get("ordering") or order
+    ordering = (
+        adversary.get("atomic_ordering") or operationalization_abilities.get("ordering") or order
+    )
     abilities = [by_id[aid] for aid in ordering if aid in by_id]
     if not abilities:
         abilities = [by_id[aid] for aid in order]
@@ -351,7 +353,7 @@ def _runner_inputs(
 
 
 def _report_to_dict(result: Any) -> dict[str, Any]:
-    """Serialize the Stage 6 runner result into a plain JSON-friendly dict.
+    """Serialize the Execution phase runner result into a plain JSON-friendly dict.
 
     The design writes ``{"report": report.model_dump()}``; the unchanged
     :class:`~app.services.operation.runner.OperationRunResult` is a frozen
@@ -380,7 +382,7 @@ def _execution_result(result: Any) -> dict[str, Any]:
     """Build the structured execution result the ``evaluation`` phase receives.
 
     This is the decoupling seam of task 4.1 (Req. 2.1, 2.2): the ``execution``
-    phase reads the LIVE Stage 6 runner result and hands the ``evaluation`` phase
+    phase reads the LIVE Execution phase runner result and hands the ``evaluation`` phase
     the real outcome — the runner ``verdict`` (its ``RunOutcome`` value), whether
     the Operation actually executed, and the real containment/isolation
     verdicts — instead of coupling the verdict to the execute step or forcing the
@@ -398,7 +400,7 @@ def _execution_result(result: Any) -> dict[str, Any]:
     checkpoint-serialisable like the report.
 
     Args:
-        result: The Stage 6 runner result (a real ``OperationRunResult`` or an
+        result: The Execution phase runner result (a real ``OperationRunResult`` or an
             injected fake exposing ``outcome`` / ``started`` / ``containment`` /
             ``isolation`` / ``total_success`` / ``total_failure`` / ``message``).
 
@@ -479,7 +481,7 @@ def _normalize(value: Any) -> Any:
 # three graph tasks collision-free in the shared module.
 #
 # The orchestrator is the StateGraph entry node (design: ``orchestrate`` ->
-# ``operationalize`` -> ``flow`` -> ...  -> ``evaluate``). Before any stage agent runs it:
+# ``operationalize`` -> ``flow`` -> ...  -> ``evaluate``). Before any phase agent runs it:
 #
 #   * loads the campaign context and retrieves cross-campaign experience from the
 #     RAG :class:`~app.services.ai.memory.ExperienceMemory`, seeding an EMPTY
@@ -509,14 +511,14 @@ def orchestrate_node(
 
     Loads the campaign context off the shared
     :class:`~app.services.ai.state.AgentState`, retrieves the cross-campaign
-    experience that primes the stage-agent prompts, and seeds the loop counters
+    experience that primes the phase-agent prompts, and seeds the loop counters
     (``iteration`` / ``max_iterations``) the conditional-edge guard reads.
 
     Experience retrieval (Req. 1.2, 1.3): the node asks the RAG
     :class:`~app.services.ai.memory.ExperienceMemory` for the top-``retrieval_k``
     similar curations of OTHER campaigns. When retrieval returns nothing, or the
     memory is unreachable, or no memory/session is available at all, the run
-    continues with an EMPTY experience set so the stage agents can still execute
+    continues with an EMPTY experience set so the phase agents can still execute
     without RAG priming — the memory itself already degrades to ``[]`` on
     unavailability, and this node additionally tolerates a missing memory/session.
 
@@ -584,7 +586,7 @@ def _retrieve_experience(
     is built from the injected ``session`` (or ``state["_session"]``). With no
     memory and no session the node simply proceeds without RAG priming. Any
     retrieval failure — an out-of-range ``k`` guard, an unreachable store, or a
-    missing collaborator — yields an empty experience set so the stage agents can
+    missing collaborator — yields an empty experience set so the phase agents can
     still execute (Req. 1.2, 1.3; the memory already swallows availability errors
     into ``[]``).
     """
@@ -710,7 +712,7 @@ def _context_query(state: AgentState, campaign_id: str) -> str:
 # graph can be assembled and imported cleanly; invoking the placeholder raises a
 # clear error pointing at task 14.3.
 #
-# Laziness (Req. 1.7): the stage-agent node callables and the LangGraph symbols
+# Laziness (Req. 1.7): the phase-agent node callables and the LangGraph symbols
 # are imported INSIDE ``build_graph`` so importing this module opens no socket,
 # spawns no subprocess and touches no database.
 
@@ -738,12 +740,12 @@ def route_after_eval(state: AgentState) -> str:
       iteration just evaluated so the loop runs exactly ``1..max_iterations``
       times (``max_iterations`` defaults to 3 per task 14.1 / Req. 3.6).
     * **Refine (Req. 3.3, 15.2-15.5):** otherwise route back to the evaluator's
-      chosen refine target, ``state["refine_stage"]``, normalized to one of the
+      chosen refine target, ``state["refine_phase"]``, normalized to one of the
       three short edge keys ``"flow"`` / ``"operationalize"`` / ``"environment"``
-      so the conditional edge re-enters the matching stage agent (``"flow"`` ->
+      so the conditional edge re-enters the matching phase agent (``"flow"`` ->
       Flow_Agent, ``"operationalize"`` -> Operationalization_Agent,
       ``"environment"`` -> Environment_Generation). The evaluator writes its
-      choice as an :class:`~app.models.enums.AgentStage` *value* — the semantic,
+      choice as an :class:`~app.models.enums.AgentPhase` *value* — the semantic,
       number-free phase names (``flow`` / ``operationalization`` /
       ``environment``) — which is mapped here to its short edge key; a short key
       is already canonical and passes through unchanged. When the evaluator left
@@ -752,7 +754,7 @@ def route_after_eval(state: AgentState) -> str:
 
     Args:
         state: The shared :class:`~app.services.ai.state.AgentState`; reads
-            ``evaluation``, ``iteration``, ``max_iterations`` and ``refine_stage``.
+            ``evaluation``, ``iteration``, ``max_iterations`` and ``refine_phase``.
 
     Returns:
         One of ``"flow"``, ``"operationalize"``, ``"environment"`` or ``"finish"``.
@@ -764,18 +766,18 @@ def route_after_eval(state: AgentState) -> str:
     if state.get("iteration", 0) + 1 >= state.get("max_iterations", _DEFAULT_MAX_ITERATIONS):
         return "finish"  # guard: abort the loop (Req. 3.4, 3.5)
 
-    return _refine_edge_key(state.get("refine_stage"))
+    return _refine_edge_key(state.get("refine_phase"))
 
 
-# Map the evaluator's refine target — an ``AgentStage`` value OR an already-short
+# Map the evaluator's refine target — an ``AgentPhase`` value OR an already-short
 # edge key — onto the short conditional-edge key ``build_graph`` registered, so
-# exactly one of the three stage agents is re-entered per refining iteration
+# exactly one of the three phase agents is re-entered per refining iteration
 # (Req. 15.2-15.5). Kept as literals so this module needs no enum import at
-# call time (Req. 1.7); the values mirror ``app.models.enums.AgentStage``'s
+# call time (Req. 1.7); the values mirror ``app.models.enums.AgentPhase``'s
 # semantic, number-free phase values (``flow`` / ``operationalization`` /
 # ``environment``).
-_REFINE_STAGE_EDGE_KEYS = {
-    # Evaluator-written AgentStage values (semantic, number-free).
+_REFINE_PHASE_EDGE_KEYS = {
+    # Evaluator-written AgentPhase values (semantic, number-free).
     "flow": "flow",
     "operationalization": "operationalize",
     "environment": "environment",
@@ -784,19 +786,19 @@ _REFINE_STAGE_EDGE_KEYS = {
 }
 
 
-def _refine_edge_key(refine_stage: Any) -> str:
-    """Normalize ``refine_stage`` to a short conditional-edge key (Req. 15.2-15.5).
+def _refine_edge_key(refine_phase: Any) -> str:
+    """Normalize ``refine_phase`` to a short conditional-edge key (Req. 15.2-15.5).
 
-    The evaluator's ``_diagnose_failing_stage`` chooses exactly one refine target
-    and writes it onto ``state["refine_stage"]`` as an
-    :class:`~app.models.enums.AgentStage` *value*; this maps that value (or an
+    The evaluator's ``_diagnose_failing_phase`` chooses exactly one refine target
+    and writes it onto ``state["refine_phase"]`` as an
+    :class:`~app.models.enums.AgentPhase` *value*; this maps that value (or an
     already-short key, for robustness) onto the single short edge key the
-    conditional edge registered, so the loop re-enters the right stage agent —
+    conditional edge registered, so the loop re-enters the right phase agent —
     ``"flow"`` -> Flow_Agent (15.3), ``"operationalize"`` ->
     Operationalization_Agent (15.4), ``"environment"`` -> Environment_Generation
     (15.5). An unset/unrecognised target defaults to ``"operationalize"``.
     """
-    key = _REFINE_STAGE_EDGE_KEYS.get(refine_stage) if refine_stage else None
+    key = _REFINE_PHASE_EDGE_KEYS.get(refine_phase) if refine_phase else None
     return key or "operationalize"
 
 
@@ -825,14 +827,14 @@ def build_graph(*, checkpointer, session: Any = None):
 
         orchestrate -> operationalize -> flow -> environment -> execute -> evaluate
 
-    Each of those linear stages has exactly one outgoing edge in sequence
+    Each of those linear phases has exactly one outgoing edge in sequence
     (START -> orchestrate, then each node to the next). After ``evaluate`` a
     conditional edge implements the loop: the router (task 14.3's
     ``route_after_eval``, resolved lazily here) returns one of ``"flow"``,
-    ``"operationalize"``, ``"environment"`` to re-enter that stage, or ``"finish"``
+    ``"operationalize"``, ``"environment"`` to re-enter that phase, or ``"finish"``
     to end the run (mapped to LangGraph's ``END``).
 
-    Laziness (Req. 1.7): the stage-agent node callables and the LangGraph symbols
+    Laziness (Req. 1.7): the phase-agent node callables and the LangGraph symbols
     are imported INSIDE this function, so importing this module performs no I/O;
     the graph is built only on an explicit ``build_graph`` call.
 
@@ -841,7 +843,7 @@ def build_graph(*, checkpointer, session: Any = None):
             :mod:`app.services.ai.checkpointer`) used to persist the ``AgentState``
             after every node so a run is resumable.
         session: The request-scoped SQLAlchemy ``Session`` the Run_Service owns.
-            It is bound into the stage nodes (as a keyword argument via
+            It is bound into the phase nodes (as a keyword argument via
             :func:`functools.partial`) so the agents assemble their Agent_Input
             from the DATABASE — ``Campaign_Overview`` and the pgvector RAG — and
             NEVER from the legacy CLI data directory on disk (task 14.1, Req. 5.1, 5.2,
@@ -871,14 +873,16 @@ def build_graph(*, checkpointer, session: Any = None):
         "orchestrate", partial(orchestrate_node, session=session)
     )  # seeds state + RAG retrieval (DB)
     g.add_node("flow", partial(flow_agent.node, session=session))  # flow agent (DB)
-    g.add_node("operationalize", partial(op_agent.node, session=session))  # Stage 4 agent (DB)
-    g.add_node("environment", env_agent.node)  # Stage 5 agent
+    g.add_node(
+        "operationalize", partial(op_agent.node, session=session)
+    )  # Operationalization phase agent (DB)
+    g.add_node("environment", env_agent.node)  # Environment phase agent
     g.add_node(
         "execute", partial(execute_node, session=session)
-    )  # Stage 6 via existing OperationRunner
+    )  # Execution phase via existing OperationRunner
     g.add_node("evaluate", evaluator.node)  # reads report, writes decision
 
-    # Linear edges: each stage has exactly one outgoing edge in sequence.
+    # Linear edges: each phase has exactly one outgoing edge in sequence.
     g.add_edge(START, "orchestrate")
     g.add_edge("orchestrate", "operationalize")
     g.add_edge("operationalize", "flow")
@@ -888,7 +892,7 @@ def build_graph(*, checkpointer, session: Any = None):
 
     # Conditional edge after evaluate: the improvement loop. The router is
     # resolved lazily (task 14.3 owns its guard logic); the mapping routes a
-    # refine-target back to its stage node or ends the run.
+    # refine-target back to its phase node or ends the run.
     g.add_conditional_edges(
         "evaluate",
         _route_after_eval,

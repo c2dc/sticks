@@ -8,7 +8,7 @@
 # networks with no external bridge and no external DNS; the EMPTY target set and an
 # UNAVAILABLE inspector (daemon down) both fail closed (``approved=False``); and a
 # rejected environment never proceeds to execution — the AI provisioner keeps the
-# produced ``ProvisionedEnvironment.ready`` ``False`` so Stage 6 stays blocked.
+# produced ``ProvisionedEnvironment.ready`` ``False`` so the execution phase stays blocked.
 
 Validates: Requirements 3.1, 12.2
 
@@ -64,7 +64,7 @@ from app.services.environment.provisioner import (
     DeprovisioningResult,
     IsolationSummary,
     ProvisionedEnvironment,
-    SubStageSummary,
+    SubphaseSummary,
 )
 
 _SLUG = "ai-isolation-prop"
@@ -147,7 +147,7 @@ class _IsolationOnlyPipeline:
             ),
             loaded_abilities=True,
             isolation=self._isolation,
-            substages=SubStageSummary(
+            subphases=SubphaseSummary(
                 build_online_ok=True,
                 egress_closed=True,
                 egress_lost_verified=True,

@@ -52,7 +52,7 @@ networks, verified before and during every run.
 
 STICKS has **three** separate concepts. They run at different times, for
 different consumers — do not treat them as synonyms. The phase names are
-**semantic and number-free**; the legacy `stage_N` numbering has been removed.
+**semantic and number-free**; the earlier numbered naming has been removed.
 Every phase decision (how many phases, their names, splitting execution from
 evaluation, and the network boundary) is traceable to the academic sources in
 [`docs/agentic-phases-literature.md`](docs/agentic-phases-literature.md).
@@ -298,7 +298,7 @@ relational query over the structured flows.
 
 #### Curated campaigns are only a flag
 
-The old curated pipeline (`StageService`, the `/stage/N` routes, and their screens)
+The old curated pipeline (its service, its numbered routes, and their screens)
 was removed. "Curated" is now only the `curated` flag in the database: the flow,
 commands, and environment of the 8 human-curated campaigns stay as **data**, and
 serve as ground truth to compare against the AI-generated result. On a fresh
@@ -452,6 +452,35 @@ npm run dev
 - **Caldera:** http://localhost:8888 (login `red` / `admin`)
 
 Database migrations can be applied on their own with `npm run db:migrate`.
+
+#### Upgrading to the phase-name migration (back up first)
+
+Migration `b0c1d2e3f4a5` renames persisted names so every phase is called by its
+name (`input`, `operationalization`, `flow`, `environment`, `execution`,
+`evaluation`) instead of a number. Both `npm run dev` and `npm run db:migrate`
+apply it automatically, so **back up the database before the first run after
+pulling this change**:
+
+```bash
+# Backup (write the dump outside the repository)
+docker exec sticks-postgres pg_dump -U pipeline_ui -Fc pipeline_ui > sticks-backup.dump
+
+# Restore, if needed
+docker exec -i sticks-postgres pg_restore -U pipeline_ui --clean --if-exists -d pipeline_ui < sticks-backup.dump
+```
+
+- **Finish running agent executions first.** The LangGraph checkpoints are not
+  migrated. An execution started before the upgrade and resumed after it is not
+  supported, because its checkpoint lacks the renamed state channel.
+- **What changes:** three tables are renamed (old names below), the phase number column becomes a phase name column plus a `subphase` column, and related columns, constraints and one JSON key are renamed too.
+  - `stage_runs` becomes `phase_runs` <!-- sweep-allow: documents the rename migration -->
+  - `agent_stage_outputs` becomes `agent_phase_outputs` <!-- sweep-allow: documents the rename migration -->
+  - `agent_stage_traces` becomes `agent_phase_traces` <!-- sweep-allow: documents the rename migration -->
+  - JSON key `substages` becomes `subphases` <!-- sweep-allow: documents the rename migration -->
+- **Rolling back:** from `apps/backend`, run
+  `alembic downgrade a9b0c1d2e3f4` (with `PIPELINE_UI_DATABASE_URL` set), or
+  restore the dump. The downgrade stops without changes if a phase value has no
+  numbered equivalent (for example `evaluation`); restore the dump in that case.
 
 ---
 

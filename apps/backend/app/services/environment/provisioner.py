@@ -1,15 +1,15 @@
 """Environment-creation seam: ``EnvironmentProvisioner`` + DTOs + curation.
 
-This module defines the **per-origin extension point** of Stage 5 (Simulation-
-environment creation) in the six-stage pipeline, and also carries the historical
-Stage 4 (Provisioning) seam for compatibility. It separates *how* a Campaign's
+This module defines the **per-origin extension point** of the environment phase (Simulation-
+environment creation) in the agentic pipeline, and also carries the historical
+provisioning seam for compatibility. It separates *how* a Campaign's
 environment is created/verified (today by curation over the static
 ``docker-compose`` lab, tomorrow by an AI agent that **creates**
 containers/VMs/networks dynamically) from the *rest* of the system, so a
 ``gerado_ia`` implementation can be plugged in later **without** changing this
 signature (Req. 9.1, 16.3, 16.4).
 
-Typed Stage 5 output (task 7.1):
+Typed the environment phase output (task 7.1):
 
 ``IsolationSummary`` / ``ContainerVerdict``
     Serializable (Pydantic) projection of the ``containment`` package's
@@ -17,7 +17,7 @@ Typed Stage 5 output (task 7.1):
     14.3).
 
 ``ProvisionedEnvironment``
-    The Stage 5 output: a ready and isolated environment (campaign, platform,
+    The environment phase output: a ready and isolated environment (campaign, platform,
     target containers, ``compose``, isolation summary, loaded Abilities, origin)
     — Req. 9.8.
 
@@ -53,7 +53,7 @@ Typed Stage 5 output (task 7.1):
     an empty list **or** an unavailable daemon fails). It verifies exactly the
     containers the Execution will attack.
 
-As in the rest of the service packages (``flow``/``stage``), the seam is a
+As in the rest of the service packages (``flow``), the seam is a
 ``@runtime_checkable Protocol`` and the external dependencies (inspector,
 Campaign) are **injected**, with the production defaults resolved lazily.
 
@@ -126,7 +126,7 @@ from app.services.environment.topology_builder import (
 from app.services.environment.vm_confirmation_gate import VmConfirmationRecord
 
 # ---------------------------------------------------------------------------
-# Typed Stage 5 output DTOs (task 7.1)
+# Typed the environment phase output DTOs (task 7.1)
 # ---------------------------------------------------------------------------
 
 
@@ -135,7 +135,7 @@ class ContainerVerdict(BaseModel):
 
     Serializable (Pydantic) mirror of
     :class:`~app.services.containment.ContainerIsolationVerdict` (an internal
-    ``dataclass`` of the ``containment`` package), to compose the typed Stage 5
+    ``dataclass`` of the ``containment`` package), to compose the typed the environment phase
     output and the API JSON contracts without leaking the internal dataclass.
 
     Attributes:
@@ -160,9 +160,9 @@ class IsolationSummary(BaseModel):
     """Typed isolation summary — per-container + overall verdict (Req. 9.8, 14.3).
 
     Serializable (Pydantic) projection of
-    :class:`~app.services.containment.IsolationResult` for the Stage 5 output and
+    :class:`~app.services.containment.IsolationResult` for the environment phase output and
     the API JSON contracts. Carries the **overall** result (``approved``) and the
-    **per-container** verdict (``verdicts``), so the Stage 5 screen shows the
+    **per-container** verdict (``verdicts``), so the environment phase screen shows the
     reason for each non-isolated container (Req. 9.7, 14.4).
 
     Attributes:
@@ -179,7 +179,7 @@ class IsolationSummary(BaseModel):
     def from_isolation_result(cls, result: IsolationResult) -> IsolationSummary:
         """Convert the ``containment`` :class:`IsolationResult` into this summary.
 
-        The Stage 5 seam reuses the ``containment`` package (single source of the
+        The environment phase seam reuses the ``containment`` package (single source of the
         read-only isolation check, Req. 14.1) and **projects** its ``dataclass``
         into this Pydantic model — without duplicating the internal/external
         classification logic.
@@ -208,7 +208,7 @@ class EgressVerdictView(BaseModel):
     """Serializable projection of one host's egress verdict (Req. 5.4, 8.1).
 
     Pydantic mirror of the ``egress`` package's ``EgressVerdict`` *dataclass*
-    (defined later, under tasks 4/7), carried in the Stage 5 output and the API
+    (defined later, under tasks 4/7), carried in the environment phase output and the API
     JSON contracts without leaking the internal dataclass. It records, per target
     container, whether egress was **positively verified as lost** and whether that
     read-only probe was **conclusive** — the signal the ``verificar_egresso`` step
@@ -232,22 +232,22 @@ class EgressVerdictView(BaseModel):
     reason: str = ""
 
 
-class SubStageSummary(BaseModel):
-    """Outcome of the Stage-5 sub-stages 5.1 (Build online) / 5.2 (Runtime) — Req. 6.3.
+class SubphaseSummary(BaseModel):
+    """Outcome of the environment-phase subphases build_online (Build online) / runtime_isolated (Runtime) — Req. 6.3.
 
-    Serializable summary of the two sub-stages inserted into the provisioning
-    pipeline. It is attached to the :class:`ProvisionedEnvironment` (``substages``)
+    Serializable summary of the two subphases inserted into the provisioning
+    pipeline. It is attached to the :class:`ProvisionedEnvironment` (``subphases``)
     so the screen's prerequisites checklist can show "online prerequisites
     obtained", "egress lost (verified)" and keep "isolation approved", and so the
     :attr:`ProvisionedEnvironment.ready` property can require the new gates in
     addition to the inherited ones (Req. 6.3, 6.4).
 
     All fields default to ``False``/empty, so an output built before the
-    sub-stages run (e.g. an early failure) carries a not-approved summary — the
+    subphases run (e.g. an early failure) carries a not-approved summary — the
     screen always receives the full shape, and ``ready`` stays ``False``.
 
     Attributes:
-        build_online_ok: ``True`` iff sub-stage **5.1** (Build online) completed
+        build_online_ok: ``True`` iff subphase **build_online** (Build online) completed
             for **all** hosts — the online prerequisites were obtained inside the
             controlled egress window and the window was closed again.
         egress_closed: ``True`` iff the egress window was closed for **all** hosts
@@ -255,7 +255,7 @@ class SubStageSummary(BaseModel):
         egress_lost_verified: ``True`` iff the loss of egress was **positively
             verified** (conclusive probe failing to reach the outside) for all
             hosts **before** any offline setup (Req. 5.4). Fail-closed.
-        offline_applied: ``True`` iff sub-stage **5.2** (Runtime isolated) applied
+        offline_applied: ``True`` iff subphase **runtime_isolated** (Runtime isolated) applied
             the offline setup for all hosts.
         egress_verdicts: Per-host :class:`EgressVerdictView`, in the order the
             hosts were probed — the detail backing ``egress_lost_verified``.
@@ -269,7 +269,7 @@ class SubStageSummary(BaseModel):
 
 
 class ProvisionedEnvironment(BaseModel):
-    """Stage 5 output — a ready and isolated environment (Req. 9.8).
+    """The environment phase output — a ready and isolated environment (Req. 9.8).
 
     Typed artifact produced by :meth:`EnvironmentProvisioner.provision` when the
     campaign environment is ready: the target containers resolved from the
@@ -278,11 +278,11 @@ class ProvisionedEnvironment(BaseModel):
     overall verdict) and the indicator that the ordered Abilities were loaded into
     Caldera (Req. 9.5, 9.8).
 
-    Stage 5 only completes when the three prerequisites pass —
+    The environment phase only completes when the three prerequisites pass —
     ``health.approved`` is ``True`` (healthy containers — Req. 5.1),
     ``loaded_abilities`` is ``True`` (Abilities in Caldera — Req. 5.2) and
     ``isolation.approved`` is ``True`` (isolation approved — Req. 5.3) —, which the
-    :attr:`ready` property summarizes (Req. 5.5); otherwise Stage 6 is blocked
+    :attr:`ready` property summarizes (Req. 5.5); otherwise the execution phase is blocked
     (Req. 6.4) and ``failed_step``/``error_message`` identify **what** and **why**
     the step failed (Req. 7.1, 7.2).
 
@@ -291,7 +291,7 @@ class ProvisionedEnvironment(BaseModel):
         platform: Environment platform — ``CONTAINER`` in this spec (Req. 9.3,
             17.1); VM admitted with no redesign (Req. 17.2).
         target_containers: Target containers resolved from the
-            ``EnvironmentParameters`` (the same ones Stage 6's Execution will
+            ``EnvironmentParameters`` (the same ones the execution phase's execution will
             attack).
         compose_file: Path of the curated lab's ``docker/docker-compose.yml``
             (Req. 9.4); ``None`` when not applicable.
@@ -307,12 +307,12 @@ class ProvisionedEnvironment(BaseModel):
             Caldera in the attack flow order (Req. 5.2, 9.5).
         origin: Provisioning origin — ``curadoria_humana`` today; extensible to
             ``gerado_ia`` without changing the model (Req. 16.3, 16.4).
-        substages: :class:`SubStageSummary` with the outcome of the Stage-5
-            sub-stages 5.1 (Build online) / 5.2 (Runtime isolated) — the online
+        subphases: :class:`SubphaseSummary` with the outcome of the environment-phase
+            subphases build_online (Build online) / runtime_isolated (Runtime isolated) — the online
             prerequisites, the egress window closure, the positively-verified
             egress loss, the offline setup and the per-host egress verdicts
             (Req. 6.3). Defaults to a not-approved summary, so an output built
-            before the sub-stages run keeps the full shape with ``ready`` ``False``.
+            before the subphases run keeps the full shape with ``ready`` ``False``.
         vm_confirmation: :class:`~app.services.environment.vm_confirmation_gate.VmConfirmationRecord`
             recording the VM_Confirmation_Gate verdict (Req. 14.6-14.8). The
             application **always** provisions a container (Container_Preference,
@@ -325,7 +325,7 @@ class ProvisionedEnvironment(BaseModel):
         failed_step: The pipeline step that failed — one of the inherited
             ``"subir_conteineres"``, ``"aguardar_saude"``,
             ``"carregar_abilities"``, ``"verificar_isolamento"`` or one of the new
-            sub-stage steps ``"build_online"``, ``"encerrar_egresso"``,
+            subphase steps ``"build_online"``, ``"encerrar_egresso"``,
             ``"reisolar"``, ``"verificar_egresso"``, ``"setup_offline"`` — or
             ``None`` when the pipeline completed (Req. 7.1, 8.1). The screen uses
             this field to highlight the offending step.
@@ -340,7 +340,7 @@ class ProvisionedEnvironment(BaseModel):
     isolation: IsolationSummary = Field(default_factory=IsolationSummary)
     health: HealthSummary = Field(default_factory=HealthSummary)
     loaded_abilities: bool = False
-    substages: SubStageSummary = Field(default_factory=SubStageSummary)
+    subphases: SubphaseSummary = Field(default_factory=SubphaseSummary)
     vm_confirmation: VmConfirmationRecord = Field(default_factory=VmConfirmationRecord)
     origin: TranslationSource = TranslationSource.HUMAN_CURATION
     failed_step: str | None = None
@@ -353,32 +353,32 @@ class ProvisionedEnvironment(BaseModel):
         The environment approval (Req. 5.5) requires **all** the execution
         prerequisites. The **inherited** gates: healthy containers
         (``health.approved``), Abilities loaded into Caldera (``loaded_abilities``)
-        and isolation approved (``isolation.approved``). Plus the **new** Stage-5
-        sub-stage gates (Req. 6.3): the online prerequisites obtained
-        (``substages.build_online_ok``), the loss of egress positively verified
-        (``substages.egress_lost_verified``) and the offline setup applied
-        (``substages.offline_applied``). ``failed_step is None`` confirms the
+        and isolation approved (``isolation.approved``). Plus the **new** environment-phase
+        subphase gates (Req. 6.3): the online prerequisites obtained
+        (``subphases.build_online_ok``), the loss of egress positively verified
+        (``subphases.egress_lost_verified``) and the offline setup applied
+        (``subphases.offline_applied``). ``failed_step is None`` confirms the
         pipeline walked all the steps without an early return. While ``ready`` is
-        ``False``, Stage 6 remains blocked (Req. 6.4).
+        ``False``, the execution phase remains blocked (Req. 6.4).
         """
         return (
             self.failed_step is None
             and self.health.approved
             and self.loaded_abilities
             and self.isolation.approved
-            and self.substages.build_online_ok
-            and self.substages.egress_lost_verified
-            and self.substages.offline_applied
+            and self.subphases.build_online_ok
+            and self.subphases.egress_lost_verified
+            and self.subphases.offline_applied
         )
 
 
 class DeprovisioningResult(BaseModel):
-    """Typed result of the environment teardown at the end of Stage 6 (Req. 12).
+    """Typed result of the environment teardown at the end of the execution phase (Req. 12).
 
-    The deprovisioning is **always** invoked at the end of Stage 6, on technique
+    The deprovisioning is **always** invoked at the end of the execution phase, on technique
     success or failure (Req. 10.8, 12.1). Instead of raising an exception for the
     expected failure path, :meth:`EnvironmentProvisioner.deprovision` returns this
-    typed result, so the completion seam (task 8.4) decides — the Stage 6
+    typed result, so the completion seam (task 8.4) decides — the execution phase
     completion only happens when the environment was actually deprovisioned (Req.
     10.9). When the teardown fails, the **remaining resources** are identified for
     the Researcher (Req. 12.3).
@@ -403,10 +403,10 @@ class DeprovisioningResult(BaseModel):
 
 @dataclass(frozen=True)
 class ProvisioningResult:
-    """Typed result of preparing/verifying a Campaign's environment (Stage 4).
+    """Typed result of preparing/verifying a Campaign's environment (environment phase).
 
-    Carries everything the Stage 4 auto-completion (task 4.2) and the Provisioning
-    screen (``EnvironmentStageView``) need to decide and display:
+    Carries everything the environment phase auto-completion (task 4.2) and the Provisioning
+    screen need to decide and display:
 
     Attributes:
         campaign_id: *Slug* of the Campaign whose environment was prepared/verified.
@@ -417,13 +417,13 @@ class ProvisioningResult:
             encompass the actual provisioning, keeping the same signature.
         isolated: ``True`` iff **all** target containers are isolated
             (``isolation.passed``). It is the containment signal of Req. 5 — if
-            ``False``, Stage 4 does not complete and Stage 5 is blocked.
+            ``False``, the environment phase does not complete and the execution phase is blocked.
         isolation: The :class:`~app.services.containment.IsolationResult` with the
             per-container verdicts (failure reasons for display/error).
         topology: The
             :class:`~app.services.environment.topology_builder.TopologyResponse` of
             the contained environment (hosts, internal networks, Mermaid), for the
-            Stage 4 screen — displayed even when ``isolated`` is ``False`` (the
+            environment phase screen — displayed even when ``isolated`` is ``False`` (the
             reason accompanies the verdicts).
     """
 
@@ -435,35 +435,35 @@ class ProvisioningResult:
 
 
 @dataclass(frozen=True)
-class _SubStageOutcome:
-    """Internal result of the 5.1/5.2 orchestration (task 7).
+class _SubphaseOutcome:
+    """Internal result of the build_online/runtime_isolated orchestration (task 7).
 
-    Carries what :meth:`CurationEnvironmentProvisioner._run_substages` resolved so
+    Carries what :meth:`CurationEnvironmentProvisioner._run_subphases` resolved so
     the ``provision`` body can either return early with the offending
     ``failed_step`` + cause, or continue to the final isolation gate with the
-    satisfied :class:`SubStageSummary` and ``loaded_abilities`` outcome.
+    satisfied :class:`SubphaseSummary` and ``loaded_abilities`` outcome.
 
     Attributes:
-        summary: The :class:`SubStageSummary` built so far (partial on failure,
+        summary: The :class:`SubphaseSummary` built so far (partial on failure,
             satisfied on success — minus the final isolation gate which the caller
             still runs).
         loaded_abilities: ``True`` iff the ordered Abilities + Adversary were
-            loaded into Caldera inside 5.2 (``carregar_abilities``).
-        failed_step: The sub-stage step that failed (``build_online``/
+            loaded into Caldera inside runtime_isolated (``carregar_abilities``).
+        failed_step: The subphase step that failed (``build_online``/
             ``encerrar_egresso``/``reisolar``/``verificar_egresso``/
             ``setup_offline``/``carregar_abilities``), or ``None`` on success.
         error_message: Readable cause of the failure, or ``None`` on success.
     """
 
-    summary: SubStageSummary
+    summary: SubphaseSummary
     loaded_abilities: bool = False
     failed_step: str | None = None
     error_message: str | None = None
 
     @classmethod
     def failure(
-        cls, failed_step: str, error_message: str, *, summary: SubStageSummary
-    ) -> _SubStageOutcome:
+        cls, failed_step: str, error_message: str, *, summary: SubphaseSummary
+    ) -> _SubphaseOutcome:
         """Build a failed outcome, carrying the partial summary and the cause."""
         return cls(
             summary=summary,
@@ -475,10 +475,10 @@ class _SubStageOutcome:
 
 @runtime_checkable
 class CalderaLoader(Protocol):
-    """Minimal Caldera surface used by Stage 5 — load Abilities/Adversary.
+    """Minimal Caldera surface used by the environment phase — load Abilities/Adversary.
 
     Structural projection (``@runtime_checkable``) of the load operations of the
-    :class:`~app.services.caldera.CalderaClient` that Stage 5 reuses (Req. 9.5):
+    :class:`~app.services.caldera.CalderaClient` that the environment phase reuses (Req. 9.5):
     pushing the curated Abilities and the Adversary to Caldera **before**
     completing. It is a ``Protocol`` so the tests inject a *fake* (no network, no
     daemon) and production injects the real client — the curation provisioner does
@@ -500,11 +500,11 @@ class CalderaLoader(Protocol):
 
 @runtime_checkable
 class EnvironmentProvisioner(Protocol):
-    """Per-**origin** Stage 5 (Environment creation) seam — Req. 9.1, 16.3.
+    """Per-**origin** the environment phase (Environment creation) seam — Req. 9.1, 16.3.
 
     A ``@runtime_checkable Protocol`` that defines the **extension point** of the
     environment creation, following the precedent of the other per-origin seams
-    (``FlowGenerator`` in Stage 3, ``OperationalizerByOrigin`` in Stage 4): each
+    (``FlowGenerator`` in the flow phase, ``OperationalizerByOrigin`` in the operationalization phase): each
     origin (``curadoria_humana`` today, ``gerado_ia`` in the future) is an
     implementation interchangeable by injection, **without** redesign (Req. 16.3,
     16.4).
@@ -516,11 +516,11 @@ class EnvironmentProvisioner(Protocol):
       implementation stamps on the output (``ProvisionedEnvironment.origin``).
     - ``provision(params)`` — creates/prepares the environment from the
       :class:`~app.services.environment.operationalization.EnvironmentParameters`
-      (Stage 4 output), loads the ordered Abilities into Caldera and verifies the
+      (operationalization phase output), loads the ordered Abilities into Caldera and verifies the
       isolation, returning the ready and isolated :class:`ProvisionedEnvironment`
       (Req. 9.5, 9.6, 9.8).
     - ``deprovision(...)`` — removes the provisioned environment at the end of
-      Stage 6 (teardown), keeping the origin coherent (Req. 12).
+      the execution phase (teardown), keeping the origin coherent (Req. 12).
 
     Today there is the curation implementation
     (:class:`CurationEnvironmentProvisioner`), which uses the curated
@@ -530,10 +530,10 @@ class EnvironmentProvisioner(Protocol):
     containers/VMs/networks fits later under the same signature (Req. 16.3).
 
     .. note::
-        ``prepare(campaign)`` is kept for compatibility with the existing Stage 4
+        ``prepare(campaign)`` is kept for compatibility with the existing environment-phase
         the topology endpoints;
         the new ``origin``/``provision``/``deprovision`` methods implement the
-        Stage 5 seam of the six-stage pipeline.
+        the environment phase seam of the agentic pipeline.
     """
 
     def origin(self) -> TranslationSource:
@@ -561,12 +561,12 @@ class EnvironmentProvisioner(Protocol):
         the same signature (Req. 10.2).
 
         ``on_log`` is **keyword-only** with a *no-op* default, so the existing
-        callers (``provision(params)``) stay valid unchanged; the Stage 5 service
+        callers (``provision(params)``) stay valid unchanged; the environment phase service
         passes a callback that forwards the lines to the buffer and the screen
         terminal (Req. 2.2).
 
         Args:
-            params: The Stage 4 output
+            params: The operationalization phase output
                 (:class:`~app.services.environment.operationalization.EnvironmentParameters`)
                 — target containers and platform of the environment to provision.
             on_log: Callback invoked for each :class:`LogLine` emitted by the
@@ -576,7 +576,7 @@ class EnvironmentProvisioner(Protocol):
         Returns:
             The :class:`ProvisionedEnvironment` — ready (``ready is True``) when the
             four steps pass, or with ``failed_step``/``error_message`` when one
-            fails, keeping Stage 5 incomplete (Req. 7.1).
+            fails, keeping the environment phase incomplete (Req. 7.1).
         """
         ...
 
@@ -586,7 +586,7 @@ class EnvironmentProvisioner(Protocol):
         *,
         on_log: Callable[[LogLine], None] = lambda _l: None,
     ) -> DeprovisioningResult:
-        """Remove the provisioned environment (teardown at the end of Stage 6 — Req. 8).
+        """Remove the provisioned environment (teardown at the end of the execution phase — Req. 8).
 
         Always invoked after measuring and generating the report, on technique
         success or failure (Req. 8.1). Driven by the **same** per-origin seam,
@@ -599,12 +599,12 @@ class EnvironmentProvisioner(Protocol):
         created here, under the same signature.
 
         ``on_log`` is **keyword-only** with a *no-op* default, so the existing
-        callers (``deprovision(environment)``) stay valid unchanged; the Stage 6
+        callers (``deprovision(environment)``) stay valid unchanged; the execution phase
         completion seam passes a callback that forwards the teardown lines to the
         screen terminal (Req. 2.2).
 
         Args:
-            environment: The Stage 5 output (:class:`ProvisionedEnvironment`) whose
+            environment: The environment phase output (:class:`ProvisionedEnvironment`) whose
                 environment must be deprovisioned — it carries the curated lab's
                 ``compose_file`` and the campaign's ``target_containers``.
             on_log: Callback invoked for each :class:`LogLine` emitted by the
@@ -614,7 +614,7 @@ class EnvironmentProvisioner(Protocol):
         ...
 
     def prepare(self, campaign: str) -> ProvisioningResult:
-        """Prepare/verify the environment of the *slug* ``campaign`` (Stage 4 compat.).
+        """Prepare/verify the environment of the *slug* ``campaign`` (environment compat.).
 
         Kept for the
         existing topology endpoints. The curation implementation **creates
@@ -639,7 +639,7 @@ class CurationEnvironmentProvisioner:
        :func:`app.services.containment.inspect_isolation`, with an **injectable**
        :class:`~app.services.containment.ContainerInspector` (a fake inspector in
        the tests — no Docker daemon; the real adapter in production when ``None``).
-       It verifies exactly the containers the Execution (Stage 5) will attack
+       It verifies exactly the containers the execution phase will attack
        (:func:`...topology_builder.container_names`).
 
     **Read-only / no-network / no-AI guarantee:** no path of this implementation
@@ -648,8 +648,8 @@ class CurationEnvironmentProvisioner:
     injected inspector (Req. 5.5).
 
     It satisfies :class:`EnvironmentProvisioner` structurally — it exposes
-    ``origin``/``provision``/``deprovision`` (Stage 5 seam) plus ``prepare``
-    (Stage 4 compat.) — without explicit inheritance, exactly the point of the
+    ``origin``/``provision``/``deprovision`` (the environment phase seam) plus ``prepare``
+    (environment compat.) — without explicit inheritance, exactly the point of the
     seam; it stamps ``curadoria_humana`` on the output (Req. 16.3).
 
     _Requirements: 5.4, 5.5, 5.7, 9.1, 9.8, 16.3_
@@ -736,7 +736,7 @@ class CurationEnvironmentProvisioner:
             return campaign
 
     def origin(self) -> TranslationSource:
-        """Stamp ``curadoria_humana`` on the Stage 5 output (Req. 16.3)."""
+        """Stamp ``curadoria_humana`` on the environment phase output (Req. 16.3)."""
         return TranslationSource.HUMAN_CURATION
 
     def _target_containers(self, params: EnvironmentParameters) -> list[str]:
@@ -802,7 +802,7 @@ class CurationEnvironmentProvisioner:
 
         In production (``egress_window is None``) a :class:`DockerEgressWindow`
         wrapping the :meth:`_get_compose_executor` is built here, on the first
-        need to open/close a host's egress window during sub-stage 5.1 — never on
+        need to open/close a host's egress window during subphase build_online — never on
         import, so importing this module never opens a subprocess nor touches the
         Docker daemon. The tests inject a *fake* in the constructor and this path
         is not touched (Req. 5.1, 5.2, 5.3).
@@ -817,7 +817,7 @@ class CurationEnvironmentProvisioner:
         In production (``egress_prober is None``) a :class:`DockerEgressProber`
         wrapping the :meth:`_get_compose_executor` is built here, on the first
         need to positively verify the loss of egress during ``verificar_egresso``
-        (sub-stage 5.2) — never on import. The tests inject a *fake* and this path
+        (subphase runtime_isolated) — never on import. The tests inject a *fake* and this path
         is not touched (Req. 3.2, 5.4, 5.5).
         """
         if self._egress_prober is None:
@@ -829,21 +829,21 @@ class CurationEnvironmentProvisioner:
 
         In production (``target_setup is None``) a :class:`DockerTargetSetup`
         wrapping the :meth:`_get_compose_executor` is built here, on the first
-        need to run the per-phase curated setup (``build_online`` of 5.1 and
-        ``setup_offline`` of 5.2) — never on import. The tests inject a *fake* and
+        need to run the per-phase curated setup (``build_online`` of build_online and
+        ``setup_offline`` of runtime_isolated) — never on import. The tests inject a *fake* and
         this path is not touched (Req. 2.3, 3.3).
         """
         if self._target_setup is None:
             self._target_setup = DockerTargetSetup(self._get_compose_executor())
         return self._target_setup
 
-    def _substages_supported(self) -> bool:
-        """Whether the 5.1/5.2 network/exec orchestration can actually run.
+    def _subphases_supported(self) -> bool:
+        """Whether the build_online/runtime_isolated network/exec orchestration can actually run.
 
-        The sub-stages mutate container networks (``attach``/``detach``) and run
+        The subphases mutate container networks (``attach``/``detach``) and run
         ``exec`` setup commands through the :class:`ComposeExecutor` extension
         introduced for this spec (task 2). They can run when **either** a
-        sub-stage seam was explicitly injected (the tests that exercise 5.1/5.2),
+        subphase seam was explicitly injected (the tests that exercise build_online/runtime_isolated),
         **or** the resolved compose executor exposes the extended
         ``attach_network``/``detach_network``/``exec_in`` surface (production's
         :class:`DockerComposeExecutor`).
@@ -851,9 +851,9 @@ class CurationEnvironmentProvisioner:
         When none of the seams is injected **and** the injected executor predates
         the task-2 extension (an ``up``/``down``-only fake), the orchestration
         degrades to the inherited placeholder: it skips the network/exec work and
-        reports a satisfied :class:`SubStageSummary` — so the earlier Stage-5
+        reports a satisfied :class:`SubphaseSummary` — so the earlier environment-phase
         suites, which inject such executors and resolve hosts with no curated
-        ``vulnerabilities``, keep their behavior (``ready`` and no sub-stage log
+        ``vulnerabilities``, keep their behavior (``ready`` and no subphase log
         lines) unchanged. The containment logic is unaffected on the real path.
         """
         if (
@@ -946,7 +946,7 @@ class CurationEnvironmentProvisioner:
         (:func:`build_case_from_db`, network-free), orders the Abilities by the attack flow's
         ``atomic_ordering``, and pushes them to Caldera in order, followed by the
         Adversary. Fail-closed: if the Campaign does not load, there are no
-        Abilities, or Caldera fails, it returns ``False`` (Stage 5 does not
+        Abilities, or Caldera fails, it returns ``False`` (the environment phase does not
         complete) — it never brings down the provisioning (the topology and the
         isolation verdict are still displayed).
 
@@ -980,7 +980,7 @@ class CurationEnvironmentProvisioner:
             if adversary_payload is not None:
                 caldera.load_adversary(adversary_payload)
         except Exception:  # noqa: BLE001 -- Caldera unavailable or API error: fail-closed
-            # Caldera unavailable/API error: fail-closed, Stage 5 does not
+            # Caldera unavailable/API error: fail-closed, the environment phase does not
             # complete, but the provisioning still returns the topology/isolation.
             return False
         return True
@@ -992,8 +992,8 @@ class CurationEnvironmentProvisioner:
         ``nginx``/``db`` — mapped to the lab's real ``container_name`` via
         :data:`HOST_CONTAINERS`), but keeps the originating
         :class:`~app.services.environment.operationalization.TargetHost` so the
-        sub-stages can read its ``vulnerabilities``. Hosts with no resolved
-        container are skipped (they carry nothing for 5.1/5.2 to act on), and
+        subphases can read its ``vulnerabilities``. Hosts with no resolved
+        container are skipped (they carry nothing for build_online/runtime_isolated to act on), and
         duplicate containers are removed while preserving order.
         """
         pairs: list[tuple[Any, str]] = []
@@ -1011,10 +1011,10 @@ class CurationEnvironmentProvisioner:
     def _fail_safe(self, container: str, *, on_log: Callable[[LogLine], None]) -> None:
         """Best-effort close of a host's egress window on a failure path (Req. 8.3).
 
-        No error path of 5.1/5.2 may leave a target with egress open. This closes
+        No error path of build_online/runtime_isolated may leave a target with egress open. This closes
         the egress window of a single ``container`` best-effort — any error while
         closing is swallowed (the goal is to not leave egress open, never to raise
-        a secondary failure that masks the original cause). It emits a ``5.1``
+        a secondary failure that masks the original cause). It emits a ``build_online``
         marker line so the console reflects the safety action.
         """
         on_log(
@@ -1022,7 +1022,7 @@ class CurationEnvironmentProvisioner:
                 step="encerrar_egresso",
                 stream="info",
                 text=f"fail-safe: encerrando a janela de egresso de {container}",
-                substage="5.1",
+                subphase="build_online",
             )
         )
         # Swallow: the fail-safe must never raise over the original failure.
@@ -1032,35 +1032,35 @@ class CurationEnvironmentProvisioner:
     def _fail_safe_all(self, containers: list[str], *, on_log: Callable[[LogLine], None]) -> None:
         """Best-effort close every host's egress window (Req. 8.3, 8.4).
 
-        Used when an unexpected exception escapes the per-host 5.1 loop: it closes
+        Used when an unexpected exception escapes the per-host build_online loop: it closes
         the egress window of **all** targets so no host is left reachable from the
         internet, regardless of which host was mid-window when the failure hit.
         """
         for container in containers:
             self._fail_safe(container, on_log=on_log)
 
-    def _run_substages(
+    def _run_subphases(
         self,
         params: EnvironmentParameters,
         *,
         on_log: Callable[[LogLine], None],
-    ) -> _SubStageOutcome:
-        """Run sub-stage 5.1 (Build online) then 5.2 (Runtime isolated) — Req. 1-5.
+    ) -> _SubphaseOutcome:
+        """Run subphase build_online (Build online) then runtime_isolated (Runtime isolated) — Req. 1-5.
 
-        Strict order (Req. 1.2, 1.3): 5.2 only begins once 5.1 has completed for
-        **all** hosts; if 5.1 fails for any host, 5.2 never runs. Every network
+        Strict order (Req. 1.2, 1.3): runtime_isolated only begins once build_online has completed for
+        **all** hosts; if build_online fails for any host, runtime_isolated never runs. Every network
         transition is ``detach`` before ``attach`` (one way at a time), and no
         error path leaves a target with egress open (``_fail_safe`` — Req. 8.3).
 
-        5.1 (``build_online``/``encerrar_egresso``), per host: classify the host's
+        build_online (``build_online``/``encerrar_egresso``), per host: classify the host's
         ``vulnerabilities``; open the egress window (detach attack nets → attach
-        egress); apply the ONLINE commands; close the window. 5.2
+        egress); apply the ONLINE commands; close the window. runtime_isolated
         (``reisolar``/``verificar_egresso``/``setup_offline``/``carregar_abilities``):
         reattach the attack networks; probe every host and require
         :func:`egress_lost`; apply the OFFLINE commands; load the ordered Abilities
         + Adversary into Caldera (moved here, after the offline setup — Req. 3.4).
 
-        Returns a :class:`_SubStageOutcome`: ``failed_step is None`` with the
+        Returns a :class:`_SubphaseOutcome`: ``failed_step is None`` with the
         satisfied summary on success, or the offending ``failed_step`` + cause (and
         the partial summary) on failure.
         """
@@ -1071,7 +1071,7 @@ class CurationEnvironmentProvisioner:
         prober = self._get_egress_prober()
         attack_nets = attack_networks_for(containers)
 
-        # ===== 5.1 Build (online) =====================================
+        # ===== build_online (Build, online) ============================
         try:
             for host, container in host_targets:
                 classified = classify_commands(list(host.vulnerabilities))
@@ -1079,17 +1079,17 @@ class CurationEnvironmentProvisioner:
                     LogLine(
                         step="build_online",
                         stream="info",
-                        text=f"5.1 build online de {container}: abrindo janela de egresso",
-                        substage="5.1",
+                        text=f"build online de {container}: abrindo janela de egresso",
+                        subphase="build_online",
                     )
                 )
                 window = egress.open(container, attack_nets, on_log=on_log)
                 if not window.opened:
                     self._fail_safe(container, on_log=on_log)
-                    return _SubStageOutcome.failure(
+                    return _SubphaseOutcome.failure(
                         "build_online",
                         window.reason or f"falha ao abrir a janela de egresso de {container}",
-                        summary=SubStageSummary(),
+                        summary=SubphaseSummary(),
                     )
 
                 online = [c for c in classified if c.phase is SetupPhase.ONLINE]
@@ -1106,31 +1106,31 @@ class CurationEnvironmentProvisioner:
                     # Build failed: the window is already closed above, but run the
                     # fail-safe to guarantee no egress remains (idempotent close).
                     self._fail_safe(container, on_log=on_log)
-                    return _SubStageOutcome.failure(
+                    return _SubphaseOutcome.failure(
                         "build_online",
                         f"falha ao instalar os pré-requisitos online de "
                         f"{container} (code={applied.code})",
-                        summary=SubStageSummary(),
+                        summary=SubphaseSummary(),
                     )
                 if not closed.closed:
                     self._fail_safe(container, on_log=on_log)
-                    return _SubStageOutcome.failure(
+                    return _SubphaseOutcome.failure(
                         "encerrar_egresso",
                         closed.reason or f"falha ao encerrar a janela de egresso de {container}",
-                        summary=SubStageSummary(),
+                        summary=SubphaseSummary(),
                     )
-        except Exception as exc:  # noqa: BLE001 -- sub-stage failure is reported and the egress fail-safe runs
+        except Exception as exc:  # noqa: BLE001 -- subphase failure is reported and the egress fail-safe runs
             self._fail_safe_all(containers, on_log=on_log)
-            return _SubStageOutcome.failure(
+            return _SubphaseOutcome.failure(
                 "build_online",
-                f"falha inesperada na sub-etapa 5.1: {exc}",
-                summary=SubStageSummary(),
+                f"falha inesperada na subfase build_online: {exc}",
+                summary=SubphaseSummary(),
             )
 
-        # 5.1 completed for ALL hosts; the egress window is closed everywhere.
-        summary = SubStageSummary(build_online_ok=True, egress_closed=True)
+        # build_online completed for ALL hosts; the egress window is closed everywhere.
+        summary = SubphaseSummary(build_online_ok=True, egress_closed=True)
 
-        # ===== 5.2 Runtime (isolated) =================================
+        # ===== runtime_isolated (Runtime, isolated) =====================
         # reisolar: reattach the attack networks to every host (Req. 3.1).
         try:
             executor = self._get_compose_executor()
@@ -1147,24 +1147,24 @@ class CurationEnvironmentProvisioner:
                             step="reisolar",
                             stream="info",
                             text=(
-                                f"5.2 reisolando {container}: reatando {network}"
+                                f"reisolando {container}: reatando {network}"
                                 + (f" ({fixed_ip})" if fixed_ip else "")
                             ),
-                            substage="5.2",
+                            subphase="runtime_isolated",
                         )
                     )
                     result = executor.attach_network(container, network, on_log=on_log, ip=fixed_ip)
                     if result.code != 0:
                         self._fail_safe_all(containers, on_log=on_log)
-                        return _SubStageOutcome.failure(
+                        return _SubphaseOutcome.failure(
                             "reisolar",
                             f"falha ao reatar a rede de ataque {network!r} a "
                             f"{container!r} (code={result.code})",
                             summary=summary,
                         )
-        except Exception as exc:  # noqa: BLE001 -- sub-stage failure is reported and the egress fail-safe runs
+        except Exception as exc:  # noqa: BLE001 -- subphase failure is reported and the egress fail-safe runs
             self._fail_safe_all(containers, on_log=on_log)
-            return _SubStageOutcome.failure(
+            return _SubphaseOutcome.failure(
                 "reisolar",
                 f"falha inesperada ao reisolar: {exc}",
                 summary=summary,
@@ -1178,12 +1178,12 @@ class CurationEnvironmentProvisioner:
                 LogLine(
                     step="verificar_egresso",
                     stream="info",
-                    text=f"5.2 verificando a perda de egresso de {container}",
-                    substage="5.2",
+                    text=f"verificando a perda de egresso de {container}",
+                    subphase="runtime_isolated",
                 )
             )
             verdicts.append(prober.probe(container, on_log=on_log))
-        summary = SubStageSummary(
+        summary = SubphaseSummary(
             build_online_ok=True,
             egress_closed=True,
             egress_verdicts=[
@@ -1203,10 +1203,10 @@ class CurationEnvironmentProvisioner:
                     step="verificar_egresso",
                     stream="stderr",
                     text=cause,
-                    substage="5.2",
+                    subphase="runtime_isolated",
                 )
             )
-            return _SubStageOutcome.failure("verificar_egresso", cause, summary=summary)
+            return _SubphaseOutcome.failure("verificar_egresso", cause, summary=summary)
         summary = summary.model_copy(update={"egress_lost_verified": True})
 
         # setup_offline: apply the OFFLINE commands per host (Req. 3.3).
@@ -1217,8 +1217,8 @@ class CurationEnvironmentProvisioner:
                 LogLine(
                     step="setup_offline",
                     stream="info",
-                    text=f"5.2 aplicando o setup offline de {container}",
-                    substage="5.2",
+                    text=f"aplicando o setup offline de {container}",
+                    subphase="runtime_isolated",
                 )
             )
             applied = setup.apply(
@@ -1229,7 +1229,7 @@ class CurationEnvironmentProvisioner:
                 best_effort=True,
             )
             if applied.code != 0:
-                return _SubStageOutcome.failure(
+                return _SubphaseOutcome.failure(
                     "setup_offline",
                     f"falha ao aplicar o setup offline de {container} (code={applied.code})",
                     summary=summary,
@@ -1241,8 +1241,8 @@ class CurationEnvironmentProvisioner:
             LogLine(
                 step="carregar_abilities",
                 stream="info",
-                text="5.2 carregando as Abilities ordenadas e o Adversary no Caldera",
-                substage="5.2",
+                text="carregando as Abilities ordenadas e o Adversary no Caldera",
+                subphase="runtime_isolated",
             )
         )
         loaded_abilities = self._load_abilities(params)
@@ -1256,12 +1256,12 @@ class CurationEnvironmentProvisioner:
                     step="carregar_abilities",
                     stream="stderr",
                     text=cause,
-                    substage="5.2",
+                    subphase="runtime_isolated",
                 )
             )
-            return _SubStageOutcome.failure("carregar_abilities", cause, summary=summary)
+            return _SubphaseOutcome.failure("carregar_abilities", cause, summary=summary)
 
-        return _SubStageOutcome(
+        return _SubphaseOutcome(
             summary=summary,
             loaded_abilities=True,
             failed_step=None,
@@ -1301,7 +1301,7 @@ class CurationEnvironmentProvisioner:
         networks — Req. 3.2, 3.3). The provisioning becomes an **ordered and
         observable** sequence of steps, each one emitting :class:`LogLine` through
         ``on_log`` (Req. 2.2, 2.4) and, on failure, **returning early** with
-        ``failed_step`` + the cause — Stage 5 does not complete and Stage 6 is
+        ``failed_step`` + the cause — the environment phase does not complete and the execution phase is
         blocked (Req. 7.1):
 
         1. ``subir_conteineres`` — brings up the lab via
@@ -1334,7 +1334,7 @@ class CurationEnvironmentProvisioner:
         and invokes no AI on any path (Req. 1.5).
 
         Args:
-            params: The Stage 4 output — target containers and platform.
+            params: The operationalization phase output — target containers and platform.
             on_log: Callback for each :class:`LogLine` emitted by the steps, in
                 order; *no-op* default for compatibility with the existing callers
                 (Req. 2.2).
@@ -1350,7 +1350,7 @@ class CurationEnvironmentProvisioner:
             isolation: IsolationResult | None = None,
             health: HealthSummary | None = None,
             loaded_abilities: bool = False,
-            substages: SubStageSummary | None = None,
+            subphases: SubphaseSummary | None = None,
             failed_step: str | None = None,
             error_message: str | None = None,
         ) -> ProvisionedEnvironment:
@@ -1359,8 +1359,8 @@ class CurationEnvironmentProvisioner:
             The steps that have not run yet (because an earlier one failed) get
             empty (not approved) summaries, so the screen always receives the
             complete shape of the :class:`ProvisionedEnvironment`. The
-            ``substages`` summary defaults to a not-approved
-            :class:`SubStageSummary` for the early-return paths (so ``ready`` stays
+            ``subphases`` summary defaults to a not-approved
+            :class:`SubphaseSummary` for the early-return paths (so ``ready`` stays
             ``False``), and is passed in satisfied only on full completion.
             """
             return ProvisionedEnvironment(
@@ -1375,7 +1375,7 @@ class CurationEnvironmentProvisioner:
                 ),
                 health=health if health is not None else HealthSummary(),
                 loaded_abilities=loaded_abilities,
-                substages=substages if substages is not None else SubStageSummary(),
+                subphases=subphases if subphases is not None else SubphaseSummary(),
                 origin=self.origin(),
                 failed_step=failed_step,
                 error_message=error_message,
@@ -1393,34 +1393,34 @@ class CurationEnvironmentProvisioner:
             cause = self._health_cause(health)
             return _output(health=health, failed_step="aguardar_saude", error_message=cause)
 
-        # --- Sub-stages 5.1 (Build online) / 5.2 (Runtime isolated) — Req. 1.1-1.5.
+        # --- Subphases build_online (Build online) / runtime_isolated (Runtime isolated) — Req. 1.1-1.5.
         #
         # Inserted BETWEEN ``aguardar_saude`` and the final ``verificar_isolamento``,
-        # with ``carregar_abilities`` MOVED into 5.2 (after ``setup_offline``) per
+        # with ``carregar_abilities`` MOVED into runtime_isolated (after ``setup_offline``) per
         # the design state diagram. When the extended network/exec surface is not
-        # available (an earlier up/down-only fake executor and no sub-stage seam
+        # available (an earlier up/down-only fake executor and no subphase seam
         # injected), the orchestration degrades to the inherited placeholder so the
-        # earlier Stage-5 suites keep their behavior (see ``_substages_supported``).
-        if self._substages_supported():
-            substage_outcome = self._run_substages(params, on_log=on_log)
-            if substage_outcome.failed_step is not None:
-                # Any sub-stage failure returns early with the step + cause; the
-                # fail-safe inside ``_run_substages`` already closed every egress
+        # earlier environment-phase suites keep their behavior (see ``_subphases_supported``).
+        if self._subphases_supported():
+            subphase_outcome = self._run_subphases(params, on_log=on_log)
+            if subphase_outcome.failed_step is not None:
+                # Any subphase failure returns early with the step + cause; the
+                # fail-safe inside ``_run_subphases`` already closed every egress
                 # window so no target is left with egress open (Req. 8.3, 8.4).
                 return _output(
                     health=health,
-                    loaded_abilities=substage_outcome.loaded_abilities,
-                    substages=substage_outcome.summary,
-                    failed_step=substage_outcome.failed_step,
-                    error_message=substage_outcome.error_message,
+                    loaded_abilities=subphase_outcome.loaded_abilities,
+                    subphases=subphase_outcome.summary,
+                    failed_step=subphase_outcome.failed_step,
+                    error_message=subphase_outcome.error_message,
                 )
-            loaded_abilities = substage_outcome.loaded_abilities
-            substages = substage_outcome.summary
+            loaded_abilities = subphase_outcome.loaded_abilities
+            subphases = subphase_outcome.summary
         else:
             # Inherited placeholder: no extended network/exec surface available, so
             # there is no curated setup to run through this executor. Reproduce the
-            # inherited ``carregar_abilities`` step (with no sub-stage marker) and a
-            # satisfied sub-stage summary, keeping the earlier Stage-5 behavior.
+            # inherited ``carregar_abilities`` step (with no subphase marker) and a
+            # satisfied subphase summary, keeping the earlier environment-phase behavior.
             on_log(
                 LogLine(
                     step="carregar_abilities",
@@ -1447,7 +1447,7 @@ class CurationEnvironmentProvisioner:
                     text="Abilities e Adversary carregados no Caldera",
                 )
             )
-            substages = SubStageSummary(
+            subphases = SubphaseSummary(
                 build_online_ok=True,
                 egress_closed=True,
                 egress_lost_verified=True,
@@ -1470,7 +1470,7 @@ class CurationEnvironmentProvisioner:
                 isolation=isolation,
                 health=health,
                 loaded_abilities=loaded_abilities,
-                substages=substages,
+                subphases=subphases,
                 failed_step="verificar_isolamento",
                 error_message=cause,
             )
@@ -1482,12 +1482,12 @@ class CurationEnvironmentProvisioner:
             )
         )
 
-        # --- Completion: every prerequisite and both sub-stages passed (Req. 4.5).
+        # --- Completion: every prerequisite and both subphases passed (Req. 4.5).
         return _output(
             isolation=isolation,
             health=health,
             loaded_abilities=loaded_abilities,
-            substages=substages,
+            subphases=subphases,
         )
 
     @staticmethod
@@ -1582,7 +1582,7 @@ class CurationEnvironmentProvisioner:
             return inspect_isolation(containers, self._inspector)
         except RuntimeError:
             # Docker daemon unavailable: fail-closed. A failed verdict per target
-            # container, with the reason, keeps Stage 5 incomplete.
+            # container, with the reason, keeps the environment phase incomplete.
             from app.services.containment import ContainerIsolationVerdict
 
             reason = "Docker Engine API indisponível; isolation não verificável"
@@ -1600,7 +1600,7 @@ class CurationEnvironmentProvisioner:
     ) -> DeprovisioningResult:
         """Teardown of the campaign environment — an actual ``compose down`` (Req. 8).
 
-        At the end of Stage 6 the lab that was **brought up** for the campaign is
+        At the end of the execution phase the lab that was **brought up** for the campaign is
         actually torn down: curation calls :meth:`ComposeExecutor.down`
         (``docker compose -f <compose> down``) to stop/remove the lab containers
         and free the hardware resources (Req. 8.1, 8.2). The teardown is driven by
@@ -1615,13 +1615,13 @@ class CurationEnvironmentProvisioner:
 
         Besides the ``compose down``, the teardown also **sweeps the ephemeral
         egress network** (:data:`~app.services.environment.egress.EGRESS_NETWORK`)
-        that sub-stage 5.1 may have created and that could have survived an error
-        (Req. 10.2) — covering what 5.1/5.2 created, not just the base lab. The
+        that subphase build_online may have created and that could have survived an error
+        (Req. 10.2) — covering what build_online/runtime_isolated created, not just the base lab. The
         sweep is best-effort: it never crashes the teardown, and a
         *not-found* network (already gone, the happy path) is treated as success,
         not a residue. The removal runs through the
         :meth:`ComposeExecutor.remove_network` operation; legacy ``up``/``down``-
-        only executors (injected by the earlier Stage-5 suites) predate it, so a
+        only executors (injected by the earlier environment-phase suites) predate it, so a
         ``hasattr`` guard skips the sweep gracefully for them.
 
         It maps the teardown outcome to the typed :class:`DeprovisioningResult`:
@@ -1637,7 +1637,7 @@ class CurationEnvironmentProvisioner:
           identify to the Researcher what stayed up (Req. 8.4, 10.3).
 
         Args:
-            environment: The Stage 5 output whose environment must be
+            environment: The environment phase output whose environment must be
                 deprovisioned — it carries the campaign's ``compose_file`` and
                 ``target_containers``.
             on_log: Callback for each teardown :class:`LogLine`, in order; *no-op*
@@ -1652,11 +1652,11 @@ class CurationEnvironmentProvisioner:
         executor = self._get_compose_executor()
         result = executor.down(compose_file, on_log=on_log)
 
-        # Sweep the ephemeral egress network (``EGRESS_NETWORK``) that sub-stage
-        # 5.1 may have created and that could have survived an error (Req. 10.2).
+        # Sweep the ephemeral egress network (``EGRESS_NETWORK``) that subphase
+        # build_online may have created and that could have survived an error (Req. 10.2).
         # It is best-effort: it must never crash the teardown, and a
         # "network not found" (already gone) is SUCCESS, not a residue. Legacy
-        # executors (``up``/``down``-only fakes injected by the earlier Stage-5
+        # executors (``up``/``down``-only fakes injected by the earlier environment-phase
         # suites) predate this operation — the ``hasattr`` guard skips the sweep
         # gracefully for them, so their behavior is unchanged.
         egress_failed = False
@@ -1703,7 +1703,7 @@ class CurationEnvironmentProvisioner:
         """Tell whether a failed ``remove_network`` only means the net was already gone.
 
         The egress sweep is best-effort: an ephemeral network that **never
-        survived** (the happy path closed it in 5.2) makes ``docker network rm``
+        survived** (the happy path closed it in runtime_isolated) makes ``docker network rm``
         fail with a *not-found* message — which is **not** a residue (Req. 10.2).
         This inspects the emitted lines for the daemon's "not found"/"no such
         network" marker; when present, the caller treats the removal as a success.
@@ -1762,7 +1762,7 @@ class CurationEnvironmentProvisioner:
         ``isolated`` — curation does not provision, so it can only approve an
         already-isolated environment (Req. 5.4, 5.6); if it is not isolated,
         ``isolated=False`` and the topology is still returned with the verdicts
-        (the screen shows the reason and Stage 5 is blocked).
+        (the screen shows the reason and the environment phase is blocked).
 
         It accesses no network and invokes no AI on any path (Req. 5.5, 5.7).
         """
@@ -1773,7 +1773,7 @@ class CurationEnvironmentProvisioner:
         # campaign attacks), NOT the attacker/C2 hosts. The Caldera C2 legitimately
         # joins a non-internal management network so the operator can reach its UI;
         # including it here would be a false negative. This mirrors exactly what the
-        # Execution gate (OperationRunner) verifies, so Stage 5 and Stage 6 agree.
+        # Execution gate (OperationRunner) verifies, so the environment and execution phases agree.
         containers = target_container_names()
         isolation = inspect_isolation(containers, self._inspector)
 
@@ -1798,17 +1798,17 @@ class CurationEnvironmentProvisioner:
 
 __all__ = [
     "CalderaLoader",
-    # typed Stage 5 output DTOs (task 7.1)
+    # typed the environment phase output DTOs (task 7.1)
     "ContainerVerdict",
     "CurationEnvironmentProvisioner",
-    # teardown result at the end of Stage 6 (task 8.4)
+    # teardown result at the end of the execution phase (task 8.4)
     "DeprovisioningResult",
-    # Stage-5 sub-stage DTOs (task 6)
+    # environment-phase subphase DTOs (task 6)
     "EgressVerdictView",
     "EnvironmentProvisioner",
     "IsolationSummary",
     "ProvisionedEnvironment",
-    # seam + compat. result (Stage 4) + curation
+    # seam + compat. result (environment phase) + curation
     "ProvisioningResult",
-    "SubStageSummary",
+    "SubphaseSummary",
 ]

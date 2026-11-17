@@ -1,4 +1,4 @@
-"""Stage agents and the evaluator node for the AI curation loop.
+"""Phase agents and the evaluator node for the AI curation loop.
 
 Will host the seam implementations ``FlowAgent`` (``flow_agent.py``),
 ``AiOperationalizer`` (``op_agent.py``) and ``AiEnvironmentProvisioner``

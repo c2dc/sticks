@@ -1,23 +1,23 @@
 """Evaluator node — closes the plan→execute→measure→improve loop (task 13.2).
 
-This module hosts the LangGraph ``node(state) -> dict`` that reads the Stage 6
+This module hosts the LangGraph ``node(state) -> dict`` that reads the Execution phase
 report produced by the execute node (:func:`app.services.ai.graph.execute_node`),
 scores it against the existing **procedural-sufficiency metric**, and decides
-whether to ``FINISH`` the run or ``REFINE`` a stage and loop again.
+whether to ``FINISH`` the run or ``REFINE`` a phase and loop again.
 
 What the node does (Req. 1.5, 1.6, 8.6, 10.1-10.6):
 
-* Reads ``state["report"]`` — the serialized Stage 6
+* Reads ``state["report"]`` — the serialized Execution phase
   :class:`~app.services.operation.runner.OperationRunResult`.
 * Extracts the procedural-sufficiency metric and the ``verdict_success`` flag
   **unchanged** and records them as the iteration's score (Req. 10.1, 10.5): the
-  evaluator never recomputes or rescales the Stage 6 numbers, it only reads them.
+  evaluator never recomputes or rescales the Execution phase numbers, it only reads them.
 * Decides :attr:`EvaluatorDecision.FINISH` when ``verdict_success`` is true, else
   :attr:`EvaluatorDecision.REFINE` (Req. 10.2, 10.3). The max-iteration *guard*
   that turns a would-be REFINE into a FINISH/ABORTED when the bound is hit lives
   in ``route_after_eval`` (task 14.3): the evaluator always decides REFINE on a
   failing verdict and the router enforces the bound (Req. 10.4).
-* Diagnoses which stage to re-enter (``refine_stage``) from the report's failed
+* Diagnoses which phase to re-enter (``refine_phase``) from the report's failed
   nodes and the retrieved cross-campaign experience.
 * Persists the LLM ``rationale`` bounded to 10,000 characters (Req. 11.8) and
   stores the finalized outcome back into the long-term RAG memory via
@@ -33,7 +33,7 @@ iteration eligible for refinement*: the node records an ``error`` indication,
 decides ``REFINE``, and does **not** persist a procedural-sufficiency score for
 that iteration (``success_rate``/``procedural_coverage`` are left out of the
 evaluation). Crucially it does **not** overwrite the existing run state — the
-returned delta carries only ``evaluation``, ``refine_stage`` and ``error``; the
+returned delta carries only ``evaluation``, ``refine_phase`` and ``error``; the
 ``report`` and every prior artifact in ``state`` survive the merge.
 
 Persistence is **factored out** of the node (Req. 11.5/11.6): the node only reads
@@ -66,7 +66,7 @@ __all__ = ["node", "persist_evaluation"]
 # ``agent_evaluations.rationale`` (``_RATIONALE_MAX_LENGTH`` in models.domain).
 _RATIONALE_MAX_LENGTH = 10_000
 
-# The Stage 6 runner outcomes that mean the safety machinery rejected the
+# The Execution phase runner outcomes that mean the safety machinery rejected the
 # proposal (or the run never executed): each is a failed/blocked iteration the
 # evaluator must treat as eligible for refinement (Req. 8.6, 10.6). The values
 # mirror ``app.services.operation.runner.RunOutcome``; kept as literals here so
@@ -82,7 +82,7 @@ _GATE_REJECTION_OUTCOMES = frozenset(
 )
 
 # The runner outcome that means the Operation actually ran to completion; only
-# then is the Stage 6 procedural-sufficiency metric meaningful as a score.
+# then is the Execution phase procedural-sufficiency metric meaningful as a score.
 _COMPLETED_OUTCOME = "concluida"
 
 
@@ -99,13 +99,13 @@ def node(
     runner verdict and the real containment/isolation state the ``execution``
     phase produced — and renders the verdict from it, decoupled from the execute
     step. For the procedural-sufficiency score it still reads ``state["report"]``
-    (the serialized Stage 6 result) **unchanged** (Req. 10.1). When no execution
+    (the serialized Execution phase result) **unchanged** (Req. 10.1). When no execution
     result was carried (an older checkpoint, or a report-only caller/test) the
     verdict is derived from the report, keeping the contract backward-compatible.
 
     Decides :attr:`EvaluatorDecision.FINISH` on a passing verdict
     else :attr:`EvaluatorDecision.REFINE` (Req. 10.2, 10.3), diagnoses the
-    refine-target stage, persists the rationale (≤10,000 chars) and stores the
+    refine-target phase, persists the rationale (≤10,000 chars) and stores the
     outcome back into the RAG memory (design §Evaluator node). The max-iteration
     guard is enforced downstream in ``route_after_eval`` (task 14.3), so the node
     decides REFINE on failure and leaves the bound to the router (Req. 10.4).
@@ -115,13 +115,13 @@ def node(
     records an ``error`` indication, does **not** persist a
     procedural-sufficiency score for the iteration, and does **not** overwrite the
     existing run state (the returned delta touches only ``evaluation``,
-    ``refine_stage`` and ``error``).
+    ``refine_phase`` and ``error``).
 
     Args:
         state: The shared :class:`~app.services.ai.state.AgentState`; the
             structured execution result is read from ``state["execution_result"]``
             (the ``execution`` phase's verdict + containment/isolation state), the
-            Stage 6 report from ``state["report"]`` (for the unchanged metric),
+            Execution phase report from ``state["report"]`` (for the unchanged metric),
             and the retrieved cross-campaign experience from
             ``state["retrieved_experience"]``.
         memory: Optional :class:`~app.services.ai.memory.ExperienceMemory` used to
@@ -135,7 +135,7 @@ def node(
         A state delta. On a readable, executed report::
 
             {"evaluation": {...metrics + decision + rationale...},
-             "refine_stage": <AgentStage value | None>}
+             "refine_phase": <AgentPhase value | None>}
 
         On a gate rejection or a missing/unreadable report the delta additionally
         carries ``"error"`` and the evaluation omits the procedural-sufficiency
@@ -189,7 +189,7 @@ def node(
     verdict_success = _verdict_success_from(execution_result, report)
 
     # Record the procedural-sufficiency metric UNCHANGED as the iteration's
-    # score (Req. 10.1, 10.5): read the Stage 6 numbers, never recompute them.
+    # score (Req. 10.1, 10.5): read the Execution phase numbers, never recompute them.
     evaluation: dict[str, Any] = {
         "success_rate": _read_success_rate(report),
         "procedural_coverage": _read_procedural_coverage(report),
@@ -202,13 +202,13 @@ def node(
         # the Run_Service marks the run COMPLETED (Req. 3.2).
         evaluation["decision"] = EvaluatorDecision.FINISH.value
         evaluation["rationale"] = _bounded(_finish_rationale(report, evaluation))
-        refine_stage: str | None = None
+        refine_phase: str | None = None
     else:
         # Failing verdict → REFINE (Req. 10.3). The bound is enforced by
         # route_after_eval (task 14.3), which turns a guard-hit REFINE into a
         # FINISH/ABORTED (Req. 10.4) — the evaluator always decides REFINE here.
         evaluation["decision"] = EvaluatorDecision.REFINE.value
-        refine_stage, rationale = _diagnose_failing_stage(report, experience)
+        refine_phase, rationale = _diagnose_failing_phase(report, experience)
         evaluation["rationale"] = _bounded(rationale)
 
     # Store the finalized curation outcome (success OR failure) back into the
@@ -217,7 +217,7 @@ def node(
     # decision the node already made.
     _store_outcome(state, report, evaluation, memory=memory)
 
-    return {"evaluation": evaluation, "refine_stage": refine_stage}
+    return {"evaluation": evaluation, "refine_phase": refine_phase}
 
 
 # ---------------------------------------------------------------------------
@@ -239,12 +239,12 @@ def _refine_without_score(
     the procedural-sufficiency score from the evaluation (no ``success_rate`` /
     ``procedural_coverage`` key) because the iteration produced no meaningful
     metric (Req. 10.6). The returned delta carries only ``evaluation``,
-    ``refine_stage`` and ``error`` so the existing run state (the ``report`` and
+    ``refine_phase`` and ``error`` so the existing run state (the ``report`` and
     every prior artifact) is preserved on the merge, not overwritten.
     """
     from app.models.enums import EvaluatorDecision
 
-    refine_stage, rationale = _diagnose_failing_stage(report, experience)
+    refine_phase, rationale = _diagnose_failing_phase(report, experience)
 
     evaluation: dict[str, Any] = {
         "verdict_success": False,
@@ -260,24 +260,26 @@ def _refine_without_score(
 
     return {
         "evaluation": evaluation,
-        "refine_stage": refine_stage,
+        "refine_phase": refine_phase,
         "error": error,
     }
 
 
 def _report_read_error(report: Any) -> str | None:
-    """Return an error indication when the Stage 6 report is absent/unreadable.
+    """Return an error indication when the Execution phase report is absent/unreadable.
 
     Signals Req. 1.6 / 10.6: ``None`` means the report is a usable mapping;
     otherwise a human-readable cause identifying the missing or unreadable report
     is returned so the node can record it and refine.
     """
     if report is None:
-        return "Relatório do Estágio 6 ausente: nenhuma execução foi registrada."
+        return "Relatório da fase execution ausente: nenhuma execução foi registrada."
     if not isinstance(report, dict):
-        return f"Relatório do Estágio 6 ilegível: formato inesperado ({type(report).__name__})."
+        return (
+            f"Relatório da fase execution ilegível: formato inesperado ({type(report).__name__})."
+        )
     if not report:
-        return "Relatório do Estágio 6 vazio: nenhuma métrica disponível."
+        return "Relatório da fase execution vazio: nenhuma métrica disponível."
     return None
 
 
@@ -361,15 +363,15 @@ def _gate_cause_message(outcome_value: str, report: dict[str, Any]) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Metric extraction — read the Stage 6 numbers UNCHANGED (Req. 10.1, 10.5)
+# Metric extraction — read the Execution phase numbers UNCHANGED (Req. 10.1, 10.5)
 # ---------------------------------------------------------------------------
 #
-# The design sketch reads ``report["metrics"][...]``. The real Stage 6 report is
+# The design sketch reads ``report["metrics"][...]``. The real Execution phase report is
 # a serialized ``OperationRunResult`` (``outcome``/``state``/``total_success``/
 # ``total_failure``/``ability_results``/...), which has no ``metrics`` sub-dict.
 # These readers therefore honour an explicit ``metrics`` block when present (the
 # idealized/fake shape used by tests), and otherwise derive the same values from
-# the real runner result — in both cases reading the Stage 6 output *unchanged*
+# the real runner result — in both cases reading the Execution phase output *unchanged*
 # (never rescaling or recomputing the underlying counts).
 
 
@@ -470,18 +472,18 @@ def _read_failed_nodes(report: dict[str, Any]) -> list[str]:
 # ---------------------------------------------------------------------------
 
 
-def _diagnose_failing_stage(report: Any, experience: list[dict[str, Any]]) -> tuple[str, str]:
-    """Diagnose which curated stage to re-enter and explain why (design §Evaluator).
+def _diagnose_failing_phase(report: Any, experience: list[dict[str, Any]]) -> tuple[str, str]:
+    """Diagnose which curated phase to re-enter and explain why (design §Evaluator).
 
-    Returns ``(refine_stage, rationale)`` where ``refine_stage`` is an
-    :class:`~app.models.enums.AgentStage` *value* (``estagio_3_flow`` /
-    ``estagio_4_operacionalizacao`` / ``estagio_5_ambiente``). The heuristic keeps
+    Returns ``(refine_phase, rationale)`` where ``refine_phase`` is an
+    :class:`~app.models.enums.AgentPhase` *value* (``flow`` /
+    ``operationalization`` / ``environment``). The heuristic keeps
     the loop focused:
 
-    * a gate rejection / non-executed outcome points at the environment stage
-      (isolation) or the operationalization stage (containment/confirmation),
+    * a gate rejection / non-executed outcome points at the environment phase
+      (isolation) or the operationalization phase (containment/confirmation),
       since those are what the gate judged;
-    * otherwise failed executed nodes point at the operationalization stage (the
+    * otherwise failed executed nodes point at the operationalization phase (the
       command semantics that did not achieve the technique);
     * with no signal at all it defaults to operationalization — the
       command-semantics core, the most common refine target.
@@ -489,7 +491,7 @@ def _diagnose_failing_stage(report: Any, experience: list[dict[str, Any]]) -> tu
     The rationale is a short, auditable explanation that cites the metrics and,
     when available, how many cross-campaign experience snippets primed the pass.
     """
-    from app.models.enums import AgentStage
+    from app.models.enums import AgentPhase
 
     report_dict = report if isinstance(report, dict) else {}
     outcome = getattr(report_dict.get("outcome"), "value", report_dict.get("outcome"))
@@ -497,43 +499,43 @@ def _diagnose_failing_stage(report: Any, experience: list[dict[str, Any]]) -> tu
     experience_count = len(experience or [])
 
     if outcome in {"isolamento_falhou", "isolamento_quebrado"}:
-        stage = AgentStage.ENVIRONMENT
+        phase = AgentPhase.ENVIRONMENT
         why = (
             "o gate de isolamento rejeitou o ambiente proposto; refinar o "
-            "Estágio 5 (ambiente) para garantir contêineres isolados."
+            "fase environment para garantir contêineres isolados."
         )
     elif outcome in {"contencao_recusada", "nao_confirmada", "caldera_indisponivel"}:
-        stage = AgentStage.OPERATIONALIZATION
+        phase = AgentPhase.OPERATIONALIZATION
         why = (
             "a proposta foi bloqueada antes da execução (contenção/confirmação); "
-            "refinar o Estágio 4 (operacionalização) para propor comandos "
+            "refinar a fase operationalization para propor comandos "
             "contidos e executáveis."
         )
     elif failed_nodes:
-        stage = AgentStage.OPERATIONALIZATION
+        phase = AgentPhase.OPERATIONALIZATION
         why = (
             "nós executados falharam em cumprir a técnica "
-            f"({', '.join(failed_nodes[:5])}); refinar o Estágio 4 "
+            f"({', '.join(failed_nodes[:5])}); refinar a fase operationalization "
             "(operacionalização) para ajustar a semântica dos comandos."
         )
     else:
-        stage = AgentStage.OPERATIONALIZATION
+        phase = AgentPhase.OPERATIONALIZATION
         why = (
             "veredito de insucesso sem nó falho identificado; refinar o "
-            "Estágio 4 (operacionalização) como alvo padrão."
+            "fase operationalization como alvo padrão."
         )
 
     rationale = (
-        f"Decisão REFINAR. Alvo: {stage.value}. Motivo: {why} "
+        f"Decisão REFINAR. Alvo: {phase.value}. Motivo: {why} "
         f"Experiência cruzada utilizada: {experience_count} registro(s)."
     )
-    return stage.value, rationale
+    return phase.value, rationale
 
 
 def _finish_rationale(report: dict[str, Any], evaluation: dict[str, Any]) -> str:
     """Build the auditable rationale for a FINISH decision (passing verdict)."""
     return (
-        "Decisão FINALIZAR. Veredito de sucesso no Estágio 6: taxa de sucesso "
+        "Decisão FINALIZAR. Veredito de sucesso na fase execution: taxa de sucesso "
         f"{evaluation.get('success_rate')}, cobertura procedural "
         f"{evaluation.get('procedural_coverage')}. A curadoria gerada atende à "
         "métrica de suficiência procedural; encerrando o laço."
@@ -617,7 +619,7 @@ def persist_evaluation(
             work). This helper only ``add``/``flush``es; it does not commit.
         iteration_id: The owning ``agent_iterations`` row id.
         evaluation: The evaluation dict produced by :func:`node`.
-        report_id: The Stage 6 ``execution_reports`` row id the evaluator read,
+        report_id: The Execution phase ``execution_reports`` row id the evaluator read,
             when the Run_Service has persisted/resolved one.
 
     Returns:

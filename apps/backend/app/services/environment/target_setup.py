@@ -1,7 +1,7 @@
-"""Deterministic online/offline split of the curated target setup (Stage 5.1/5.2).
+"""Deterministic online/offline split of the curated target setup (build_online/runtime_isolated).
 
-Stage 5.1 (Build/online) needs to know **what** to run with an egress window
-open, and Stage 5.2 (Runtime/isolated) needs the remainder to run with no
+The build_online subphase (Build/online) needs to know **what** to run with an egress window
+open, and the runtime_isolated subphase (Runtime/isolated) needs the remainder to run with no
 internet. The curated setup scripts (e.g. ``shadowray_suta.sh``) are
 **monolithic**: a single file mixes ``apt-get install``/``pip3 install``
 (online) with ``useradd``, payload writing (``cat > ... << EOF``) and service
@@ -12,8 +12,8 @@ that the ``TargetSetup`` seam (task 5) and the orchestration (task 7) consume:
 
 ``SetupPhase``
     The phase a command belongs to — :attr:`SetupPhase.ONLINE` (needs the
-    internet, runs inside the egress window of 5.1) or :attr:`SetupPhase.OFFLINE`
-    (no internet, runs in the isolated window of 5.2).
+    internet, runs inside the egress window of build_online) or :attr:`SetupPhase.OFFLINE`
+    (no internet, runs in the isolated window of runtime_isolated).
 
 ``ClassifiedCommand``
     A single curated command paired with its classified :class:`SetupPhase`
@@ -59,9 +59,9 @@ class SetupPhase(StrEnum):
     """The phase a curated setup command belongs to (Req. 2.2, 5.1).
 
     ``ONLINE`` commands need the internet (download/install) and run inside the
-    controlled egress window of sub-stage 5.1; ``OFFLINE`` commands do **not**
+    controlled egress window of subphase build_online; ``OFFLINE`` commands do **not**
     need the internet (users, payloads, service starts) and run in the isolated
-    window of sub-stage 5.2.
+    window of subphase runtime_isolated.
     """
 
     ONLINE = "online"
@@ -158,8 +158,8 @@ class TargetSetup(Protocol):
     Docker daemon); production injects :class:`DockerTargetSetup`.
 
     The orchestration (task 7) calls :meth:`apply` **twice** per host — once with
-    :attr:`SetupPhase.ONLINE` inside the egress window of sub-stage 5.1, and once
-    with :attr:`SetupPhase.OFFLINE` in the isolated window of sub-stage 5.2 —
+    :attr:`SetupPhase.ONLINE` inside the egress window of subphase build_online, and once
+    with :attr:`SetupPhase.OFFLINE` in the isolated window of subphase runtime_isolated —
     passing the **same** classified list each time. The implementation runs only
     the commands whose :attr:`ClassifiedCommand.phase` matches ``phase``.
     """
@@ -184,8 +184,8 @@ class TargetSetup(Protocol):
             container: The target container the setup is applied in.
             commands: The classified setup commands (both phases); only those whose
                 phase equals ``phase`` are run.
-            phase: The :class:`SetupPhase` to apply (``ONLINE`` for 5.1, ``OFFLINE``
-                for 5.2).
+            phase: The :class:`SetupPhase` to apply (``ONLINE`` for build_online, ``OFFLINE``
+                for runtime_isolated).
             on_log: Callback invoked for each :class:`LogLine` emitted, in order.
 
         Returns:
@@ -248,7 +248,7 @@ class DockerTargetSetup:
         and propagates the non-zero code of the **first** failing command (Req.
         3.3); skips non-matching commands; aggregates the emitted lines.
 
-        ``best_effort=True`` — used by the Stage-5 orchestration when applying the
+        ``best_effort=True`` — used by the environment phase orchestration when applying the
         curated per-host setup — makes a non-zero command **non-fatal**: the setup
         of a lab target is inherently idempotent/best-effort (the curated
         ``*_suta.sh`` scripts themselves use ``|| true``), and a host aggregates

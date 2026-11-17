@@ -49,7 +49,7 @@ friendly). :func:`build_resource_plan` turns the agent's proposed targets into a
 
 Placement: the Environment agent builds a :class:`ResourcePlan` from its proposed
 targets and invokes :meth:`ResourceGate.evaluate` **before** provisioning. A
-rejected plan fails the environment stage with the exceeded-limit reasons recorded
+rejected plan fails the environment phase with the exceeded-limit reasons recorded
 in the trace; **no container is created** (design §D; wired by task 6.2).
 ``ResourceGate`` is a factual/structured authority (design §F) — not a
 vector-memory concern.
@@ -127,6 +127,9 @@ class ResourceGateVerdict:
     reasons: list[str] = field(default_factory=list)
 
 
+_DEFAULT_RESOURCE_LIMITS = ResourceLimits()
+
+
 class ResourceGate:
     """Deterministic, code-level authority over the host-resource limits (design §D).
 
@@ -141,7 +144,7 @@ class ResourceGate:
     _Requirements: 3.1, 12.2_
     """
 
-    def __init__(self, limits: ResourceLimits = ResourceLimits()) -> None:
+    def __init__(self, limits: ResourceLimits = _DEFAULT_RESOURCE_LIMITS) -> None:
         """Assemble the gate with the limits it enforces.
 
         Args:
@@ -162,7 +165,7 @@ class ResourceGate:
         ``ram_gb <= max_ram_gb`` **and** ``disk_gb <= max_disk_gb``. Whenever any
         limit is exceeded the verdict is ``approved=False`` and every exceeded
         limit is named in ``reasons`` (in the stable order containers → RAM → disk),
-        so the environment stage can record exactly which limit(s) the plan broke
+        so the environment phase can record exactly which limit(s) the plan broke
         in the trace. No container is created on a rejection (enforced by the caller
         — the gate itself is read-only). An approving verdict always carries an
         empty ``reasons`` list.

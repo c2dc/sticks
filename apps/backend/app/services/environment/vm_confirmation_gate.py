@@ -1,6 +1,6 @@
 """VM_Confirmation_Gate — container is always provisioned; VM is a future contract.
 
-A small, deterministic, code-level unit of the Stage 5 (Simulation-environment
+A small, deterministic, code-level unit of the environment phase (Simulation-environment
 creation) flow, modeled on the containment/isolation and
 :mod:`app.services.environment.resource_gate` gates (agent proposes, gate
 disposes). It encodes design decision #5 ("container always; VM is a future
@@ -29,7 +29,7 @@ The "would require a VM" trigger
 --------------------------------
 Nothing in this spec currently emits a VM requirement — ``EnvironmentParameters``
 is container-only (Req. 17.1). So the trigger is modeled **conservatively** as a
-pure predicate over the Stage 4
+pure predicate over the operationalization phase
 :class:`~app.services.environment.operationalization.EnvironmentParameters`: a VM
 is deemed required only when the parameters carry an **explicit**
 ``virtual_machine`` platform marker (:func:`would_require_vm`). Because no curated
@@ -39,7 +39,7 @@ origin that could set the marker. The heuristic is intentionally narrow
 (explicit-marker only) so the gate never second-guesses the agent's proposal.
 
 Placement: :meth:`VmConfirmationGate.evaluate` is a pure function of the
-parameters and the configured limits; the Stage 5 env path invokes it **before**
+parameters and the configured limits; the environment phase env path invokes it **before**
 stamping the output platform and keeps the effective platform ``CONTAINER``
 regardless of the verdict (wired into ``AiEnvironmentProvisioner.provision``). The
 gate itself creates nothing — it is read-only, exactly like the ResourceGate.
@@ -70,7 +70,7 @@ _MSG_VM_REQUESTED = (
 class VmConfirmationRecord(BaseModel):
     """Structured record of a :class:`VmConfirmationGate` evaluation (Req. 14.6-14.8).
 
-    Attached to the Stage 5 output (``ProvisionedEnvironment.vm_confirmation``) so
+    Attached to the environment phase output (``ProvisionedEnvironment.vm_confirmation``) so
     the screen/audit can show whether a VM was requested and that it was
     deliberately **not** provisioned. On the normal (container-only) path the
     record is dormant: ``triggered`` is ``False`` and no confirmation is requested.
@@ -111,7 +111,7 @@ def would_require_vm(params: EnvironmentParameters) -> bool:
 
     The trigger for the :class:`VmConfirmationGate`, modeled narrowly so the gate
     never fabricates a VM requirement. A VM is deemed required **only** when the
-    Stage 4 :class:`EnvironmentParameters` carry an **explicit** ``virtual_machine``
+    The operationalization phase :class:`EnvironmentParameters` carry an **explicit** ``virtual_machine``
     platform marker. ``EnvironmentParameters`` is container-only in this spec
     (Req. 17.1), so no current curated derivation sets that marker and the
     predicate returns ``False`` on every present path — the gate stays dormant —
@@ -119,7 +119,7 @@ def would_require_vm(params: EnvironmentParameters) -> bool:
     :attr:`~app.models.enums.EnvironmentPlatform.VM`.
 
     Args:
-        params: The Stage 4 output whose platform marker is inspected.
+        params: The operationalization phase output whose platform marker is inspected.
 
     Returns:
         ``True`` iff ``params.platform`` is the explicit
@@ -164,7 +164,7 @@ class VmConfirmationGate:
         provisions a VM.
 
         Args:
-            params: The Stage 4 output whose VM requirement is adjudicated.
+            params: The operationalization phase output whose VM requirement is adjudicated.
 
         Returns:
             The :class:`VmConfirmationRecord`. ``effective_platform`` is

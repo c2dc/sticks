@@ -106,7 +106,7 @@ def _read_persisted(
 
 
 class BaseListItem(BaseStixInfo):
-    """A base of the listing, with the ``completed`` verdict of the old stage 1.
+    """A base of the listing, with the ``completed`` verdict of the old input phase.
 
     ``completed`` is true exactly when the version is persisted in the database,
     which is what ``downloaded`` already reflects for this listing.

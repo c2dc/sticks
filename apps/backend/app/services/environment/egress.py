@@ -1,17 +1,17 @@
-"""Egress-window seam of Stage 5 — one way at a time (containment skeleton).
+"""Egress-window seam of the environment phase — one way at a time (containment skeleton).
 
 This module hosts the **containment-critical** seams that keep a target host
 from ever being, at the same instant, (a) reachable from the internet **and**
 (b) attached to the lab attack networks alongside the other targets (Req. 5.1).
 
-Sub-stage **5.1 (Build/online)** needs a *controlled* egress window to download
-and install the heavy prerequisites each host needs; sub-stage **5.2
+Subphase **build_online (Build/online)** needs a *controlled* egress window to download
+and install the heavy prerequisites each host needs; subphase **runtime_isolated
 (Runtime/isolated)** must then re-isolate the host and **positively verify** the
 loss of egress before any offline setup runs. The pieces live here:
 
 ``EGRESS_NETWORK``
     The name of the ephemeral **bridge** network (NOT ``internal: true``) that
-    grants a single target internet access during the 5.1 window. It only exists
+    grants a single target internet access during the build_online window. It only exists
     for the duration of the window and is torn down afterwards (and swept in the
     deprovision — Req. 10).
 
@@ -62,7 +62,7 @@ from app.services.environment.topology_builder import (
 # Constants
 # ---------------------------------------------------------------------------
 
-#: The ephemeral egress network used only during the 5.1 build window. It is a
+#: The ephemeral egress network used only during the build_online build window. It is a
 #: **bridge** network (NOT ``internal: true``), so a target attached to it can
 #: reach the internet; it only ever exists while a single host's egress window
 #: is open, and the deprovision sweeps it if it survived an error (Req. 10). It
@@ -100,7 +100,7 @@ def attack_networks_for(containers: list[str]) -> list[str]:
     the single source of truth being
     :data:`~app.services.containment.subnets.INTERNAL_NETWORK_SUBNETS`. They are
     **backend constants** — never derived from user input — and are the networks
-    the egress window must ``detach`` before opening egress and that 5.2 reattaches
+    the egress window must ``detach`` before opening egress and that runtime_isolated reattaches
     when it re-isolates the host.
 
     Args:
@@ -133,7 +133,7 @@ def attack_networks_with_ip_for(container: str) -> list[tuple[str, str | None]]:
     Restores the EXACT curated compose topology for a target: only the attack
     networks the host actually belongs to (:data:`NETWORK_MEMBERS`), each paired
     with the host's FIXED compose IP on that network (derived from
-    :data:`STATIC_IP_CONTAINERS` by subnet). This is what sub-stage 5.2
+    :data:`STATIC_IP_CONTAINERS` by subnet). This is what subphase runtime_isolated
     (``reisolar``) uses so the host comes back on ``192.168.20.30`` /
     ``192.168.30.30`` (etc.) — the addresses the abilities target — instead of a
     dynamic Docker address on every lab network. Networks are returned under
@@ -177,7 +177,7 @@ class EgressWindowResult:
             both at once). ``False`` otherwise.
         closed: ``True`` when the window was closed — the target was detached from
             :data:`EGRESS_NETWORK`. After this the target carries no attack network
-            until 5.2 reattaches it.
+            until runtime_isolated reattaches it.
         reason: A human-readable cause when the operation did not fully succeed,
             ``None`` on success.
     """
@@ -234,7 +234,7 @@ class EgressWindow(Protocol):
         """``detach(EGRESS_NETWORK)`` — end the window (Req. 2.5, 5.3).
 
         Detaches ``container`` from :data:`EGRESS_NETWORK`, ending its internet
-        access. After this the target carries no attack network until 5.2 reattaches
+        access. After this the target carries no attack network until runtime_isolated reattaches
         it, so the containment invariant holds across the whole transition.
 
         Args:
@@ -437,7 +437,7 @@ class EgressProber(Protocol):
 def egress_lost(verdicts: list[EgressVerdict]) -> bool:
     """Approve only when **every** target lost egress **conclusively** (fail-closed).
 
-    This is the pure gate 5.2 consults before any offline setup runs: it returns
+    This is the pure gate the runtime_isolated subphase consults before any offline setup runs: it returns
     ``True`` only when there is at least one verdict and **all** verdicts report
     both ``egress_lost`` and ``conclusive``. Consequences, all fail-closed:
 

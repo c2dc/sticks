@@ -8,7 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { EmptyNote } from "@/components/StageSection"
+import { EmptyNote } from "@/components/PhaseSection"
 import { ApiError } from "@/lib/api"
 import { useAsyncData } from "@/lib/use-async-data"
 import { getPackageOverview, type StixPackageOverview } from "@/lib/stix"
@@ -20,7 +20,7 @@ export interface StixIntelligenceDashboardProps {
   onGoToSelection?: () => void
   /**
    * Hides the "select campaign/actor" CTA. The dashboard is also embedded as
-   * the body of Stage 1 inside the ExecutionWizard, where navigation is driven
+   * the body of the input phase inside the ExecutionWizard, where navigation is driven
    * by the wizard's own "Next" control, so the standalone CTA is hidden there.
    */
   hideCta?: boolean

@@ -10,25 +10,25 @@ import {
 import { cn } from "@/lib/utils"
 
 /**
- * A labelled, visually-separated stage panel — one of Entrada / Processamento /
- * Saída (Req. 1.2). Shared by Stage1View / Stage2View / Stage3View so each
- * stage renders its three sections consistently.
+ * A labelled, visually-separated phase panel — one of Entrada / Processamento /
+ * Saída (Req. 1.2). Shared by the phase views so each
+ * phase renders its three sections consistently.
  *
  * `kind` maps to the blue/red/purple team palette accent used on the panel
  * heading: Entrada leans blue (defensive/source), Processamento purple
- * (combined), Saída neutral by default — Stage3View overrides Saída to red for
+ * (combined), Saída neutral by default — the execution view overrides Saída to red for
  * the offensive emulation result.
  */
-export type StageSectionKind = "blue" | "red" | "purple" | "neutral"
+export type PhaseSectionKind = "blue" | "red" | "purple" | "neutral"
 
-const ACCENT: Record<StageSectionKind, string> = {
+const ACCENT: Record<PhaseSectionKind, string> = {
   blue: "text-team-blue",
   red: "text-team-red",
   purple: "text-team-purple",
   neutral: "text-muted-foreground",
 }
 
-export function StageSection({
+export function PhaseSection({
   label,
   kind = "neutral",
   description,
@@ -37,7 +37,7 @@ export function StageSection({
   "data-section": dataSection,
 }: {
   label: string
-  kind?: StageSectionKind
+  kind?: PhaseSectionKind
   description?: ReactNode
   children: ReactNode
   className?: string

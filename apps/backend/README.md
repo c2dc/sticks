@@ -1,7 +1,7 @@
 # Pipeline UI — Backend (FastAPI)
 
 Backend for the project's **Pipeline UI** (`sticks`). It orchestrates the
-existing three-stage pipeline, exposes the REST/WebSocket API to the frontend,
+existing pipeline, exposes the REST/WebSocket API to the frontend,
 enforces the containment checks, and persists state.
 
 This project is **additive**: it reuses (without duplicating) the code and
@@ -14,7 +14,7 @@ apps/backend/
   app/
     core/       # configuration + integration with the existing sticks pipeline
     models/     # SQLAlchemy domain models
-    services/   # application services (CampaignService, StageService, ...)
+    services/   # application services (CampaignService, ...)
     api/        # REST routes
     ws/         # WebSocket/SSE channels
     main.py     # app factory + root router

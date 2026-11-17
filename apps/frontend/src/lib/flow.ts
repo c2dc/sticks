@@ -3,16 +3,16 @@
  *
  * The flow is intentionally minimal: the Landing screen and the
  * `ExecutionWizard`. Clicking "Start" on the Landing goes straight into the
- * wizard at Stage 1 — base selection (Stage 1) and campaign selection (Stage 2)
- * happen INSIDE the wizard, one screen per stage, so there are no standalone
+ * wizard at the input phase — base selection and campaign selection
+ * happen INSIDE the wizard, one screen per phase, so there are no standalone
  * base/dashboard/selection screens before it anymore.
  *
  * The reducer is pure and deterministic — exported on its own so the navigation
  * invariants can be checked by property tests without mounting the DOM.
  *
  * Terminology: a STIX `campaign` (the adversary campaign being reproduced) is
- * chosen in Stage 2 of the wizard. The chosen campaign's curated slug becomes
- * the `campaignId` that drives Stages 3..6 — that selection lives in the wizard,
+ * chosen in the input phase of the wizard. The chosen campaign's curated slug becomes
+ * the `campaignId` that drives the flow through execution — that selection lives in the wizard,
  * not here, so this machine carries no campaign state.
  *
  * State diagram:

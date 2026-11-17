@@ -240,9 +240,9 @@ class ExperienceMemory:
     ) -> None:
         """Embed and upsert the curation outcome (success or failure) for RAG.
 
-        Builds a human-readable snippet from the Stage 6 ``report`` and the
+        Builds a human-readable snippet from the Execution phase ``report`` and the
         evaluator ``evaluation``, embeds it, and persists one
-        ``experience_memory`` row carrying the ``campaign_id``, the ``stage``, the
+        ``experience_memory`` row carrying the ``campaign_id``, the ``phase``, the
         ``outcome`` (``sucesso``/``falha``), the embedding and the filtering
         metadata (Requirement 5.1).
 
@@ -299,7 +299,7 @@ class ExperienceMemory:
 
         row = ExperienceMemoryRow(
             campaign_id=campaign_id,
-            stage=self._resolve_stage(evaluation),
+            phase=self._resolve_phase(evaluation),
             outcome=self._resolve_outcome(report),
             content=content,
             embedding=embedding,
@@ -317,7 +317,7 @@ class ExperienceMemory:
         content: str,
         metadata: dict[str, Any] | None = None,
         campaign_id: str | None = None,
-        stage: Any = None,
+        phase: Any = None,
         outcome: str = "success",
         dedup_key: str | None = None,
     ) -> bool:
@@ -338,8 +338,8 @@ class ExperienceMemory:
         ``False``; a new row returns ``True``. Every stored row has an embedding.
 
         ``kind`` must be one of :data:`AFFINITY_KINDS`. ``campaign_id`` defaults
-        to the campaign-agnostic sentinel anchor; ``stage`` defaults to the
-        operationalization stage; ``outcome`` is bounded to ``sucesso | falha`` by
+        to the campaign-agnostic sentinel anchor; ``phase`` defaults to the
+        operationalization phase; ``outcome`` is bounded to ``sucesso | falha`` by
         the table CHECK. Any extra ``metadata`` is merged into the stored
         ``metadata`` alongside ``kind`` and ``dedup_key``.
         """
@@ -358,7 +358,7 @@ class ExperienceMemory:
         resolved_campaign = campaign_id or _AFFINITY_CAMPAIGN_ID
         self._ensure_affinity_campaign(resolved_campaign)
 
-        resolved_stage = self._resolve_affinity_stage(stage)
+        resolved_phase = self._resolve_affinity_phase(phase)
 
         meta: dict[str, Any] = dict(metadata or {})
         meta["kind"] = kind
@@ -368,7 +368,7 @@ class ExperienceMemory:
         self._session.add(
             ExperienceMemoryRow(
                 campaign_id=resolved_campaign,
-                stage=resolved_stage,
+                phase=resolved_phase,
                 outcome=outcome,
                 content=content,
                 embedding=embedding,
@@ -384,7 +384,7 @@ class ExperienceMemory:
         kind: str,
         entries: Sequence[tuple[str, dict[str, Any], str]],
         campaign_id: str | None = None,
-        stage: Any = None,
+        phase: Any = None,
         outcome: str = "success",
     ) -> int:
         """Batch form of :meth:`store_affinity`; returns the number of rows inserted.
@@ -431,11 +431,11 @@ class ExperienceMemory:
 
         resolved_campaign = campaign_id or _AFFINITY_CAMPAIGN_ID
         self._ensure_affinity_campaign(resolved_campaign)
-        resolved_stage = self._resolve_affinity_stage(stage)
+        resolved_phase = self._resolve_affinity_phase(phase)
         self._session.add_all(
             ExperienceMemoryRow(
                 campaign_id=resolved_campaign,
-                stage=resolved_stage,
+                phase=resolved_phase,
                 outcome=outcome,
                 content=content,
                 embedding=vector,
@@ -501,22 +501,22 @@ class ExperienceMemory:
         self._session.flush()
 
     @staticmethod
-    def _resolve_affinity_stage(stage: Any) -> Any:
-        """Coerce an affinity ``stage`` to an :class:`AgentStage`, defaulting it.
+    def _resolve_affinity_phase(phase: Any) -> Any:
+        """Coerce an affinity ``phase`` to an :class:`AgentPhase`, defaulting it.
 
-        Accepts an :class:`AgentStage`, its string value, or ``None`` (defaulting
-        to the operationalization stage), mirroring :meth:`_resolve_stage`.
+        Accepts an :class:`AgentPhase`, its string value, or ``None`` (defaulting
+        to the operationalization phase), mirroring :meth:`_resolve_phase`.
         """
-        from app.models.enums import AgentStage
+        from app.models.enums import AgentPhase
 
-        if isinstance(stage, AgentStage):
-            return stage
-        if isinstance(stage, str):
+        if isinstance(phase, AgentPhase):
+            return phase
+        if isinstance(phase, str):
             try:
-                return AgentStage(stage)
+                return AgentPhase(phase)
             except ValueError:
                 pass
-        return AgentStage.OPERATIONALIZATION
+        return AgentPhase.OPERATIONALIZATION
 
     # ----- helpers -----------------------------------------------------------
 
@@ -527,7 +527,7 @@ class ExperienceMemory:
             "content": row.content,
             "metadata": row.meta,
             "campaign_id": row.campaign_id,
-            "stage": row.stage,
+            "phase": row.phase,
             "outcome": row.outcome,
         }
 
@@ -562,23 +562,23 @@ class ExperienceMemory:
         return AbilityResultStatus.FAILURE.value
 
     @staticmethod
-    def _resolve_stage(evaluation: dict[str, Any]) -> Any:
-        """Resolve the agent stage the outcome belongs to.
+    def _resolve_phase(evaluation: dict[str, Any]) -> Any:
+        """Resolve the agent phase the outcome belongs to.
 
         Uses the evaluator's refine target when present, otherwise the stored
-        ``stage`` value, defaulting to the operationalization stage.
+        ``phase`` value, defaulting to the operationalization phase.
         """
-        from app.models.enums import AgentStage
+        from app.models.enums import AgentPhase
 
-        stage = evaluation.get("refine_stage") or evaluation.get("stage")
-        if isinstance(stage, AgentStage):
-            return stage
-        if isinstance(stage, str):
+        phase = evaluation.get("refine_phase") or evaluation.get("phase")
+        if isinstance(phase, AgentPhase):
+            return phase
+        if isinstance(phase, str):
             try:
-                return AgentStage(stage)
+                return AgentPhase(phase)
             except ValueError:
                 pass
-        return AgentStage.OPERATIONALIZATION
+        return AgentPhase.OPERATIONALIZATION
 
     @staticmethod
     def _build_metadata(report: dict[str, Any], evaluation: dict[str, Any]) -> dict[str, Any]:

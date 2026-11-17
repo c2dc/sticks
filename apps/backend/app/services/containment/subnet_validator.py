@@ -1,6 +1,6 @@
 """Destination subnet validation (task 4.2).
 
-Second stage of the ``ContainmentValidator`` security core. Where
+Second step of the ``ContainmentValidator`` security core. Where
 :mod:`app.services.containment.command_parser` (task 4.1) *extracts* the
 destinations of a command, this module *classifies* each destination as
 **internal** (belonging to one of the three lab subnets) or **external**, and

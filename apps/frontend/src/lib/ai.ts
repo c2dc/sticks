@@ -8,12 +8,12 @@
  *
  * - `GET /api/campaigns/{campaign}/ai/runs/{id}` -> {@link AiRunDetail}. Returns
  *     the run summary (with its `error` cause when the run failed) plus its
- *     iterations (oldest first), each carrying its per-stage Agent_Output
+ *     iterations (oldest first), each carrying its per-phase Agent_Output
  *     artifacts with their 1:1 Audit_Trace and the evaluator verdict recorded
  *     for that iteration (Req. 1.4, 2.4, 13.2).
  *
  * These types mirror the backend response models in `app/api/ai.py`
- * (`AiRunResponse`, `AiIterationView`, `AiStageOutputView`, `AiAgentTraceView`,
+ * (`AiRunResponse`, `AiIterationView`, `AiPhaseOutputView`, `AiAgentTraceView`,
  * `AiEvaluationView`, `AiRunDetailResponse`)
  * — the source of truth for the wire contract. The view (`AiRunView`) polls
  * {@link getAiRun} so each new iteration and the evaluator verdict are displayed
@@ -51,15 +51,15 @@ export interface AiRun {
   final_verdict_success?: boolean | null
   /**
    * Structured failure cause surfaced from `agent_runs.error` (the failing
-   * stage + the absent-input/cause message) when the run failed; null on runs
+   * phase + the absent-input/cause message) when the run failed; null on runs
    * that did not fail (Req. 2.6, 4.4).
    */
   error?: string | null
 }
 
 /**
- * The Audit_Trace of a stage output (backend `AiAgentTraceView`): the data the
- * agent received and what it performed. `agent_input` carries the prior-stage
+ * The Audit_Trace of a phase output (backend `AiAgentTraceView`): the data the
+ * agent received and what it performed. `agent_input` carries the prior-phase
  * artifacts, the Selected_Campaign context, the retrieved cross-campaign
  * experience, and the ATT&CK/STIX attack context (Req. 1.2). `processing`
  * carries the LLM prompt and response, reasoning, tools invoked, and repair
@@ -67,25 +67,25 @@ export interface AiRun {
  * `"not_available"` sentinel rather than omitted (Req. 1.6).
  */
 export interface AiAgentTrace {
-  /** Agent_Input the agent received for the stage. */
+  /** Agent_Input the agent received for the phase. */
   agent_input: Record<string, unknown>
   /** Agent_Processing the agent performed; absent elements are `"not_available"`. */
   processing: Record<string, unknown>
 }
 
 /**
- * One `agent_stage_outputs` row with its 1:1 Audit_Trace (backend
- * `AiStageOutputView`). The `payload` is the Agent_Output artifact produced for
- * the `stage`, stamped with the AI-generated `origin`, paired with the `trace`
+ * One `agent_phase_outputs` row with its 1:1 Audit_Trace (backend
+ * `AiPhaseOutputView`). The `payload` is the Agent_Output artifact produced for
+ * the `phase`, stamped with the AI-generated `origin`, paired with the `trace`
  * carrying that agent's Agent_Input + Agent_Processing (Req. 1.1, 1.4, 2.4).
  */
-export interface AiStageOutput {
+export interface AiPhaseOutput {
   id: number
-  /** English `AgentStage` value the output belongs to. */
-  stage: string
+  /** English `AgentPhase` value the output belongs to. */
+  phase: string
   /** Origin of the artifact; always `ai_generated` on the AI path. */
   origin: string
-  /** The serialized Agent_Output artifact produced for the stage. */
+  /** The serialized Agent_Output artifact produced for the phase. */
   payload: Record<string, unknown>
   /** The Agent_Input + Agent_Processing Audit_Trace for the output. */
   trace: AiAgentTrace
@@ -94,7 +94,7 @@ export interface AiStageOutput {
 /** The evaluator's verdict for an iteration (backend `AiEvaluationView`). */
 export interface AiEvaluation {
   id: number
-  /** Stage 6 execution report the evaluator read, if any. */
+  /** Execution phase report the evaluator read, if any. */
   report_id?: number | null
   /** Execution success rate read from the report, in [0, 1]. */
   success_rate: number
@@ -113,19 +113,19 @@ export interface AiIteration {
   id: number
   /** 0-based iteration number within the run. */
   index: number
-  /** Stage refined into this iteration; null on the first pass. */
-  refined_stage?: string | null
+  /** Phase refined into this iteration; null on the first pass. */
+  refined_phase?: string | null
   /** Free-form iteration notes. */
   notes?: string | null
   /** Naive-UTC creation timestamp of the iteration. */
   created_at: string
   /**
-   * The iteration's per-stage Agent_Output artifacts, each with its 1:1
-   * Audit_Trace, ordered by stage (Req. 1.1, 1.4, 2.4).
+   * The iteration's per-phase Agent_Output artifacts, each with its 1:1
+   * Audit_Trace, ordered by phase (Req. 1.1, 1.4, 2.4).
    */
-  stage_outputs: AiStageOutput[]
+  phase_outputs: AiPhaseOutput[]
   /**
-   * Identity of the failing Stage/Agent captured on a failed Run; null unless
+   * Identity of the failing Phase/Agent captured on a failed Run; null unless
    * this iteration carries the failure anchor (Req. 2.6).
    */
   failing_agent?: string | null
@@ -137,7 +137,7 @@ export interface AiIteration {
 export interface AiRunDetail {
   run: AiRun
   /**
-   * The run's iterations with their stage outputs + Audit_Trace and evaluator
+   * The run's iterations with their phase outputs + Audit_Trace and evaluator
    * verdicts, oldest first.
    */
   iterations: AiIteration[]

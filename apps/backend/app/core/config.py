@@ -51,7 +51,7 @@ class Settings(BaseSettings):
     caldera_url: str = "http://localhost:8888"
     caldera_key: str = "ADMIN123"
 
-    # ---- Stage 6 operation collection settings (Req. 3.1) --------------------
+    # ---- the execution phase operation collection settings (Req. 3.1) --------------------
 
     # Seconds between polls while collecting an Operation's state. The runner
     # clamps the effective interval to the inclusive range 1..10 where the value

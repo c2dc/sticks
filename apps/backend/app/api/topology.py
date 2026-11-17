@@ -1,4 +1,4 @@
-"""Read-only lab network topology for the Stage-4 "environment provisioning" view.
+"""Read-only lab network topology for the environment phase "environment provisioning" view.
 
 The researcher wants to SEE, before any emulation, the contained lab network a
 campaign will be run against: which hosts are attackers, which are targets,
@@ -14,7 +14,7 @@ the internal networks as subgraphs, with each host labelled by its fixed IP.
 
 The pure topology-building logic (the static lab map, the typed models and the
 ``build_hosts``/``build_networks``/``build_mermaid`` builders) lives in
-:mod:`app.services.environment.topology_builder` so the Stage-4 Provisioning
+:mod:`app.services.environment.topology_builder` so the environment phase Provisioning
 service (:class:`~app.services.environment.CurationEnvironmentProvisioner`) can
 reuse it without duplicating the lab map. This module imports those builders and
 keeps the ``GET /api/campaigns/{campaign}/topology`` contract identical.

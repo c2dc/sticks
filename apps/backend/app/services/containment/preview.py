@@ -1,6 +1,6 @@
 """Command/destination preview generation (task 4.6) — security core.
 
-Fourth stage of the ``ContainmentValidator``. This module produces the
+Fourth step of the ``ContainmentValidator``. This module produces the
 **complete, concrete list of commands with their target container(s)** that the
 confirmation modal (``EmulationConfirmModal``) shows the Researcher *before any
 confirmation* (Req. 6.5 / design "(d) Preview").
@@ -400,7 +400,7 @@ def preview_abilities(
     """Build the complete emulation preview over every Ability of an Operation.
 
     This is the primary entry point the preview endpoint
-    (``POST /api/campaigns/{campaign}/stage/5/emulation/preview``) and the ``EmulationConfirmModal``
+    (the execution preview endpoint) and the ``EmulationConfirmModal``
     consume: the full list of concrete commands, each with its resolved target
     container(s), plus a presentation-only flag on any external destination.
 

@@ -16,7 +16,7 @@ import {
 function App() {
   // Guided flow view state. The reducer in `lib/flow.ts` holds only the current
   // screen: Landing or the ExecutionWizard. Clicking "Start" goes straight into
-  // the wizard at Stage 1 — base and campaign selection are stages inside the
+  // the wizard at the input phase — base and campaign selection happen inside the
   // wizard, not standalone screens.
   const { state, dispatch } = useAppFlow()
 
@@ -75,9 +75,9 @@ function App() {
         return <Landing onStart={() => dispatch({ type: "START" })} />
 
       case "wizard":
-        // The wizard conducts all six stages, one screen per stage. It resolves
-        // the base (Stage 1) and the campaign (Stage 2) internally; the chosen
-        // campaign id then drives Stages 3..6. "Back" from Stage 1 returns to
+        // The wizard conducts all six phases, one screen per phase. It resolves
+        // the base and the campaign internally (input phase); the chosen
+        // campaign id then drives the flow through execution phases. "Back" from the input phase returns to
         // the Landing.
         return <ExecutionWizard onExitToStart={() => dispatch({ type: "BACK" })} />
 

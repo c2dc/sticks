@@ -1,6 +1,6 @@
-"""ReportBuilder — Stage 6 final report (verdict + invariants) — task 6.1.
+"""ReportBuilder — execution phase final report (verdict + invariants) — task 6.1.
 
-This module builds the **final execution report** of Stage 6 from a persisted
+This module builds the **final execution report** of the execution phase from a persisted
 :class:`~app.models.domain.Operation`, enforcing the consistency invariants of
 Req. 3.4 and the "never mix executions" rule of Req. 3.5.
 
@@ -69,7 +69,7 @@ def _utcnow() -> dt.datetime:
 
 
 class ExecutionReportView(BaseModel):
-    """The final, consistency-checked Stage 6 report (Req. 3.4).
+    """The final, consistency-checked execution phase report (Req. 3.4).
 
     This is the return type of :meth:`ReportBuilder.build_report`: a typed,
     serializable view derived **deterministically** from the Operation's
@@ -132,7 +132,7 @@ ExecutionReportView.model_rebuild()
 
 
 class ReportBuilder:
-    """Build the final Stage 6 report with the Req. 3.4/3.5 guarantees.
+    """Build the final execution phase report with the Req. 3.4/3.5 guarantees.
 
     The pure derivation (:meth:`_derive`) turns a sequence of per-Ability results
     into a consistency-checked :class:`ExecutionReportView`. :meth:`build_report`
@@ -275,7 +275,7 @@ class ReportBuilder:
         per campaign is maintained (latest-execution-wins upsert).
         """
         campaign_id = operation.campaign_id
-        assert campaign_id is not None  # guarded by the caller  # noqa: S101 -- type narrowing; guarded by the caller
+        assert campaign_id is not None  # noqa: S101 -- type narrowing; guarded by the caller
 
         existing = list(
             self._session.execute(

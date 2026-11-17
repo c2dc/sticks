@@ -90,7 +90,7 @@ class FlowGenerator(Protocol):
     """attack flow-generation extension seam (Req. 5.1, 5.3).
 
     A ``@runtime_checkable`` ``Protocol`` with a single responsibility: produce
-    attack flows for a Campaign from the Structural Modeling (Stage 1). Any object that
+    attack flows for a Campaign from the Structural Modeling (input phase). Any object that
     exposes ``origin()`` and ``generate(campaign, modeling)`` with these
     signatures satisfies the protocol — no explicit inheritance is required
     (structural duck typing).
@@ -107,8 +107,8 @@ class FlowGenerator(Protocol):
     def generate(self, campaign: str, modeling: StructuralModeling) -> list[ProducedFlow]:
         """Produce the attack flows of the ``campaign`` *slug* from the Structural Modeling.
 
-        ``modeling`` is the Stage 1 output (techniques + relationships); the
-        Stage 2 attack flow is derived from it. The curation implementation
+        ``modeling`` is the input phase output (techniques + relationships); the
+        attack flow of the flow phase is derived from it. The curation implementation
         may ignore ``modeling`` — the curated
         graph already exists in the database, and it returns exactly one ``ProducedFlow``
         (``origin=curadoria_humana``) read from the persisted ``attack_flows`` row (a
