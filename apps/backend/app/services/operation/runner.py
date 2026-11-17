@@ -133,7 +133,7 @@ def _clamp(value: float, low: float, high: float) -> float:
     return max(low, min(high, float(value)))
 
 
-class RunOutcome(str, enum.Enum):
+class RunOutcome(enum.StrEnum):
     """Why an Operation run ended the way it did (for precise upstream mapping).
 
     Subclasses ``str`` so it serializes to its value over JSON like the domain

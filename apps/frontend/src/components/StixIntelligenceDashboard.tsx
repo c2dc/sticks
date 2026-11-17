@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 
 import { Button } from "@/components/ui/button"
@@ -11,6 +10,7 @@ import {
 } from "@/components/ui/card"
 import { EmptyNote } from "@/components/StageSection"
 import { ApiError } from "@/lib/api"
+import { useAsyncData } from "@/lib/use-async-data"
 import { getPackageOverview, type StixPackageOverview } from "@/lib/stix"
 
 export interface StixIntelligenceDashboardProps {
@@ -52,44 +52,12 @@ export function StixIntelligenceDashboard({
 }: StixIntelligenceDashboardProps) {
   const { t } = useTranslation("stix")
 
-  const [dashboard, setDashboard] = useState<StixPackageOverview | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    let active = true
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- resets the request state synchronously when the key changes, before the async fetch; deriving it during render would change the loading timing
-    setLoading(true)
-    setError(null)
-    // Never keep stale counts around while (re)loading or on failure, so a
-    // malformed base can't surface partial data as if it were complete.
-    setDashboard(null)
-
-    getPackageOverview(version)
-      .then((data) => {
-        if (!active) return
-        setDashboard(data)
-      })
-      .catch((err: unknown) => {
-        if (!active) return
-        const message =
-          err instanceof ApiError &&
-          isRecord(err.body) &&
-          isRecord(err.body.detail) &&
-          typeof err.body.detail.mensagem === "string"
-            ? err.body.detail.mensagem
-            : null
-        setError(message ?? t("dashboard.error"))
-        setDashboard(null)
-      })
-      .finally(() => {
-        if (active) setLoading(false)
-      })
-
-    return () => {
-      active = false
-    }
-  }, [version, t])
+  // Never keeps stale counts while (re)loading or on failure, so a malformed
+  // base can't surface partial data as if it were complete.
+  const request = useAsyncData<StixPackageOverview>(version, () => getPackageOverview(version))
+  const dashboard = request.data
+  const loading = request.loading
+  const error = request.error ? (apiErrorMessage(request.error) ?? t("dashboard.error")) : null
 
   if (loading) {
     return (
@@ -163,6 +131,16 @@ export function StixIntelligenceDashboard({
       )}
     </section>
   )
+}
+
+/** The backend `detail.mensagem` of an `ApiError`, when present. */
+function apiErrorMessage(err: unknown): string | null {
+  return err instanceof ApiError &&
+    isRecord(err.body) &&
+    isRecord(err.body.detail) &&
+    typeof err.body.detail.mensagem === "string"
+    ? err.body.detail.mensagem
+    : null
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

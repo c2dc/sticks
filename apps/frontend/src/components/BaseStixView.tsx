@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef } from "react"
 import { useTranslation } from "react-i18next"
 
 import { StixBaseSelect } from "@/components/StixBaseSelect"
@@ -11,6 +11,7 @@ import {
   type StixPackageAnalytics,
   type StixPackageOverview,
 } from "@/lib/stix"
+import { useAsyncData } from "@/lib/use-async-data"
 import { cn } from "@/lib/utils"
 
 export interface BaseStixViewProps {
@@ -59,24 +60,32 @@ export function BaseStixView({
 }: BaseStixViewProps) {
   const { t } = useTranslation("pipeline")
 
-  const [result, setResult] = useState<BaseStixInfo | null>(null)
-  const [loadError, setLoadError] = useState<string | null>(null)
-  const [checking, setChecking] = useState(false)
+  // Confirm the selected base's bundle is on disk whenever the version changes.
+  const selectedBase = useAsyncData<BaseStixInfo | null>(version || null, async () => {
+    const bases = await getBases()
+    return bases.find((base) => base.version === version) ?? null
+  })
+  const result = selectedBase.data
+  const checking = selectedBase.loading
+  const loadError = selectedBase.error ? t("baseStix.error") : null
 
   // The package overview of the selected version (Req. 6.4, 7.2), loaded from
   // the database via getPackageOverview. Independent of the bundle-on-disk
-  // completion check above.
-  const [overview, setOverview] = useState<StixPackageOverview | null>(null)
-  const [overviewError, setOverviewError] = useState<string | null>(null)
-  const [overviewLoading, setOverviewLoading] = useState(false)
+  // completion check above. Never keeps a stale overview while (re)loading or
+  // on failure.
+  const overviewState = useAsyncData(version || null, () => getPackageOverview(version ?? ""))
+  const overview: StixPackageOverview | null = overviewState.data
+  const overviewLoading = overviewState.loading
+  const overviewError = overviewState.error ? t("baseStix.overview.error") : null
 
   // The analytic dashboard of the selected version (Req. 12.9), loaded from the
   // database via getPackageAnalytics. Independent of the overview above: a
   // failure here renders only the analytics error note and never disturbs the
   // overview panel.
-  const [analytics, setAnalytics] = useState<StixPackageAnalytics | null>(null)
-  const [analyticsError, setAnalyticsError] = useState<string | null>(null)
-  const [analyticsLoading, setAnalyticsLoading] = useState(false)
+  const analyticsState = useAsyncData(version || null, () => getPackageAnalytics(version ?? ""))
+  const analytics: StixPackageAnalytics | null = analyticsState.data
+  const analyticsLoading = analyticsState.loading
+  const analyticsError = analyticsState.error ? t("baseStix.analytics.error") : null
 
   // Keep the last reported completion so we only notify the wizard on real
   // changes (avoids render loops when the callback is recreated each render).
@@ -90,108 +99,16 @@ export function BaseStixView({
     [onCompletionChange],
   )
 
-  // Confirm the selected base's bundle is on disk whenever the version changes.
+  // Report the completion verdict once the check settles: `true` when the bundle
+  // is on disk, `false` without a version or on a read failure.
   useEffect(() => {
-    let active = true
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- resets the request state synchronously when the key changes, before the async fetch; deriving it during render would change the loading timing
-    setLoadError(null)
-    setResult(null)
-
     if (!version) {
-      setChecking(false)
       notifyCompletion(false)
       return
     }
-
-    setChecking(true)
-    getBases()
-      .then((bases) => {
-        if (!active) return
-        const found = bases.find((base) => base.version === version) ?? null
-        setResult(found)
-        notifyCompletion(found ? (found.completed ?? found.downloaded) : false)
-      })
-      .catch(() => {
-        if (!active) return
-        setLoadError(t("baseStix.error"))
-        notifyCompletion(false)
-      })
-      .finally(() => {
-        if (active) setChecking(false)
-      })
-
-    return () => {
-      active = false
-    }
-  }, [version, t, notifyCompletion])
-
-  // Load and display the package overview whenever the selected version
-  // changes (Req. 6.4, 7.2). Read from the database only; never keep a stale
-  // overview around while (re)loading or on failure.
-  useEffect(() => {
-    let active = true
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- resets the request state synchronously when the key changes, before the async fetch; deriving it during render would change the loading timing
-    setOverview(null)
-    setOverviewError(null)
-
-    if (!version) {
-      setOverviewLoading(false)
-      return
-    }
-
-    setOverviewLoading(true)
-    getPackageOverview(version)
-      .then((data) => {
-        if (!active) return
-        setOverview(data)
-      })
-      .catch(() => {
-        if (!active) return
-        setOverviewError(t("baseStix.overview.error"))
-        setOverview(null)
-      })
-      .finally(() => {
-        if (active) setOverviewLoading(false)
-      })
-
-    return () => {
-      active = false
-    }
-  }, [version, t])
-
-  // Load and display the analytic dashboard whenever the selected version
-  // changes (Req. 12.9). Read from the database only; isolated from the
-  // overview so a failure here keeps the overview intact.
-  useEffect(() => {
-    let active = true
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- resets the request state synchronously when the key changes, before the async fetch; deriving it during render would change the loading timing
-    setAnalytics(null)
-    setAnalyticsError(null)
-
-    if (!version) {
-      setAnalyticsLoading(false)
-      return
-    }
-
-    setAnalyticsLoading(true)
-    getPackageAnalytics(version)
-      .then((data) => {
-        if (!active) return
-        setAnalytics(data)
-      })
-      .catch(() => {
-        if (!active) return
-        setAnalyticsError(t("baseStix.analytics.error"))
-        setAnalytics(null)
-      })
-      .finally(() => {
-        if (active) setAnalyticsLoading(false)
-      })
-
-    return () => {
-      active = false
-    }
-  }, [version, t])
+    if (checking) return
+    notifyCompletion(result ? (result.completed ?? result.downloaded) : false)
+  }, [version, checking, result, notifyCompletion])
 
   // Version selected: compact one-line confirmation.
   if (version) {

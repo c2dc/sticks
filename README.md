@@ -458,6 +458,8 @@ Database migrations can be applied on their own with `npm run db:migrate`.
 ## Development
 
 ```bash
+# The whole repository keeps only 10 tests (8 backend, 2 frontend); see
+# .kiro/steering/test-policy.md. New tests need explicit owner approval.
 # Backend tests (from apps/backend, using the project venv)
 .venv/Scripts/python -m pytest          # Windows
 .venv/bin/python -m pytest              # Linux / macOS
@@ -486,17 +488,16 @@ npm run lint          # tsc --noEmit (type-check only)
 
 What each command covers:
 
-- `npm run lint:eslint` lints the frontend TypeScript/TSX files (`src`, tests,
-  `e2e`, and `.ts` configs; `dist`, `test-results`, `playwright-report` and
-  `coverage` are ignored). The `react-hooks` and `jsx-a11y` accessibility rules
+- `npm run lint:eslint` lints the frontend TypeScript/TSX files (`src`, tests
+  and `.ts` configs; `dist` and `coverage` are ignored). The `react-hooks` and `jsx-a11y` accessibility rules
   are errors. Unused
   `eslint-disable` directives are reported as errors too.
 - `npm run lint` is the TypeScript type-check; it does not run ESLint.
 - `ruff check` applies the rule families `E, F, W, I, B, UP, C4, SIM, BLE, S, PGH,
   RUF` configured in `apps/backend/pyproject.toml` (`E501` is ignored: the formatter
-  controls line width, 100 columns). `UP042` is also ignored on purpose: it would
-  turn `(str, Enum)` into `StrEnum` and change `str(member)`, and these enums are
-  persisted and serialized.
+  controls line width, 100 columns). The enums use `enum.StrEnum` (`UP042`), so
+  `str(member)` and f-strings return the value; code that needs the value still
+  uses `.value` explicitly.
 - `ruff format --check` only verifies formatting. To apply it, run
   `ruff format .` (same directory and interpreter).
 
@@ -520,8 +521,10 @@ Conventions:
   `package-lock.json` (npm workspaces). After changing frontend dependencies,
   update both lockfiles.
 
-The backend is covered by example, integration, and **property-based** tests
-(Hypothesis); the frontend by component tests (Vitest + Testing Library). The
+The test suite is intentionally small: 10 tests in total. The backend keeps 8
+safety and data-integrity checks (mostly **property-based**, Hypothesis, 10
+examples each); the frontend keeps 2 (the i18n catalog guard and a render test,
+Vitest + Testing Library). The
 project is **spec-driven**: each feature is planned under `.kiro/specs/` as
 requirements -> design -> tasks before implementation.
 

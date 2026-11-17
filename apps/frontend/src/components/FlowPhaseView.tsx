@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 
+import { useAsyncData } from "@/lib/use-async-data"
 import { MermaidDiagram } from "@/components/MermaidDiagram"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -34,45 +34,24 @@ const PROVENANCE_STYLES: Record<FlowProvenanceKind, string> = {
 
 export function FlowPhaseView({ campaign, flowId, flow: providedFlow }: FlowPhaseViewProps) {
   const { t } = useTranslation("pipeline")
-  const [fetched, setFetched] = useState<FlowDetail | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [failed, setFailed] = useState(false)
-
-  useEffect(() => {
-    if (providedFlow || !campaign) return
-    let cancelled = false
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- resets the request state synchronously when the key changes, before the async fetch; deriving it during render would change the loading timing
-    setLoading(true)
-    setFailed(false)
-
-    async function load(campaignId: string) {
-      try {
-        let id = flowId
-        if (id === undefined) {
-          const { flows } = await getFlows(campaignId)
-          const latest = [...flows].sort((a, b) => b.created_at.localeCompare(a.created_at))[0]
-          if (!latest) {
-            if (!cancelled) setFetched(null)
-            return
-          }
-          id = latest.id
-        }
-        const detail = await getFlow(campaignId, id)
-        if (!cancelled) setFetched(detail)
-      } catch {
-        if (!cancelled) setFailed(true)
-      } finally {
-        if (!cancelled) setLoading(false)
+  const request = useAsyncData<FlowDetail | null>(
+    providedFlow || !campaign ? null : JSON.stringify([campaign, flowId ?? null]),
+    async () => {
+      const campaignId = campaign as string
+      let id = flowId
+      if (id === undefined) {
+        const { flows } = await getFlows(campaignId)
+        const latest = [...flows].sort((a, b) => b.created_at.localeCompare(a.created_at))[0]
+        if (!latest) return null
+        id = latest.id
       }
-    }
+      return getFlow(campaignId, id)
+    },
+  )
+  const loading = request.loading
+  const failed = request.error !== null
 
-    void load(campaign)
-    return () => {
-      cancelled = true
-    }
-  }, [campaign, flowId, providedFlow])
-
-  const flow = providedFlow ?? fetched
+  const flow = providedFlow ?? request.data
 
   if (loading) {
     return (

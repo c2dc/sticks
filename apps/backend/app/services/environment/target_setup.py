@@ -46,7 +46,7 @@ from __future__ import annotations
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 from typing import Protocol, runtime_checkable
 
 from app.services.environment.compose_executor import (
@@ -55,7 +55,7 @@ from app.services.environment.compose_executor import (
 )
 
 
-class SetupPhase(str, Enum):
+class SetupPhase(StrEnum):
     """The phase a curated setup command belongs to (Req. 2.2, 5.1).
 
     ``ONLINE`` commands need the internet (download/install) and run inside the

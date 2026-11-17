@@ -5,6 +5,7 @@ import { Check, Copy } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { campaignDisplayName } from "@/lib/campaign"
+import { useAsyncData } from "@/lib/use-async-data"
 import {
   getOperationalization,
   type AtomicStatus,
@@ -42,28 +43,17 @@ export function OperationalizationScreen({
   campaignName?: string
 }) {
   const { t } = useTranslation("pipeline")
-  const [listing, setListing] = useState<OperationalizationListing | null>(null)
-  const [loadError, setLoadError] = useState(false)
+  const request = useAsyncData<OperationalizationListing>(
+    JSON.stringify([version, campaignKey]),
+    () => getOperationalization(version, campaignKey),
+  )
+  const listing = request.data
+  const loadError = request.error !== null
+  const { mutate } = request
+  // Bumped when a silent reread fails, so the poll below schedules a retry.
+  const [retry, setRetry] = useState(0)
 
   const ready = listing?.atomic_status.status === "ready"
-
-  // Initial load, restarted whenever the version or campaign changes.
-  useEffect(() => {
-    let active = true
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- resets the request state synchronously when the key changes, before the async fetch; deriving it during render would change the loading timing
-    setListing(null)
-    setLoadError(false)
-    getOperationalization(version, campaignKey)
-      .then((data) => {
-        if (active) setListing(data)
-      })
-      .catch(() => {
-        if (active) setLoadError(true)
-      })
-    return () => {
-      active = false
-    }
-  }, [version, campaignKey])
 
   // Silent polling until the base is ready; a failed reread keeps the last data.
   useEffect(() => {
@@ -72,18 +62,18 @@ export function OperationalizationScreen({
     const timer = window.setTimeout(() => {
       getOperationalization(version, campaignKey)
         .then((data) => {
-          if (active) setListing(data)
+          if (active) mutate(data)
         })
         .catch(() => {
-          // Keep the current listing; retry on the next state change.
-          if (active) setListing((current) => (current ? { ...current } : current))
+          // Keep the current listing; retry on the next tick.
+          if (active) setRetry((n) => n + 1)
         })
     }, ATOMIC_POLL_INTERVAL_MS)
     return () => {
       active = false
       window.clearTimeout(timer)
     }
-  }, [listing, ready, version, campaignKey])
+  }, [listing, ready, retry, version, campaignKey, mutate])
 
   if (loadError) {
     return (

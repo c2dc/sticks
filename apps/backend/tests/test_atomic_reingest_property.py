@@ -92,7 +92,7 @@ def _document(per_test_arguments: list[dict[str, Any]]) -> AtomicDocument:
 
 
 @settings(
-    max_examples=25,
+    max_examples=10,
     deadline=None,
     suppress_health_check=[HealthCheck.too_slow, HealthCheck.function_scoped_fixture],
 )

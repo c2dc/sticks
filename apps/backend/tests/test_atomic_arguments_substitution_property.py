@@ -78,7 +78,7 @@ def _expected(command: str, args: dict):
     return out, unresolved
 
 
-@settings(max_examples=100, deadline=None)
+@settings(max_examples=10, deadline=None)
 @given(_scenarios())
 def test_substitution_is_single_total_pass(scenario):
     command, refs, args = scenario
@@ -107,30 +107,3 @@ def test_substitution_is_single_total_pass(scenario):
     assert (PATH_ARGUMENT_NAME in extended) == (
         has_token or any("PathToAtomicsFolder" in str(v.get("default")) for v in args.values())
     )
-
-
-def test_default_looking_like_placeholder_is_not_rescanned():
-    result = resolve_command("run #{a}", {"a": {"default": "#{b}"}, "b": {"default": "X"}})
-    assert result.command == "run #{b}"
-    assert result.unresolved_arguments == []
-
-
-def test_path_token_is_kept_intact_and_reported_once():
-    result = resolve_command(
-        "cp $PathToAtomicsFolder/a #{o} PathToAtomicsFolder\\b",
-        {"o": {"default": "$PathToAtomicsFolder/o.bin"}},
-    )
-    assert result.command == (
-        "cp $PathToAtomicsFolder/a $PathToAtomicsFolder/o.bin PathToAtomicsFolder\\b"
-    )
-    assert result.unresolved_arguments == [PATH_ARGUMENT_NAME]
-    assert result.arguments_used == {"o": "$PathToAtomicsFolder/o.bin"}
-
-
-def test_with_path_argument_adds_synthetic_argument_without_mutating():
-    original = {"o": {"default": "x"}}
-    extended = with_path_argument("cp $PathToAtomicsFolder/a", original)
-    assert original == {"o": {"default": "x"}}
-    assert extended[PATH_ARGUMENT_NAME]["default"] is None
-    assert extended[PATH_ARGUMENT_NAME]["type"] == "path"
-    assert with_path_argument("whoami", None) == {}

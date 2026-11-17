@@ -1,19 +1,6 @@
-// Shared leaf-path / placeholder / plural-suffix helpers for the i18n catalog
-// property and parity tests (i18n-key-english-standardization, task 1.2).
-//
-// This module centralizes the `collectLeafPaths` / `getByPath` path-collection
-// style that was previously duplicated inline across the parity tests
-// (`pipeline-i18n-parity.property.test.ts`, `airun-i18n-parity.property.test.ts`,
-// etc.). It is NOT a new property-based-testing library: the repo already uses
-// `fast-check`, and the catalog property tests drive these pure helpers. The
-// helpers are value-only (no i18next, no React) so they can run against the raw
-// locale JSON before, during, and after the key migration.
-//
-// The three capabilities this module exposes map directly to the design's
-// correctness properties:
-//   - leaf-path collection / resolution  -> Property 1, 2, 4, 5, 8 (Req. 5.1)
-//   - placeholder extraction             -> Property 6 (Req. 2.1)
-//   - plural-suffix parsing              -> Property 7 (Req. 2.2, 2.3)
+// Helpers for the Locale_Catalog guard test (`catalog-guard.test.ts`): key
+// flattening, unused-key detection and legacy stage wording detection. Value-only
+// (no i18next, no React), run against the raw locale JSON.
 
 /** A JSON value as loaded from a locale resource file. */
 export type JsonValue =
@@ -66,62 +53,12 @@ export function getByPath(obj: JsonValue, path: string): JsonValue | undefined {
   return current
 }
 
-/**
- * Collect the sorted, de-duplicated set of fully-qualified leaf paths for a
- * single namespace/locale resource object. Optionally scope to a subtree by
- * passing `subtree` (e.g. "aiRun"), in which case the returned paths are still
- * fully qualified (they include the subtree prefix).
- *
- * Returns an empty array when the requested subtree does not exist, so callers
- * can assert presence explicitly rather than throwing.
- */
-export function collectNamespaceLeafPaths(
-  namespace: JsonValue,
-  subtree?: string,
-): string[] {
-  const root = subtree ? getByPath(namespace, subtree) : namespace
-  if (root === undefined) {
-    return []
-  }
-  const prefix = subtree ?? ""
-  return Array.from(new Set(collectLeafPaths(root, prefix))).sort()
-}
-
 /** The i18next interpolation delimiters used across the catalog. */
 const PLACEHOLDER_PATTERN = /\{\{\s*([^{}]+?)\s*\}\}/g
 
-/**
- * Extract every `{{...}}` interpolation placeholder from a value, in the order
- * they appear. Each entry records the placeholder's trimmed inner name and its
- * ordinal position (0-based index among the placeholders in the value). This
- * supports the placeholder-conservation property (Property 6): the names,
- * ordinal positions, and count must be identical before and after a rename.
- *
- * Non-string values yield an empty list (they carry no placeholders).
- */
-export interface Placeholder {
-  /** The trimmed token inside the delimiters, e.g. `versao` for `{{versao}}`. */
-  name: string
-  /** 0-based ordinal position among the placeholders in the value. */
-  position: number
-}
-
-export function extractPlaceholders(value: JsonValue): Placeholder[] {
-  if (typeof value !== "string") {
-    return []
-  }
-  const placeholders: Placeholder[] = []
-  let position = 0
-  for (const match of value.matchAll(PLACEHOLDER_PATTERN)) {
-    placeholders.push({ name: match[1], position })
-    position += 1
-  }
-  return placeholders
-}
-
-/** The i18next plural-variant suffixes recognized by this migration. */
-export const PLURAL_SUFFIXES = ["_one", "_other"] as const
-export type PluralSuffix = (typeof PLURAL_SUFFIXES)[number]
+/** The i18next plural-variant suffixes recognized by the guard. */
+const PLURAL_SUFFIXES = ["_one", "_other"] as const
+type PluralSuffix = (typeof PLURAL_SUFFIXES)[number]
 
 /**
  * Parse an i18next `_one` / `_other` plural suffix off the final segment of a
@@ -129,11 +66,8 @@ export type PluralSuffix = (typeof PLURAL_SUFFIXES)[number]
  * the `base` path (same path with the suffix stripped) and the matched
  * `suffix`; otherwise returns the path unchanged with `suffix: null`.
  *
- * This supports the plural-suffix retention/grouping property (Property 7): all
- * variants of one base must map to a single renamed base differing only by the
- * preserved suffix.
- */
-export interface ParsedPlural {
+ *  */
+interface ParsedPlural {
   /** The key path with any plural suffix stripped from its final segment. */
   base: string
   /** The matched plural suffix, or `null` when the path carries none. */

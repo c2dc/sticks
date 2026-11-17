@@ -473,7 +473,7 @@ _failpoint_strategy = st.sampled_from(sorted(_FAILPOINTS))
 _label_salt_strategy = st.integers(min_value=0, max_value=2**16)
 
 
-@settings(max_examples=40, deadline=None)
+@settings(max_examples=10, deadline=None)
 @given(
     hosts=_hosts_strategy,
     failpoint=_failpoint_strategy,

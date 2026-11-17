@@ -41,7 +41,7 @@ import shlex
 from dataclasses import dataclass, field
 
 
-class DestinationKind(str, enum.Enum):
+class DestinationKind(enum.StrEnum):
     """The syntactic form a destination was extracted from.
 
     Kept as metadata for task 4.2 and for the preview (task 4.6). Subclasses

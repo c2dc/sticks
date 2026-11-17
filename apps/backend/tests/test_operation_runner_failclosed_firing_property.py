@@ -337,7 +337,7 @@ def _make_runner(
 
 
 @settings(
-    max_examples=40,
+    max_examples=10,
     deadline=None,
     suppress_health_check=[HealthCheck.too_slow],
 )

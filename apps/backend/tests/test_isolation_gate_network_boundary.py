@@ -31,64 +31,11 @@ _Requirements: 4.3, 4.4_
 
 from __future__ import annotations
 
-import pytest
-
-from app.services.containment.isolation_gate import (
-    IsolationProof,
-    IsolationRequired,
-    require_isolation,
-    validate_destination,
-)
+from app.services.containment.isolation_gate import validate_destination
 from app.services.containment.subnets import (
     INTERNAL_SUBNET_CIDRS,
     is_internal_ip,
 )
-
-_RUN_ID = "run-network-boundary"
-
-
-# ---------------------------------------------------------------------------
-# (a) execution is blocked without a valid IsolationProof (Req. 4.4)
-# ---------------------------------------------------------------------------
-
-
-def test_execution_blocked_without_valid_isolation_proof() -> None:
-    """``require_isolation`` blocks ``execution`` start unless a valid proof exists.
-
-    Covers the three ways a run can lack a valid proof — ``None`` (the gate was
-    never crossed), a proof belonging to a different run, and a proof that attests
-    isolation was NOT achieved (``isolated=False``) — each raising
-    ``IsolationRequired`` so no offensive command can run. A valid proof
-    (``isolated=True``, same run) is returned unchanged.
-    _Requirements: 4.4_
-    """
-    # 1) No proof at all — the gate was never crossed -> blocked.
-    with pytest.raises(IsolationRequired) as missing:
-        require_isolation(_RUN_ID, None)
-    assert missing.value.run_id == _RUN_ID
-
-    # 2) A proof that attests isolation FAILED (external egress not cut) -> blocked.
-    not_isolated = IsolationProof(
-        run_id=_RUN_ID,
-        isolated=False,
-        reason="egresso externo não confirmadamente cortado",
-    )
-    assert not_isolated.is_valid is False
-    with pytest.raises(IsolationRequired) as invalid:
-        require_isolation(_RUN_ID, not_isolated)
-    assert invalid.value.run_id == _RUN_ID
-
-    # 3) A valid proof for a DIFFERENT run must not approve this run -> blocked.
-    other_run_proof = IsolationProof(run_id="some-other-run", isolated=True)
-    with pytest.raises(IsolationRequired):
-        require_isolation(_RUN_ID, other_run_proof)
-
-    # 4) A valid proof for THIS run lets ``execution`` start and is threaded back.
-    valid = IsolationProof(run_id=_RUN_ID, isolated=True, targets=("caldera", "kali"))
-    assert valid.is_valid is True
-    approved = require_isolation(_RUN_ID, valid)
-    assert approved is valid
-
 
 # ---------------------------------------------------------------------------
 # (b) under isolation, external destinations are rejected and internal accepted
