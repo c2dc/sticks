@@ -17,7 +17,7 @@ from __future__ import annotations
 import enum
 
 
-class TranslationSource(str, enum.Enum):
+class TranslationSource(enum.StrEnum):
     """Origin of an artifact — an explicit, extensible attribute.
 
     Today all 8 curated translations use ``HUMAN_CURATION``. The future value
@@ -38,7 +38,7 @@ class TranslationSource(str, enum.Enum):
     AI_GENERATED = "ai_generated"  # produced by an AI agent (pluggable later, Req. 16)
 
 
-class FlowOrigin(str, enum.Enum):
+class FlowOrigin(enum.StrEnum):
     """Origin of an attack flow — an explicit, extensible attribute.
 
     Replaces the former ``DagOrigin``. Follows the precedent of
@@ -57,7 +57,7 @@ class FlowOrigin(str, enum.Enum):
     MITRE_CORPUS = "mitre_corpus"  # ingested from the MITRE Attack Flow corpus
 
 
-class FlowProvenance(str, enum.Enum):
+class FlowProvenance(enum.StrEnum):
     """How a campaign flow was obtained from the corpus (three-path policy)."""
 
     EXACT = "exact"  # a corpus flow matches the campaign as is
@@ -65,7 +65,7 @@ class FlowProvenance(str, enum.Enum):
     CREATED = "created"  # no usable corpus flow; the agent created it
 
 
-class IngestSource(str, enum.Enum):
+class IngestSource(enum.StrEnum):
     """Knowledge sources loaded by the ingestion orchestrator."""
 
     ATOMIC = "atomic"
@@ -75,7 +75,7 @@ class IngestSource(str, enum.Enum):
     CURATED_SEED = "curated_seed"
 
 
-class IngestStatus(str, enum.Enum):
+class IngestStatus(enum.StrEnum):
     """Lifecycle of the ingestion of one source."""
 
     PENDING = "pending"
@@ -84,7 +84,7 @@ class IngestStatus(str, enum.Enum):
     FAILED = "failed"
 
 
-class EnvironmentPlatform(str, enum.Enum):
+class EnvironmentPlatform(enum.StrEnum):
     """Environment platform — container today; VM admitted without redesign (Req. 17).
 
     Lives in the models layer (dependency-free) so it can be referenced both by
@@ -112,7 +112,7 @@ class EnvironmentPlatform(str, enum.Enum):
     VM = "virtual_machine"  # declared for the CHECK; not exercised this spec (Req. 17.2)
 
 
-class StageState(str, enum.Enum):
+class StageState(enum.StrEnum):
     """State of a Stage (Req. 1.4, 5.3)."""
 
     NOT_STARTED = "not_started"
@@ -121,7 +121,7 @@ class StageState(str, enum.Enum):
     ERROR = "error"
 
 
-class OperationState(str, enum.Enum):
+class OperationState(enum.StrEnum):
     """State of an Operation in Caldera."""
 
     NOT_STARTED = "not_started"
@@ -131,7 +131,7 @@ class OperationState(str, enum.Enum):
     INCOMPLETE_TIMEOUT = "incomplete_timeout"  # novo (Req. 3.2)
 
 
-class AbilityResultStatus(str, enum.Enum):
+class AbilityResultStatus(enum.StrEnum):
     """Execution status of an Ability during an Operation (Req. 4.3)."""
 
     PENDING = "pending"
@@ -140,21 +140,21 @@ class AbilityResultStatus(str, enum.Enum):
     FAILURE = "failure"
 
 
-class Theme(str, enum.Enum):
+class Theme(enum.StrEnum):
     """Visual theme of the interface (Req. 7)."""
 
     LIGHT = "light"
     DARK = "dark"
 
 
-class Language(str, enum.Enum):
+class Language(enum.StrEnum):
     """Interface language (Req. 8)."""
 
     PT_BR = "pt-BR"
     EN = "en"
 
 
-class AgentRunStatus(str, enum.Enum):
+class AgentRunStatus(enum.StrEnum):
     """Lifecycle of an AI curation run (Req. 2.4, 2.5, 11.2).
 
     Subclasses ``str`` so members serialize to their pt-BR values — the strings
@@ -177,7 +177,7 @@ class AgentRunStatus(str, enum.Enum):
     ABORTED = "aborted"  # hit the max-iteration guard without a passing verdict
 
 
-class AgentStage(str, enum.Enum):
+class AgentStage(enum.StrEnum):
     """Which agentic phase an agent output belongs to.
 
     Subclasses ``str`` so members serialize to their values, matching the
@@ -215,7 +215,7 @@ class AgentStage(str, enum.Enum):
 PHASE_ORDER: tuple[str, ...] = tuple(member.value for member in AgentStage)
 
 
-class TechniqueEmulabilityKind(str, enum.Enum):
+class TechniqueEmulabilityKind(enum.StrEnum):
     """Container-emulability classification of an ATT&CK technique (Req. 6.1).
 
     Subclasses ``str`` so members serialize to their values — the strings
@@ -244,7 +244,7 @@ class TechniqueEmulabilityKind(str, enum.Enum):
     NOT_CONTAINER = "not_container"
 
 
-class EvaluatorDecision(str, enum.Enum):
+class EvaluatorDecision(enum.StrEnum):
     """The evaluator's routing decision for the conditional edge (Req. 2.4, 2.5).
 
     Subclasses ``str`` so members serialize to their values. ``REFINE`` routes

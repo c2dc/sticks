@@ -5,7 +5,10 @@ import { Check, ChevronDown, Download, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ApiError } from "@/lib/api"
 import { downloadBase, getBases, type BaseStixInfo } from "@/lib/stix"
+import { useAsyncData } from "@/lib/use-async-data"
 import { cn } from "@/lib/utils"
+
+const EMPTY_BASES: BaseStixInfo[] = []
 
 export interface StixBaseSelectProps {
   /**
@@ -33,9 +36,13 @@ export interface StixBaseSelectProps {
 export function StixBaseSelect({ onSelectBase }: StixBaseSelectProps) {
   const { t } = useTranslation("stix")
 
-  const [bases, setBases] = useState<BaseStixInfo[]>([])
-  const [loading, setLoading] = useState(true)
-  const [loadError, setLoadError] = useState<string | null>(null)
+  // Do NOT pre-select any version: the dropdown starts empty and the
+  // Researcher picks a version explicitly.
+  const basesState = useAsyncData<BaseStixInfo[]>("bases", getBases)
+  const { reload } = basesState
+  const bases = basesState.data ?? EMPTY_BASES
+  const loading = basesState.loading
+  const loadError = basesState.error ? t("stix.bases.loadError") : null
 
   // The version highlighted in the dropdown (may not be on disk yet).
   const [candidate, setCandidate] = useState<string>("")
@@ -44,35 +51,6 @@ export function StixBaseSelect({ onSelectBase }: StixBaseSelectProps) {
   const [downloadError, setDownloadError] = useState<string | null>(null)
 
   const rootRef = useRef<HTMLDivElement>(null)
-
-  const load = useCallback(
-    async (signal?: { cancelled: boolean }) => {
-      try {
-        const data = await getBases()
-        if (signal?.cancelled) return
-        setBases(data)
-        setLoadError(null)
-        // Do NOT pre-select any version: the dropdown starts empty and the
-        // Researcher picks a version explicitly.
-      } catch {
-        if (signal?.cancelled) return
-        setLoadError(t("stix.bases.loadError"))
-      } finally {
-        if (!signal?.cancelled) setLoading(false)
-      }
-    },
-    [t],
-  )
-
-  useEffect(() => {
-    const signal = { cancelled: false }
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- resets the request state synchronously when the key changes, before the async fetch; deriving it during render would change the loading timing
-    setLoading(true)
-    void load(signal)
-    return () => {
-      signal.cancelled = true
-    }
-  }, [load])
 
   // Close the menu on an outside click.
   useEffect(() => {
@@ -97,7 +75,7 @@ export function StixBaseSelect({ onSelectBase }: StixBaseSelectProps) {
     setDownloadError(null)
     try {
       await downloadBase(candidate)
-      await load()
+      reload()
     } catch (error) {
       const message =
         error instanceof ApiError && error.message
@@ -107,7 +85,7 @@ export function StixBaseSelect({ onSelectBase }: StixBaseSelectProps) {
     } finally {
       setDownloading(false)
     }
-  }, [candidate, load, t])
+  }, [candidate, reload, t])
 
   if (loading) {
     return (

@@ -179,7 +179,7 @@ class SourceRunner(Protocol):
         ...
 
 
-class StartResult(str, enum.Enum):
+class StartResult(enum.StrEnum):
     STARTED = "started"
     ALREADY_RUNNING = "already_running"
 

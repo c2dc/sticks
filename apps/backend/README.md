@@ -94,9 +94,7 @@ versions persisted in the database; if the index fails (offline, empty, invalid
 JSON) it serves `KNOWN_VERSIONS` and caches that failure for 60 s. The lifespan
 warms the cache in a daemon thread (`stix-version-warmup`), so startup does not
 wait for the network. `POST /api/stix/bases/{version}/download` returns `422`
-(`falha_download`) for a version outside that list. The tests
-(`tests/test_stix_version_catalog.py`) inject a fake index and clock; none uses the
-network.
+(`falha_download`) for a version outside that list. No test uses the network.
 
 ### Atomic Red Team ingestion
 
@@ -120,8 +118,6 @@ or when `expected_count` is unknown or larger than the stored rows (for example 
 run interrupted after a few rows); otherwise it only vectorizes what is missing, and
 a complete source has an empty plan and uses no network.
 
-Tests (no network, no Hypothesis): `pytest tests/test_atomic_ingest.py
-tests/test_ingestion_orchestrator.py tests/test_command_base_ingest_idempotency_property.py`.
 
 Environment variables (process environment or root `.env`):
 
@@ -145,7 +141,6 @@ Environment variables (process environment or root `.env`):
 - `DOCKER_CATALOG_MIN_IMAGES` (default `150`): completeness floor; below it the catalog is fetched again.
 - `DOCKER_CATALOG_MIN_PULLS` (default `100000`): minimum pulls for non-official images.
 
-Tests: `pytest tests/test_docker_hub_fetcher.py tests/test_docker_catalog_ingest_idempotency.py` (fake HTTP, no network, no real sleeps).
 
 ### Curated cases seed (fresh installation)
 
@@ -159,8 +154,7 @@ adversaries, 8 attack flows) are read lazily by `app/seeds/loader.py` through
 Kubernetes and AWS) and applied through the ORM by an idempotent upsert
 (`app/seeds/apply.py`). `app/seeds/manifest.py` is a hard-coded constant with the
 slugs and expected counts (there is no `index.json`), so the ingestion plan can
-check the database without opening any file; `tests/test_curated_seed_data.py`
-keeps it in sync with the files.
+check the database without opening any file.
 
 Cross-campaign references are valid: an ability of `costaricto` may point to
 `shadowray`, and abilities are resolved globally, not per campaign.
@@ -178,22 +172,32 @@ Cross-campaign references are valid: an ability of `costaricto` may point to
   The exporter applies the documented `KNOWN_CORRECTIONS`: the `outer_space`
   adversary `atomic_ordering` orphan id `6afb1856-6e5a-5f9f-8f8c-rothos` is replaced
   by `a8de43be-fcde-5302-9cfd-rothos` (corrected ordering), and every flow node and the flow content are pruned to the lean format described above. See `ops/database/README.md`.
-- Tests: `pytest tests/test_curated_seed.py tests/test_curated_seed_data.py`.
 
 No real Caldera or Docker attack network is used in development; everything
 uses mocks/fixtures.
 
 ## Tests
 
+The repository keeps a deliberately small suite (10 tests in total, 8 here and
+2 in the frontend), described in `.kiro/steering/test-policy.md`. Property tests
+run with `max_examples=10`. New tests are only added with explicit owner approval.
+
 ```powershell
 # from apps/backend, with the venv active
 pytest
 ```
 
-The suite uses only mocks/fixtures and does not touch Caldera or the Docker
-attack network. The end-to-end integration test against the **REAL**
-environment (`tests/test_e2e_real_lab.py`, Task 15.3) is **skipped by default** —
-it sits behind the `lab` marker (deselected via `-m "not lab"` in
-`pyproject.toml`) and behind `skipif(PIPELINE_UI_LAB != "1")`, so it never runs
-in dev/CI. To run it on the **lab machine** (real Caldera + hardened compose,
-containment satisfied), see [`LAB.md`](./LAB.md).
+The suite uses only fakes and ephemeral SQLite databases; it never touches
+Caldera, the Docker attack network, the LLM or the real database. `tests/conftest.py`
+hides inherited `PIPELINE_UI_*` / `OLLAMA_*` variables and disables ingestion on start.
+
+| Test | Guards |
+|---|---|
+| `test_ai_isolation_gate_failclosed_property` | an environment proposed by the agent is only ready if the isolation gate approves it |
+| `test_isolation_gate_network_boundary` | destinations outside the internal subnets are rejected |
+| `test_operation_runner_failclosed_firing_property` | a command fires only if confirmed and isolated |
+| `test_provision_failclosed_property` | a provisioning failure never leaves a target with egress |
+| `test_migration_roundtrip_property` | migration up then down keeps curated data |
+| `test_atomic_reingest_property` | Atomic re-ingestion is idempotent |
+| `test_atomic_arguments_substitution_property` | argument substitution is a single total pass and keeps `PathToAtomicsFolder` |
+| `test_agent_context_property` | the agent context carries the original command template |

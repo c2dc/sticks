@@ -5,7 +5,7 @@ import reactHooks from "eslint-plugin-react-hooks";
 import jsxA11y from "eslint-plugin-jsx-a11y";
 
 export default tseslint.config(
-  { ignores: ["dist", "node_modules", "test-results", "playwright-report", "coverage"] },
+  { ignores: ["dist", "node_modules", "coverage"] },
   {
     files: ["**/*.{ts,tsx}"],
     extends: [

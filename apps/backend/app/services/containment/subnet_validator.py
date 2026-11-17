@@ -92,7 +92,7 @@ __all__ = [
 ]
 
 
-class DestinationClass(str, enum.Enum):
+class DestinationClass(enum.StrEnum):
     """Whether a destination is inside the internal lab subnets or not.
 
     Subclasses ``str`` so it serializes to its value over JSON, consistent with

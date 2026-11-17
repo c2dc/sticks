@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useState } from "react"
 import { useTranslation } from "react-i18next"
 
 import { Button } from "@/components/ui/button"
@@ -11,7 +11,10 @@ import {
 } from "@/components/ui/card"
 import { ApiError } from "@/lib/api"
 import { downloadBase, getBases, type BaseStixInfo } from "@/lib/stix"
+import { useAsyncData } from "@/lib/use-async-data"
 import { cn } from "@/lib/utils"
+
+const EMPTY_BASES: BaseStixInfo[] = []
 
 export interface StixBasesListProps {
   /**
@@ -38,41 +41,16 @@ export interface StixBasesListProps {
 export function StixBasesList({ onSelectBase }: StixBasesListProps) {
   const { t } = useTranslation("stix")
 
-  const [bases, setBases] = useState<BaseStixInfo[]>([])
-  const [loading, setLoading] = useState(true)
-  const [loadError, setLoadError] = useState<string | null>(null)
+  // Rendered in the backend-provided order (newest → oldest); not re-sorted.
+  const basesState = useAsyncData<BaseStixInfo[]>("bases", getBases)
+  const { reload } = basesState
+  const bases = basesState.data ?? EMPTY_BASES
+  const loading = basesState.loading
+  const loadError = basesState.error ? t("stix.bases.loadError") : null
 
   // Per-version download state, keyed by version.
   const [downloading, setDownloading] = useState<Record<string, boolean>>({})
   const [downloadError, setDownloadError] = useState<Record<string, string>>({})
-
-  const load = useCallback(
-    async (signal?: { cancelled: boolean }) => {
-      try {
-        const data = await getBases()
-        if (signal?.cancelled) return
-        // Render in the backend-provided order (newest → oldest); do not re-sort.
-        setBases(data)
-        setLoadError(null)
-      } catch {
-        if (signal?.cancelled) return
-        setLoadError(t("stix.bases.loadError"))
-      } finally {
-        if (!signal?.cancelled) setLoading(false)
-      }
-    },
-    [t],
-  )
-
-  useEffect(() => {
-    const signal = { cancelled: false }
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- resets the request state synchronously when the key changes, before the async fetch; deriving it during render would change the loading timing
-    setLoading(true)
-    void load(signal)
-    return () => {
-      signal.cancelled = true
-    }
-  }, [load])
 
   const handleDownload = useCallback(
     async (version: string) => {
@@ -85,7 +63,7 @@ export function StixBasesList({ onSelectBase }: StixBasesListProps) {
       try {
         await downloadBase(version)
         // Re-fetch so the row flips to downloaded (Req. 2.6).
-        await load()
+        reload()
       } catch (error) {
         const message =
           error instanceof ApiError && error.message
@@ -101,7 +79,7 @@ export function StixBasesList({ onSelectBase }: StixBasesListProps) {
         })
       }
     },
-    [load, t],
+    [reload, t],
   )
 
   return (

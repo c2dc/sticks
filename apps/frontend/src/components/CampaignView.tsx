@@ -9,6 +9,7 @@ import {
 import { useTranslation } from "react-i18next"
 import { Container } from "lucide-react"
 
+import { useAsyncData } from "@/lib/use-async-data"
 import { cn } from "@/lib/utils"
 import {
   getCampaignOverview,
@@ -35,17 +36,24 @@ import {
  *   renders the overview panel from the persisted package (Req. 7.3, 7.4). No
  *   server-side selection exists: the run materializes the campaign on start.
  */
-export function CampaignView({
-  version,
-  onCompleted,
-}: {
+export interface CampaignViewProps {
   version: string
   /**
    * Called with the chosen `campaign_key` and the campaign's readable name once
    * its overview has loaded.
    */
   onCompleted?: (campaignKey: string, campaignName?: string) => void
-}) {
+}
+
+/**
+ * Remounts the inner view when the version changes, which resets the selection
+ * state (selected campaign, overview, completion report) without an effect.
+ */
+export function CampaignView(props: CampaignViewProps) {
+  return <CampaignViewForVersion key={props.version} {...props} />
+}
+
+function CampaignViewForVersion({ version, onCompleted }: CampaignViewProps) {
   const { t } = useTranslation("pipeline")
 
   // Report a selection to the wizard at most once per key.
@@ -60,8 +68,9 @@ export function CampaignView({
     onCompletedRef.current?.(key, name)
   }, [])
 
-  const [campaigns, setCampaigns] = useState<StixCampaignSummary[] | null>(null)
-  const [loadError, setLoadError] = useState<string | null>(null)
+  const campaignsState = useAsyncData<StixCampaignSummary[]>(version, () => getCampaigns(version))
+  const campaigns = campaignsState.data
+  const loadError = campaignsState.error ? t("stageView.loadError") : null
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null)
   const [selecting, setSelecting] = useState(false)
   // Distinguish "no selection yet" from "selection attempted".
@@ -132,27 +141,6 @@ export function CampaignView({
     if (!selecting) preservedScroll.current = null
   }, [selecting, overview, selectionFailed])
 
-  useEffect(() => {
-    let active = true
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- resets the request state synchronously when the key changes, before the async fetch; deriving it during render would change the loading timing
-    setCampaigns(null)
-    setLoadError(null)
-    setSelectedSlug(null)
-    setSelectionApplied(false)
-    setSelectionFailed(false)
-    setOverview(null)
-    completionReported.current = null
-    getCampaigns(version)
-      .then((list) => {
-        if (active) setCampaigns(list)
-      })
-      .catch(() => {
-        if (active) setLoadError(t("stageView.loadError"))
-      })
-    return () => {
-      active = false
-    }
-  }, [version, t])
 
   // Clicking a campaign selects it directly (Req. 7.3): the overview is read
   // from `getCampaignOverview(version, campaignKey)` and, once it loads, the

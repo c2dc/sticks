@@ -34,7 +34,6 @@ dependencies = [
 dev = [
     "pytest>=8.2",
     "hypothesis>=6.100",
-    "pytest-asyncio>=0.23",
     "ruff==0.17.5",
 ]
 
@@ -48,14 +47,7 @@ include = ["app*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
-# ``-m "not lab"`` deselects the lab-only end-to-end test (task 15.3) by
-# default, so the full suite stays green in dev/CI without a real Caldera +
-# hardened Docker environment. Run the lab test explicitly on the lab machine
-# with ``PIPELINE_UI_LAB=1`` and ``pytest -m lab`` (see LAB.md).
-addopts = "-ra -m \"not lab\""
-markers = [
-    "lab: end-to-end test requiring the REAL lab Caldera + hardened Docker environment (task 15.3); deselected by default and additionally guarded by the PIPELINE_UI_LAB env var",
-]
+addopts = "-ra"
 
 [tool.ruff]
 target-version = "py311"
@@ -81,10 +73,6 @@ select = [
 # The formatter controls line width; long string literals stay as they are.
 ignore = [
     "E501",
-    # UP042 would turn every ``(str, Enum)`` into ``StrEnum``, which changes ``str(member)``
-    # (``"Cls.MEMBER"`` -> the value); the enums are persisted and serialized, so the
-    # existing base classes stay to keep behavior identical.
-    "UP042",
 ]
 
 [tool.ruff.lint.flake8-bugbear]
