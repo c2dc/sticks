@@ -38,7 +38,7 @@ Task 15.3 (this change) adds the **SEPINF-failure / ``FAILED`` handling** and th
 **startup seam fallback**:
 
 * ``start``/``resume`` wrap the graph invocation so that when SEPINF is
-  unreachable or exceeds its 30-second timeout, the model returns an error, an
+  unreachable or exceeds the configured read timeout (``LLM_READ_TIMEOUT_SECONDS``), the model returns an error, an
   LLM output cannot be parsed into a valid attack flow/command set after the one repair
   (``FlowGenerationError`` and analogous node errors), or a phase cannot be filled
   because its required Agent_Input is absent, the run is flipped to ``FAILED``
@@ -209,7 +209,7 @@ class AgentRunService:
         :meth:`_persist_iterations` (Req. 11.5-11.8).
 
         Failure handling (Req. 14.1, 14.2, 14.6): if the graph invocation fails —
-        SEPINF unreachable or no response within the 30-second timeout, a model
+        SEPINF unreachable or no response within the configured read timeout, a model
         error, or an LLM output that cannot be parsed into a valid attack flow/command set
         after the one repair (:class:`~app.services.ai.agents.flow_agent.FlowGenerationError`
         and analogous node errors) — the run is flipped to ``FAILED`` with its
@@ -456,7 +456,7 @@ class AgentRunService:
         """Mark ``run`` ``FAILED``, record the cause + partial trace, and raise (2.6/4.4/14.x).
 
         Invoked when the graph invocation in :meth:`start` / :meth:`resume` raises
-        — SEPINF unreachable or no response within its 30-second timeout, a model
+        — SEPINF unreachable or no response within the configured read timeout, a model
         error response, an LLM output that could not be parsed into a valid
         Attack flow/command set after the single permitted repair
         (:class:`~app.services.ai.agents.flow_agent.FlowGenerationError` and

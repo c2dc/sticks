@@ -43,7 +43,11 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.api.llm import selected_profile
 from app.db.session import get_db
+from app.services.ai.llm_failure import classify_llm_failure
+from app.services.ai.llm_selection import run_profile
+from app.services.ai.preflight import run_preflight
 from app.services.ai.run_service import (
     AgentRunService,
     DependencyUnavailableError,
@@ -366,6 +370,12 @@ class GroundTruthComparisonResponse(BaseModel):
     status_code=status.HTTP_201_CREATED,
     summary="Start an AI curation run (create row + invoke graph within 2s)",
     responses={
+        status.HTTP_409_CONFLICT: {
+            "description": (
+                "The selected language model failed its preflight (reason "
+                "'llm_blocked'); nothing was started or persisted."
+            )
+        },
         status.HTTP_503_SERVICE_UNAVAILABLE: {
             "description": (
                 "The run could not be started: a required dependency "
@@ -403,6 +413,11 @@ def start_ai_run(
     is accepted, while a truly-absent id is refused with a 404 (Req. 2.2, 2.3,
     2.4, 4.4).
 
+    After the campaign guard, the selected model profile is checked with a forced
+    preflight; a blocked result answers 409 ``llm_blocked`` (codes and hints, no row
+    created). The run then executes with that profile frozen. A ``RunFailedError``
+    answers 503 ``run_failed`` with a ``cause_code`` classifying the model failure.
+
     After the guard and BEFORE the run starts, the campaign is materialized into
     the ``campaigns`` table via
     :meth:`~app.services.campaign_materializer.CampaignMaterializer.materialize`
@@ -421,6 +436,21 @@ def start_ai_run(
 
     _known_campaign_or_404(campaign, db, CURATED_VERSION)
 
+    # Gate: check the selected model before creating any row. A blocked preflight
+    # answers 409 immediately instead of letting the run wait on a dead server.
+    profile = selected_profile(db)
+    preflight = run_preflight(profile, force=True)
+    if preflight.status == "blocked":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "reason": "llm_blocked",
+                "profile_id": preflight.profile_id,
+                "codes": preflight.blocking_codes,
+                "hints": preflight.hints,
+            },
+        )
+
     try:
         # Materialize the campaigns row from the STIX BEFORE any FK-bearing write
         # (agent_runs/abilities/attack_flows -> campaigns.id), so the run — including the
@@ -428,7 +458,10 @@ def start_ai_run(
         # non-curated campaign (Req. 2.4, 2.5, 2.6). Idempotent no-op for an
         # already-materialized (curated) campaign.
         CampaignMaterializer(db).materialize(campaign, CURATED_VERSION)
-        run = AgentRunService(db).start(campaign, max_iterations=body.max_iterations)
+        # The profile is frozen for the whole run so a selection change mid-run
+        # cannot mix models.
+        with run_profile(profile):
+            run = AgentRunService(db).start(campaign, max_iterations=body.max_iterations)
     except DependencyUnavailableError as exc:
         # A required dependency (checkpointer / pgvector) was unavailable: the
         # service created no row, but roll back defensively so nothing partial
@@ -458,6 +491,7 @@ def start_ai_run(
                     f"failed at node {exc.node!r}."
                 ),
                 "node": exc.node,
+                "cause_code": classify_llm_failure(exc.cause),
             },
         ) from exc
     except PersistenceError as exc:
@@ -530,7 +564,7 @@ def get_ai_run(
     if run is None or run.campaign_id != campaign:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=(f"Execução de IA desconhecida: id={id!r} para a campanha {campaign!r}."),
+            detail=(f"Unknown AI run: id={id!r} for campaign {campaign!r}."),
         )
 
     run_failed = run.status is AgentRunStatus.FAILED

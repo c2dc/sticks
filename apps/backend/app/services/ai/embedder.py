@@ -35,6 +35,8 @@ EMBEDDER_UNAVAILABLE = "embedder_unavailable"
 EMBEDDING_DIM_MISMATCH = "embedding_dim_mismatch"
 
 _DEFAULT_TIMEOUT_SECONDS = 120.0
+_CONNECT_TIMEOUT_SECONDS = 5.0
+_TAGS_QUERY_TIMEOUT_SECONDS = 2.0
 
 
 def _resolve_timeout(value: Any) -> float:
@@ -128,9 +130,15 @@ class OllamaEmbedder:
         url = f"{self._base_url}/api/embed"
         try:
             if self._client is not None:
-                response = self._client.post(url, json=payload, timeout=self._timeout)
+                response = self._client.post(
+                    url,
+                    json=payload,
+                    timeout=httpx.Timeout(self._timeout, connect=_CONNECT_TIMEOUT_SECONDS),
+                )
             else:
-                with httpx.Client(timeout=self._timeout) as client:
+                with httpx.Client(
+                    timeout=httpx.Timeout(self._timeout, connect=_CONNECT_TIMEOUT_SECONDS)
+                ) as client:
                     response = client.post(url, json=payload)
             response.raise_for_status()
             body: Any = response.json()
@@ -159,3 +167,32 @@ class OllamaEmbedder:
             raise EmbedderError(
                 EMBEDDER_UNAVAILABLE, "Ollama vector contains non-numeric values."
             ) from exc
+
+
+def build_experience_embedder() -> OllamaEmbedder | None:
+    """Return an :class:`OllamaEmbedder` when the embedding model is installed, else ``None``.
+
+    A quick ``GET /api/tags`` (2 s) checks that ``OLLAMA_EMBED_MODEL`` is installed.
+    Any failure (daemon down, bad body, model missing) yields ``None`` so callers keep
+    the existing "no embedder" behavior: experience retrieval is skipped with a warning.
+    """
+    settings = OllamaEmbedderSettings()
+    try:
+        response = httpx.get(
+            f"{settings.base_url.rstrip('/')}/api/tags",
+            timeout=httpx.Timeout(_TAGS_QUERY_TIMEOUT_SECONDS),
+        )
+        response.raise_for_status()
+        body = response.json()
+    except (httpx.HTTPError, ValueError):
+        return None
+    models = body.get("models") if isinstance(body, dict) else None
+    if not isinstance(models, list):
+        return None
+    wanted = settings.model
+    accepted = {wanted, f"{wanted}:latest"}
+    if wanted.endswith(":latest"):
+        accepted.add(wanted.removesuffix(":latest"))
+    if not any(isinstance(m, dict) and m.get("name") in accepted for m in models):
+        return None
+    return OllamaEmbedder()

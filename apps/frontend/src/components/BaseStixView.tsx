@@ -115,7 +115,7 @@ export function BaseStixView({
     return (
       <div className="flex flex-col gap-2" data-section="base-stix">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-sm">{t("baseStix.selected", { versao: version })}</p>
+          <p className="text-sm">{t("baseStix.selected", { version })}</p>
           {onVersionSelected ? (
             <Button
               variant="outline"
@@ -361,7 +361,6 @@ function PackageAnalyticsPanel({
     <details
       className="group flex flex-col gap-3 rounded-md border bg-background p-3"
       data-section="analytics"
-      open
     >
       <summary className="flex cursor-pointer list-none items-center justify-between text-sm font-medium">
         <span>{t("baseStix.analytics.title")}</span>

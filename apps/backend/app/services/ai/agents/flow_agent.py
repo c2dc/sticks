@@ -1317,9 +1317,10 @@ def node(state: AgentState, *, session: Any = None) -> dict:
     memory = state.get("memory")
     if memory is None and resolved_session is not None:
         try:
+            from app.services.ai.embedder import build_experience_embedder
             from app.services.ai.memory import ExperienceMemory
 
-            memory = ExperienceMemory(resolved_session)
+            memory = ExperienceMemory(resolved_session, embedder=build_experience_embedder())
         except Exception as exc:  # noqa: BLE001 -- never let RAG setup break the run
             logger.warning(
                 "attack flow node could not build the experience memory (%s: %s); "

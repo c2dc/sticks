@@ -150,6 +150,9 @@ variables, also readable from `.env`):
 | `OLLAMA_BASE_URL` | Base URL of the Ollama service that produces embeddings. |
 | `OLLAMA_EMBED_MODEL` | Embedding model name used for every vectorized source. |
 | `OLLAMA_EMBED_TIMEOUT` | Timeout, in seconds, of each embedding request to Ollama (default `120`, so a cold model has time to load). Missing, non-numeric, zero or negative values fall back to the default. |
+| `LLM_CONNECT_TIMEOUT_SECONDS` | Connection limit, in seconds, of every language-model client (default `5`). Missing, unreadable, zero or negative values fall back to the default. |
+| `LLM_READ_TIMEOUT_SECONDS` | Response limit, in seconds, of every language-model client (default `180`). Same fallback rule. There is no automatic retry. |
+| `LLM_PREFLIGHT_RESPONSE_TIMEOUT_SECONDS` | Limit, in seconds, of the one-token test call of the pre-start check (default `120`, so a cold local model has time to load). Same fallback rule. |
 | `INGEST_WORK_DIR` | Absolute directory for the ingestion's temporary files (for example `C:\sticks-ingest`, a folder with an **antivirus exception**). Unset or empty (default): nothing is written to disk, the Atomic Red Team YAML files are parsed in memory. When valid, the selected YAML files are staged in a unique `atomic_red_team_<uuid>` subfolder, removed at the end (success or failure). A relative or unusable path logs a warning and behaves as unset. |
 | `ATOMIC_MIN_TECHNIQUES` | Plausibility floor for the Atomic Red Team source (default `100`; the full repository has about 350 techniques). A download with zero techniques or fewer than this ends `failed` with `implausible_atomic_count`, never `ready`. |
 | `DOCKER_CATALOG_MIN_IMAGES` | Completeness floor of the Docker image catalog (default `150`). A catalog with fewer images (for example the 200 of the old search) is fetched again; upserts only add. |
@@ -481,6 +484,85 @@ docker exec -i sticks-postgres pg_restore -U pipeline_ui --clean --if-exists -d 
   `alembic downgrade a9b0c1d2e3f4` (with `PIPELINE_UI_DATABASE_URL` set), or
   restore the dump. The downgrade stops without changes if a phase value has no
   numbered equivalent (for example `evaluation`); restore the dump in that case.
+
+#### Upgrading to the model-profile migration (back up first)
+
+Migration `c1d2e3f4a5b6` adds the nullable column `preferences.llm_profile_id`
+(the selected model profile). It is additive and reversible, and it does not
+change existing rows. `npm run dev` and `npm run db:migrate` apply it
+automatically, so take the same backup shown above before the first run after
+pulling this change. To roll back, run `alembic downgrade b0c1d2e3f4a5` from
+`apps/backend`.
+
+---
+
+## Language-model profiles and the pre-start check
+
+The agents and the threat-intelligence extraction call one language model, the
+**selected profile**. Profiles are not registered by hand; they are discovered.
+
+- **Work profile (default).** Built from `SEPINF_BASE_URL`, `SEPINF_MODEL_ID` and
+  `SEPINF_API_KEY` (OpenAI-compatible server). It is used while no other profile
+  is selected. **It depends on the work VPN:** if the server is unreachable, turn
+  the VPN on and check again.
+- **Local profiles (Ollama).** One profile per model listed by
+  `GET {OLLAMA_BASE_URL}/api/tags` that can generate text. Remote and
+  embedding-only models are ignored. If Ollama does not answer the listing within
+  2 s, only the work profile is offered.
+- **Selection.** `PUT /api/llm/selection` stores the profile id in
+  `preferences.llm_profile_id`. An unknown id answers 404 (`unknown_profile`)
+  and keeps the previous selection. If the stored model later disappears from
+  Ollama, the check reports `model_missing`; the app never switches profile silently.
+- **API key.** The key stays only in the `SEPINF_API_KEY` environment variable
+  (root `.env`). It is never written to the database, returned by the API or logged;
+  a profile only records the **name** of the variable.
+
+### What the check verifies
+
+`POST /api/llm/preflight` (cached for 30 s per profile, `force` skips the cache)
+returns only reason codes and numbers; the frontend translates them.
+
+| Check | Applies to | Result codes |
+|-------|-----------|--------------|
+| Reachability | OpenAI-compatible | Server reached within 5 s: `reachable` / `unreachable` (the work profile then also gets the `vpn` hint). |
+| Response | both, after the server is reachable | One-call test with `max_tokens` = 1, limited by `LLM_PREFLIGHT_RESPONSE_TIMEOUT_SECONDS`: `responds` / `no_response`. |
+| Daemon and model | Ollama | `daemon_running` / `daemon_down`, `model_present` / `model_missing`. |
+| Memory | Ollama | `fits_gpu`, `fits_ram_only`, `too_large`, `memory_unknown`. The OpenAI-compatible profile reports `not_applicable` (skipped). |
+| Embedder | always | The model in `OLLAMA_EMBED_MODEL` is installed: `embedder_available` / `embedder_missing`. |
+
+**Memory rule.** A local model fits when its size times **1.2** is at most the
+free memory. The factor leaves headroom for the context cache and runtime
+buffers, which are not part of the file size. The rule is tried on the free GPU
+memory first (read with `nvidia-smi`; `memory_unknown` if the command is missing
+or fails), then on the free RAM. `fits_gpu` means GPU, `fits_ram_only` means
+RAM only (slower), `too_large` means neither.
+
+### Block or warn
+
+- **Blocks** (`status` = `blocked`): the profile is not configured
+  (`not_configured`), the server is unreachable or does not
+  respond, the daemon is down, the model is missing, or the model is `too_large`.
+- **Warns only** (`status` = `warning`): for example `fits_ram_only`,
+  `memory_unknown` or `embedder_missing` (the agents then run without the
+  embedding memory).
+- Otherwise `status` = `ok`.
+
+`POST /api/campaigns/{campaign}/ai/run` repeats the check (`force`) before creating
+anything. If it is blocked, the answer is 409 `llm_blocked` with the code list
+and no run is created. If the model fails during a run, the answer is 503
+`run_failed` with a `cause_code` (`llm_unreachable`, `llm_timeout`,
+`llm_not_configured`, `llm_error` or `run_error`). In the UI the
+"Start the emulation" button stays disabled while the check is running or blocked,
+and a panel above it lists each check.
+
+### Status icon
+
+The top bar, next to theme and language, shows one status icon: check (ok),
+alert (warning), error (blocked), spinner (checking) or question mark (the check
+itself failed). The shape differs by state, so color is not the only signal. Hover
+or focus shows the model name and state; activating it opens a panel with the
+profiles, the size and memory fit of each local model, the selection and a
+"check again" button.
 
 ---
 

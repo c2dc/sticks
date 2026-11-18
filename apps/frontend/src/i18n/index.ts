@@ -6,10 +6,12 @@ import { initReactI18next } from "react-i18next"
 // the pipeline/preferences namespaces are curated in tasks 12.x/13.1; this file
 // owns the i18n wiring, fallback and language normalization (task 14.1).
 import commonPtBR from "./locales/pt-BR/common.json"
+import llmPtBR from "./locales/pt-BR/llm.json"
 import pipelinePtBR from "./locales/pt-BR/pipeline.json"
 import preferencesPtBR from "./locales/pt-BR/preferences.json"
 import stixPtBR from "./locales/pt-BR/stix.json"
 import commonEn from "./locales/en/common.json"
+import llmEn from "./locales/en/llm.json"
 import pipelineEn from "./locales/en/pipeline.json"
 import preferencesEn from "./locales/en/preferences.json"
 import stixEn from "./locales/en/stix.json"
@@ -18,7 +20,7 @@ export const DEFAULT_LANGUAGE = "pt-BR" as const
 export const SUPPORTED_LANGUAGES = ["pt-BR", "en"] as const
 export type SupportedLanguage = (typeof SUPPORTED_LANGUAGES)[number]
 
-export const NAMESPACES = ["common", "pipeline", "preferences", "stix"] as const
+export const NAMESPACES = ["common", "llm", "pipeline", "preferences", "stix"] as const
 
 /**
  * Normalize any persisted/requested language to a supported one, defaulting to
@@ -35,12 +37,14 @@ export function normalizeLanguage(value: string | null | undefined): SupportedLa
 export const resources = {
   "pt-BR": {
     common: commonPtBR,
+    llm: llmPtBR,
     pipeline: pipelinePtBR,
     preferences: preferencesPtBR,
     stix: stixPtBR,
   },
   en: {
     common: commonEn,
+    llm: llmEn,
     pipeline: pipelineEn,
     preferences: preferencesEn,
     stix: stixEn,

@@ -18,9 +18,11 @@ import { OrchestratorAvatar, type OrchestratorMood } from "@/components/Orchestr
 import { AgentTracePanel } from "@/components/AgentTracePanel"
 import { FlowPhaseView } from "@/components/FlowPhaseView"
 import { OperationalizationScreen } from "@/components/OperationalizationScreen"
+import { useLlmStatus } from "@/components/llm/LlmStatusProvider"
+import { PreflightPanel } from "@/components/llm/PreflightPanel"
 import { Button } from "@/components/ui/button"
-import { EmptyNote } from "@/components/PhaseSection"
 import { campaignDisplayName } from "@/lib/campaign"
+import { reasonCodeFrom } from "@/lib/llm"
 import { cn } from "@/lib/utils"
 import {
   getAiRun,
@@ -107,6 +109,8 @@ export function GuidedRunView({
   version: string
 }) {
   const { t } = useTranslation("pipeline")
+  const { t: tLlm } = useTranslation("llm")
+  const { state: llmState, recheck } = useLlmStatus()
   const displayName = campaignDisplayName(campaignName, campaignId)
 
   const [detail, setDetail] = useState<AiRunDetail | null>(null)
@@ -129,12 +133,22 @@ export function GuidedRunView({
       setDetail({ run, iterations: [] })
       // The operationalization was reviewed: reveal the flow phase.
       setApprovedUpTo(1)
-    } catch {
-      setStartError(t("aiRun.startError"))
+    } catch (error) {
+      // 409 llm_blocked carries the blocking codes; 503 run_failed carries the cause code.
+      const { reason, codes, causeCode } = reasonCodeFrom(error)
+      if (reason === "llm_blocked" && codes.length > 0) {
+        setStartError(tLlm(`block.reason.${codes[0]}`))
+        recheck()
+      } else if (reason === "run_failed" && causeCode) {
+        setStartError(tLlm(`reason.${causeCode}`))
+        recheck()
+      } else {
+        setStartError(t("aiRun.startError"))
+      }
     } finally {
       setStarting(false)
     }
-  }, [campaignId, t])
+  }, [campaignId, recheck, t, tLlm])
 
   // Poll while the run is non-terminal; one final read on terminal.
   useEffect(() => {
@@ -184,15 +198,21 @@ export function GuidedRunView({
           <OperationalizationScreen
             version={version}
             campaignKey={campaignId}
-            campaignName={displayName}
           />
         </div>
+        <div className="ml-14">
+          <PreflightPanel runError={startError} />
+        </div>
         <div className="flex flex-col items-center gap-3">
-          <Button size="lg" onClick={() => void start()} disabled={starting} className="px-8">
+          <Button
+            size="lg"
+            onClick={() => void start()}
+            disabled={starting || llmState === "blocked" || llmState === "checking"}
+            className="px-8"
+          >
             {starting ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Sparkles className="size-4" aria-hidden />}
             {starting ? t("guided.preparing") : t("guided.start")}
           </Button>
-          {startError ? <EmptyNote>{startError}</EmptyNote> : null}
         </div>
       </GuidedShell>
     )
@@ -366,7 +386,6 @@ function PhaseTurn({
             <OperationalizationScreen
               version={version}
               campaignKey={campaignId}
-              campaignName={campaignName}
             />
           </div>
         ) : phase === "flow" ? (

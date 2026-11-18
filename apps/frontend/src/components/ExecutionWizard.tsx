@@ -105,7 +105,7 @@ export function ExecutionWizard({
             <div className="flex items-center gap-3">
               <span className="text-sm text-muted-foreground">
                 {t("input.run.campaign", {
-                  campanha: campaignDisplayName(campaignName, campaignId),
+                  campaign: campaignDisplayName(campaignName, campaignId),
                 })}
               </span>
               <Button

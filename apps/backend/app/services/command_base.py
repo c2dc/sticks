@@ -188,9 +188,16 @@ class CommandBase:
         return suggestions
 
     def _resolve_memory(self) -> ExperienceMemory:
-        """Return the injected Experience_Memory or build one over the session."""
+        """Return the injected Experience_Memory or build one over the session.
+
+        The memory built here carries the Ollama embedder when the embedding model
+        is installed; without it the similarity fallback would always degrade to an
+        empty set because retrieval has nothing to embed the query with.
+        """
         if self._memory is None:
-            self._memory = ExperienceMemory(self._session)
+            from app.services.ai.embedder import build_experience_embedder
+
+            self._memory = ExperienceMemory(self._session, embedder=build_experience_embedder())
         return self._memory
 
     @staticmethod

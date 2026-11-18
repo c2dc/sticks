@@ -14,8 +14,10 @@
       "ready": "Ready",
       "failed": "Failed"
     },
-    "counts": "{{loaded}} loaded · {{embedded}} embedded · {{expected}} expected",
-    "skipped": "{{count}} skipped",
+    "loaded": "Loaded: {{count}}",
+    "embedded": "Embedded: {{count}}",
+    "expected": "Expected: {{count}}",
+    "skipped": "Skipped: {{count}}",
     "failure_cause": "Cause: {{error}}",
     "resume": "Resume",
     "resuming": "Resuming…",

@@ -4,7 +4,6 @@ import { Check, Copy } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { campaignDisplayName } from "@/lib/campaign"
 import { useAsyncData } from "@/lib/use-async-data"
 import {
   getOperationalization,
@@ -35,12 +34,9 @@ const COPY_FEEDBACK_MS = 2000
 export function OperationalizationScreen({
   version,
   campaignKey,
-  campaignName,
 }: {
   version: string
   campaignKey: string
-  /** Readable campaign name; falls back to a humanized key. */
-  campaignName?: string
 }) {
   const { t } = useTranslation("pipeline")
   const request = useAsyncData<OperationalizationListing>(
@@ -98,11 +94,6 @@ export function OperationalizationScreen({
     >
       <CardHeader>
         <CardTitle id={TITLE_ID}>{t("operationalization.title")}</CardTitle>
-        <p className="text-sm font-medium" data-testid="operationalization-campaign">
-          {t("operationalization.campaign", {
-            campaign: campaignDisplayName(campaignName, campaignKey),
-          })}
-        </p>
         <CardDescription>{t("operationalization.description")}</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
@@ -121,11 +112,12 @@ export function OperationalizationScreen({
               className="flex flex-col gap-3"
               aria-label={t("operationalization.techniquesLabel")}
             >
-              {listing.techniques.map((technique) => (
+              {listing.techniques.map((technique, index) => (
                 <TechniqueItem
                   key={technique.technique_id}
                   technique={technique}
                   atomicReady={ready}
+                  defaultOpen={index === 0}
                 />
               ))}
             </ul>
@@ -184,13 +176,25 @@ function AtomicNotice({ status }: { status: AtomicStatus }) {
 function TechniqueItem({
   technique,
   atomicReady,
+  defaultOpen = false,
 }: {
   technique: OperationalizationTechnique
   atomicReady: boolean
+  defaultOpen?: boolean
 }) {
   const { t } = useTranslation("pipeline")
   const name = technique.technique_name ?? t("operationalization.unnamedTechnique")
   const headingId = `operationalization-technique-${technique.technique_id}`
+  const heading = (
+    <div className="flex flex-wrap items-baseline gap-2">
+      <h3 id={headingId} className="text-sm font-medium">
+        <span className="font-mono">{technique.technique_id}</span> — {name}
+      </h3>
+      <span className="text-xs text-muted-foreground">
+        {t("operationalization.commandCount", { count: technique.commands.length })}
+      </span>
+    </div>
+  )
 
   return (
     <li
@@ -199,24 +203,28 @@ function TechniqueItem({
       data-technique={technique.technique_id}
       aria-labelledby={headingId}
     >
-      <div className="flex flex-wrap items-baseline gap-2">
-        <h3 id={headingId} className="text-sm font-medium">
-          <span className="font-mono">{technique.technique_id}</span> — {name}
-        </h3>
-        <span className="text-xs text-muted-foreground">
-          {t("operationalization.commandCount", { count: technique.commands.length })}
-        </span>
-      </div>
-
       {technique.commands.length === 0 ? (
-        <p className="text-sm text-muted-foreground" data-testid="no-commands">
-          {atomicReady
-            ? t("operationalization.noCommands")
-            : t("operationalization.noCommandsPending")}
-        </p>
+        <>
+          {heading}
+          <p className="text-sm text-muted-foreground" data-testid="no-commands">
+            {atomicReady
+              ? t("operationalization.noCommands")
+              : t("operationalization.noCommandsPending")}
+          </p>
+        </>
       ) : (
+        <details open={defaultOpen} className="group" data-testid="technique-details">
+          <summary className="flex cursor-pointer list-none items-center gap-2">
+            <span
+              className="text-xs text-muted-foreground transition-transform group-open:rotate-90"
+              aria-hidden
+            >
+              ▸
+            </span>
+            {heading}
+          </summary>
         <ul
-          className="flex flex-col gap-2"
+          className="mt-2 flex flex-col gap-2"
           aria-label={t("operationalization.commandsLabel", { technique: technique.technique_id })}
         >
           {technique.commands.map((command, index) => (
@@ -295,12 +303,17 @@ function TechniqueItem({
                 </div>
                 <div className="flex gap-1">
                   <dt>{t("operationalization.source")}:</dt>
-                  <dd>{command.source}</dd>
+                  <dd>
+                    {t(`operationalization.sourceName.${command.source}`, {
+                      defaultValue: command.source,
+                    })}
+                  </dd>
                 </div>
               </dl>
             </li>
           ))}
         </ul>
+        </details>
       )}
     </li>
   )

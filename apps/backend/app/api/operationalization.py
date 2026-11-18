@@ -41,5 +41,5 @@ def get_operationalization(
     except CampaignNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail={"motivo": "campanha_nao_encontrada", "mensagem": str(exc)},
+            detail={"reason": "campaign_not_found", "message": str(exc)},
         ) from exc

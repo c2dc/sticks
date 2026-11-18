@@ -596,9 +596,12 @@ def _retrieve_experience(
         if resolved_session is None:
             return []
         try:
+            from app.services.ai.embedder import build_experience_embedder
             from app.services.ai.memory import ExperienceMemory
 
-            resolved_memory = ExperienceMemory(resolved_session)
+            resolved_memory = ExperienceMemory(
+                resolved_session, embedder=build_experience_embedder()
+            )
         except Exception as exc:  # noqa: BLE001 -- never let RAG setup break the run
             logger.warning(
                 "Orchestrator could not build the experience memory for campaign "

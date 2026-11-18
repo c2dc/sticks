@@ -7,8 +7,8 @@
  *
  * Mirrors `app/api/operationalization.py` and
  * `app/services/operationalization_listing.py`. Read-only; the backend answers
- * 404 (`campanha_nao_encontrada`) for an unknown campaign and 422
- * (`bundle_indisponivel`) for a version that is not available.
+ * 404 (`campaign_not_found`) for an unknown campaign and 422
+ * (`bundle_unavailable`) for a version that is not available.
  */
 import { api } from "@/lib/api"
 import type { IngestStatus } from "@/lib/ingestion"

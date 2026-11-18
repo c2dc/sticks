@@ -15,19 +15,19 @@ Endpoints implemented here:
   Side-effect free: no network egress (Req. 2.1).
 * ``GET  /api/stix/bases/{version}/overview`` — the package overview (per-type
   counts and totals) read from the database. A non-persisted version maps to the
-  ``{"detail": {"motivo": "bundle_indisponivel", ...}}`` 422 contract.
+  ``{"detail": {"reason": "bundle_unavailable", ...}}`` 422 contract.
 * ``GET  /api/stix/bases/{version}/campaigns`` — the campaign summaries read from
-  the database. Same ``bundle_indisponivel`` 422 contract.
+  the database. Same ``bundle_unavailable`` 422 contract.
 * ``GET  /api/stix/bases/{version}/campaigns/{campaign_key}/overview`` — the
   overview of a single campaign. A missing campaign maps to
-  ``{"detail": {"motivo": "campanha_nao_encontrada", ...}}`` 404.
+  ``{"detail": {"reason": "campaign_not_found", ...}}`` 404.
 * ``GET  /api/stix/bases/{version}/analytics`` — the package analytics dashboard.
 * ``POST /api/stix/bases/{version}/download`` — asks the orchestrator to ingest a
   version that is not in the database yet. The ingestion runs in the background
   (``202``); the client follows ``GET /api/stix/bases`` (``downloaded``) and
   ``GET /api/ingestion/status``. A version already persisted answers ``200``
   without any work. An unknown version maps to
-  ``{"detail": {"motivo": "falha_download", ...}}`` 422.
+  ``{"detail": {"reason": "download_failed", ...}}`` 422.
 
 _Requirements: 2.1, 3.1, 4.1, 4.3, 5.1, 5.2, 5.3, 5.4, 7.1_
 """
@@ -72,15 +72,15 @@ ReadResult = TypeVar("ReadResult")
 # ---------------------------------------------------------------------------
 
 
-def _bundle_unavailable(mensagem: str) -> HTTPException:
-    """Build the ``bundle_indisponivel`` 422 contract (Req. 8.3, 9.4).
+def _bundle_unavailable(message: str) -> HTTPException:
+    """Build the ``bundle_unavailable`` 422 contract (Req. 8.3, 9.4).
 
     Used when a read is requested for a version that is not persisted in the
     database (it may still be ingested through the download route).
     """
     return HTTPException(
         status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-        detail={"motivo": "bundle_indisponivel", "mensagem": mensagem},
+        detail={"reason": "bundle_unavailable", "message": message},
     )
 
 
@@ -89,7 +89,7 @@ def _read_persisted(
     version: str,
     read: Callable[[], ReadResult],
 ) -> ReadResult:
-    """Run a DB-only read, mapping a non-persisted version to ``bundle_indisponivel``.
+    """Run a DB-only read, mapping a non-persisted version to ``bundle_unavailable``.
 
     There is no fallback to a file: a version is available only once the
     ``stix_packages`` ingestion source persisted it in the database.
@@ -212,7 +212,7 @@ def get_package_overview(
 ) -> StixPackageOverview:
     """Return the package overview of the base, reading only from the database.
 
-    A version that is not persisted maps to ``bundle_indisponivel`` 422.
+    A version that is not persisted maps to ``bundle_unavailable`` 422.
     """
     return _read_persisted(
         db, version, lambda: StixPackageReadService(db).package_overview(version)
@@ -230,7 +230,7 @@ def list_campaigns(
 ) -> list[CampaignListItem]:
     """Return the campaign summaries of the base, reading only from the database.
 
-    A version that is not persisted maps to ``bundle_indisponivel`` 422.
+    A version that is not persisted maps to ``bundle_unavailable`` 422.
     """
     summaries = _read_persisted(
         db, version, lambda: StixPackageReadService(db).list_campaigns(version)
@@ -250,8 +250,8 @@ def get_campaign_overview(
 ) -> StixCampaignOverview:
     """Return the overview of one campaign of the base, reading only from the database.
 
-    A version that is not persisted maps to ``bundle_indisponivel`` 422; a
-    ``campaign_key`` with no matching campaign maps to ``campanha_nao_encontrada``
+    A version that is not persisted maps to ``bundle_unavailable`` 422; a
+    ``campaign_key`` with no matching campaign maps to ``campaign_not_found``
     404 (Req. 9.5).
     """
     try:
@@ -263,7 +263,7 @@ def get_campaign_overview(
     except CampaignNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail={"motivo": "campanha_nao_encontrada", "mensagem": str(exc)},
+            detail={"reason": "campaign_not_found", "message": str(exc)},
         ) from exc
 
 
@@ -278,7 +278,7 @@ def get_package_analytics(
 ) -> StixPackageAnalytics:
     """Return the package analytics dashboard of the base, read only from the database.
 
-    A version that is not persisted maps to ``bundle_indisponivel`` 422.
+    A version that is not persisted maps to ``bundle_unavailable`` 422.
     """
     return _read_persisted(
         db, version, lambda: StixPackageReadService(db).package_analytics(version)
@@ -301,7 +301,7 @@ def download_base(
 
     * Already persisted: ``200`` with ``persisted=true`` and the stored totals; no
       work is done (idempotent).
-    * Unknown version (not in the maintained index): ``422`` ``falha_download``,
+    * Unknown version (not in the maintained index): ``422`` ``download_failed``,
       before any network access.
     * Otherwise the version is registered on the runner and the source is started
       in the background (``202``, ``persisted=false``). When the source is already
@@ -326,8 +326,8 @@ def download_base(
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail={
-                "motivo": "falha_download",
-                "mensagem": f"Versão desconhecida '{version}': download recusado.",
+                "reason": "download_failed",
+                "message": f"Unknown version '{version}': download refused.",
             },
         )
 

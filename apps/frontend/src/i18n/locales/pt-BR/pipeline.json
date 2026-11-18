@@ -4,9 +4,9 @@
     "loadError": "Não foi possível carregar os dados."
   },
   "baseStix": {
-    "selected": "Base selecionada: v{{versao}}",
+    "selected": "Base selecionada: v{{version}}",
     "changeBase": "Trocar base",
-    "ready": "Download concluído.",
+    "ready": "Pacote pronto.",
     "waiting": "Selecione uma base STIX para continuar.",
     "verifying": "Fazendo download…",
     "error": "Não foi possível concluir a Seleção da base STIX.",
@@ -74,7 +74,7 @@
     "run": {
       "title": "Execução guiada por IA",
       "changeCampaign": "Trocar campanha",
-      "campaign": "Campanha: {{campanha}}"
+      "campaign": "Campanha: {{campaign}}"
     }
   },
   "guided": {
@@ -100,7 +100,6 @@
   },
   "operationalization": {
     "title": "Operacionalização",
-    "campaign": "Campanha: {{campaign}}",
     "description": "Para cada técnica da campanha, os comandos do Atomic Red Team que podem emulá-la.",
     "loading": "Carregando os comandos da campanha…",
     "loadError": "Não foi possível carregar a operacionalização desta campanha.",
@@ -127,6 +126,10 @@
     "executor": "Executor",
     "platform": "Plataforma",
     "source": "Origem",
+    "sourceName": {
+      "atomic_red_team": "Atomic Red Team",
+      "threat_intel": "Inteligência de ameaças"
+    },
     "unnamedTechnique": "Técnica sem nome",
     "atomicNotice": {
       "title": "A base do Atomic Red Team ainda está sendo preparada",
