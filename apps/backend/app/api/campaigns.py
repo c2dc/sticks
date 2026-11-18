@@ -148,7 +148,7 @@ def _known_campaign_or_404(campaign_key: str, session: Session, version: str) ->
     if campaign_key not in known_keys:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Campanha desconhecida: {campaign_key!r}.",
+            detail=f"Unknown campaign: {campaign_key!r}.",
         )
 
 

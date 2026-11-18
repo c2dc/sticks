@@ -1,0 +1,98 @@
+{
+  "icon": {
+    "label": "Language model status",
+    "tooltip": "{{model}}: {{state}}"
+  },
+  "state": {
+    "checking": "Checking…",
+    "ok": "Connected",
+    "warning": "Available with warnings",
+    "blocked": "Unavailable",
+    "unknown": "Could not check"
+  },
+  "panel": {
+    "title": "Language model",
+    "description": "Choose the model the agents use.",
+    "profiles": "Available models",
+    "recheck": "Check again",
+    "rechecking": "Checking…",
+    "loadError": "Could not load the models.",
+    "ollamaDown": "Local models are not listed because Ollama did not respond."
+  },
+  "profile": {
+    "kind": {
+      "openai_compatible": "Remote server",
+      "ollama_local": "Local model (Ollama)"
+    },
+    "default": "Default",
+    "inUse": "In use",
+    "size": "{{size}} GB",
+    "notConfigured": "Not configured"
+  },
+  "check": {
+    "title": "Model checks",
+    "status": {
+      "pass": "OK",
+      "warn": "Warning",
+      "fail": "Problem",
+      "skipped": "Not tested"
+    },
+    "reachability": {
+      "reachable": "Server reachable",
+      "unreachable": "Server unreachable",
+      "not_configured": "Server not configured"
+    },
+    "daemon": {
+      "daemon_running": "Ollama is running",
+      "daemon_down": "Ollama is not running"
+    },
+    "model": {
+      "model_present": "Model downloaded",
+      "model_missing": "Model not downloaded"
+    },
+    "response": {
+      "responds": "Model responds",
+      "no_response": "Model does not respond"
+    },
+    "memory": {
+      "fits_gpu": "Fits in the GPU",
+      "fits_ram_only": "Fits only in RAM; it will be slow",
+      "too_large": "Too large for this machine",
+      "memory_unknown": "Memory could not be read; the fit is unknown",
+      "not_applicable": "Memory check does not apply"
+    },
+    "embedder": {
+      "embedder_available": "Experience search available",
+      "embedder_missing": "Experience search unavailable (embedding model missing); the run goes on without it"
+    }
+  },
+  "hint": {
+    "vpn": "Connect to the work VPN and check again."
+  },
+  "preflight": {
+    "title": "Before you start",
+    "checking": "Checking the model…",
+    "ready": "The model is ready.",
+    "warnings": "You can start, but read the warnings above.",
+    "loadError": "Could not check the model."
+  },
+  "block": {
+    "title": "The emulation cannot start",
+    "changeModel": "Change model",
+    "reason": {
+      "not_configured": "The model is not configured.",
+      "unreachable": "The model server cannot be reached.",
+      "daemon_down": "Ollama is not running.",
+      "model_missing": "The model is not downloaded.",
+      "no_response": "The model did not respond.",
+      "too_large": "The model is too large for this machine."
+    }
+  },
+  "reason": {
+    "llm_unreachable": "The model server stopped being reachable during the run.",
+    "llm_timeout": "The model took too long to respond.",
+    "llm_not_configured": "The model is not configured.",
+    "llm_error": "The model returned an error.",
+    "run_error": "The run failed before it finished."
+  }
+}

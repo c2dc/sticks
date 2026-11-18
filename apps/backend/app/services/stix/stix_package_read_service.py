@@ -69,7 +69,7 @@ class StixPackageNotPersistedError(Exception):
 
     :meth:`StixPackageReadService.package_overview` raises this when the given
     ``version`` is not persisted (no row in ``stix_packages``). The route layer
-    maps it to the ``bundle_indisponivel`` 422 contract (Req. 8.3). Carries the offending :attr:`version` for the handler.
+    maps it to the ``bundle_unavailable`` 422 contract (Req. 8.3). Carries the offending :attr:`version` for the handler.
     """
 
     def __init__(self, version: str) -> None:
@@ -84,7 +84,7 @@ class CampaignNotFoundError(Exception):
     persisted package of the given ``version``, no campaign has a
     ``campaign_key`` (``curated_slug`` when present, else ``stix_id`` — Req. 4.5)
     equal to the requested one. The route layer (task 5.4) maps it to the
-    ``campanha_nao_encontrada`` 404 contract. Carries both the offending
+    ``campaign_not_found`` 404 contract. Carries both the offending
     :attr:`version` and :attr:`campaign_key` for the handler.
     """
 
@@ -359,7 +359,7 @@ class StixPackageReadService:
 
         Raises:
             StixPackageNotPersistedError: when ``version`` has no row in
-                ``stix_packages`` (the route maps it to ``bundle_indisponivel`` 422 — Req. 8.3).
+                ``stix_packages`` (the route maps it to ``bundle_unavailable`` 422 — Req. 8.3).
         """
         package = self._session.execute(
             select(StixPackage).where(StixPackage.version == version)
@@ -499,7 +499,7 @@ class StixPackageReadService:
                 ``stix_packages``.
             CampaignNotFoundError: when no campaign of the package matches
                 ``campaign_key`` (so the route maps it to
-                ``campanha_nao_encontrada`` 404).
+                ``campaign_not_found`` 404).
         """
         package_id = self._resolve_package_id(version)
 
@@ -605,7 +605,7 @@ class StixPackageReadService:
 
         Raises:
             StixPackageNotPersistedError: when ``version`` has no row in
-                ``stix_packages`` (the route maps it to ``bundle_indisponivel`` 422 — Req. 12.7).
+                ``stix_packages`` (the route maps it to ``bundle_unavailable`` 422 — Req. 12.7).
         """
         package_id = self._resolve_package_id(version)
 

@@ -1,0 +1,98 @@
+{
+  "icon": {
+    "label": "Estado do modelo de linguagem",
+    "tooltip": "{{model}}: {{state}}"
+  },
+  "state": {
+    "checking": "Verificando…",
+    "ok": "Conectado",
+    "warning": "Disponível com avisos",
+    "blocked": "Indisponível",
+    "unknown": "Não foi possível verificar"
+  },
+  "panel": {
+    "title": "Modelo de linguagem",
+    "description": "Escolha o modelo que os agentes usam.",
+    "profiles": "Modelos disponíveis",
+    "recheck": "Verificar de novo",
+    "rechecking": "Verificando…",
+    "loadError": "Não foi possível carregar os modelos.",
+    "ollamaDown": "Os modelos locais não aparecem porque o Ollama não respondeu."
+  },
+  "profile": {
+    "kind": {
+      "openai_compatible": "Servidor remoto",
+      "ollama_local": "Modelo local (Ollama)"
+    },
+    "default": "Padrão",
+    "inUse": "Em uso",
+    "size": "{{size}} GB",
+    "notConfigured": "Não configurado"
+  },
+  "check": {
+    "title": "Verificações do modelo",
+    "status": {
+      "pass": "OK",
+      "warn": "Aviso",
+      "fail": "Problema",
+      "skipped": "Não testado"
+    },
+    "reachability": {
+      "reachable": "Servidor alcançável",
+      "unreachable": "Servidor inacessível",
+      "not_configured": "Servidor não configurado"
+    },
+    "daemon": {
+      "daemon_running": "Ollama em execução",
+      "daemon_down": "Ollama fora do ar"
+    },
+    "model": {
+      "model_present": "Modelo baixado",
+      "model_missing": "Modelo não baixado"
+    },
+    "response": {
+      "responds": "Modelo responde",
+      "no_response": "Modelo não responde"
+    },
+    "memory": {
+      "fits_gpu": "Cabe na GPU",
+      "fits_ram_only": "Cabe só na RAM; ficará lento",
+      "too_large": "Grande demais para esta máquina",
+      "memory_unknown": "Não foi possível ler a memória; o encaixe é desconhecido",
+      "not_applicable": "A verificação de memória não se aplica"
+    },
+    "embedder": {
+      "embedder_available": "Busca de experiência disponível",
+      "embedder_missing": "Busca de experiência indisponível (modelo de embeddings ausente); a execução segue sem ela"
+    }
+  },
+  "hint": {
+    "vpn": "Conecte-se à VPN do trabalho e verifique de novo."
+  },
+  "preflight": {
+    "title": "Antes de começar",
+    "checking": "Verificando o modelo…",
+    "ready": "O modelo está pronto.",
+    "warnings": "Você pode começar, mas leia os avisos acima.",
+    "loadError": "Não foi possível verificar o modelo."
+  },
+  "block": {
+    "title": "A emulação não pode começar",
+    "changeModel": "Trocar modelo",
+    "reason": {
+      "not_configured": "O modelo não está configurado.",
+      "unreachable": "Não foi possível alcançar o servidor do modelo.",
+      "daemon_down": "O Ollama não está em execução.",
+      "model_missing": "O modelo não está baixado.",
+      "no_response": "O modelo não respondeu.",
+      "too_large": "O modelo é grande demais para esta máquina."
+    }
+  },
+  "reason": {
+    "llm_unreachable": "O servidor do modelo deixou de ficar acessível durante a execução.",
+    "llm_timeout": "O modelo demorou demais para responder.",
+    "llm_not_configured": "O modelo não está configurado.",
+    "llm_error": "O modelo devolveu um erro.",
+    "run_error": "A execução falhou antes de terminar."
+  }
+}

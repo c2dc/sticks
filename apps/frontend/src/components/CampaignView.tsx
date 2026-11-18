@@ -9,6 +9,7 @@ import {
 import { useTranslation } from "react-i18next"
 import { Container } from "lucide-react"
 
+import { formatAttackDescription } from "@/lib/attack-description"
 import { useAsyncData } from "@/lib/use-async-data"
 import { cn } from "@/lib/utils"
 import {
@@ -411,6 +412,9 @@ function OverviewBody({ overview }: { overview: StixCampaignOverview }) {
 /** Compact identity line: name, ATT&CK id, aliases, short description. */
 function IdentityOverview({ overview }: { overview: StixCampaignOverview }) {
   const { t } = useTranslation("pipeline")
+  // An alias equal to the campaign name adds nothing; show only real alternatives.
+  const name = overview.name.trim().toLowerCase()
+  const aliases = overview.aliases.filter((alias) => alias.trim().toLowerCase() !== name)
   return (
     <div className="flex flex-col gap-1">
       <div className="flex flex-wrap items-baseline gap-2">
@@ -423,9 +427,9 @@ function IdentityOverview({ overview }: { overview: StixCampaignOverview }) {
           </span>
         ) : null}
       </div>
-      {overview.aliases.length > 0 ? (
+      {aliases.length > 0 ? (
         <div className="flex flex-wrap gap-1">
-          {overview.aliases.map((alias) => (
+          {aliases.map((alias) => (
             <span
               key={alias}
               className="rounded-full border border-team-blue/30 bg-team-blue/5 px-2 py-0.5 text-xs"
@@ -436,7 +440,9 @@ function IdentityOverview({ overview }: { overview: StixCampaignOverview }) {
         </div>
       ) : null}
       {overview.description ? (
-        <p className="whitespace-pre-line text-xs text-muted-foreground">{overview.description}</p>
+        <p className="whitespace-pre-line text-xs text-muted-foreground">
+          {formatAttackDescription(overview.description)}
+        </p>
       ) : null}
     </div>
   )

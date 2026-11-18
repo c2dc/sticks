@@ -14,8 +14,10 @@
       "ready": "Pronta",
       "failed": "Falhou"
     },
-    "counts": "{{loaded}} carregados · {{embedded}} vetorizados · {{expected}} esperados",
-    "skipped": "{{count}} ignorados",
+    "loaded": "Carregados: {{count}}",
+    "embedded": "Vetorizados: {{count}}",
+    "expected": "Esperados: {{count}}",
+    "skipped": "Ignorados: {{count}}",
     "failure_cause": "Causa: {{error}}",
     "resume": "Retomar",
     "resuming": "Retomando…",

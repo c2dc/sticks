@@ -133,13 +133,13 @@ export function StixIntelligenceDashboard({
   )
 }
 
-/** The backend `detail.mensagem` of an `ApiError`, when present. */
+/** The backend `detail.message` of an `ApiError`, when present. */
 function apiErrorMessage(err: unknown): string | null {
   return err instanceof ApiError &&
     isRecord(err.body) &&
     isRecord(err.body.detail) &&
-    typeof err.body.detail.mensagem === "string"
-    ? err.body.detail.mensagem
+    typeof err.body.detail.message === "string"
+    ? err.body.detail.message
     : null
 }
 

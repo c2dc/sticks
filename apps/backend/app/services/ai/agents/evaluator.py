@@ -573,9 +573,10 @@ def _store_outcome(
         if session is None:
             return
         try:
+            from app.services.ai.embedder import build_experience_embedder
             from app.services.ai.memory import ExperienceMemory
 
-            store = ExperienceMemory(session)
+            store = ExperienceMemory(session, embedder=build_experience_embedder())
         except Exception:  # noqa: BLE001 -- RAG store-back is best-effort
             return
 

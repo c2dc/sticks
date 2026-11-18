@@ -16,11 +16,17 @@ hardcoded (Requirement 7.2) and never logged or echoed (Requirement 7.3).
 
 from __future__ import annotations
 
+import math
 from functools import lru_cache
 from pathlib import Path
+from typing import Any
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+DEFAULT_LLM_CONNECT_TIMEOUT_SECONDS = 5.0
+DEFAULT_LLM_READ_TIMEOUT_SECONDS = 180.0
+DEFAULT_LLM_PREFLIGHT_RESPONSE_TIMEOUT_SECONDS = 120.0
 
 
 def _root_env_file() -> str:
@@ -65,6 +71,37 @@ class SepinfSettings(BaseSettings):
     embedding_dim: int = Field(default=768, alias="AI_EMBEDDING_DIM")
     retrieval_k: int = Field(default=5, alias="AI_RETRIEVAL_K")
 
+    # Model client limits (seconds). A missing, unreadable or non-positive value
+    # falls back to the default instead of raising.
+    llm_connect_timeout_seconds: float = Field(
+        default=DEFAULT_LLM_CONNECT_TIMEOUT_SECONDS, alias="LLM_CONNECT_TIMEOUT_SECONDS"
+    )
+    llm_read_timeout_seconds: float = Field(
+        default=DEFAULT_LLM_READ_TIMEOUT_SECONDS, alias="LLM_READ_TIMEOUT_SECONDS"
+    )
+    llm_preflight_response_timeout_seconds: float = Field(
+        default=DEFAULT_LLM_PREFLIGHT_RESPONSE_TIMEOUT_SECONDS,
+        alias="LLM_PREFLIGHT_RESPONSE_TIMEOUT_SECONDS",
+    )
+
+    @field_validator(
+        "llm_connect_timeout_seconds",
+        "llm_read_timeout_seconds",
+        "llm_preflight_response_timeout_seconds",
+        mode="before",
+    )
+    @classmethod
+    def _positive_seconds_or_default(cls, value: Any, info: Any) -> float:
+        """Return ``value`` as a positive finite float, else the field default."""
+        default = cls.model_fields[info.field_name].default
+        try:
+            seconds = float(value)
+        except (TypeError, ValueError):
+            return float(default)
+        if not math.isfinite(seconds) or seconds <= 0:
+            return float(default)
+        return seconds
+
     def __repr__(self) -> str:  # pragma: no cover - defensive, avoids key leak
         """Represent settings without ever exposing the API key value.
 
@@ -74,7 +111,11 @@ class SepinfSettings(BaseSettings):
         return (
             f"SepinfSettings(base_url={self.base_url!r}, model_id={self.model_id!r}, "
             f"api_key='***', max_iterations={self.max_iterations}, "
-            f"embedding_dim={self.embedding_dim}, retrieval_k={self.retrieval_k})"
+            f"embedding_dim={self.embedding_dim}, retrieval_k={self.retrieval_k}, "
+            f"llm_connect_timeout_seconds={self.llm_connect_timeout_seconds}, "
+            f"llm_read_timeout_seconds={self.llm_read_timeout_seconds}, "
+            "llm_preflight_response_timeout_seconds="
+            f"{self.llm_preflight_response_timeout_seconds})"
         )
 
     __str__ = __repr__

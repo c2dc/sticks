@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest"
 
 import ptCommon from "@/i18n/locales/pt-BR/common.json"
 import enCommon from "@/i18n/locales/en/common.json"
+import ptLlm from "@/i18n/locales/pt-BR/llm.json"
+import enLlm from "@/i18n/locales/en/llm.json"
 import ptPipeline from "@/i18n/locales/pt-BR/pipeline.json"
 import enPipeline from "@/i18n/locales/en/pipeline.json"
 import ptPreferences from "@/i18n/locales/pt-BR/preferences.json"
@@ -26,6 +28,7 @@ import {
 
 const NAMESPACES: Array<{ name: string; en: JsonValue; pt: JsonValue }> = [
   { name: "common", en: enCommon as JsonValue, pt: ptCommon as JsonValue },
+  { name: "llm", en: enLlm as JsonValue, pt: ptLlm as JsonValue },
   { name: "pipeline", en: enPipeline as JsonValue, pt: ptPipeline as JsonValue },
   {
     name: "preferences",

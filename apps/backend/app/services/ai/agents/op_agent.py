@@ -894,9 +894,10 @@ def build_agent(
     resolved_memory = memory
     if resolved_memory is None and session is not None:
         try:
+            from app.services.ai.embedder import build_experience_embedder
             from app.services.ai.memory import ExperienceMemory
 
-            resolved_memory = ExperienceMemory(session)
+            resolved_memory = ExperienceMemory(session, embedder=build_experience_embedder())
         except Exception:  # noqa: BLE001 -- propose without RAG priming
             resolved_memory = None
 

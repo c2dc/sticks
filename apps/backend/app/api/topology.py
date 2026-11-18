@@ -122,7 +122,7 @@ def get_topology(
     if name is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Caso desconhecido: {campaign!r}.",
+            detail=f"Unknown campaign: {campaign!r}.",
         )
 
     hosts = build_hosts()

@@ -1,7 +1,7 @@
 """Root REST router.
 
 Aggregates the REST sub-routers (campaigns, flows, session-state, preferences,
-audit, topology, stix, ai, threat-intel, operationalization and ingestion).
+audit, topology, stix, ai, threat-intel, operationalization, ingestion and llm).
 The WebSocket channels live in ``app.ws``.
 """
 
@@ -16,6 +16,7 @@ from app.api import (
     flows,
     health,
     ingestion,
+    llm,
     operationalization,
     preferences,
     session_state,
@@ -37,3 +38,4 @@ api_router.include_router(ai.router)
 api_router.include_router(threat_intel.router)
 api_router.include_router(operationalization.router)
 api_router.include_router(ingestion.router)
+api_router.include_router(llm.router)

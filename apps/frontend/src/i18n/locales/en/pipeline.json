@@ -4,9 +4,9 @@
     "loadError": "Could not load the data."
   },
   "baseStix": {
-    "selected": "Selected base: v{{versao}}",
+    "selected": "Selected base: v{{version}}",
     "changeBase": "Change base",
-    "ready": "Download complete.",
+    "ready": "Package ready.",
     "waiting": "Select a STIX base to continue.",
     "verifying": "Downloading…",
     "error": "The STIX base selection could not be completed.",
@@ -74,7 +74,7 @@
     "run": {
       "title": "Guided AI run",
       "changeCampaign": "Change campaign",
-      "campaign": "Campaign: {{campanha}}"
+      "campaign": "Campaign: {{campaign}}"
     }
   },
   "guided": {
@@ -100,7 +100,6 @@
   },
   "operationalization": {
     "title": "Operationalization",
-    "campaign": "Campaign: {{campaign}}",
     "description": "For each technique of the campaign, the Atomic Red Team commands that can emulate it.",
     "loading": "Loading the campaign commands…",
     "loadError": "Could not load the operationalization of this campaign.",
@@ -127,6 +126,10 @@
     "executor": "Executor",
     "platform": "Platform",
     "source": "Source",
+    "sourceName": {
+      "atomic_red_team": "Atomic Red Team",
+      "threat_intel": "Threat intelligence"
+    },
     "unnamedTechnique": "Unnamed technique",
     "atomicNotice": {
       "title": "The Atomic Red Team base is still being prepared",

@@ -450,6 +450,8 @@ class UserPreferences(Base):
         default=Language.PT_BR,  # default pt-BR (Req. 8.6)
         nullable=False,
     )
+    # Selected language-model profile id ("work" or "ollama:<name>"); NULL means "work".
+    llm_profile_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
 
 
 class EnvironmentParametersRow(Base):

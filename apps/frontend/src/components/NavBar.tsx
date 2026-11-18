@@ -4,6 +4,7 @@ import { Moon, Sun } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { FlagBR, FlagUS } from "@/components/FlagIcon"
+import { LlmStatusButton } from "@/components/llm/LlmStatusButton"
 import { useTheme } from "@/components/theme-provider"
 import { applyLanguage, normalizeLanguage } from "@/i18n"
 import { persistLanguage } from "@/lib/preferences"
@@ -11,7 +12,7 @@ import { persistLanguage } from "@/lib/preferences"
 /**
  * Top navigation bar of the site.
  *
- * Holds the STICKS project logo and the two global selectors:
+ * Holds the STICKS project logo, the language model status icon and the two global selectors:
  *  - Theme: a button with a Sun icon (Light mode) / Moon icon (Dark mode).
  *  - Language: a button with an SVG flag for Brazil (pt-BR) / USA (en).
  *
@@ -39,6 +40,8 @@ export function NavBar() {
         <Logo />
 
         <div className="flex items-center gap-1.5">
+          <LlmStatusButton />
+
           {/* Seletor de tema: Sol ↔ Lua */}
           <Button
             type="button"
