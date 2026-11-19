@@ -18,6 +18,19 @@ from app.models.enums import AbilityResultStatus, AgentPhase, TranslationSource
 PHASE_EXECUTION: str = AgentPhase.EXECUTION.value
 
 
+class CommandParameterView(BaseModel):
+    """One parameter of a Command_Proposal with its final value and origin.
+
+    ``source`` is the Parameter_Source: ``agent_inferred`` (the agent decided the
+    value), ``atomic_default`` (inherited from the Atomic default) or
+    ``unresolved`` (no value; ``value`` is ``None``).
+    """
+
+    name: str
+    value: str | None = None
+    source: str
+
+
 class OperationalizationExecutorView(BaseModel):
     """A single executor of a curated Ability — the concrete command (Req. 3.2)."""
 
@@ -27,6 +40,10 @@ class OperationalizationExecutorView(BaseModel):
     # Id of the ``technique_commands`` row of the template this command came
     # from; ``None`` when unknown (additive, Req. 12.10).
     command_ref: int | None = None
+    # Original Command_Template (with placeholders) and the per-parameter
+    # value/origin annotation (additive, Req. 20.2, 20.3).
+    template: str | None = None
+    parameters: list[CommandParameterView] = Field(default_factory=list)
 
 
 class OperationalizationAbilityView(BaseModel):

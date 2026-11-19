@@ -13,7 +13,7 @@ a prompt from the modeling plus the cross-campaign experience retrieved from the
 RAG memory, asks the LLM for an **ordered technique graph**, validates and (on
 malformed output) repairs the structure **exactly once**, and returns a single
 :class:`~app.services.flow.generator.ProducedFlow` stamped
-``origin = FlowOrigin.AI_GENERATED`` (``"gerado_ia"`` — Requirements 2.4, 2.5). The
+``origin = FlowOrigin.AI_GENERATED`` (``"ai_generated"`` — Requirements 2.4, 2.5). The
 produced ``content`` mirrors the curation format
 (``{"structural_nodes": [...], "arestas": [{"de", "para"}]}``) so the persisted
 Attack flow is byte-compatible with the existing ``AttackFlowRow`` entity and no schema migration is
@@ -38,6 +38,7 @@ import json
 import logging
 import uuid
 from collections.abc import Callable, Sequence
+from dataclasses import replace
 from typing import TYPE_CHECKING, Any
 
 from app.models.enums import AgentPhase, FlowOrigin, FlowProvenance
@@ -47,7 +48,12 @@ from app.services.attack_flow.model import (
     AttackFlowObject,
     FlowProvenanceRecord,
 )
-from app.services.attack_flow.policy import FlowDecision, classify_flow_path
+from app.services.attack_flow.policy import (
+    FlowCandidate,
+    FlowDecision,
+    classify_flow_path,
+    flow_hash,
+)
 from app.services.flow.generator import ProducedFlow, StructuralModeling
 
 if TYPE_CHECKING:  # pragma: no cover - typing only, no runtime import
@@ -76,6 +82,9 @@ _MAX_REPAIR_ATTEMPTS = 1
 _DEFAULT_RETRIEVAL_K = 5
 
 
+NO_DISTINCT_FLOW_CAUSE = "no_distinct_flow"
+
+
 class FlowGenerationError(RuntimeError):
     """Raised when the LLM output is still unparseable after the one repair.
 
@@ -90,6 +99,18 @@ class FlowGenerationError(RuntimeError):
         super().__init__(message)
         self.node = node
         self.cause = cause
+
+
+class NoDistinctFlowError(FlowGenerationError):
+    """Raised when the agent could only reproduce an attack flow already presented.
+
+    The produced flow hash is in ``excluded_hashes`` even after the one retry that
+    asked for a different flow. The caller keeps the current proposal and reports
+    the ``no_distinct_flow`` notice instead of failing the run.
+    """
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message, node="flow", cause=NO_DISTINCT_FLOW_CAUSE)
 
 
 class FlowAgent:
@@ -129,6 +150,8 @@ class FlowAgent:
         campaign_name: str | None = None,
         campaign_aliases: Sequence[str] = (),
         campaign_description: str = "",
+        excluded_flow_ids: Sequence[int] = (),
+        excluded_hashes: Sequence[str] = (),
     ) -> None:
         # Three-path decision collaborators (all optional, all lazy):
         # * ``flow_retriever`` — a ``FlowRetriever`` (``retrieve`` +
@@ -149,6 +172,11 @@ class FlowAgent:
         self._campaign_name = campaign_name
         self._campaign_aliases = tuple(campaign_aliases)
         self._campaign_description = campaign_description
+        # Attack flows already presented in this run (proposal history): the
+        # policy drops candidates with these ids/hashes, and a generated flow
+        # whose hash is in ``excluded_hashes`` is retried once.
+        self._excluded_flow_ids = tuple(excluded_flow_ids)
+        self._excluded_hashes = frozenset(excluded_hashes)
         self._chat = chat
         self._memory = memory
         self._attack = attack_reader
@@ -173,7 +201,7 @@ class FlowAgent:
     # ----- seam ---------------------------------------------------------------
 
     def origin(self) -> FlowOrigin:
-        """The origin stamped on produced attack flows: always ``gerado_ia`` (Req. 2.4, 2.5)."""
+        """The origin stamped on produced attack flows: always ``ai_generated`` (Req. 2.4, 2.5)."""
         return FlowOrigin.AI_GENERATED
 
     def generate(self, campaign: str, modeling: StructuralModeling) -> list[ProducedFlow]:
@@ -183,7 +211,7 @@ class FlowAgent:
         agent **uses** it: it builds a prompt from the modeling plus the retrieved
         cross-campaign experience, asks the LLM for an ordered technique graph,
         validates/repairs the structure exactly once, and returns a single
-        :class:`ProducedFlow` with ``origin = gerado_ia`` (Requirements 2.1, 2.4,
+        :class:`ProducedFlow` with ``origin = ai_generated`` (Requirements 2.1, 2.4,
         2.5). The ``content`` mirrors the legacy content format so the flow readers
         persists it as an AI-origin ``AttackFlowRow`` with no schema change.
 
@@ -219,15 +247,17 @@ class FlowAgent:
         if decision.kind is FlowProvenance.EXACT:
             corpus_flow = self._load_corpus_flow(decision.references[0])
             if corpus_flow is None:
-                decision = FlowDecision(
-                    FlowProvenance.ADAPTED, decision.references, decision.similarity
-                )
+                decision = replace(decision, kind=FlowProvenance.ADAPTED)
                 reason = "exact_flow_unavailable"
 
+        # The explanation (reason code, coverage, references) travels with the
+        # flow artifact so the approval screen can show why this path was taken.
         provenance = {
             "kind": decision.kind.value,
             "references": list(decision.references),
             "similarity": decision.similarity,
+            "reason_code": decision.reason_code,
+            "coverage": decision.coverage,
         }
         decision_trace: dict[str, Any] = {**provenance, "reason": reason}
 
@@ -273,8 +303,14 @@ class FlowAgent:
         tools_invoked: list[str] = ["experience_memory.retrieve"]
         if attack_context is not None:
             tools_invoked.append("tool_read_attack")
+        # One extra pass is allowed when the produced flow was already presented
+        # (its hash is excluded): the prompt then asks for a different flow.
+        distinct_retried = False
+        distinct_hint = False
+        failures = 0
         try:
-            for attempt in range(_MAX_REPAIR_ATTEMPTS + 1):
+            while failures <= _MAX_REPAIR_ATTEMPTS:
+                attempt = failures
                 messages = self._build_messages(
                     campaign,
                     modeling,
@@ -282,6 +318,7 @@ class FlowAgent:
                     attack_context,
                     repair_hint=repair_hint,
                     references=references,
+                    distinct=distinct_hint,
                 )
                 last_messages = messages
                 raw = self._invoke_chat(messages)
@@ -300,6 +337,7 @@ class FlowAgent:
                 except _FlowParseError as exc:
                     last_cause = str(exc)
                     repair_attempts += 1
+                    failures += 1
                     # Feed the parse error back into the single repair pass so the
                     # model can correct the malformed structure (Requirement 14.3).
                     repair_hint = str(exc)
@@ -313,6 +351,20 @@ class FlowAgent:
                     )
                     continue
 
+                produced_hash = self._content_hash(content)
+                if produced_hash in self._excluded_hashes:
+                    if distinct_retried:
+                        raise NoDistinctFlowError(
+                            f"FlowAgent only reproduced an attack flow already presented "
+                            f"for campaign {campaign}."
+                        )
+                    distinct_retried = True
+                    distinct_hint = True
+                    repair_hint = None
+                    warnings.append("generated flow was already presented; retrying once")
+                    continue
+                provenance["flow_hash"] = produced_hash
+
                 label = self._resolve_label(graph, attack_context)
                 # Flag the campaign techniques whose nodes made it into the
                 # graph but have NO backing command: they become gaps rather
@@ -325,7 +377,7 @@ class FlowAgent:
                         label=label,
                         content=content,
                         gaps=gaps,
-                        provenance=provenance,
+                        provenance=dict(provenance),
                     )
                 ]
 
@@ -399,9 +451,36 @@ class FlowAgent:
             self._campaign_name or campaign,
             self._campaign_aliases,
             frozenset(techniques),
-            candidates,
+            self._with_hashes(candidates),
+            excluded_flow_ids=self._excluded_flow_ids,
+            excluded_hashes=self._excluded_hashes,
         )
         return decision, reason, candidates
+
+    def _with_hashes(self, candidates: list[Any]) -> list[Any]:
+        """Fill ``flow_hash`` on the candidates so hash exclusion can match them.
+
+        Only done when there are excluded hashes to compare against, since it
+        loads each candidate's content. An unreadable candidate keeps ``None``
+        and is then excluded by ``flow_id`` only.
+        """
+        if not self._excluded_hashes:
+            return candidates
+        enriched: list[Any] = []
+        for candidate in candidates:
+            if not isinstance(candidate, FlowCandidate) or candidate.flow_hash is not None:
+                enriched.append(candidate)
+                continue
+            loaded = self._load_corpus_flow(candidate.flow_id)
+            content_hash: str | None = None
+            if loaded is not None:
+                try:
+                    flow = AttackFlow.model_validate(loaded["content"])
+                    content_hash = self._content_hash(self._flow_content(flow))
+                except Exception:  # noqa: BLE001 -- hash is best-effort
+                    content_hash = None
+            enriched.append(replace(candidate, flow_hash=content_hash))
+        return enriched
 
     def _load_corpus_flow(self, flow_id: int) -> dict | None:
         """Load ``{"label", "content"}`` of a documented flow; ``None`` if absent."""
@@ -545,8 +624,25 @@ class FlowAgent:
             label=corpus_flow.get("label") or flow.name or None,
             content=content,
             gaps=self._collect_gaps(content),
-            provenance=provenance,
+            provenance={**provenance, "flow_hash": self._content_hash(content)},
         )
+
+    @staticmethod
+    def _content_hash(content: dict) -> str:
+        """Canonical hash of a produced ``content`` (action techniques and edges).
+
+        Uses the legacy ``structural_nodes`` / ``arestas`` mirror, so the hash does
+        not depend on node ids or ``command_ref``: the same techniques and
+        technique-to-technique edges always hash the same.
+        """
+        by_node = {
+            n["node_id"]: n.get("technique_id") for n in content.get("structural_nodes") or []
+        }
+        techniques = [t for t in by_node.values() if isinstance(t, str) and t]
+        edges = [
+            (by_node.get(e["de"]), by_node.get(e["para"])) for e in content.get("arestas") or []
+        ]
+        return flow_hash(techniques, [(s, t) for s, t in edges if s and t])
 
     def _emit_trace(
         self,
@@ -661,6 +757,7 @@ class FlowAgent:
         *,
         repair_hint: str | None = None,
         references: list[dict[str, Any]] | None = None,
+        distinct: bool = False,
     ) -> list[dict[str, str]]:
         """Build the chat messages: a system contract + the modeling/RAG prompt.
 
@@ -685,6 +782,12 @@ class FlowAgent:
                 f"{user}\n\nThe previous response could not be parsed into a valid "
                 f"attack flow. Error: {repair_hint}. Return a corrected JSON object with "
                 "the exact shape described, and nothing else."
+            )
+        if distinct:
+            user = (
+                f"{user}\n\nThe previous attack flow was identical to one already presented "
+                "to the user. Produce a DIFFERENT attack flow: change the ordering or the "
+                "edges between the techniques, keeping the same JSON shape."
             )
         return [
             {"role": "system", "content": system},
@@ -1370,6 +1473,8 @@ def node(state: AgentState, *, session: Any = None) -> dict:
         campaign_name=profile["name"],
         campaign_aliases=profile["aliases"],
         campaign_description=profile["description"],
+        excluded_flow_ids=state.get("excluded_flow_ids") or (),
+        excluded_hashes=state.get("excluded_hashes") or (),
     )
 
     modeling = _modeling_from_state(state)
@@ -1413,14 +1518,14 @@ def persist_flow_phase_output(
 
     1. Persist the AI-origin ``AttackFlowRow`` row so the attack flow is stored exactly like a
        curated one (same portable ``content`` format, same ``AttackFlowRow`` entity, no
-       schema migration — the ``FlowOrigin`` CHECK already admits ``gerado_ia``).
+       schema migration — the ``FlowOrigin`` CHECK already admits ``ai_generated``).
        The ``Case`` row
        is upserted first (via ``upsert_case_row``) to satisfy the
        ``attack_flows.campaign_id`` FK, then the ``AttackFlowRow`` row is reconciled **idempotently**
        on ``(campaign_id, origin, identifier)`` — an equivalent AI-origin attack flow is
        reused rather than duplicated (Req. 4.5).
     2. Insert the ``agent_phase_outputs`` row for ``iteration_id`` with
-       ``phase = flow``, ``origin = gerado_ia``, the serialized
+       ``phase = flow``, ``origin = ai_generated``, the serialized
        ``payload`` (``produced.model_dump()``) and ``flow_id`` linking the
        AI-origin ``AttackFlowRow`` row from step 1.
 

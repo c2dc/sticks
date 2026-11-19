@@ -349,6 +349,12 @@ LAB_IMAGES: dict[str, str] = {
 # machinery: the behavior above is the already-implemented ``up``/``down`` path;
 # this constant and docstring only **document and preserve** the contract so the
 # audit trace and future readers can point at the fixed engine explicitly.
+#: Step name of the image build, separate from ``subir_conteineres`` (the ``up``).
+BUILD_STEP: str = "construir_imagens"
+
+#: Time limit of the build of ONE service (the Caldera image compiles its UI).
+BUILD_TIMEOUT_SECONDS: float = 1800.0
+
 CALDERA_SERVICE: str = "caldera-attacker"
 #: Stable image of the fixed Caldera execution engine — built once from source
 #: (``ops/docker/.docker/caldera``) and reused across Runs (cached, idempotent).
@@ -431,19 +437,40 @@ class DockerComposeExecutor:
             service for service in LAB_SERVICES if not self._image_exists(LAB_IMAGES[service])
         ]
         lines: list[LogLine] = []
-        if missing:
+        # One ``build`` per missing service, under its own step and with a time
+        # limit, so a failure names the service that failed and is told apart from
+        # a failure of the ``up``.
+        for service in missing:
             build_argv = [
                 self._docker_bin,
                 "compose",
                 "-f",
                 compose_file,
                 "build",
-                *missing,
+                service,
             ]
-            build = self._run(build_argv, step="subir_conteineres", on_log=on_log)
+            build = self._run(
+                build_argv,
+                step=BUILD_STEP,
+                on_log=on_log,
+                timeout=BUILD_TIMEOUT_SECONDS,
+            )
             lines.extend(build.lines)
             if build.code != 0:
-                # Build failure (e.g. package/mirror unavailable): does not up.
+                # Build failure (e.g. package/mirror unavailable, no internet or
+                # timeout): does not up. The last line names the failed service.
+                tail = [x.text for x in build.lines if x.stream != "comando" and x.text]
+                detail = f": {tail[-1]}" if tail else ""
+                marker = LogLine(
+                    step=BUILD_STEP,
+                    stream="stderr",
+                    text=(
+                        f"failed to build the image of service {service} "
+                        f"(code {build.code}){detail}"
+                    ),
+                )
+                lines.append(marker)
+                on_log(marker)
                 return CommandResult(code=build.code, lines=lines)
 
         up_argv = [
@@ -486,6 +513,9 @@ class DockerComposeExecutor:
             "-f",
             compose_file,
             "down",
+            # Named explicitly, like ``up``: the compose project also holds
+            # ``sticks-postgres``, which a bare ``down`` would remove too.
+            *LAB_SERVICES,
         ]
         return self._run(argv, step="desprovisionar", on_log=on_log)
 
@@ -720,6 +750,7 @@ class DockerComposeExecutor:
         *,
         step: str,
         on_log: Callable[[LogLine], None],
+        timeout: float | None = None,
     ) -> CommandResult:
         """Run ``argv`` (argument list, no shell) streaming the output through ``on_log``.
 
@@ -736,6 +767,7 @@ class DockerComposeExecutor:
         interpreted and there is no command-injection path.
         """
         import subprocess
+        import threading
 
         lines: list[LogLine] = []
 
@@ -765,11 +797,30 @@ class DockerComposeExecutor:
         # Read line by line while the process runs, pushing in near-real time.
         # stderr is already in stdout (STDOUT), preserving the terminal order.
         assert process.stdout is not None  # noqa: S101 -- type narrowing; stdout is a PIPE for this Popen
-        for raw in process.stdout:
-            _emit("stdout", raw.rstrip("\n"))
-        process.stdout.close()
+        # Optional time limit: a timer kills the process, which closes the pipe and
+        # ends the read loop below.
+        timed_out = threading.Event()
 
-        code = process.wait()
+        def _kill() -> None:
+            timed_out.set()
+            process.kill()
+
+        timer = threading.Timer(timeout, _kill) if timeout is not None else None
+        if timer is not None:
+            timer.daemon = True
+            timer.start()
+        try:
+            for raw in process.stdout:
+                _emit("stdout", raw.rstrip("\n"))
+            process.stdout.close()
+            code = process.wait()
+        finally:
+            if timer is not None:
+                timer.cancel()
+
+        if timed_out.is_set():
+            _emit("stderr", f"timeout of {int(timeout or 0)}s exceeded; command interrupted")
+            return CommandResult(code=124, lines=lines)
         return CommandResult(code=code, lines=lines)
 
 

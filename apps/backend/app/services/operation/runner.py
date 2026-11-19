@@ -70,8 +70,10 @@ _Requirements: 6.6, 6.7, 4.5, 6.1, 6.2, 6.3, 6.4, 4.6_
 
 from __future__ import annotations
 
+import contextlib
 import datetime as dt
 import enum
+import logging
 import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
@@ -99,6 +101,8 @@ from app.services.containment.subnet_validator import (
     OperationContainmentReport,
     validate_abilities,
 )
+
+logger = logging.getLogger(__name__)
 
 # Type of the injected destination-containment validator (task 4.2). Kept as a
 # Callable alias so tests can inject a lambda/fake and production uses the real
@@ -143,26 +147,26 @@ class RunOutcome(enum.StrEnum):
 
     #: ``confirmed`` was not True (absent/false/cancelled). Nothing executed;
     #: state returned to NOT_STARTED (Req. 6.6, 6.7 — Property 6).
-    NOT_CONFIRMED = "nao_confirmada"
+    NOT_CONFIRMED = "not_confirmed"
     #: A command reached an external destination; refused pre-flight (Req. 6.1/6.2).
-    CONTAINMENT_REFUSED = "contencao_recusada"
+    CONTAINMENT_REFUSED = "containment_refused"
     #: A target container was not isolated; aborted pre-flight (Req. 6.3/6.4).
-    ISOLATION_FAILED = "isolamento_falhou"
+    ISOLATION_FAILED = "isolation_failed"
     #: Caldera did not answer within 10s; not started (Req. 4.6, maps to 503).
-    CALDERA_UNAVAILABLE = "caldera_indisponivel"
+    CALDERA_UNAVAILABLE = "caldera_unavailable"
     #: The Operation ran to completion (per-Ability results aggregated).
-    COMPLETED = "concluida"
+    COMPLETED = "completed"
     #: The Operation was aborted mid-run because persisting an audit row failed;
     #: no further command ran after the failing write (Req. 6.9 — Property 7).
-    ABORTED = "abortada"
+    ABORTED = "aborted"
     #: No terminal Caldera state was observed within the collection timeout; the
     #: Operation is marked INCOMPLETE_TIMEOUT, partial results are preserved and
     #: it is not counted as a successful run (Req. 3.2 — Property 3).
-    INCOMPLETE_TIMEOUT = "incompleta_timeout"
+    INCOMPLETE_TIMEOUT = "incomplete_timeout"
     #: Container isolation stopped passing during execution; the run is
     #: interrupted with no further commands, partials preserved, state ABORTED
     #: (Req. 6.4).
-    ISOLATION_BROKEN = "isolamento_quebrado"
+    ISOLATION_BROKEN = "isolation_broken"
 
 
 @dataclass(frozen=True)
@@ -409,8 +413,8 @@ class OperationRunner:
                 outcome=RunOutcome.NOT_CONFIRMED,
                 state=OperationState.NOT_STARTED,
                 message=(
-                    "Emulação não iniciada: confirmação explícita ausente ou "
-                    "solicitação cancelada. Nenhum comando de adversário foi executado."
+                    "Emulation not started: explicit confirmation missing or "
+                    "request cancelled. No adversary command was executed."
                 ),
             )
 
@@ -424,7 +428,7 @@ class OperationRunner:
                 state=OperationState.NOT_STARTED,
                 containment=containment,
                 message=(
-                    "Emulação recusada por contenção — destino externo detectado: "
+                    "Emulation refused by containment: external destination detected: "
                     + " | ".join(containment.describe_violations())
                 ),
             )
@@ -506,31 +510,43 @@ class OperationRunner:
         # Operation references it (Req. 4.2). Without the adversary (and its
         # `atomic_ordering`) loaded, the Operation would run with an empty
         # chain (zero links) — the real-lab failure this fixes.
-        self._caldera.load_abilities(self._ability_payloads(abilities))
-        if adversary_payload is not None:
-            self._caldera.load_adversary(dict(adversary_payload))  # type: ignore[arg-type] -- payload is a validated mapping built from the adversary profile
+        # Everything between the RUNNING commit above and the end of collection
+        # runs under a guard: any failure there must not leave the row stuck in
+        # RUNNING, so it is marked ABORTED (``abort_reason = "execution_error"``)
+        # and the error is re-raised for the caller.
+        caldera_operation_id: str | None = None
+        try:
+            self._caldera.load_abilities(self._ability_payloads(abilities))
+            if adversary_payload is not None:
+                self._caldera.load_adversary(dict(adversary_payload))  # type: ignore[arg-type] -- payload is a validated mapping built from the adversary profile
 
-        # Create the Operation with the `batch` planner and the `red` group,
-        # matching the lab agent registration and sticks/lib/operation.py.
-        created = self._caldera.create_operation(name, adversary_id, group="red", planner="batch")
-        operation.caldera_operation_id = created.operation_id or None
-        self._session.commit()
+            # Create the Operation with the `batch` planner and the `red` group,
+            # matching the lab agent registration and sticks/lib/operation.py.
+            created = self._caldera.create_operation(
+                name, adversary_id, group="red", planner="batch"
+            )
+            caldera_operation_id = created.operation_id or None
+            operation.caldera_operation_id = caldera_operation_id
+            self._session.commit()
 
-        # Collect incrementally until the Caldera Operation reaches a terminal
-        # state or the collection budget elapses (task 3.5 — the bug fix). The
-        # old single ``poll_until_complete`` + one-shot loop is replaced by a
-        # loop that reconciles the persisted ``AbilityResult`` rows on every poll
-        # (Req. 3.1/3.2/3.3). ``started_at`` anchors the timeout to the Operation
-        # start, matching the design.
-        target_label = self._primary_target_label(abilities, isolation)
-        started_at = self._clock()
-        collection = self._collect_until_terminal(
-            operation_id=operation.id,
-            started_at=started_at,
-            caldera_operation_id=created.operation_id,
-            target_label=target_label,
-            containers=list(containers),
-        )
+            # Collect incrementally until the Caldera Operation reaches a terminal
+            # state or the collection budget elapses (task 3.5 — the bug fix). The
+            # old single ``poll_until_complete`` + one-shot loop is replaced by a
+            # loop that reconciles the persisted ``AbilityResult`` rows on every
+            # poll (Req. 3.1/3.2/3.3). ``started_at`` anchors the timeout to the
+            # Operation start, matching the design.
+            target_label = self._primary_target_label(abilities, isolation)
+            started_at = self._clock()
+            collection = self._collect_until_terminal(
+                operation_id=operation.id,
+                started_at=started_at,
+                caldera_operation_id=created.operation_id,
+                target_label=target_label,
+                containers=list(containers),
+            )
+        except BaseException:
+            self._abort_stuck_operation(operation.id, caldera_operation_id)
+            raise
 
         # Finalize the Operation state and aggregate from the collection result.
         #   * audit-failure abort -> ABORTED (partials preserved, Req. 6.9);
@@ -560,25 +576,24 @@ class OperationRunner:
 
         if collection.isolation_broken:
             message = collection.abort_message or (
-                "Operação abortada: o isolamento de contenção deixou de ser "
-                "satisfeito durante a execução."
+                "Operation aborted: containment isolation stopped being satisfied during the run."
             )
         elif collection.aborted:
             message = collection.abort_message or (
-                "Operação abortada: a trilha de auditoria não pôde ser registrada."
+                "Operation aborted: the audit trail could not be recorded."
             )
         elif collection.reached_terminal:
             message = (
-                f"Operação finalizada: {collection.total_success} sucesso(s), "
-                f"{collection.total_failure} falha(s)."
+                f"Operation finished: {collection.total_success} success(es), "
+                f"{collection.total_failure} failure(s)."
             )
         else:
             message = (
-                "Operação incompleta: o timeout de coleta decorreu sem um estado "
-                "terminal no Caldera. Os resultados parciais foram preservados "
-                f"({collection.total_success} sucesso(s), "
-                f"{collection.total_failure} falha(s)) e a Operação NÃO é contada "
-                "entre as execuções finalizadas com sucesso."
+                "Operation incomplete: the collection timeout elapsed without a "
+                "terminal state in Caldera. Partial results were preserved "
+                f"({collection.total_success} success(es), "
+                f"{collection.total_failure} failure(s)) and the Operation is NOT counted "
+                "among the successfully finished runs."
             )
 
         return OperationRunResult(
@@ -595,6 +610,36 @@ class OperationRunner:
             isolation=collection.isolation or isolation,
             message=message,
         )
+
+    def _abort_stuck_operation(
+        self, operation_id: int | None, caldera_operation_id: str | None
+    ) -> None:
+        """Mark a RUNNING Operation ABORTED after an unexpected failure.
+
+        Best effort: a failure here is logged and never masks the original error.
+        The session is rolled back first because the original failure may have
+        left it in a failed transaction. Caldera is then asked to stop its
+        Operation, also best effort.
+        """
+        try:
+            self._session.rollback()
+            operation = self._session.get(Operation, operation_id) if operation_id else None
+            if operation is not None and operation.state == OperationState.RUNNING:
+                operation.state = OperationState.ABORTED
+                operation.abort_reason = "execution_error"
+                operation.finished_at = _utcnow()
+                self._session.commit()
+        except Exception:
+            logger.exception("Could not mark operation %s as aborted", operation_id)
+            with contextlib.suppress(Exception):
+                self._session.rollback()
+        if caldera_operation_id:
+            try:
+                self._caldera.abort_operation(caldera_operation_id)
+            except Exception:
+                logger.warning(
+                    "Could not abort Caldera operation %s", caldera_operation_id, exc_info=True
+                )
 
     # -- incremental collection loop (task 3.5 — core bug fix) ---------------
 
@@ -694,10 +739,10 @@ class OperationRunner:
                         isolation_broken=True,
                         isolation=isolation,
                         abort_message=(
-                            "Operação interrompida: o isolamento de contenção "
-                            "deixou de ser satisfeito durante a execução. Nenhum "
-                            "novo comando foi disparado e os resultados parciais "
-                            "foram preservados. " + isolation.summary()
+                            "Operation interrupted: containment isolation "
+                            "stopped being satisfied during the run. No "
+                            "new command was fired and the partial results "
+                            "were preserved. " + isolation.summary()
                         ),
                     )
 
@@ -726,9 +771,9 @@ class OperationRunner:
                     reached_terminal=False,
                     aborted=True,
                     abort_message=(
-                        "Operação abortada: a trilha de auditoria não pôde ser "
-                        "registrada e a Operação foi interrompida para preservar "
-                        f"a contenção. Detalhe: {exc}"
+                        "Operation aborted: the audit trail could not be "
+                        "recorded and the Operation was interrupted to preserve "
+                        f"containment. Detail: {exc}"
                     ),
                 )
 
@@ -801,7 +846,7 @@ class OperationRunner:
         The link's ``command``, ``target_container`` (``target_label``) and
         ``attacker_host`` (``link.paw``) are mapped onto the additive nullable
         columns (Req. 2.4); values still uncollected stay ``NULL`` and the UI
-        shows "não disponível" (Req. 2.5).
+        shows "not available" (Req. 2.5).
 
         The per-command audit seam is preserved: every command that is inserted
         or that advanced is recorded through :meth:`_audit_command`, keeping the
@@ -959,7 +1004,7 @@ class OperationRunner:
         """
         result_text = self._format_result_text(result)
         self._audit.log_command(
-            command=result.command or "(comando não informado)",
+            command=result.command or "(command not provided)",
             target_container=result.target_container,
             result=result_text,
             operation_id=operation_id,

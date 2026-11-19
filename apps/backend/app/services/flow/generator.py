@@ -53,7 +53,7 @@ class ProducedFlow(BaseModel):
 
     * ``origin`` — the :class:`~app.models.enums.FlowOrigin` that stamps the attack flow's
       provenance (``curadoria_humana`` for the curation implementation;
-      ``gerado_ia`` for a future AI implementation — Req. 4.3, 9.3).
+      ``ai_generated`` for a future AI implementation — Req. 4.3, 9.3).
     * ``identifier`` — stable attack flow identifier within the Campaign (for example the
       curated campaign *slug*), used for the idempotent backfill.
     * ``label`` — optional readable label shown in the UI (``None`` when there is

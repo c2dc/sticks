@@ -196,7 +196,7 @@ def latest_enterprise_version(index: Any) -> str:
     """
     found = enterprise_versions(index)
     if not found:
-        raise StixDownloadError("O índice do MITRE ATT&CK não lista versões enterprise-attack.")
+        raise StixDownloadError("The MITRE ATT&CK index lists no enterprise-attack versions.")
     return found[0]
 
 
@@ -478,7 +478,7 @@ class StixService:
         """
         if not isinstance(version, str) or not _VERSION_RE.fullmatch(version):
             raise StixDownloadError(
-                f"Versão inválida '{version}': download recusado sem acessar a rede.",
+                f"Invalid version '{version}': download refused without accessing the network.",
                 version=version if isinstance(version, str) else None,
             )
 
@@ -489,7 +489,7 @@ class StixService:
             raise
         except Exception as exc:
             raise StixDownloadError(
-                f"Não foi possível obter a base v{version} do repositório MITRE ATT&CK: {exc}.",
+                f"Could not fetch base v{version} from the MITRE ATT&CK repository: {exc}.",
                 version=version,
             ) from exc
 
@@ -497,13 +497,13 @@ class StixService:
             bundle = json.loads(content)
         except (json.JSONDecodeError, ValueError) as exc:
             raise StixDownloadError(
-                f"Conteúdo baixado da base v{version} não é JSON válido: {exc}.",
+                f"Content downloaded for base v{version} is not valid JSON: {exc}.",
                 version=version,
             ) from exc
         if not isinstance(bundle, dict) or not isinstance(bundle.get("objects"), list):
             raise StixDownloadError(
-                f"Conteúdo baixado da base v{version} não é um bundle STIX válido "
-                '(esperava um objeto JSON com a lista "objects").',
+                f"Content downloaded for base v{version} is not a valid STIX bundle "
+                '(expected a JSON object with an "objects" list).',
                 version=version,
             )
         return bundle
@@ -550,7 +550,7 @@ class StixService:
             raise
         except Exception as exc:
             raise StixDownloadError(
-                f"Não foi possível consultar o índice de versões do MITRE ATT&CK: {exc}."
+                f"Could not query the MITRE ATT&CK version index: {exc}."
             ) from exc
         return latest_enterprise_version(index)
 
@@ -584,7 +584,7 @@ class StixService:
             if isinstance(body, (bytes, bytearray)):
                 text = body.decode("utf-8")
         if not isinstance(text, str):
-            raise StixDownloadError(f"Resposta sem corpo de texto utilizável ao baixar {url}.")
+            raise StixDownloadError(f"Response without a usable text body when downloading {url}.")
         return text
 
     def dashboard(self, version: str, bundle: dict) -> DashboardStix:
@@ -782,8 +782,8 @@ class StixService:
         return None
 
     # Synthetic group holding campaigns with no ``attributed-to`` relationship.
-    ADVERSARY_UNASSOCIATED_ID = "sem-ator"
-    ADVERSARY_UNASSOCIATED_NAME = "Sem ator associado"
+    ADVERSARY_UNASSOCIATED_ID = "no-actor"
+    ADVERSARY_UNASSOCIATED_NAME = "No associated actor"
 
     def list_adversaries(self, bundle: dict) -> list[AdversaryStix]:
         """STIX ``intrusion-set`` objects grouped with their attributed campaigns.
@@ -809,7 +809,7 @@ class StixService:
           every adversary it is attributed to, and only those — never dropped nor
           duplicated under the same adversary.
         * Campaigns with no attribution relationship are collected under a single
-          synthetic *"sem ator associado"* group (``stix_id`` =
+          synthetic *"no associated actor"* group (``stix_id`` =
           :data:`ADVERSARY_UNASSOCIATED_ID`), appended last — and only when there is
           at least one unattributed campaign.
 
@@ -884,7 +884,7 @@ class StixService:
             attributed_campaigns.add(source_ref)
 
         # Any campaign never attributed to a known adversary goes under the
-        # synthetic "sem ator associado" group, in bundle order. Only add the
+        # synthetic "no associated actor" group, in bundle order. Only add the
         # group when it would hold at least one campaign.
         unattributed = [
             campaigns_by_id[cid] for cid in campaigns_by_id if cid not in attributed_campaigns

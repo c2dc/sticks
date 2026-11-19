@@ -55,6 +55,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     from app.services.ingestion.orchestrator import IngestionOrchestrator
     from app.services.ingestion.runners import build_default_runners
 
+    # Close runs/operations left running by a previous process (Req. 13); never blocks startup.
+    try:
+        import asyncio
+
+        from app.services.ai.reconciler import reconcile_orphans
+
+        await asyncio.to_thread(reconcile_orphans, SessionLocal)
+    except Exception:
+        logger.exception("startup reconciliation failed; continuing")
+
     orchestrator = IngestionOrchestrator(SessionLocal, build_default_runners())
     app.state.ingestion = orchestrator
     if ingest_on_start_enabled():

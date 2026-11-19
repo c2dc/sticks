@@ -60,10 +60,10 @@ from app.services.environment.operationalization import (
 # The container provisioning is NOT blocked; this is a request for confirmation of
 # the future VM contract, which the system records as not executed (Req. 14.8).
 _MSG_VM_REQUESTED = (
-    "A campanha indicou que exigiria uma máquina virtual. Conforme a preferência "
-    "por contêineres, o provisionamento efetivo permanece em contêiner e nenhuma "
-    "máquina virtual é criada. A solicitação de VM foi registrada como contrato "
-    "futuro não executado e aguarda confirmação explícita do Researcher."
+    "The campaign indicated it would require a virtual machine. Following the "
+    "container preference, the actual provisioning stays in a container and no "
+    "virtual machine is created. The VM request was recorded as a future, "
+    "non-executed contract and awaits explicit confirmation from the Researcher."
 )
 
 

@@ -24,6 +24,11 @@ export interface FlowPhaseViewProps {
   campaign?: string
   flowId?: number
   flow?: FlowDetail
+  /**
+   * Show the provenance badge and the references section. Defaults to true; the guided
+   * run turns it off because `FlowProvenanceCard` already reports the origin there.
+   */
+  showProvenance?: boolean
 }
 
 const PROVENANCE_STYLES: Record<FlowProvenanceKind, string> = {
@@ -32,7 +37,7 @@ const PROVENANCE_STYLES: Record<FlowProvenanceKind, string> = {
   created: "border-blue-500/50 bg-blue-500/10 text-blue-700 dark:text-blue-300",
 }
 
-export function FlowPhaseView({ campaign, flowId, flow: providedFlow }: FlowPhaseViewProps) {
+export function FlowPhaseView({ campaign, flowId, flow: providedFlow, showProvenance = true }: FlowPhaseViewProps) {
   const { t } = useTranslation("pipeline")
   const request = useAsyncData<FlowDetail | null>(
     providedFlow || !campaign ? null : JSON.stringify([campaign, flowId ?? null]),
@@ -75,7 +80,7 @@ export function FlowPhaseView({ campaign, flowId, flow: providedFlow }: FlowPhas
     )
   }
 
-  const provenance = flow.provenance
+  const provenance = showProvenance ? flow.provenance : undefined
   const cycles = flow.cycles ?? []
   const backEdges = flow.back_edges ?? []
 

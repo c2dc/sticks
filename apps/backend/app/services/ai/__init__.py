@@ -2,7 +2,7 @@
 
 Hosts the LangGraph-based agent system that plugs into the existing six-phase
 pipeline seams (``FlowGenerator``, ``OperationalizerByOrigin``,
-``EnvironmentProvisioner``) with ``origin = AI_GENERATED`` (``"gerado_ia"``),
+``EnvironmentProvisioner``) with ``origin = AI_GENERATED`` (``"ai_generated"``),
 closes a bounded plan->execute->measure->improve loop over Execution phase, and persists
 its bookkeeping plus a pgvector experience memory in the existing PostgreSQL.
 

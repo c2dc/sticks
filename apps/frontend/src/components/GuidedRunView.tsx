@@ -1,106 +1,61 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react"
+import { type ReactNode, useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import {
   CheckCircle2,
   ChevronDown,
   Loader2,
+  RefreshCw,
   Sparkles,
   XCircle,
 } from "lucide-react"
 
-import { OrchestratorAvatar, type OrchestratorMood } from "@/components/OrchestratorAvatar"
-import { AgentTracePanel } from "@/components/AgentTracePanel"
+import { EnvironmentApprovalStep } from "@/components/EnvironmentApprovalStep"
 import { FlowPhaseView } from "@/components/FlowPhaseView"
+import { FlowProposalHistory } from "@/components/FlowProposalHistory"
+import { FlowProvenanceCard } from "@/components/FlowProvenanceCard"
+import { OperationalizationApprovalStep } from "@/components/OperationalizationApprovalStep"
 import { OperationalizationScreen } from "@/components/OperationalizationScreen"
+import { OrchestratorAvatar, type OrchestratorMood } from "@/components/OrchestratorAvatar"
+import { RunFailure } from "@/components/RunFailure"
+import { RunNotice } from "@/components/RunNotice"
 import { useLlmStatus } from "@/components/llm/LlmStatusProvider"
 import { PreflightPanel } from "@/components/llm/PreflightPanel"
 import { Button } from "@/components/ui/button"
 import { campaignDisplayName } from "@/lib/campaign"
 import { reasonCodeFrom } from "@/lib/llm"
 import { cn } from "@/lib/utils"
-import {
-  getAiRun,
-  startAiRun,
-  type AiEvaluation,
-  type AiIteration,
-  type AiRun,
-  type AiRunDetail,
-  type AiPhaseOutput,
-} from "@/lib/ai"
+import { aiRunReasonFrom, type AiRun } from "@/lib/ai"
+import { type UseAiRun } from "@/lib/use-ai-run"
 
 /**
  * GuidedRunView — the conversational, orchestrator-led Run screen (Layer 2).
  *
- * Instead of a dense dashboard, the Run is narrated by an orchestrator robot
- * that reveals one phase at a time and asks the Researcher's permission to
- * proceed:
+ * The screen drives the real interactive backend run through `useAiRun`. The
+ * backend pauses at `awaiting_approval` after the `operationalization`, `flow`
+ * and `environment` phases; each pause renders its artifact plus the explicit
+ * approval action. While a phase runs in the background (`running`), the
+ * orchestrator bubble shows the phase-specific waiting text. Terminal states show the execution report,
+ * the evaluator verdict with the achieved coverage and, for failed runs, the
+ * structured failure.
  *
- *   1. Operationalization   — right after the campaign is chosen, it lists the
- *                             commands available for each technique. The AI run
- *                             starts only once the Researcher reviews them.
- *   2. Attack flow          — it shows the attack flow it generated (with its
- *                             provenance) and asks "shall I proceed?".
- *   3. Environment          — then the isolated environment it designed.
- *   4. Execution            — it runs the offensive emulation against the targets
- *                             and reports that the real result was recorded.
- *   5. Evaluation           — finally, as its OWN phase (plan → act → evaluate),
- *                             the evaluator observes the execution result and
- *                             reports the verdict, distinct from the execution
- *                             step (Req. 2.5, 7.3).
- *
- * Under the hood this drives the SAME backend run as `AiRunView`: after the
- * Researcher reviews the operationalization, it starts a run, polls `getAiRun` (≤5s) and reads the per-phase Agent_Output artifacts of
- * the latest iteration. The "phases" are a presentational projection of those
- * phase outputs — the robot simply gates how many are revealed, so the
- * Researcher is conducted through the multi-agent pipeline rather than shown
- * everything at once.
+ * Known gap: `AiRun` has no typed isolation verdict, so the environment pause
+ * shows the final commands and the planned coverage but not the isolation check.
  */
 
-const POLL_INTERVAL_MS = 3000
 const TERMINAL_STATUSES = new Set(["completed", "failed", "aborted"])
 
-function isTerminal(run: AiRun | null | undefined): boolean {
-  return run != null && TERMINAL_STATUSES.has(run.status)
+function isTerminal(run: AiRun): boolean {
+  return TERMINAL_STATUSES.has(run.status)
 }
-
-/**
- * The ordered conductor phases the robot reveals, mapped to the semantic,
- * number-free backend `AgentPhase` values: `operationalization → flow →
- * environment → execution → evaluation`, without any numbered labels (Req. 2.2,
- * 5.7, 6.1).
- *
- * `execution` and `evaluation` are two distinct, ordered items following the
- * literature's plan → act → evaluate pattern: `execution` runs the offensive
- * emulation and `evaluation` observes the real result and reports the verdict,
- * revealed as its own turn after execution (Req. 2.1, 2.5, 7.3).
- */
-const PHASE_ORDER = [
-  "operationalization",
-  "flow",
-  "environment",
-  "execution",
-  "evaluation",
-] as const
-type Phase = (typeof PHASE_ORDER)[number]
-
-/**
- * The phases whose artifact is derived from the terminal run state (the verdict)
- * rather than from a per-phase Agent_Output row: `execution` (the emulation ran)
- * and `evaluation` (the evaluator verdict).
- */
-const TERMINAL_PHASES = new Set<Phase>(["execution", "evaluation"])
 
 export function GuidedRunView({
   campaignId,
   campaignName,
   version,
+  ai,
 }: {
+  /** The run state and actions, owned by the parent (`ExecutionWizard`). */
+  ai: UseAiRun
   /** The chosen campaign key (`campaign_key` of the STIX listing). */
   campaignId: string
   /** The campaign's readable name; falls back to a humanized key. */
@@ -112,176 +67,187 @@ export function GuidedRunView({
   const { t: tLlm } = useTranslation("llm")
   const { state: llmState, recheck } = useLlmStatus()
   const displayName = campaignDisplayName(campaignName, campaignId)
+  const { run, busy, error } = ai
 
-  const [detail, setDetail] = useState<AiRunDetail | null>(null)
-  const [runId, setRunId] = useState<number | null>(null)
-  const [starting, setStarting] = useState(false)
-  const [startError, setStartError] = useState<string | null>(null)
-
-  // How far the Researcher has approved the robot to reveal. Index into
-  // PHASE_ORDER: 0 means "operationalization shown, awaiting the review that starts the run".
-  const [approvedUpTo, setApprovedUpTo] = useState(0)
-
-  const start = useCallback(async () => {
-    setStarting(true)
-    setStartError(null)
-    setDetail(null)
-    setApprovedUpTo(0)
-    try {
-      const run = await startAiRun(campaignId)
-      setRunId(run.id)
-      setDetail({ run, iterations: [] })
-      // The operationalization was reviewed: reveal the flow phase.
-      setApprovedUpTo(1)
-    } catch (error) {
-      // 409 llm_blocked carries the blocking codes; 503 run_failed carries the cause code.
-      const { reason, codes, causeCode } = reasonCodeFrom(error)
-      if (reason === "llm_blocked" && codes.length > 0) {
-        setStartError(tLlm(`block.reason.${codes[0]}`))
-        recheck()
-      } else if (reason === "run_failed" && causeCode) {
-        setStartError(tLlm(`reason.${causeCode}`))
-        recheck()
-      } else {
-        setStartError(t("aiRun.startError"))
-      }
-    } finally {
-      setStarting(false)
-    }
-  }, [campaignId, recheck, t, tLlm])
-
-  // Poll while the run is non-terminal; one final read on terminal.
-  useEffect(() => {
-    if (runId == null) return
-    let active = true
-    let timer: ReturnType<typeof setTimeout> | undefined
-
-    const poll = async () => {
-      const id = runId
-      if (!active) return
-      try {
-        const next = await getAiRun(campaignId, id)
-        if (!active) return
-        setDetail(next)
-        if (!isTerminal(next.run)) timer = setTimeout(poll, POLL_INTERVAL_MS)
-      } catch {
-        if (!active) return
-        timer = setTimeout(poll, POLL_INTERVAL_MS)
-      }
-    }
-
-    void poll()
-    return () => {
-      active = false
-      if (timer) clearTimeout(timer)
-    }
-  }, [campaignId, runId])
-
-  // The latest iteration drives the conversation (the newest plan the robot
-  // produced). Its phase outputs are keyed by phase for phase lookup.
-  const latest: AiIteration | undefined = detail?.iterations.at(-1)
-  const outputsByPhase = useMemo(() => {
-    const map = new Map<string, AiPhaseOutput>()
-    for (const out of latest?.phase_outputs ?? []) map.set(out.phase, out)
-    return map
-  }, [latest])
-
-  // Not started yet → the robot's welcome, the operationalization listing the
-  // Researcher reviews, and the single "start" action that begins the AI run.
-  if (!detail) {
+  if (ai.loading) {
     return (
       <GuidedShell>
-        <OrchestratorBubble mood={starting ? "thinking" : "talking"} pulse>
-          {starting ? t("guided.thinking") : t("guided.greeting")}
-        </OrchestratorBubble>
-        <div className="ml-14" data-section="guided-artifact" data-phase="operationalization">
-          <OperationalizationScreen
-            version={version}
-            campaignKey={campaignId}
-          />
-        </div>
-        <div className="ml-14">
-          <PreflightPanel runError={startError} />
-        </div>
-        <div className="flex flex-col items-center gap-3">
-          <Button
-            size="lg"
-            onClick={() => void start()}
-            disabled={starting || llmState === "blocked" || llmState === "checking"}
-            className="px-8"
-          >
-            {starting ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Sparkles className="size-4" aria-hidden />}
-            {starting ? t("guided.preparing") : t("guided.start")}
-          </Button>
-        </div>
-      </GuidedShell>
-    )
-  }
-
-  const run = detail.run
-  const running = !isTerminal(run)
-  const noPlanYet = !latest || latest.phase_outputs.length === 0
-
-  // While the first plan is still being produced, the robot is "thinking".
-  if (noPlanYet && running) {
-    return (
-      <GuidedShell>
-        <RunHeader run={run} />
         <OrchestratorBubble mood="thinking" pulse>
-          {t("guided.generatingFlow")}
+          {t("guided.thinking")}
         </OrchestratorBubble>
         <ThinkingDots />
       </GuidedShell>
     )
   }
 
-  // Terminal verdict closes the conversation.
-  const finished = isTerminal(run)
+  // Not started yet → the robot's welcome, the operationalization listing and the
+  // single "start" action that begins the AI run.
+  if (!run) {
+    return (
+      <GuidedShell>
+        <OrchestratorBubble mood={busy ? "thinking" : "talking"} pulse>
+          {busy ? t("guided.thinking") : t("guided.greeting")}
+        </OrchestratorBubble>
+        <div className="ml-14" data-section="guided-artifact" data-phase="operationalization">
+          <OperationalizationScreen version={version} campaignKey={campaignId} />
+        </div>
+        <div className="ml-14">
+          <PreflightPanel runError={error ? startErrorText(error, t, tLlm) : null} />
+        </div>
+        <div className="flex flex-col items-center gap-3">
+          <Button
+            size="lg"
+            onClick={() => {
+              void ai.start().then((started) => {
+                if (!started) recheck()
+              })
+            }}
+            disabled={busy || llmState === "blocked" || llmState === "checking"}
+            className="px-8"
+          >
+            {busy ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Sparkles className="size-4" aria-hidden />}
+            {busy ? t("guided.preparing") : t("guided.start")}
+          </Button>
+        </div>
+      </GuidedShell>
+    )
+  }
+
+  const terminal = isTerminal(run)
+  const pending = run.status === "awaiting_approval" ? run.pending_phase : null
+  const proposals = run.flow_proposals ?? []
+  const currentProposal = proposals.find((proposal) => proposal.current)
+  const review = run.operationalization_review
+
+  // Final commands that will run, from the operationalization review (the only
+  // typed source of resolved commands in `AiRun`).
+  const environmentCommands = (review?.techniques ?? [])
+    .filter((technique) => technique.emulability_status !== "not_emulable")
+    .flatMap((technique) => technique.commands.map((command) => command.resolved_command))
 
   return (
     <GuidedShell>
       <RunHeader run={run} />
 
-      {/* Each revealed phase as a conversation turn. The robot speaks, shows the
-          artifact, then asks to proceed; approving reveals the next phase. */}
-      <div className="flex flex-col gap-6" data-section="guided-phases">
-        {PHASE_ORDER.map((phase, index) => {
-          if (index > approvedUpTo) return null
-          const isTerminalPhase = TERMINAL_PHASES.has(phase)
-          const output = isTerminalPhase ? undefined : outputsByPhase.get(phase)
-          // A phase is "ready" once its artifact exists (or, for the terminal
-          // execution/evaluation phases, once the run reaches a terminal state).
-          // The operationalization listing is read-only and always ready.
-          const ready =
-            phase === "operationalization"
-              ? true
-              : isTerminalPhase
-                ? finished
-                : Boolean(output)
-          const isCurrent = index === approvedUpTo
+      {run.notice_code ? <RunNotice code={run.notice_code} /> : null}
 
-          return (
-            <PhaseTurn
-              key={phase}
-              phase={phase}
-              campaignId={campaignId}
-              campaignName={displayName}
-              version={version}
-              output={output}
-              evaluation={latest?.evaluation}
-              ready={ready}
-              running={running}
-              finished={finished}
-              run={run}
-              isCurrent={isCurrent}
-              isLastPhase={index === PHASE_ORDER.length - 1}
-              onApprove={() => setApprovedUpTo((v) => Math.min(PHASE_ORDER.length - 1, v + 1))}
+      {run.status === "running" ? (
+        <div className="flex flex-col gap-4" data-section="guided-phases">
+          {/* The bubble carries the phase-specific text with an inline spinner, so
+              the screen shows one coherent message instead of a generic bubble
+              stacked over a second waiting line. The avatar stays in the bubble. */}
+          <OrchestratorBubble mood="thinking" pulse>
+            {run.active_phase ? (
+              <WaitingMessage phase={run.active_phase} />
+            ) : (
+              t("guided.working")
+            )}
+          </OrchestratorBubble>
+          {run.active_phase ? null : <ThinkingDots />}
+        </div>
+      ) : null}
+
+      {pending === "operationalization" ? (
+        <PauseTurn line={t("guided.speech.operationalization", { campaign: displayName })} phase="operationalization">
+          {review ? <OperationalizationApprovalStep review={review} /> : null}
+          <ApproveButton
+            label={t("guided.approveOperationalization")}
+            busy={busy}
+            onClick={() => void ai.approve("operationalization")}
+          />
+        </PauseTurn>
+      ) : null}
+
+      {pending === "flow" ? (
+        <PauseTurn line={t("guided.speech.flow", { campaign: displayName })} phase="flow">
+          <FlowPhaseView campaign={campaignId} flowId={currentProposal?.flow_id ?? undefined} showProvenance={false} />
+          {currentProposal ? <FlowProvenanceCard proposal={currentProposal} /> : null}
+          <FlowProposalHistory
+            proposals={proposals}
+            onSelect={(proposalId) => void ai.selectFlowProposal(proposalId)}
+            disabled={busy}
+          />
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <ApproveButton
+              label={t("guided.approveFlow")}
+              busy={busy}
+              onClick={() => void ai.approve("flow")}
             />
-          )
-        })}
-      </div>
+            <Button variant="outline" disabled={busy} onClick={() => void ai.regenerateFlow()}>
+              <RefreshCw className="size-4" aria-hidden />
+              {t("guided.generateAnotherFlow")}
+            </Button>
+          </div>
+        </PauseTurn>
+      ) : null}
+
+      {pending === "environment" ? (
+        <PauseTurn line={t("guided.speech.environment", { campaign: displayName })} phase="environment">
+          <EnvironmentApprovalStep
+            commands={environmentCommands}
+            plannedCoverage={run.coverage?.planned_coverage ?? review?.planned_coverage}
+          />
+          <ApproveButton
+            label={t("guided.approveEnvironment")}
+            busy={busy}
+            onClick={() => void ai.approve("environment")}
+          />
+        </PauseTurn>
+      ) : null}
+
+      {terminal ? (
+        <div className="flex flex-col gap-4 animate-in fade-in slide-in-from-bottom-2 fill-mode-both">
+          <OrchestratorBubble
+            mood={run.status === "completed" && run.final_verdict_success ? "happy" : "alert"}
+          >
+            {run.status === "completed"
+              ? t("guided.speech.evaluation", { campaign: displayName })
+              : t("guided.failure.title")}
+          </OrchestratorBubble>
+          {run.failure ? <RunFailure failure={run.failure} /> : null}
+          <ExecutionReport run={run} />
+          <EvaluationVerdict run={run} />
+        </div>
+      ) : null}
+
+      {error && !terminal ? (
+        <p className="ml-14 text-sm text-team-red" role="alert" data-section="guided-error">
+          {actionErrorText(error, t)}
+        </p>
+      ) : null}
+
+      {!terminal ? (
+        <div className="flex justify-center">
+          <Button variant="ghost" size="sm" disabled={busy} onClick={() => void ai.abort()}>
+            <XCircle className="size-4" aria-hidden />
+            {t("guided.abort")}
+          </Button>
+        </div>
+      ) : null}
     </GuidedShell>
   )
+}
+
+/** Translates a start failure (LLM block, run failure or generic). */
+function startErrorText(
+  error: unknown,
+  t: (key: string) => string,
+  tLlm: (key: string) => string,
+): string {
+  const { reason, codes, causeCode } = reasonCodeFrom(error)
+  if (reason === "llm_blocked" && codes.length > 0) return tLlm(`block.reason.${codes[0]}`)
+  if (reason === "run_failed" && causeCode) return tLlm(`reason.${causeCode}`)
+  const { reason: runReason } = aiRunReasonFrom(error)
+  if (runReason) return t(`guided.error.${runReason}`)
+  return t("aiRun.startError")
+}
+
+/** Translates the error of an approval or other run action. */
+function actionErrorText(error: unknown, t: (key: string, options?: object) => string): string {
+  const { reason } = aiRunReasonFrom(error)
+  return reason
+    ? t(`guided.error.${reason}`, { defaultValue: t("aiRun.startError") })
+    : t("aiRun.startError")
 }
 
 /** A centered conversation column with a soft backdrop. */
@@ -322,142 +288,49 @@ function RunHeader({ run }: { run: AiRun }) {
   )
 }
 
-/**
- * One conversation turn for a phase: the robot's line + the artifact it
- * produced, followed by the "can I proceed?" prompt when it is the current
- * (frontier) phase and the artifact is ready.
- */
-function PhaseTurn({
+/** One approval pause: the robot's line followed by the artifact and its actions. */
+function PauseTurn({
+  line,
   phase,
-  campaignId,
-  campaignName,
-  version,
-  output,
-  evaluation,
-  ready,
-  running,
-  finished,
-  run,
-  isCurrent,
-  isLastPhase,
-  onApprove,
+  children,
 }: {
-  phase: Phase
-  campaignId: string
-  campaignName: string
-  version: string
-  output?: AiPhaseOutput
-  evaluation?: AiEvaluation | null
-  ready: boolean
-  running: boolean
-  finished: boolean
-  run: AiRun
-  isCurrent: boolean
-  isLastPhase: boolean
-  onApprove: () => void
+  line: string
+  phase: string
+  children: ReactNode
 }) {
-  const { t } = useTranslation("pipeline")
-
-  // The robot's opening line for the phase.
-  const line = t(`guided.speech.${phase}`, { campaign: campaignName })
-  // Only the `evaluation` phase carries the verdict, so its mood reflects the
-  // outcome; `execution` reports the run, not the judgement.
-  const mood: OrchestratorMood =
-    phase === "evaluation" && finished
-      ? run.final_verdict_success
-        ? "happy"
-        : "alert"
-      : "talking"
-
   return (
     <div className="flex flex-col gap-4 animate-in fade-in slide-in-from-bottom-2 fill-mode-both">
-      <OrchestratorBubble mood={ready ? mood : "thinking"}>
-        {ready ? line : t("guided.working")}
-      </OrchestratorBubble>
-
-      {/* The artifact the robot produced for this phase. `operationalization`
-          lists the commands per technique; `flow` shows the attack flow with its
-          provenance; `execution` reports that the emulation ran; `evaluation`
-          carries the evaluator verdict; the other phases render their
-          Agent_Output artifact. */}
-      {ready ? (
-        phase === "operationalization" ? (
-          <div className="ml-14" data-section="guided-artifact" data-phase={phase}>
-            <OperationalizationScreen
-              version={version}
-              campaignKey={campaignId}
-            />
-          </div>
-        ) : phase === "flow" ? (
-          <div className="ml-14 flex flex-col gap-3" data-section="guided-artifact" data-phase={phase}>
-            <FlowPhaseView campaign={campaignId} />
-            {output ? <PhaseArtifact phase={phase} output={output} bare /> : null}
-          </div>
-        ) : phase === "execution" ? (
-          <ExecutionReport run={run} />
-        ) : phase === "evaluation" ? (
-          <EvaluationVerdict run={run} evaluation={evaluation} />
-        ) : output ? (
-          <PhaseArtifact phase={phase} output={output} />
-        ) : null
-      ) : (
-        <ThinkingDots />
-      )}
-
-      {/* "Shall I proceed?" — only on the current frontier phase, once ready, and
-          never on the final (execution) phase. */}
-      {isCurrent && ready && !isLastPhase && phase !== "operationalization" ? (
-        <div
-          className="flex flex-col items-center gap-2 rounded-xl border border-team-purple/30 bg-team-purple/5 p-4"
-          data-section="guided-proceed"
-        >
-          <p className="text-center text-sm font-medium">{t("guided.proceedQuestion")}</p>
-          <Button onClick={onApprove} className="px-6">
-            <CheckCircle2 className="size-4" aria-hidden />
-            {t("guided.proceed")}
-          </Button>
-          {running ? (
-            <p className="text-xs text-muted-foreground">{t("guided.stillWorking")}</p>
-          ) : null}
-        </div>
-      ) : null}
+      <OrchestratorBubble mood="talking">{line}</OrchestratorBubble>
+      <div className="ml-14 flex flex-col gap-3" data-section="guided-artifact" data-phase={phase}>
+        {children}
+      </div>
     </div>
   )
 }
 
-/**
- * The artifact body for a flow / environment phase: the agent trace panel. With
- * `bare` it renders just the panel, for use inside another artifact wrapper.
- */
-function PhaseArtifact({
-  phase,
-  output,
-  bare = false,
+function ApproveButton({
+  label,
+  busy,
+  onClick,
 }: {
-  phase: Phase
-  output: AiPhaseOutput
-  bare?: boolean
+  label: string
+  busy: boolean
+  onClick: () => void
 }) {
-  const { t } = useTranslation("pipeline")
-  const panel = (
-    <AgentTracePanel
-      phaseName={t(`aiRun.phaseName.${output.phase}`, { defaultValue: output.phase })}
-      phaseOutput={output}
-    />
-  )
-  if (bare) return panel
   return (
-    <div className="ml-14" data-section="guided-artifact" data-phase={phase}>
-      {panel}
+    <div className="flex justify-center">
+      <Button onClick={onClick} disabled={busy} className="px-6">
+        {busy ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <CheckCircle2 className="size-4" aria-hidden />}
+        {label}
+      </Button>
     </div>
   )
 }
 
 /**
- * The `execution` phase artifact: a neutral report that the offensive emulation
- * ran against the targets and the real result was recorded. It carries NO
- * verdict — the judgement belongs to the distinct `evaluation` phase that
- * follows (Req. 2.5, 7.3).
+ * The execution artifact: a neutral report that the offensive emulation ran
+ * against the targets and the real result was recorded. It carries NO verdict —
+ * the judgement belongs to the evaluation that follows (Req. 2.5, 7.3).
  */
 function ExecutionReport({ run }: { run: AiRun }) {
   const { t } = useTranslation("pipeline")
@@ -473,21 +346,14 @@ function ExecutionReport({ run }: { run: AiRun }) {
 }
 
 /**
- * The `evaluation` phase artifact: the evaluator's verdict rendered as the
- * closing conversation turn, observing the real execution result. Shows the
- * final pass/fail verdict, the evaluator's rationale for the latest iteration
- * when present, and the closing summary (Req. 2.2, 2.5, 7.3).
+ * The evaluation artifact: the evaluator's verdict as the closing turn, with the
+ * achieved coverage (Req. 22) and the closing summary.
  */
-function EvaluationVerdict({
-  run,
-  evaluation,
-}: {
-  run: AiRun
-  evaluation?: AiEvaluation | null
-}) {
+function EvaluationVerdict({ run }: { run: AiRun }) {
   const { t } = useTranslation("pipeline")
   const success = run.final_verdict_success
   const failed = run.status === "failed" || run.status === "aborted"
+  const achieved = run.coverage?.achieved_coverage
 
   return (
     <div
@@ -511,21 +377,13 @@ function EvaluationVerdict({
               : t("aiRun.verdict.pending")}
         </span>
       </div>
-      {evaluation?.rationale ? (
-        <div className="flex flex-col gap-0.5">
-          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            {t("guided.evaluationRationale")}
-          </span>
-          <p className="whitespace-pre-wrap text-sm text-muted-foreground">
-            {evaluation.rationale}
-          </p>
-        </div>
+      {typeof achieved === "number" ? (
+        <p className="text-sm font-medium" data-section="achieved-coverage">
+          {t("guided.coverage.achieved", { coverage: Math.round(achieved) })}
+        </p>
       ) : null}
-      {run.error ? <p className="text-sm text-team-red">{run.error}</p> : null}
       <p className="text-sm text-muted-foreground">
-        {t("guided.finalSummary", {
-          iteracoes: run.iterations_used,
-        })}
+        {t("guided.finalSummary", { iterations: run.iterations_used })}
       </p>
     </div>
   )
@@ -548,6 +406,37 @@ function OrchestratorBubble({
         <span className="absolute -left-1.5 top-3 size-3 rotate-45 border-b-0 border-r-0 border bg-card" />
         {children}
       </div>
+    </div>
+  )
+}
+
+/** Delay before the "this can take a while" reassurance appears. */
+const STILL_WORKING_DELAY_MS = 20_000
+
+/**
+ * The phase-specific waiting text with a spinner. After a while in the same
+ * phase it adds a reassurance line; the timer restarts when the phase changes.
+ */
+function WaitingMessage({ phase }: { phase: string }) {
+  const { t } = useTranslation("pipeline")
+  const [slow, setSlow] = useState<string | null>(null)
+
+  useEffect(() => {
+    const timer = setTimeout(() => setSlow(phase), STILL_WORKING_DELAY_MS)
+    return () => clearTimeout(timer)
+  }, [phase])
+
+  return (
+    <div className="flex flex-col gap-1" role="status" data-section="phase-waiting" data-phase={phase}>
+      <span className="inline-flex items-center gap-2">
+        <Loader2 className="size-4 shrink-0 animate-spin" aria-hidden />
+        {t(`guided.waiting.${phase}`, { defaultValue: t("guided.working") })}
+      </span>
+      {slow === phase ? (
+        <span className="text-xs text-muted-foreground" data-section="still-working-hint">
+          {t("guided.stillWorkingHint")}
+        </span>
+      ) : null}
     </div>
   )
 }

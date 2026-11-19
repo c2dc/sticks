@@ -309,7 +309,7 @@ class StixPersistenceService:
                 )
 
         # Actors (intrusion-sets) and the actor→campaign attributions. The
-        # synthetic "sem ator associado" group that list_adversaries appends for
+        # synthetic "no associated actor" group that list_adversaries appends for
         # unattributed campaigns is not a real intrusion-set, so it is skipped.
         actors_total = 0
         for adversary in adversaries:

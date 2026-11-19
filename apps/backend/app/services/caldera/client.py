@@ -84,7 +84,7 @@ class CalderaUnavailable(RuntimeError):
     """Typed error signalling Caldera did not respond in time / is unreachable.
 
     The API layer (task 11.2) maps this to **HTTP 503** and the UI shows an
-    "Ambiente Docker não está disponível" message (Req. 4.6). Carries the base
+    "Docker environment is not available" message (Req. 4.6). Carries the base
     URL and the timeout that was applied so the message can be precise.
     """
 
@@ -92,7 +92,7 @@ class CalderaUnavailable(RuntimeError):
         self.url = url
         self.timeout = timeout
         self.reason = reason
-        super().__init__(f"Caldera indisponível em {url} (timeout {timeout:g}s): {reason}")
+        super().__init__(f"Caldera unavailable at {url} (timeout {timeout:g}s): {reason}")
 
 
 class CalderaApiError(RuntimeError):
@@ -108,7 +108,7 @@ class CalderaApiError(RuntimeError):
         self.path = path
         self.status_code = status_code
         self.body = body
-        super().__init__(f"Caldera respondeu HTTP {status_code} para {method} {path}: {body[:200]}")
+        super().__init__(f"Caldera responded HTTP {status_code} for {method} {path}: {body[:200]}")
 
 
 @dataclass(frozen=True)
@@ -455,7 +455,7 @@ class CalderaClient:
             ValueError: if both ``client`` and ``transport`` are supplied.
         """
         if client is not None and transport is not None:
-            raise ValueError("forneça 'client' OU 'transport', não ambos")
+            raise ValueError("provide 'client' OR 'transport', not both")
 
         self._settings = settings or get_settings()
         self._timeout_seconds = float(timeout)
@@ -586,13 +586,13 @@ class CalderaClient:
             raise CalderaUnavailable(
                 url=self.base_url,
                 timeout=self._timeout_seconds,
-                reason=f"sem resposta em {self._timeout_seconds:g}s ({exc!s})",
+                reason=f"no response within {self._timeout_seconds:g}s ({exc!s})",
             ) from exc
         except httpx.HTTPError as exc:
             raise CalderaUnavailable(
                 url=self.base_url,
                 timeout=self._timeout_seconds,
-                reason=f"falha de conexão: {exc!s}",
+                reason=f"connection failure: {exc!s}",
             ) from exc
 
         if not response.is_success:
@@ -634,7 +634,7 @@ class CalderaClient:
             return AvailabilityResult(
                 available=False,
                 url=url,
-                reason=f"sem resposta em {self._timeout_seconds:g}s ({exc!s})",
+                reason=f"no response within {self._timeout_seconds:g}s ({exc!s})",
                 timed_out=True,
             )
         except httpx.HTTPError as exc:
@@ -642,7 +642,7 @@ class CalderaClient:
             return AvailabilityResult(
                 available=False,
                 url=url,
-                reason=f"falha de conexão: {exc!s}",
+                reason=f"connection failure: {exc!s}",
             )
 
         if response.is_success:
@@ -655,7 +655,7 @@ class CalderaClient:
             available=False,
             url=url,
             status_code=response.status_code,
-            reason=f"resposta HTTP {response.status_code}",
+            reason=f"HTTP response {response.status_code}",
         )
 
     def ensure_available(self, path: str = HEALTH_PATH) -> AvailabilityResult:
@@ -881,6 +881,29 @@ class CalderaClient:
         """
         path = f"{OPERATIONS_PATH}/{operation_id}"
         payload = self._request_json("GET", path)
+        return OperationStateResult.from_payload(payload or {})
+
+    def abort_operation(self, operation_id: str) -> OperationStateResult:
+        """Stop an Operation via ``PATCH /api/v2/operations/{id}`` with ``finished``.
+
+        The Caldera v2 operation handler accepts ``state``, ``autonomous`` and
+        ``obfuscator`` on PATCH, and ``finished`` is one of its finished states
+        (``finished``, ``out_of_time``, ``cleanup``). Setting it stops the
+        planner from dispatching further links. Callers treat this as best
+        effort: a failure here must not mask the original error.
+
+        Args:
+            operation_id: The Caldera operation id to stop.
+
+        Returns:
+            The updated Operation as an :class:`OperationStateResult`.
+
+        Raises:
+            CalderaUnavailable: on timeout / connection failure.
+            CalderaApiError: on a non-2xx HTTP status.
+        """
+        path = f"{OPERATIONS_PATH}/{operation_id}"
+        payload = self._request_json("PATCH", path, json={"state": "finished"})
         return OperationStateResult.from_payload(payload or {})
 
     def poll_operation(self, operation_id: str) -> OperationStateResult:

@@ -102,7 +102,7 @@ class AbilityResultView(BaseModel):
     :class:`~app.models.domain.AbilityResult`: the concrete ``command`` of the
     link, the ``target_container`` (e.g. ``"nginx (192.168.20.30)"``) and the
     ``attacker_host`` (e.g. ``kali``). They are optional and default to ``None``
-    for not-yet-collected data, which the UI renders as "não disponível"
+    for not-yet-collected data, which the UI renders as "not available"
     (Req. 2.5). The pre-existing ``command_output`` is unchanged.
     """
 
@@ -111,7 +111,7 @@ class AbilityResultView(BaseModel):
     status: AbilityResultStatus
     command_output: str | None = None
     # Additive per-Ability fields for execution-phase live tracking (Req. 2.4). ``None``
-    # when not yet collected — the UI shows "não disponível" (Req. 2.5).
+    # when not yet collected — the UI shows "not available" (Req. 2.5).
     command: str | None = None
     target_container: str | None = None
     attacker_host: str | None = None
@@ -230,16 +230,15 @@ class PhaseCompletionResult(BaseModel):
 # Message surfaced when the persisted state cannot be read (Req. 9.6). The API
 # turns this into the user-facing "progress could not be restored" notice.
 RESTORE_FAILED_MESSAGE = (
-    "Não foi possível restaurar o progresso: o Estado_de_Sessão persistido "
-    "está indisponível ou não pôde ser lido."
+    "Could not restore progress: the persisted Session State is unavailable or could not be read."
 )
 
 # Message surfaced when persisting a phase completion fails (Req. 9.3). The
 # previously persisted Session State is preserved unchanged; the UI turns
 # this into the user-facing "the completion was not saved" notice.
 SAVE_FAILED_MESSAGE = (
-    "A conclusão da fase não foi salva: falha ao persistir na base de dados. "
-    "O progresso anteriormente registrado foi preservado sem alteração."
+    "The phase completion was not saved: failed to persist to the database. "
+    "The previously recorded progress was preserved unchanged."
 )
 
 

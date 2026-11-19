@@ -1,8 +1,19 @@
 """Session-injected orchestration and persistence of AI curation runs.
 
 Hosts ``AgentRunService`` which creates ``agent_runs`` rows, invokes the
-compiled graph with the checkpointer, persists per-iteration bookkeeping
+pausable compiled graph with the checkpointer, persists each phase output
 atomically and supports resume from the last checkpoint (tasks 15.1-15.3).
+
+Interactive runs (interactive-emulation-run, tasks 3.3 and 4.1): ``start`` creates
+the row and dispatches the ``initial`` phase job without running the graph;
+``approve``, ``regenerate``, ``select_proposal`` and ``abort`` move a paused run
+under an atomic guard, and ``active_run`` finds the active run of a campaign.
+The phase job (and ``resume``) invoke the graph once, up to its next pause. The result is written to the run
+row through ``RunStateStore`` (``mark_running`` / ``pause_for_approval`` /
+``finish`` / ``fail``), which commits in its own session, and ``persist_phase``
+stores the output of the phase that just ran. The older text below describes the
+synchronous flow that always ran to the end; ``COMPLETED`` / ``ABORTED`` is now
+set only when the graph ends.
 
 The service receives its ``Session`` by injection and builds the graph,
 checkpointer and LLM lazily; importing this module performs no I/O
@@ -63,11 +74,14 @@ import logging
 import uuid
 from typing import TYPE_CHECKING, Any
 
+from app.services.ai.llm_failure import classify_llm_failure
+
 if TYPE_CHECKING:  # pragma: no cover - typing only, no runtime import
     from sqlalchemy.orm import Session
 
     from app.models.domain import AgentIteration, AgentRun
     from app.models.enums import AgentPhase
+    from app.services.ai.run_state import RunStateStore
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +94,17 @@ _DEFAULT_MAX_ITERATIONS = 3
 # ``1..max_iterations`` iterations, so the guard itself is bounded to [1, 100].
 _MIN_MAX_ITERATIONS = 1
 _MAX_MAX_ITERATIONS = 100
+
+# Approvable phase -> ``PhaseAction`` value of the job it starts (the enum lives in
+# ``phase_job``, which imports this module).
+_APPROVE_ACTIONS = {
+    "operationalization": "approve_operationalization",
+    "flow": "approve_flow",
+    "environment": "approve_environment",
+}
+
+# Run states in which no phase can run anymore.
+_TERMINAL_STATUSES = frozenset({"completed", "failed", "aborted"})
 
 
 class DependencyUnavailableError(RuntimeError):
@@ -146,6 +171,36 @@ class RunFailedError(RuntimeError):
         )
 
 
+class RunTransitionError(RuntimeError):
+    """Raised when an approval, regeneration or selection cannot be applied.
+
+    ``code`` is the contract code the route maps to an HTTP status: 404
+    ``run_not_found`` / ``flow_proposal_not_found``; 409 ``wrong_phase``,
+    ``phase_running`` or ``run_not_awaiting``; 422 ``invalid_phase``.
+    """
+
+    NOT_FOUND = "run_not_found"
+    PROPOSAL_NOT_FOUND = "flow_proposal_not_found"
+    WRONG_PHASE = "wrong_phase"
+    PHASE_RUNNING = "phase_running"
+    NOT_AWAITING = "run_not_awaiting"
+    INVALID_PHASE = "invalid_phase"
+
+    def __init__(self, code: str, run_id: int) -> None:
+        self.code = code
+        self.run_id = run_id
+        super().__init__(f"run {run_id}: {code}")
+
+
+class RunAlreadyActiveError(RuntimeError):
+    """Raised by ``start`` when the campaign already has an active run (409 ``run_already_active``)."""
+
+    def __init__(self, campaign_id: str, run_id: int) -> None:
+        self.campaign_id = campaign_id
+        self.run_id = run_id
+        super().__init__(f"campaign {campaign_id!r} already has an active run ({run_id}).")
+
+
 def _utcnow() -> dt.datetime:
     """Naive UTC timestamp, matching the model/service convention.
 
@@ -171,179 +226,426 @@ class AgentRunService:
     perform no I/O (Req. 1.7).
     """
 
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: Session, state_store: RunStateStore | None = None) -> None:
         """Bind the service to an open :class:`~sqlalchemy.orm.Session`.
 
         No graph, checkpointer or LLM is built here — all heavy collaborators
         are resolved lazily on :meth:`start` so construction is side-effect free
         (Req. 1.7).
+
+        Args:
+            session: The working session that runs the graph and stores the
+                phase outputs.
+            state_store: Writer of the ``agent_runs`` transitions (own session,
+                immediate commit). Defaults to a store on ``SessionLocal``.
         """
+        from app.services.ai.run_state import RunStateStore
+
         self._session = session
+        self._state_store = state_store if state_store is not None else RunStateStore()
 
     # -- public API -----------------------------------------------------------
 
-    def start(self, campaign_id: str, *, max_iterations: int | None = None) -> AgentRun:
-        """Create an ``agent_runs`` row, invoke the graph, and mark the outcome.
+    def start(
+        self,
+        campaign_id: str,
+        *,
+        max_iterations: int | None = None,
+        llm_profile_id: str | None = None,
+    ) -> AgentRun:
+        """Create an ``agent_runs`` row and start its first phase job (no graph here).
 
-        Steps (Req. 3.2, 3.4, 4.2, 11.4):
+        Steps (Req. 3.2, 3.3, 4.1, 4.2, 5.1, 11.4):
 
-        1. Create the ``agent_runs`` row with status ``PENDING``, a non-empty,
-           unique, immutable ``thread_id`` (a ``uuid4`` hex) and the resolved
-           ``max_iterations`` (the explicit argument clamped to ``1..100``, else
-           the configured default, else 3), then flip it to ``RUNNING`` and flush
-           so the row (and its ``thread_id``) is persisted before the graph runs.
-        2. Build the compiled graph over the PostgreSQL checkpointer and invoke
-           it with ``config={"configurable": {"thread_id": run.thread_id}}`` and
-           the seeded initial state (``campaign_id`` / ``max_iterations``), so the
-           checkpointer snapshots the run under the row's own thread (Req. 4.2).
-        3. From the final state, read the evaluator verdict and the iterations
-           performed, then mark the run ``COMPLETED`` when the final verdict
-           passes or ``ABORTED`` when the loop stopped at the guard without a
-           passing verdict (Req. 3.2, 3.4), persisting ``iterations_used`` and
-           ``final_verdict_success``.
-
-        Before any of this the checkpointer and pgvector store are probed; an
-        unavailable dependency raises :class:`DependencyUnavailableError` and the
-        run is not started (no row, no graph — Req. 14.5). After the graph runs,
-        the completed iteration(s) are persisted atomically by
-        :meth:`_persist_iterations` (Req. 11.5-11.8).
-
-        Failure handling (Req. 14.1, 14.2, 14.6): if the graph invocation fails —
-        SEPINF unreachable or no response within the configured read timeout, a model
-        error, or an LLM output that cannot be parsed into a valid attack flow/command set
-        after the one repair (:class:`~app.services.ai.agents.flow_agent.FlowGenerationError`
-        and analogous node errors) — the run is flipped to ``FAILED`` with its
-        failing-node cause recorded, NO AI artifact is persisted for the failing
-        node, and a :class:`RunFailedError` is raised. Once ``FAILED`` the run is
-        never transitioned to a completed/aborted status.
+        1. Probe the checkpointer and the pgvector store; an unavailable
+           dependency raises :class:`DependencyUnavailableError` and no row is
+           created (Req. 14.5).
+        2. Refuse a second active run of the campaign
+           (:class:`RunAlreadyActiveError`).
+        3. Create the ``agent_runs`` row (``uuid4`` hex ``thread_id``, resolved
+           ``max_iterations`` clamped to ``1..100``, frozen ``llm_profile_id``) and
+           commit it at once, so the phase job and the
+           :class:`~app.services.ai.run_state.RunStateStore`, which write in their
+           own sessions, can see it.
+        4. Dispatch the ``initial`` phase job (orchestrate + operationalize) and
+           return without waiting. The run is ``running`` on ``orchestration`` and
+           the job parks it on ``operationalization`` (``awaiting_approval``).
 
         Args:
-            campaign_id: The campaign this run curates (FK into ``campaigns``).
-            max_iterations: Optional explicit loop guard; when provided it is
-                clamped to the inclusive range ``1..100``. When ``None`` the
-                configured default (``SepinfSettings.max_iterations``, default 3)
-                is used.
-
-        Returns:
-            The persisted :class:`~app.models.domain.AgentRun`, flushed with its
-            terminal status, ``iterations_used`` and ``final_verdict_success``.
-        """
-        from app.models.enums import AgentRunStatus
-
-        # Report checkpointer/pgvector unavailability BEFORE creating the run row
-        # or invoking the graph, so an unavailable dependency neither starts the
-        # run nor leaves a partial ``agent_runs`` row behind (Req. 14.5).
-        self._require_dependencies()
-
-        resolved_max = self._resolve_max_iterations(max_iterations)
-        run = self._create_run(campaign_id, resolved_max)
-
-        # The graph persists its state under the run's thread, so the run row —
-        # and its immutable thread_id — must exist first (Req. 4.2). A SEPINF
-        # failure (unreachable / 30s timeout / model error) or an unrepairable
-        # LLM output flips the run to FAILED with its failing-node cause and
-        # persists NO AI artifact for that node (Req. 14.1, 14.2, 14.6).
-        try:
-            final_state = self._invoke_graph(run)
-        except Exception as exc:
-            raise self._fail_run(run, exc) from exc
-
-        verdict_success = self._verdict_success(final_state)
-        iterations_used = self._iterations_used(final_state, resolved_max)
-
-        # COMPLETED on a passing verdict; ABORTED when the guard stopped the loop
-        # without one (Req. 3.2, 3.4). The router (``route_after_eval``) already
-        # ended the graph in both cases; the COMPLETED-vs-ABORTED distinction is
-        # drawn here from the final verdict.
-        run.status = AgentRunStatus.COMPLETED if verdict_success else AgentRunStatus.ABORTED
-        run.final_verdict_success = verdict_success
-        run.iterations_used = iterations_used
-        run.updated_at = _utcnow()
-
-        # Persist the completed iteration(s) atomically (Req. 11.5-11.8). Any
-        # persistence failure rolls back its own write and raises PersistenceError.
-        self._persist_iterations(run, final_state)
-
-        self._session.flush()
-        return run
-
-    def resume(self, run_id: int) -> AgentRun:
-        """Resume a run from its last checkpoint and mark the outcome (Req. 4.5).
-
-        Loads the ``agent_runs`` row by ``run_id`` and re-invokes the compiled
-        graph under the run's OWN ``thread_id`` using the LangGraph resume idiom —
-        ``invoke(None, config)`` with ``config={"configurable": {"thread_id":
-        run.thread_id}}``. Passing ``None`` as the input tells LangGraph to
-        restore the last persisted checkpoint for that thread and continue at the
-        node following it, rather than seeding a fresh state; the checkpointer is
-        the single source of the resumed state.
-
-        As with :meth:`start`, the checkpointer and pgvector store are probed
-        first; if either is unavailable the run is NOT resumed
-        (:class:`DependencyUnavailableError`, Req. 14.5). After the graph
-        continues to a terminal state the run is flipped to ``COMPLETED`` on a
-        passing verdict or ``ABORTED`` when the guard stopped the loop without one
-        (Req. 3.2, 3.4), and the completed iteration(s) are persisted atomically
-        (Req. 11.5-11.8).
-
-        Args:
-            run_id: The id of the ``agent_runs`` row to resume.
-
-        Returns:
-            The resumed :class:`~app.models.domain.AgentRun`, flushed with its
-            terminal status, ``iterations_used`` and ``final_verdict_success``.
+            campaign_id: Campaign the run emulates.
+            max_iterations: Loop guard; the configured default when ``None``.
+            llm_profile_id: Profile frozen for the whole run; the persisted
+                selection when ``None``.
 
         Raises:
-            DependencyUnavailableError: when the checkpointer or pgvector store is
-                unavailable — the run is not resumed (Req. 14.5).
-            RunFailedError: when the resumed graph invocation fails (SEPINF
-                unreachable / 30s timeout / model error / unrepairable LLM
-                output); the run is flipped to ``FAILED`` with its failing-node
-                cause and no AI artifact is persisted for that node (Req. 14.1,
-                14.2, 14.6).
-            ValueError: when no ``agent_runs`` row exists for ``run_id``.
+            DependencyUnavailableError: a required dependency is unavailable.
+            RunAlreadyActiveError: the campaign already has an active run.
         """
+        from app.services.ai import phase_job
+
+        # Report checkpointer/pgvector unavailability BEFORE creating the run row
+        # or invoking the graph (Req. 14.5).
+        self._require_dependencies()
+
+        active = self.active_run(campaign_id)
+        if active is not None:
+            raise RunAlreadyActiveError(campaign_id, active.id)
+
+        if llm_profile_id is None:
+            from app.services.ai.llm_selection import load_selected_profile_id
+
+            llm_profile_id = load_selected_profile_id(self._session)
+
+        resolved_max = self._resolve_max_iterations(max_iterations)
+        run = self._create_run(campaign_id, resolved_max, llm_profile_id=llm_profile_id)
+        # The store opens its own sessions: the row has to be committed first.
+        self._session.commit()
+
+        store = self._state_store
+        try:
+            phase_job.dispatch_phase_job(
+                run.id, phase_job.PhaseAction.INITIAL, session_factory=store.session_factory
+            )
+        except Exception as exc:
+            # Never leave a run that nothing is going to execute.
+            store.fail(
+                run.id,
+                phase_job.active_phase_of(phase_job.PhaseAction.INITIAL),
+                code="dispatch_failed",
+                error=f"{type(exc).__name__}: {exc}",
+            )
+            self._session.refresh(run)
+            raise
+        self._session.refresh(run)
+        return run
+
+    def active_run(self, campaign_id: str) -> AgentRun | None:
+        """Return the newest non-terminal run of the campaign, or ``None``.
+
+        Active means ``pending``, ``running`` or ``awaiting_approval``. The row is
+        read fresh from the database (the phase job writes it through other
+        sessions).
+        """
+        from sqlalchemy import select
+
         from app.models.domain import AgentRun
         from app.models.enums import AgentRunStatus
 
-        # Report checkpointer/pgvector unavailability BEFORE touching the graph so
-        # an unavailable dependency does not resume the run (Req. 14.5).
+        active_statuses = (
+            AgentRunStatus.PENDING,
+            AgentRunStatus.RUNNING,
+            AgentRunStatus.AWAITING_APPROVAL,
+        )
+        return self._session.scalars(
+            select(AgentRun)
+            .where(AgentRun.campaign_id == campaign_id, AgentRun.status.in_(active_statuses))
+            .order_by(AgentRun.id.desc())
+            .limit(1)
+            .execution_options(populate_existing=True)
+        ).first()
+
+    def abort(self, run_id: int) -> AgentRun:
+        """Abort a run parked on an approval, then release its resources.
+
+        The status change is one atomic conditional update (``awaiting_approval``
+        -> ``aborted``), so an abort cannot overlap an approval, a regeneration
+        or a selection, and aborting twice aborts once. Only after it wins, the
+        Caldera operation is stopped and the lab torn down
+        (:func:`~app.services.ai.phase_job.cleanup_run_resources`, best effort:
+        it never raises and never changes the recorded status).
+
+        Raises:
+            RunTransitionError: ``run_not_found``, ``phase_running`` (a phase is
+                executing) or ``run_not_awaiting`` (the run is not paused).
+        """
+        from app.services.ai import phase_job
+
+        self._require_run(run_id)
+        store = self._state_store
+        if not store.abort_run(run_id):
+            run = self._require_run(run_id)
+            code = (
+                RunTransitionError.PHASE_RUNNING
+                if run.status.value == "running"
+                else RunTransitionError.NOT_AWAITING
+            )
+            raise RunTransitionError(code, run_id)
+        phase_job.cleanup_run_resources(run_id, session_factory=store.session_factory, store=store)
+        self._session.expire_all()
+        return self._require_run(run_id)
+
+    def resume(self, run_id: int) -> AgentRun:
+        """Continue a paused run from its last checkpoint up to the next pause (Req. 4.5).
+
+        Re-invokes the compiled graph under the run's OWN ``thread_id`` with the
+        LangGraph resume idiom ``invoke(None, config)``: execution continues at
+        the node after the checkpoint, and the outcome is reflected on the row
+        like in :meth:`start`.
+
+        Raises:
+            DependencyUnavailableError: a required dependency is unavailable.
+            RunFailedError: the resumed graph failed; the run was marked ``failed``.
+            ValueError: no row exists for ``run_id`` or the run is already terminal.
+        """
+        from app.models.domain import AgentRun
+
         self._require_dependencies()
 
         run = self._session.get(AgentRun, run_id)
         if run is None:
             raise ValueError(f"no agent_runs row exists for run_id={run_id!r}.")
+        if run.status.value in _TERMINAL_STATUSES:
+            raise ValueError(f"run {run_id!r} is already {run.status.value} and cannot resume.")
 
-        run.status = AgentRunStatus.RUNNING
-        run.updated_at = _utcnow()
-        self._session.flush()
-
-        # LangGraph resume idiom: invoke(None, config) restores the last
-        # checkpoint for the run's thread and continues at the following node. A
-        # SEPINF failure or an unrepairable LLM output on the resumed pass flips
-        # the run to FAILED with its failing-node cause and persists NO AI
-        # artifact for that node (Req. 14.1, 14.2, 14.6).
-        try:
-            final_state = self._resume_graph(run)
-        except Exception as exc:
-            raise self._fail_run(run, exc) from exc
-
-        verdict_success = self._verdict_success(final_state)
-        iterations_used = self._iterations_used(final_state, run.max_iterations)
-
-        run.status = AgentRunStatus.COMPLETED if verdict_success else AgentRunStatus.ABORTED
-        run.final_verdict_success = verdict_success
-        run.iterations_used = iterations_used
-        run.updated_at = _utcnow()
-
-        self._persist_iterations(run, final_state)
-
-        self._session.flush()
+        self._run_until_pause(run, None)
         return run
+
+    # -- approvals, regeneration and selection (D4b, D9) ----------------------
+
+    def approve(self, run_id: int, phase: str) -> AgentRun:
+        """Approve ``phase`` and start the next round in a background phase job.
+
+        The authoritative guard is one atomic conditional update
+        (``awaiting_approval`` on ``phase`` -> ``running``) committed before the
+        job is dispatched, so approving twice starts one round.
+
+        Args:
+            run_id: The run to advance.
+            phase: ``operationalization``, ``flow`` or ``environment``.
+
+        Returns:
+            The run, refreshed; it is ``running`` on the phase now executing.
+
+        Raises:
+            RunTransitionError: ``invalid_phase``, ``run_not_found``,
+                ``phase_running``, ``wrong_phase`` or ``run_not_awaiting``.
+        """
+        from app.services.ai import phase_job
+
+        action = _APPROVE_ACTIONS.get(phase)
+        if action is None:
+            raise RunTransitionError(RunTransitionError.INVALID_PHASE, run_id)
+        next_phase = phase_job.active_phase_of(action)
+        approval: dict[str, Any] = {"phase": phase, "approved_at": _utcnow().isoformat()}
+        if phase == "flow":
+            current = self._current_proposal_id(self._require_run(run_id))
+            if current is not None:
+                approval["proposal_id"] = current
+        return self._begin_and_dispatch(run_id, phase, next_phase, action, approval)
+
+    def regenerate(self, run_id: int) -> AgentRun:
+        """Start the generation of another attack flow while paused on ``flow``.
+
+        Same atomic guard and dispatch as :meth:`approve`, without an approval entry.
+
+        Raises:
+            RunTransitionError: ``run_not_found``, ``phase_running``,
+                ``wrong_phase`` or ``run_not_awaiting``.
+        """
+        from app.services.ai import phase_job
+
+        action = phase_job.PhaseAction.REGENERATE_FLOW
+        return self._begin_and_dispatch(run_id, "flow", phase_job.active_phase_of(action), action)
+
+    def select_proposal(self, run_id: int, proposal_id: int) -> AgentRun:
+        """Go back to a proposal of the attack flow history instead of regenerating.
+
+        Runs in the request, without the language model. It takes the same atomic
+        ``awaiting_approval`` -> ``running`` guard as an approval, so it cannot
+        overlap an approval or a regeneration, rewrites ``artifacts.flow`` in the
+        checkpoint (``update_state(..., as_node="flow")``), replaces the stored flow
+        phase output, moves the ``current`` mark and parks the run on ``flow`` again.
+
+        Raises:
+            RunTransitionError: ``run_not_found``, ``flow_proposal_not_found``,
+                ``phase_running``, ``wrong_phase`` or ``run_not_awaiting``.
+        """
+        run = self._require_run(run_id)
+        proposal = next(
+            (
+                p
+                for p in run.flow_proposals or []
+                if isinstance(p, dict) and p.get("proposal_id") == proposal_id
+            ),
+            None,
+        )
+        if proposal is None:
+            raise RunTransitionError(RunTransitionError.PROPOSAL_NOT_FOUND, run_id)
+
+        store = self._state_store
+        if not store.begin_phase(run_id, "flow", "flow"):
+            raise self._rejection(run_id, "flow")
+        try:
+            payload = self._load_proposal_payload(run, proposal)
+            config = {"configurable": {"thread_id": run.thread_id}}
+            graph = self._build_graph()
+            state = dict((graph.get_state(config)).values or {})
+            artifacts = {**(state.get("artifacts") or {}), "flow": payload}
+            graph.update_state(config, {"artifacts": artifacts}, as_node="flow")
+            # No trace: the checkpoint traces belong to the flow generated last.
+            self.persist_phase(
+                run,
+                "flow",
+                {**state, "artifacts": artifacts, "traces": []},
+                record_proposal=False,
+            )
+            store.select_flow_proposal(run_id, proposal_id)
+        finally:
+            store.pause_for_approval(run_id, "flow")
+            self._session.expire_all()
+        return self._require_run(run_id)
+
+    def _begin_and_dispatch(
+        self,
+        run_id: int,
+        phase: str,
+        next_phase: str,
+        action: Any,
+        approval: dict[str, Any] | None = None,
+    ) -> AgentRun:
+        """Take the atomic guard for ``phase`` and dispatch the job of ``action``."""
+        from app.services.ai import phase_job
+
+        self._require_run(run_id)
+        store = self._state_store
+        if not store.begin_phase(run_id, phase, next_phase, approval=approval):
+            raise self._rejection(run_id, phase)
+        try:
+            phase_job.dispatch_phase_job(run_id, action, session_factory=store.session_factory)
+        except phase_job.PhaseJobAlreadyRunningError as exc:
+            # The previous job thread is still finishing: give the approval back.
+            store.release_phase(run_id, next_phase, phase, undo_approval=approval is not None)
+            raise RunTransitionError(RunTransitionError.PHASE_RUNNING, run_id) from exc
+        except Exception:
+            store.release_phase(run_id, next_phase, phase, undo_approval=approval is not None)
+            raise
+        self._session.expire_all()
+        return self._require_run(run_id)
+
+    def _require_run(self, run_id: int) -> AgentRun:
+        """Load the run fresh from the database or raise ``run_not_found``."""
+        from app.models.domain import AgentRun
+
+        run = self._session.get(AgentRun, run_id, populate_existing=True)
+        if run is None:
+            raise RunTransitionError(RunTransitionError.NOT_FOUND, run_id)
+        return run
+
+    def _rejection(self, run_id: int, phase: str) -> RunTransitionError:
+        """Name why the atomic guard of ``phase`` matched no row (re-reading the run)."""
+        run = self._require_run(run_id)
+        status = run.status.value
+        if status == "running":
+            code = RunTransitionError.PHASE_RUNNING
+        elif status == "awaiting_approval" and run.current_phase != phase:
+            code = RunTransitionError.WRONG_PHASE
+        else:
+            code = RunTransitionError.NOT_AWAITING
+        return RunTransitionError(code, run_id)
+
+    @staticmethod
+    def _current_proposal_id(run: AgentRun) -> int | None:
+        """``proposal_id`` of the proposal marked ``current``, if any."""
+        for proposal in run.flow_proposals or []:
+            if isinstance(proposal, dict) and proposal.get("current"):
+                value = proposal.get("proposal_id")
+                return value if isinstance(value, int) else None
+        return None
+
+    def _load_proposal_payload(self, run: AgentRun, proposal: dict) -> dict:
+        """Rebuild the serialized ``ProducedFlow`` of a history entry.
+
+        The content and provenance come from the ``attack_flows`` row stored when
+        the proposal was presented; ``gaps`` come from the history entry.
+        """
+        from sqlalchemy import select
+
+        from app.models.domain import AttackFlowRow
+        from app.models.enums import FlowOrigin
+        from app.services.flow.generator import ProducedFlow
+
+        identifier = proposal.get("identifier")
+        origin = proposal.get("origin")
+        row = None
+        if identifier and origin:
+            row = self._session.scalars(
+                select(AttackFlowRow).where(
+                    AttackFlowRow.campaign_id == run.campaign_id,
+                    AttackFlowRow.origin == FlowOrigin(origin),
+                    AttackFlowRow.identifier == identifier,
+                )
+            ).first()
+        if row is None:
+            raise RunTransitionError(RunTransitionError.PROPOSAL_NOT_FOUND, run.id)
+        return ProducedFlow(
+            origin=row.origin,
+            identifier=row.identifier,
+            label=row.label,
+            content=row.content or {},
+            gaps=list(proposal.get("gaps") or []),
+            provenance=row.provenance,
+        ).model_dump()
+
+    def _run_until_pause(self, run: AgentRun, graph_input: dict | None) -> None:
+        """Invoke the graph once and project its outcome on the run row.
+
+        ``graph_input`` is the seeded state on the first call and ``None`` when
+        resuming a checkpoint. After the invocation the checkpoint decides what
+        happens (all row writes go through the :class:`RunStateStore`):
+
+        * paused before a node: the phase output awaiting approval is persisted
+          with :meth:`persist_phase`, then ``pause_for_approval``;
+        * ended: the evaluation is persisted and the run is finished as
+          ``completed`` (passing verdict) or ``aborted`` (guard stopped the loop);
+        * any exception: ``fail`` with the failing node (no full artifact is
+          persisted for it, only the partial trace) and a
+          :class:`RunFailedError` is raised.
+
+        ``ensure_not_running`` runs last so the run never stays ``running``.
+        """
+        from app.models.enums import AgentRunStatus
+        from app.services.ai.run_state import pending_phase_from_next
+
+        store = self._state_store
+        run_id = run.id
+        max_iterations = run.max_iterations
+        config = {"configurable": {"thread_id": run.thread_id}}
+        try:
+            store.mark_running(run_id)
+            graph = self._build_graph()
+            graph.invoke(graph_input, config=config)
+            snapshot = graph.get_state(config)
+            state = dict(snapshot.values or {})
+            pending = pending_phase_from_next(tuple(getattr(snapshot, "next", ()) or ()))
+
+            # Persist first: a run is only parked for approval once the output the
+            # researcher is going to review is stored.
+            self.persist_phase(run, pending or "evaluation", state)
+
+            if pending is not None:
+                store.project_checkpoint(run_id, graph, config)
+            else:
+                verdict_success = self._verdict_success(state)
+                store.project_achieved_coverage(run_id, state)
+                store.finish(
+                    run_id,
+                    AgentRunStatus.COMPLETED if verdict_success else AgentRunStatus.ABORTED,
+                    verdict_success=verdict_success,
+                    iterations_used=self._iterations_used(state, max_iterations),
+                )
+        except Exception as exc:
+            self._session.rollback()
+            raise self._fail_run(run, exc) from exc
+        finally:
+            store.ensure_not_running(run_id)
+            # The store wrote through other sessions; reload the working copy.
+            self._session.refresh(run)
 
     # -- run creation ---------------------------------------------------------
 
-    def _create_run(self, campaign_id: str, max_iterations: int) -> AgentRun:
+    def _create_run(
+        self, campaign_id: str, max_iterations: int, *, llm_profile_id: str | None = None
+    ) -> AgentRun:
         """Create and persist the ``agent_runs`` row in ``RUNNING`` (Req. 11.4).
 
         The row is created in ``PENDING`` with a freshly minted, non-empty,
@@ -365,6 +667,8 @@ class AgentRunService:
             max_iterations=max_iterations,
             iterations_used=0,
             thread_id=self._new_thread_id(),
+            llm_profile_id=llm_profile_id,
+            current_phase="orchestration",
             final_verdict_success=None,
             created_at=now,
             updated_at=now,
@@ -391,46 +695,6 @@ class AgentRunService:
         return uuid.uuid4().hex
 
     # -- graph invocation -----------------------------------------------------
-
-    def _invoke_graph(self, run: AgentRun) -> dict:
-        """Invoke the compiled graph under the run's checkpoint thread.
-
-        Builds the compiled graph over the PostgreSQL checkpointer (lazily; see
-        :meth:`_build_graph`) and invokes it with the run's own
-        ``thread_id`` as the checkpoint key
-        (``config={"configurable": {"thread_id": run.thread_id}}``) so the
-        ``AgentState`` is snapshotted under this run and the run is resumable
-        (Req. 4.2). The initial state seeds the ``campaign_id`` and the resolved
-        ``max_iterations`` guard the graph's orchestrator/guard read.
-
-        Returns:
-            The final ``AgentState`` dict produced by the graph's ``invoke``.
-        """
-        graph = self._build_graph()
-        initial_state = self._initial_state(run)
-        config = {"configurable": {"thread_id": run.thread_id}}
-        final_state = graph.invoke(initial_state, config=config)
-        return final_state if isinstance(final_state, dict) else dict(final_state)
-
-    def _resume_graph(self, run: AgentRun) -> dict:
-        """Continue the compiled graph from the run's last checkpoint (Req. 4.5).
-
-        Builds the compiled graph over the PostgreSQL checkpointer (lazily; see
-        :meth:`_build_graph`) and invokes it with ``None`` as the input under the
-        run's own ``thread_id`` — the LangGraph resume idiom
-        ``invoke(None, config)``. Passing ``None`` restores the last persisted
-        checkpoint for the thread and continues at the node following it instead
-        of seeding a new state, so the run picks up exactly where it was
-        snapshotted.
-
-        Returns:
-            The final ``AgentState`` dict produced after the graph resumes and
-            reaches a terminal state.
-        """
-        graph = self._build_graph()
-        config = {"configurable": {"thread_id": run.thread_id}}
-        final_state = graph.invoke(None, config=config)
-        return final_state if isinstance(final_state, dict) else dict(final_state)
 
     def _build_graph(self) -> Any:
         """Build the compiled graph over the PostgreSQL checkpointer (lazy).
@@ -494,8 +758,6 @@ class AgentRunService:
         before the graph is invoked (Req. 14.5) and must not be reclassified as a
         node failure; callers catch only exceptions from the graph invocation.
         """
-        from app.models.enums import AgentRunStatus
-
         node = self._failing_node(exc)
         error_message = self._failure_message(node, exc)
 
@@ -512,14 +774,19 @@ class AgentRunService:
             exc,
         )
 
-        run.status = AgentRunStatus.FAILED
-        # Leave final_verdict_success null: a failed run has no passing verdict and
-        # must never read as completed/aborted (Req. 14.6).
-        run.final_verdict_success = None
-        # Structured failure cause surfaced by the read endpoint (Req. 2.6, 4.4).
-        run.error = error_message
-        run.updated_at = _utcnow()
-        self._session.flush()
+        # The store writes ``status``, ``failure`` (phase, code, cause code),
+        # ``error`` and a null ``final_verdict_success`` in one commit of its own
+        # session, so the failure survives any rollback of the working session
+        # (Req. 14.6).
+        cause = getattr(exc, "cause", None)
+        self._state_store.fail(
+            run.id,
+            self._failure_phase(node),
+            code="phase_failed",
+            cause_code=classify_llm_failure(cause if isinstance(cause, BaseException) else exc),
+            error=error_message,
+        )
+        self._session.refresh(run)
 
         # Persist the partial Audit_Trace captured up to the failure together with
         # the failing agent's identity, when the failing node carried one on the
@@ -528,6 +795,7 @@ class AgentRunService:
         # inside its own SAVEPOINT (Req. 2.6). A SEPINF transport error / bare
         # timeout carries no partial trace, so nothing is written here.
         self._persist_partial_trace(run, node, exc)
+        self._session.commit()
 
         return RunFailedError(node, exc)
 
@@ -575,6 +843,8 @@ class AgentRunService:
         if trace is None:
             return None
 
+        from sqlalchemy import select
+
         from app.models.domain import AgentIteration, AgentPhaseOutput
         from app.models.enums import TranslationSource
         from app.services.ai.agents._trace import persist_phase_trace
@@ -587,20 +857,34 @@ class AgentRunService:
             # trace row on, so nothing more is written.
             return None
 
-        # The 0-based index of the iteration the failure occurred in; the failing
-        # pass counts as one iteration so the audit anchor is addressable.
-        iteration_index = max(run.iterations_used, 0)
-
         try:
             with self._session.begin_nested():
-                iteration = AgentIteration(
-                    run_id=run.id,
-                    index=iteration_index,
-                    refined_phase=None,
-                    created_at=_utcnow(),
-                )
-                self._session.add(iteration)
-                self._session.flush()
+                # Anchor on the latest iteration row of the run (created when the
+                # failure happened before any phase output was stored).
+                iteration = self._session.scalars(
+                    select(AgentIteration)
+                    .where(AgentIteration.run_id == run.id)
+                    .order_by(AgentIteration.index.desc())
+                ).first()
+                if iteration is None:
+                    iteration = AgentIteration(
+                        run_id=run.id,
+                        index=0,
+                        refined_phase=None,
+                        created_at=_utcnow(),
+                    )
+                    self._session.add(iteration)
+                    self._session.flush()
+
+                # A previous valid output of this phase (a failed regeneration)
+                # stays untouched; only the audit anchor is skipped.
+                if self._session.scalars(
+                    select(AgentPhaseOutput.id).where(
+                        AgentPhaseOutput.iteration_id == iteration.id,
+                        AgentPhaseOutput.phase == phase,
+                    )
+                ).first():
+                    return None
 
                 # A minimal anchor: the phase produced no valid artifact, so the
                 # payload is an explicit empty sentinel rather than an Agent_Output
@@ -695,6 +979,15 @@ class AgentRunService:
             AgentPhase.ENVIRONMENT.value: AgentPhase.ENVIRONMENT,
         }
         return mapping.get(node)
+
+    @staticmethod
+    def _failure_phase(node: str) -> str | None:
+        """Phase name stored in ``agent_runs.failure.phase`` for a failing node."""
+        from app.services.ai.run_state import phase_for_node
+
+        if node == "unknown":
+            return None
+        return phase_for_node(node) or node
 
     @staticmethod
     def _failing_node(exc: BaseException) -> str:
@@ -887,83 +1180,117 @@ class AgentRunService:
 
     # -- atomic per-iteration persistence (Req. 11.5-11.8) --------------------
 
-    def _persist_iterations(self, run: AgentRun, final_state: dict) -> None:
-        """Persist the completed iteration(s) atomically (Req. 11.5-11.8).
+    def persist_phase(
+        self, run: AgentRun, phase: str, state: dict, *, record_proposal: bool = True
+    ) -> None:
+        """Persist the output of ONE phase atomically and commit (Req. 4.1, 4.2).
 
-        Reconstructs the iteration(s) to persist from the final ``AgentState`` and
-        writes, for each, ONE ``agent_iterations`` row plus its
-        ``agent_phase_outputs`` rows (and the ``agent_evaluations`` row when an
-        evaluation is present) inside a SINGLE atomic transaction — a nested
-        transaction (``SAVEPOINT``) opened on the injected ``Session`` so the
-        write either lands whole or not at all without disturbing the surrounding
-        unit of work (Req. 11.5, 11.6).
+        ``phase`` is ``operationalization``, ``flow`` or ``environment`` (the
+        artifact in ``state["artifacts"]``) or ``evaluation`` (the evaluator row of
+        the finished iteration). The iteration row of the state's ``iteration``
+        index is fetched or created. The write runs in a SAVEPOINT and is
+        committed, so each phase is durable before the run is parked for approval.
 
-        The checkpointer overwrites ``state["artifacts"]`` / ``state["evaluation"]``
-        each pass, so the final state carries the artifacts and evaluation of the
-        last completed iteration; this method persists that iteration's row
-        keyed on its 0-based ``index`` (``iterations_used - 1``), reusing the
-        factored, ``Session``-driven persistence hooks each phase agent and the
-        evaluator expose — none of which commit, leaving the transaction boundary
-        to this method (Req. 11.5).
+        ``(iteration, phase)`` is unique: a previous output (and its trace) for the
+        same pair, left by an earlier pass or a regenerated attack flow, is removed
+        inside the same SAVEPOINT and replaced. Nothing is kept on failure.
 
-        On ANY failure the nested transaction is rolled back so no partial
-        ``agent_iterations`` / ``agent_phase_outputs`` / ``agent_evaluations``
-        rows for the iteration are retained, and a :class:`PersistenceError`
-        reporting the failure is raised (Req. 11.7). When the run performed no
-        iteration (nothing to persist) the method is a no-op.
+        ``record_proposal=False`` skips the append to the attack flow proposal
+        history; ``select_proposal`` uses it because the flow is already there.
 
-        Args:
-            run: The owning ``agent_runs`` row (already flushed, so ``run.id`` is
-                populated).
-            final_state: The final ``AgentState`` dict produced by the graph.
+        Raises:
+            PersistenceError: the write failed and was rolled back.
         """
-        iteration_index = run.iterations_used - 1
-        if iteration_index < 0:
-            # No iteration completed (the guard stopped before a pass): nothing to
-            # persist. Not a failure, so no rollback and no error.
-            return None
-
-        artifacts = final_state.get("artifacts") or {}
-        evaluation = final_state.get("evaluation") or None
-        refine_phase = final_state.get("refine_phase")
-        notes = self._iteration_notes(final_state, evaluation)
-
+        index = self._iteration_index(state)
+        artifacts = state.get("artifacts") or {}
         try:
-            # A nested transaction (SAVEPOINT) makes the whole iteration write
-            # atomic on the injected Session: begin_nested() commits the savepoint
-            # on a clean exit and rolls it back on any exception, so no partial
-            # rows survive a mid-write failure (Req. 11.6, 11.7).
             with self._session.begin_nested():
-                iteration = self._persist_iteration_row(run, iteration_index, refine_phase, notes)
-                self._persist_phase_outputs(
-                    final_state,
-                    artifacts,
-                    iteration_id=iteration.id,
-                    iteration_index=iteration_index,
-                    run=run,
-                )
-                if evaluation:
-                    self._persist_evaluation_row(final_state, evaluation, iteration_id=iteration.id)
+                iteration = self._get_or_create_iteration(run, index, state)
+                if phase == "evaluation":
+                    evaluation = state.get("evaluation")
+                    if evaluation:
+                        self._replace_evaluation(iteration.id, state, dict(evaluation))
+                        iteration.notes = self._iteration_notes(state, evaluation)
+                else:
+                    agent_phase = self._phase_for_node(phase)
+                    if agent_phase is None:
+                        raise ValueError(f"unknown phase {phase!r}")
+                    self._delete_phase_output(iteration.id, agent_phase)
+                    self._persist_phase_outputs(
+                        state,
+                        artifacts,
+                        iteration_id=iteration.id,
+                        iteration_index=index,
+                        run=run,
+                        only=agent_phase,
+                    )
+            self._session.commit()
         except Exception as exc:
-            # The nested transaction already rolled the SAVEPOINT back on the way
-            # out; surface the failure as a PersistenceError so the caller sees an
-            # error indication rather than a silently partial run (Req. 11.7).
+            self._session.rollback()
             logger.warning(
-                "Persisting iteration %d of run %s failed (%s: %s); the "
-                "iteration's rows were rolled back.",
-                iteration_index,
+                "Persisting phase '%s' (iteration %d) of run %s failed (%s: %s); rolled back.",
+                phase,
+                index,
                 getattr(run, "id", None),
                 type(exc).__name__,
                 exc,
             )
             raise PersistenceError(
-                f"persistence of iteration {iteration_index} for run "
+                f"persistence of phase '{phase}' (iteration {index}) for run "
                 f"{getattr(run, 'id', None)} failed and was rolled back: "
                 f"{type(exc).__name__}: {exc}",
                 exc,
             ) from exc
+        if record_proposal and phase == "flow" and artifacts.get("flow"):
+            # Presented attack flow history (own session, after the phase output
+            # is durable): feeds the exclusions of a regeneration and the selection.
+            self._state_store.record_flow_proposal(run.id, artifacts["flow"])
 
-        return None
+    @staticmethod
+    def _iteration_index(state: dict) -> int:
+        """0-based iteration index of the state (0 when absent or invalid)."""
+        raw = state.get("iteration")
+        if isinstance(raw, int) and not isinstance(raw, bool) and raw >= 0:
+            return raw
+        return 0
+
+    def _get_or_create_iteration(self, run: AgentRun, index: int, state: dict) -> AgentIteration:
+        """Return the ``agent_iterations`` row of ``index``, creating it when missing."""
+        from sqlalchemy import select
+
+        from app.models.domain import AgentIteration
+
+        existing = self._session.scalars(
+            select(AgentIteration).where(
+                AgentIteration.run_id == run.id, AgentIteration.index == index
+            )
+        ).first()
+        if existing is not None:
+            return existing
+        refine_phase = state.get("refine_phase") if index > 0 else None
+        return self._persist_iteration_row(run, index, refine_phase)
+
+    def _delete_phase_output(self, iteration_id: int, phase: AgentPhase) -> None:
+        """Delete the ``(iteration, phase)`` output and its 1:1 trace, if present."""
+        from sqlalchemy import delete, select
+
+        from app.models.domain import AgentPhaseOutput, AgentPhaseTrace
+
+        ids = list(
+            self._session.scalars(
+                select(AgentPhaseOutput.id).where(
+                    AgentPhaseOutput.iteration_id == iteration_id,
+                    AgentPhaseOutput.phase == phase,
+                )
+            )
+        )
+        if not ids:
+            return
+        self._session.execute(
+            delete(AgentPhaseTrace).where(AgentPhaseTrace.phase_output_id.in_(ids))
+        )
+        self._session.execute(delete(AgentPhaseOutput).where(AgentPhaseOutput.id.in_(ids)))
+        self._session.flush()
 
     def _persist_iteration_row(
         self,
@@ -1057,12 +1384,13 @@ class AgentRunService:
         iteration_id: int,
         iteration_index: int,
         run: AgentRun,
+        only: AgentPhase | None = None,
     ) -> None:
         """Persist the iteration's ``agent_phase_outputs`` via the factored hooks.
 
         Reuses each phase agent's ``Session``-driven persistence hook so this
         service never reimplements artifact serialization and every row lands with
-        ``origin = gerado_ia`` (Req. 11.5). For each artifact present in the final
+        ``origin = ai_generated`` (Req. 11.5). For each artifact present in the final
         state:
 
         * ``artifacts.flow`` is reconstructed into a ``ProducedFlow`` and persisted
@@ -1093,8 +1421,9 @@ class AgentRunService:
 
         traces = final_state.get("traces")
 
+        # ``only`` restricts the write to one phase (per-phase persistence).
         flow_payload = artifacts.get("flow")
-        if flow_payload:
+        if flow_payload and only in (None, AgentPhase.FLOW):
             from app.services.flow.generator import ProducedFlow
 
             produced_flow = ProducedFlow.model_validate(flow_payload)
@@ -1107,7 +1436,7 @@ class AgentRunService:
             )
 
         op_payload = artifacts.get("operationalization")
-        if op_payload:
+        if op_payload and only in (None, AgentPhase.OPERATIONALIZATION):
             from app.services.environment.operationalizer import (
                 ProducedOperationalization,
             )
@@ -1124,7 +1453,7 @@ class AgentRunService:
                 ),
             )
 
-        if artifacts.get("environment"):
+        if artifacts.get("environment") and only in (None, AgentPhase.ENVIRONMENT):
             env_agent.persist_phase_output(
                 self._session,
                 final_state,
@@ -1160,6 +1489,17 @@ class AgentRunService:
             if entry.get("phase") == phase and entry.get("iteration") == iteration_index:
                 match = entry
         return match
+
+    def _replace_evaluation(self, iteration_id: int, state: dict, evaluation: dict) -> None:
+        """Replace the iteration's ``agent_evaluations`` row (0..1 per iteration)."""
+        from sqlalchemy import delete
+
+        from app.models.domain import AgentEvaluation
+
+        self._session.execute(
+            delete(AgentEvaluation).where(AgentEvaluation.iteration_id == iteration_id)
+        )
+        self._persist_evaluation_row(state, evaluation, iteration_id=iteration_id)
 
     def _persist_evaluation_row(
         self, final_state: dict, evaluation: dict, *, iteration_id: int

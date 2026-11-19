@@ -1,13 +1,107 @@
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
-import { ArrowLeft } from "lucide-react"
+import {
+  ArrowLeft,
+  CheckCircle2,
+  ClipboardCheck,
+  Container,
+  Loader2,
+  Play,
+  Rocket,
+  Terminal,
+  Workflow,
+  XCircle,
+  type LucideIcon,
+} from "lucide-react"
 
 import { GuidedRunView } from "@/components/GuidedRunView"
-import { OrchestratorAvatar } from "@/components/OrchestratorAvatar"
 import { InputScreen } from "@/components/InputScreen"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { campaignDisplayName } from "@/lib/campaign"
+import type { AiRun } from "@/lib/ai"
+import { useAiRun } from "@/lib/use-ai-run"
+import { cn } from "@/lib/utils"
+
+/**
+ * The header phase of the run, derived like `GuidedRunView` does: not started,
+ * the running phase, the phase awaiting approval, or a terminal status.
+ */
+function headerPhase(
+  run: AiRun | null,
+): { icon: LucideIcon; labelKey: string; spin?: boolean; tone?: string } {
+  if (!run) return { icon: Rocket, labelKey: "aiRun.phaseName.ready" }
+  if (run.status === "completed") {
+    return { icon: CheckCircle2, labelKey: "aiRun.status.completed", tone: "text-team-blue" }
+  }
+  if (run.status === "failed" || run.status === "aborted") {
+    return { icon: XCircle, labelKey: `aiRun.status.${run.status}`, tone: "text-team-red" }
+  }
+  const phase = run.status === "awaiting_approval" ? run.pending_phase : run.active_phase
+  const icon = phase ? PHASE_ICONS[phase] : undefined
+  if (phase && icon) return { icon, labelKey: `aiRun.phaseName.${phase}` }
+  if (phase === "orchestration") return { icon: Loader2, labelKey: "aiRun.phaseName.orchestration", spin: true }
+  return { icon: Loader2, labelKey: `aiRun.status.${run.status}`, spin: true }
+}
+
+const PHASE_ICONS: Record<string, LucideIcon> = {
+  operationalization: Terminal,
+  flow: Workflow,
+  environment: Container,
+  execution: Play,
+  evaluation: ClipboardCheck,
+}
+
+/** Layer 2 shell: owns the run state so the header can show the current phase. */
+function RunLayer({
+  campaignId,
+  campaignName,
+  version,
+  onChangeCampaign,
+}: {
+  campaignId: string
+  campaignName?: string
+  version: string
+  onChangeCampaign: () => void
+}) {
+  const { t } = useTranslation("pipeline")
+  const ai = useAiRun(campaignId)
+  const { icon: PhaseIcon, labelKey, spin, tone } = headerPhase(ai.run)
+  return (
+    <Card data-testid="execution-wizard" className="flex flex-col gap-2">
+      <CardHeader className="gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <CardTitle className="inline-flex items-center gap-2 text-lg" data-section="run-phase-title">
+            <PhaseIcon
+              className={cn("size-5", spin && "animate-spin", tone ?? "text-team-purple")}
+              aria-hidden
+            />
+            {t(labelKey)}
+          </CardTitle>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-muted-foreground">
+              {t("input.run.campaign", {
+                campaign: campaignDisplayName(campaignName, campaignId),
+              })}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onChangeCampaign}
+              data-testid="back-to-input"
+            >
+              <ArrowLeft className="mr-1 size-4" aria-hidden />
+              {t("input.run.changeCampaign")}
+            </Button>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <GuidedRunView ai={ai} campaignId={campaignId} campaignName={campaignName} version={version} />
+      </CardContent>
+    </Card>
+  )
+}
 
 /**
  * ExecutionWizard — the top-level AI-first flow reached from the Landing's
@@ -36,8 +130,6 @@ export function ExecutionWizard({
   /** "Back" on the Input screen leaves the flow and returns to the Landing. */
   onExitToStart?: () => void
 }) {
-  const { t } = useTranslation("pipeline")
-
   /** Which layer is in view: Input (selection) or the Run (Layer 2). */
   const [phase, setPhase] = useState<"input" | "run">("input")
 
@@ -95,39 +187,12 @@ export function ExecutionWizard({
   // Layer 2 — the guided, orchestrator-led Run as the PRIMARY view.
   if (phase === "run" && campaignId && selectedVersion) {
     return (
-      <Card data-testid="execution-wizard" className="flex flex-col gap-2">
-        <CardHeader className="gap-3">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <CardTitle className="inline-flex items-center gap-2 text-lg">
-              <OrchestratorAvatar mood="idle" className="size-8" />
-              {t("input.run.title")}
-            </CardTitle>
-            <div className="flex items-center gap-3">
-              <span className="text-sm text-muted-foreground">
-                {t("input.run.campaign", {
-                  campaign: campaignDisplayName(campaignName, campaignId),
-                })}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleBackToInput}
-                data-testid="back-to-input"
-              >
-                <ArrowLeft className="mr-1 size-4" aria-hidden />
-                {t("input.run.changeCampaign")}
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <GuidedRunView
-            campaignId={campaignId}
-            campaignName={campaignName}
-            version={selectedVersion}
-          />
-        </CardContent>
-      </Card>
+      <RunLayer
+        campaignId={campaignId}
+        campaignName={campaignName}
+        version={selectedVersion}
+        onChangeCampaign={handleBackToInput}
+      />
     )
   }
 

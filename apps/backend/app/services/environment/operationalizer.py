@@ -3,7 +3,7 @@
 This module defines the **per-origin extension point** of the operationalization phase
 (Operationalization) in the agentic pipeline. It separates *how* a Campaign is
 operationalized (today by curation, reading the curated artifacts from disk;
-tomorrow by an AI agent) from the *rest* of the system, so a ``gerado_ia``
+tomorrow by an AI agent) from the *rest* of the system, so a ``ai_generated``
 implementation can be plugged in later **without** changing this signature (Req.
 8.6, 16.2, 16.4), following the precedent of ``FlowGenerator`` (the flow phase) and
 ``EnvironmentProvisioner`` (the environment phase).
@@ -34,13 +34,17 @@ from __future__ import annotations
 import re
 from typing import Protocol, runtime_checkable
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.models.enums import TranslationSource
 from app.services.emulation.views import OperationalizationOutput
 from app.services.environment.operationalization import (
     EnvironmentParameters,
     RequiredService,
+)
+from app.services.environment.requirements import (
+    NegotiationResult,
+    TechniqueEnvironmentRequirements,
 )
 from app.services.flow.flow_view import FlowView
 
@@ -67,14 +71,23 @@ class ProducedOperationalization(BaseModel):
             :class:`~app.services.environment.operationalization.EnvironmentParameters`
             derived from the commands (hosts/services/``network_context``),
             destined for the environment phase (Req. 8.3, 8.4).
+        environment_requirements: per-technique needs (hosts, OS, ports, services,
+            files, dependencies) keyed by ``technique_id`` (design D13).
+        negotiation: outcome of the ``op_agent``/``env_agent`` negotiation
+            (rounds, objections and the planned emulability per technique,
+            design D14).
         origin: Operationalization origin — ``curadoria_humana`` today;
-            extensible to ``gerado_ia`` without changing the model (Req. 8.6,
+            extensible to ``ai_generated`` without changing the model (Req. 8.6,
             16.2, 16.4).
     """
 
     campaign_id: str
     abilities: OperationalizationOutput | None = None
     parameters: EnvironmentParameters
+    environment_requirements: dict[str, TechniqueEnvironmentRequirements] = Field(
+        default_factory=dict
+    )
+    negotiation: NegotiationResult = Field(default_factory=NegotiationResult)
     origin: TranslationSource = TranslationSource.HUMAN_CURATION
 
 
@@ -90,7 +103,7 @@ class OperationalizerByOrigin(Protocol):
     A ``@runtime_checkable Protocol`` that defines the **extension point** of the
     operationalization, following the precedent of the other per-origin seams
     (``FlowGenerator`` in the flow phase, ``EnvironmentProvisioner`` in the environment phase): each
-    origin (``curadoria_humana`` today, ``gerado_ia`` in the future) is an
+    origin (``curadoria_humana`` today, ``ai_generated`` in the future) is an
     implementation interchangeable by injection, **without** redesign (Req. 16.2,
     16.4).
 
@@ -131,15 +144,15 @@ class OperationalizerByOrigin(Protocol):
 # target setup commands of a technique. The order is stable for a
 # deterministic output.
 _SERVICE_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
-    (re.compile(r"\bflask\b", re.IGNORECASE), "servidor Flask (HTTP)"),
-    (re.compile(r"\bport=\"?(\d+)\"?|:(\d{2,5})\b"), "serviço HTTP em porta exposta"),
-    (re.compile(r"\bsshpass\b|\bssh\b", re.IGNORECASE), "acesso SSH"),
-    (re.compile(r"\bsudo\b|\bNOPASSWD\b", re.IGNORECASE), "sudo sem senha"),
+    (re.compile(r"\bflask\b", re.IGNORECASE), "Flask server (HTTP)"),
+    (re.compile(r"\bport=\"?(\d+)\"?|:(\d{2,5})\b"), "HTTP service on an exposed port"),
+    (re.compile(r"\bsshpass\b|\bssh\b", re.IGNORECASE), "SSH access"),
+    (re.compile(r"\bsudo\b|\bNOPASSWD\b", re.IGNORECASE), "passwordless sudo"),
     (re.compile(r"\bnc\b|\bnetcat\b|/dev/tcp/", re.IGNORECASE), "listener/reverse shell (netcat)"),
-    (re.compile(r"\bchmod \+s\b|setuid\(", re.IGNORECASE), "binário SUID (escalonamento)"),
-    (re.compile(r"\bdnsmasq\b|\bdig\b|dnsutils", re.IGNORECASE), "serviço DNS"),
-    (re.compile(r"docker\.sock", re.IGNORECASE), "socket Docker exposto"),
-    (re.compile(r"\bxmrig\b", re.IGNORECASE), "minerador (xmrig)"),
+    (re.compile(r"\bchmod \+s\b|setuid\(", re.IGNORECASE), "SUID binary (privilege escalation)"),
+    (re.compile(r"\bdnsmasq\b|\bdig\b|dnsutils", re.IGNORECASE), "DNS service"),
+    (re.compile(r"docker\.sock", re.IGNORECASE), "exposed Docker socket"),
+    (re.compile(r"\bxmrig\b", re.IGNORECASE), "miner (xmrig)"),
 )
 
 

@@ -2,12 +2,16 @@
   "name": "sticks-pipeline-ui",
   "private": true,
   "version": "0.0.0",
-  "description": "Comando unico de desenvolvimento: sobe backend (FastAPI), frontend (Vite) e aplica as migracoes do banco (PostgreSQL via Alembic) de uma vez. Os scripts sao multiplataforma (Node), funcionando em Windows, Linux e macOS. Usa npm workspaces para manter um unico node_modules na raiz.",
+  "description": "Desenvolvimento nativo com hot reload: `npm run db:up` sobe so o PostgreSQL em contêiner; `npm run dev` aplica as migracoes (Alembic) e sobe backend (FastAPI, porta 8010) e frontend (Vite, porta 8000) no host; `dev:backend` e `dev:frontend` sobem so um deles; `dev:containers` sobe backend e frontend em contêineres (opcional). Scripts multiplataforma (Node). Usa npm workspaces para manter um unico node_modules na raiz.",
   "workspaces": [
     "apps/frontend"
   ],
   "scripts": {
     "dev": "node scripts/dev.mjs",
+    "db:up": "docker compose -f ops/docker/docker-compose.yml up -d postgres",
+    "dev:containers": "docker compose -f ops/docker/docker-compose.yml --profile containers up -d postgres sticks-backend sticks-frontend",
+    "dev:backend": "node scripts/dev.mjs --backend-only",
+    "dev:frontend": "node scripts/dev.mjs --frontend-only",
     "setup": "node scripts/setup.mjs",
     "db:migrate": "node scripts/migrate.mjs"
   },

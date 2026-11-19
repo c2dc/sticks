@@ -1,4 +1,4 @@
-"""Operationalization phase ``AiOperationalizer`` — the ``gerado_ia`` operationalization agent.
+"""Operationalization phase ``AiOperationalizer`` — the ``ai_generated`` operationalization agent.
 
 This module hosts :class:`AiOperationalizer`, the AI implementation of the
 Operationalization phase :class:`~app.services.environment.operationalizer.OperationalizerByOrigin`
@@ -9,7 +9,7 @@ to the seam signature, exactly like the curation implementation
 
 What it does (Req. 2.2, 2.4, 2.5, 8.1):
 
-* ``origin()`` stamps :attr:`TranslationSource.AI_GENERATED` (``"gerado_ia"``) on
+* ``origin()`` stamps :attr:`TranslationSource.AI_GENERATED` (``"ai_generated"``) on
   everything it produces — the ``ProducedOperationalization.origin`` and the
   derived ``EnvironmentParameters.origin``.
 * ``operationalize(campaign, flow)`` walks the Flow phase :class:`FlowView`, and for
@@ -17,7 +17,7 @@ What it does (Req. 2.2, 2.4, 2.5, 8.1):
   Team commands (via the ``tool_atomic_lookup`` command pool), assembles the two
   separate Operationalization phase artifacts — the ordered Abilities (``OperationalizationOutput``) and the
   derived :class:`EnvironmentParameters` — and returns them in a
-  :class:`ProducedOperationalization` with ``origin=gerado_ia``.
+  :class:`ProducedOperationalization` with ``origin=ai_generated``.
 
 Boundaries (safety, Req. 8.1):
 
@@ -57,16 +57,91 @@ if TYPE_CHECKING:  # pragma: no cover - typing only, no runtime import
         EnvironmentParameters,
         TargetHost,
     )
+    from app.services.environment.requirements import (
+        NegotiationResult,
+        Objection,
+        TechniqueEnvironmentRequirements,
+    )
     from app.services.flow.flow_view import FlowView
 
 __all__ = ["AiOperationalizer"]
 
 _PLACEHOLDER_RE = re.compile(r"#\{[^}]*\}")
 
+#: Default cap on how many Atomic Red Team candidates per technique enter the
+#: prompt/selection (design D15). A technique such as T1105 can carry dozens of
+#: candidates; without a cap the prompt grows with the pool size and risks
+#: outgrowing the context window of smaller local profiles. This is a starting
+#: point without measurement (task 16.4 of the ``interactive-emulation-run``
+#: spec); the registered findings in ``design.md`` may revise it.
+DEFAULT_MAX_COMMANDS_PER_TECHNIQUE = 5
+MAX_COMMANDS_PER_TECHNIQUE_ENV_VAR = "OPERATIONALIZATION_MAX_COMMANDS_PER_TECHNIQUE"
+
+#: Default number of adjustment rounds in the `op_agent`/`env_agent` negotiation
+#: (design D14). `0` evaluates once and never adjusts.
+DEFAULT_NEGOTIATION_MAX_ROUNDS = 1
+NEGOTIATION_MAX_ROUNDS_ENV_VAR = "OPERATIONALIZATION_NEGOTIATION_MAX_ROUNDS"
+
+#: First port tried when an objection forces a port change; later ports count up.
+_FALLBACK_PORT_START = 18000
+
+# Executor platform tokens that do not belong to the Lab's container-first
+# Linux target — same token set used by the image resolver's OS derivation
+# (``app.services.environment.image_resolver._WINDOWS_PLATFORM_TOKENS``) so the
+# two heuristics agree on what counts as "non-Linux".
+_NON_LINUX_PLATFORM_TOKENS = frozenset(
+    {"windows", "win", "win32", "win64", "powershell", "psh", "cmd"}
+)
+
 
 def _has_leftover_tokens(command: str) -> bool:
     """True when a Final_Command still holds ``#{name}`` or PathToAtomicsFolder."""
     return bool(_PLACEHOLDER_RE.search(command)) or "PathToAtomicsFolder" in command
+
+
+def max_commands_per_technique() -> int:
+    """Configured pool cap per technique (``OPERATIONALIZATION_MAX_COMMANDS_PER_TECHNIQUE``).
+
+    Non-negative integer setting, same reading rule as the project's other
+    ``_MIN``/``_MAX`` environment variables (:func:`app.services.ingestion.workdir.read_env_int`):
+    unset, empty or invalid falls back to :data:`DEFAULT_MAX_COMMANDS_PER_TECHNIQUE`.
+    A configured ``0`` disables truncation (the whole pool is kept).
+    """
+    from app.services.ingestion.workdir import read_env_int
+
+    return read_env_int(MAX_COMMANDS_PER_TECHNIQUE_ENV_VAR, DEFAULT_MAX_COMMANDS_PER_TECHNIQUE)
+
+
+def negotiation_max_rounds() -> int:
+    """Configured negotiation limit (`OPERATIONALIZATION_NEGOTIATION_MAX_ROUNDS`).
+
+    Same reading rule as :func:`max_commands_per_technique`: unset, empty or invalid
+    falls back to :data:`DEFAULT_NEGOTIATION_MAX_ROUNDS`.
+    """
+    from app.services.ingestion.workdir import read_env_int
+
+    return read_env_int(NEGOTIATION_MAX_ROUNDS_ENV_VAR, DEFAULT_NEGOTIATION_MAX_ROUNDS)
+
+
+def _truncate_pool_for_prompt(pool: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Cap ``pool`` to the most promising candidates before prompt/selection (design D15).
+
+    Orders candidates with Linux/sh/bash executors first — the Lab is
+    container-first, so those are the ones most likely to be executable — and
+    keeps the pool's relative order within each group (stable sort), then
+    truncates to :func:`max_commands_per_technique`. A configured limit of ``0``
+    (or a pool already within the limit) returns the pool unchanged.
+    """
+    limit = max_commands_per_technique()
+    if limit <= 0 or len(pool) <= limit:
+        return pool
+
+    def is_non_linux(entry: dict[str, Any]) -> bool:
+        platform = entry.get("platform")
+        return isinstance(platform, str) and platform.strip().lower() in _NON_LINUX_PLATFORM_TOKENS
+
+    ordered = sorted(pool, key=is_non_linux)
+    return ordered[:limit]
 
 
 class AiOperationalizer:
@@ -77,7 +152,7 @@ class AiOperationalizer:
     LLM chooses/adapts the atomic tests (primed by cross-campaign RAG experience);
     the command parser self-checks each proposal, and the project's
     service-inference heuristic is reused to derive the services to provision. It
-    stamps ``gerado_ia`` on every produced artifact (Req. 2.4, 2.5).
+    stamps ``ai_generated`` on every produced artifact (Req. 2.4, 2.5).
 
     The agent only PROPOSES: emitted commands remain subject to the unchanged
     downstream containment check (Req. 8.1). This class exposes exactly
@@ -94,6 +169,7 @@ class AiOperationalizer:
         atomic_lookup: Callable[[str], list[dict]] | None = None,
         parser: Callable[[str], dict] | None = None,
         trace_sink: list[dict] | None = None,
+        image_resolver: Any = None,
     ) -> None:
         """Assemble the agent with lazily-injected collaborators.
 
@@ -118,11 +194,16 @@ class AiOperationalizer:
             parser: The containment command parser used for self-checking a
                 proposed command's destinations — a callable ``command -> dict``.
                 Defaults lazily to :func:`app.services.ai.tools.tool_parse_command`.
+            image_resolver: :class:`ImageResolver` used by the negotiation to check
+                that an image exists for each technique. `None` skips that check.
         """
         self._chat = chat
         self._memory = memory
         self._atomic = atomic_lookup
         self._parser = parser
+        # Optional ImageResolver for the negotiation's image check (design D14);
+        # without it the check skips the image step.
+        self._image_resolver = image_resolver
         # Optional Audit_Trace sink injected by the LangGraph ``node`` wrapper,
         # carried as an instance attribute — NOT an ``operationalize`` parameter —
         # so the ``@runtime_checkable`` ``OperationalizerByOrigin`` seam signature
@@ -133,11 +214,11 @@ class AiOperationalizer:
     # -- Seam API -----------------------------------------------------------
 
     def origin(self) -> TranslationSource:
-        """Stamp ``gerado_ia`` on the Operationalization phase output (Req. 2.4, 2.5)."""
+        """Stamp ``ai_generated`` on the Operationalization phase output (Req. 2.4, 2.5)."""
         return TranslationSource.AI_GENERATED
 
     def operationalize(self, campaign: str, flow: FlowView) -> ProducedOperationalization:
-        """Produce the two Operationalization phase artifacts for ``campaign`` with ``origin=gerado_ia``.
+        """Produce the two Operationalization phase artifacts for ``campaign`` with ``origin=ai_generated``.
 
         Walks the Flow phase :class:`FlowView` and, per node, looks up the Atomic Red
         Team command pool for the node's technique, selects/parametrizes the
@@ -145,7 +226,7 @@ class AiOperationalizer:
         assembles:
 
         1. the **ordered Abilities** (``OperationalizationOutput`` with ``atomic_ordering``
-           and ``translation_source=gerado_ia``); ``None`` when the attack flow yields no
+           and ``translation_source=ai_generated``); ``None`` when the attack flow yields no
            operationalizable technique (Req. 8.1), mirroring the curation seam's
            suppressed output; and
         2. the derived :class:`EnvironmentParameters` (hosts resolved from the
@@ -183,6 +264,7 @@ class AiOperationalizer:
             campaign, flow, experience, llm_calls=llm_calls, selection_log=selection_log
         )
 
+        environment_requirements, negotiation = self._negotiate(campaign, selections)
         abilities = self._build_abilities(selections)
         parameters = self._derive_parameters(campaign, selections)
 
@@ -210,6 +292,9 @@ class AiOperationalizer:
                         "repair_attempts": 0,
                         "repair_hints": None,
                         "command_selection": selection_log or None,
+                        "negotiation": negotiation.model_dump(mode="json")
+                        if negotiation.rounds
+                        else None,
                     },
                 }
             )
@@ -218,6 +303,8 @@ class AiOperationalizer:
             campaign_id=campaign,
             abilities=abilities,
             parameters=parameters,
+            environment_requirements=environment_requirements,
+            negotiation=negotiation,
             origin=self.origin(),
         )
 
@@ -330,6 +417,7 @@ class AiOperationalizer:
             pool = lookup(technique_id) or []
             if not pool:
                 continue
+            pool = _truncate_pool_for_prompt(pool)
 
             chosen = self._choose_commands(
                 node,
@@ -498,6 +586,9 @@ class AiOperationalizer:
                 continue
             normalized = self._normalize_command(by_command[template])
             normalized["command"] = final.strip()
+            normalized["parameters"] = self._annotate_parameters(
+                normalized, by_command[template].get("input_arguments")
+            )
             chosen.append(normalized)
         if chosen and selection_log is not None:
             selection_log.append(
@@ -616,6 +707,9 @@ class AiOperationalizer:
             normalized = cls._normalize_command(entry)
             resolved = resolve_command(normalized["command"], entry.get("input_arguments"))
             normalized["command"] = resolved.command
+            normalized["parameters"] = cls._annotate_parameters(
+                normalized, entry.get("input_arguments")
+            )
             chosen.append(normalized)
             if selection_log is not None:
                 selection_log.append(
@@ -628,6 +722,44 @@ class AiOperationalizer:
                     }
                 )
         return chosen
+
+    @staticmethod
+    def _annotate_parameters(command: dict[str, Any], input_arguments: Any) -> list[dict[str, Any]]:
+        """Annotate each parameter of ``command`` with its final value and Parameter_Source.
+
+        The value is read back from the final command by matching it against the
+        original template. A parameter whose placeholder is still present has no
+        value and is ``unresolved``; one equal to the Atomic default is
+        ``atomic_default`` (no agent decision); any other value is
+        ``agent_inferred`` (Req. 20.3).
+        """
+        from app.services.atomic_arguments import (
+            PATH_ARGUMENT_NAME,
+            detect_argument_names,
+            extract_argument_values,
+        )
+
+        template = command.get("template") or ""
+        final = command.get("command") or ""
+        values = extract_argument_values(template, final)
+        specs = input_arguments if isinstance(input_arguments, dict) else {}
+        parameters: list[dict[str, Any]] = []
+        for name in detect_argument_names(template):
+            value = values.get(name)
+            leftover = (
+                value in (PATH_ARGUMENT_NAME, f"${PATH_ARGUMENT_NAME}")
+                if name == PATH_ARGUMENT_NAME
+                else value == f"#{{{name}}}"
+            )
+            if value is None or leftover:
+                source, value = "unresolved", None
+            else:
+                spec = specs.get(name)
+                default = spec.get("default") if isinstance(spec, dict) else None
+                is_default = default is not None and value == str(default)
+                source = "atomic_default" if is_default else "agent_inferred"
+            parameters.append({"name": name, "value": value, "source": source})
+        return parameters
 
     @staticmethod
     def _normalize_command(entry: dict[str, Any]) -> dict[str, Any]:
@@ -671,13 +803,15 @@ class AiOperationalizer:
         commands came from); falls back to a deterministic id built from the
         node/technique so the ordering stays reproducible.
         """
+        from app.services.ai.tools import caldera_ability_id
+
         for entry in pool:
             ability_id = entry.get("ability_id")
             if ability_id:
-                return str(ability_id)
+                return caldera_ability_id(str(ability_id))
         node_id = getattr(node, "node_id", None)
         technique_id = getattr(node, "technique_id", None)
-        return str(node_id or technique_id or f"ability-{index}")
+        return caldera_ability_id(str(node_id or technique_id or f"ability-{index}"))
 
     @staticmethod
     def _first_nonempty(pool: list[dict[str, Any]], key: str) -> str | None:
@@ -696,7 +830,7 @@ class AiOperationalizer:
         Mirrors the curation ``OperationalizationOutput`` shape — one
         ``OperationalizationAbilityView`` per operationalized node (its executors are the
         proposed commands), the ``atomic_ordering`` following attack flow order, and
-        ``translation_source=gerado_ia``. Returns ``None`` when nothing was
+        ``translation_source=ai_generated``. Returns ``None`` when nothing was
         operationalizable (suppressed output — Req. 8.1).
         """
         if not selections:
@@ -704,6 +838,7 @@ class AiOperationalizer:
 
         # Imported lazily so importing this module stays light.
         from app.services.emulation.views import (
+            CommandParameterView,
             OperationalizationAbilityView,
             OperationalizationAdversaryView,
             OperationalizationExecutorView,
@@ -729,6 +864,11 @@ class AiOperationalizer:
                             platform=command.get("platform"),
                             command=command.get("command"),
                             command_ref=command.get("command_ref"),
+                            template=command.get("template"),
+                            parameters=[
+                                CommandParameterView(**parameter)
+                                for parameter in command.get("parameters") or []
+                            ],
                         )
                         for command in selection["commands"]
                     ],
@@ -738,10 +878,10 @@ class AiOperationalizer:
 
         adversary_view = OperationalizationAdversaryView(
             id=f"adversary-{selections[0]['node_id']}",
-            name="Adversário gerado por IA",
+            name="AI-generated adversary",
             description=(
-                "Agrupamento de Abilities proposto pelo agente de IA a partir do "
-                "attack flow (origem gerado_ia)."
+                "Grouping of Abilities proposed by the AI agent from the "
+                "attack flow (origin ai_generated)."
             ),
             atomic_ordering=list(ordering),
             translation_source=TranslationSource.AI_GENERATED,
@@ -768,7 +908,7 @@ class AiOperationalizer:
         (:func:`app.services.environment.operationalizer._infer_services`), and
         collects no network notes (the attack flow view carries only the technique
         identity, not the curated per-node ``network_context``). The platform is
-        always ``CONTAINER`` and the origin ``gerado_ia`` (Req. 2.4, 2.5, 17.1).
+        always ``CONTAINER`` and the origin ``ai_generated`` (Req. 2.4, 2.5, 17.1).
         """
         # Lazy imports (Req. 1.7): no containment/DTO deps at module import.
         from app.services.containment import (
@@ -829,6 +969,282 @@ class AiOperationalizer:
             origin=self.origin(),
         )
 
+    # -- Negotiation with the environment agent (design D14) -----------------
+
+    def _negotiate(
+        self, campaign: str, selections: list[dict[str, Any]]
+    ) -> tuple[dict[str, TechniqueEnvironmentRequirements], NegotiationResult]:
+        """Negotiate each technique's requirements with the environment agent.
+
+        Every pass asks :func:`evaluate_environment_requirements` about the techniques
+        still pending. A technique with an objection is adjusted (``selections`` is
+        changed in place) and evaluated again in the next pass, up to
+        :func:`negotiation_max_rounds` adjustment rounds. A technique the agent
+        cannot adjust, or that still has an objection after the last pass, is marked
+        ``not_emulable`` with the code of its last objection. Nothing is provisioned
+        and the run never fails because of an objection.
+
+        Returns:
+            The final per-technique requirements and the :class:`NegotiationResult`
+            with every evaluation, kept for the trace and the approval screen.
+        """
+        from app.services.ai.agents.env_agent import evaluate_environment_requirements
+        from app.services.environment.requirements import (
+            NegotiationResult,
+            NegotiationRound,
+            TechniqueNegotiationStatus,
+        )
+
+        max_rounds = negotiation_max_rounds()
+        requirements = self._build_environment_requirements(campaign, selections)
+        result = NegotiationResult(max_rounds=max_rounds)
+        last_objection: dict[str, Objection] = {}
+        pending = list(requirements)
+
+        for pass_number in range(1, max_rounds + 2):
+            objected: list[str] = []
+            for technique_id in pending:
+                requirement = requirements[technique_id]
+                objection = evaluate_environment_requirements(requirement, self._image_resolver)
+                result.rounds.append(
+                    NegotiationRound(
+                        round=pass_number,
+                        technique_id=technique_id,
+                        environment_requirements=requirement.model_copy(deep=True),
+                        objections=[objection] if objection else [],
+                    )
+                )
+                if objection is None:
+                    result.techniques[technique_id] = TechniqueNegotiationStatus(
+                        status="planned_emulable"
+                    )
+                else:
+                    last_objection[technique_id] = objection
+                    objected.append(technique_id)
+
+            pending = []
+            for technique_id in objected:
+                adjusted = pass_number <= max_rounds and self._adjust_for_objection(
+                    last_objection[technique_id], selections, requirements
+                )
+                if adjusted:
+                    pending.append(technique_id)
+                else:
+                    result.techniques[technique_id] = TechniqueNegotiationStatus(
+                        status="not_emulable", reason_code=last_objection[technique_id].code
+                    )
+            if not pending:
+                break
+            result.rounds_used = pass_number
+            rebuilt = self._build_environment_requirements(campaign, selections)
+            for technique_id, requirement in requirements.items():
+                if technique_id not in pending:
+                    rebuilt[technique_id] = requirement
+            requirements = rebuilt
+
+        return requirements, result
+
+    def _adjust_for_objection(
+        self,
+        objection: Objection,
+        selections: list[dict[str, Any]],
+        requirements: dict[str, TechniqueEnvironmentRequirements],
+    ) -> bool:
+        """Try to change the technique's commands so ``objection`` goes away.
+
+        ``port_conflict`` moves the conflicting ports to free ones;
+        ``os_unsupported`` and ``requires_vm`` switch to the technique's Linux
+        commands from the Atomic pool. ``image_unavailable`` has no adjustment the
+        agent can make. Returns ``True`` when a command changed.
+        """
+        from app.services.environment.requirements import ObjectionCode
+
+        technique_selections = [
+            s for s in selections if s.get("technique_id") == objection.technique_id
+        ]
+        if objection.code == ObjectionCode.PORT_CONFLICT:
+            used = {port for req in requirements.values() for port in req.ports}
+            return self._move_ports(technique_selections, objection.detail, used)
+        if objection.code in (ObjectionCode.OS_UNSUPPORTED, ObjectionCode.REQUIRES_VM):
+            switched = self._switch_to_linux_commands(technique_selections, objection.technique_id)
+            # A duplicate selection of the same technique may now be empty.
+            selections[:] = [s for s in selections if s["commands"]]
+            return switched
+        return False
+
+    def _move_ports(
+        self, selections: list[dict[str, Any]], detail: str | None, used: set[int]
+    ) -> bool:
+        """Replace each conflicting port (listed in ``detail``) with a free one."""
+        conflicting = [int(p) for p in (detail or "").split(",") if p.strip().isdigit()]
+        replacements: dict[int, int] = {}
+        candidate = _FALLBACK_PORT_START
+        for port in conflicting:
+            while candidate in used:
+                candidate += 1
+            replacements[port] = candidate
+            used.add(candidate)
+        changed = False
+        for selection in selections:
+            for command in selection["commands"]:
+                text = command.get("command") or ""
+                new_text = text
+                for old, new in replacements.items():
+                    new_text = re.sub(rf"(?<!\d){old}(?!\d)", str(new), new_text)
+                if new_text != text:
+                    command["command"] = new_text
+                    self._reannotate(command, selection.get("technique_id"))
+                    changed = True
+        if changed:
+            self._self_check([c for s in selections for c in s["commands"]])
+        return changed
+
+    def _switch_to_linux_commands(
+        self, selections: list[dict[str, Any]], technique_id: str
+    ) -> bool:
+        """Replace the commands with the pool's non-Windows ones, when there are any."""
+        pool = _truncate_pool_for_prompt(self._atomic_lookup()(technique_id) or [])
+        linux_pool = [
+            entry
+            for entry in pool
+            if not (
+                isinstance(entry.get("platform"), str)
+                and entry["platform"].strip().lower() in _NON_LINUX_PLATFORM_TOKENS
+            )
+        ]
+        replacement = (
+            self._default_selection(linux_pool, node_id=technique_id) if linux_pool else []
+        )
+        if not replacement or not selections:
+            return False
+        current = [c.get("command") for s in selections for c in s["commands"]]
+        if [c.get("command") for c in replacement] == current:
+            return False
+        self._self_check(replacement)
+        selections[0]["commands"] = replacement
+        for extra in selections[1:]:
+            extra["commands"] = []
+        return True
+
+    def _reannotate(self, command: dict[str, Any], technique_id: str | None) -> None:
+        """Recompute the Parameter_Source annotation after the command text changed."""
+        input_arguments = None
+        if technique_id:
+            for entry in self._atomic_lookup()(technique_id) or []:
+                if (entry.get("command") or "").strip() == command.get("template"):
+                    input_arguments = entry.get("input_arguments")
+                    break
+        command["parameters"] = self._annotate_parameters(command, input_arguments)
+
+    def _build_environment_requirements(
+        self, campaign: str, selections: list[dict[str, Any]]
+    ) -> dict[str, TechniqueEnvironmentRequirements]:
+        """Build one :class:`TechniqueEnvironmentRequirements` per technique (design D13).
+
+        Reads hosts, services, ports and file paths from each technique's final
+        commands and detects the target OS with ``detect_params_target_os``. The
+        result is deterministic and does no I/O; ``image_hint`` stays ``None`` here
+        (the negotiation step resolves it best-effort, task 16.5). A technique
+        depends on an earlier one when both cite the same file path.
+        """
+        # Lazy imports (Req. 1.7): no containment/DTO deps at module import.
+        from app.services.ai.agents.env_agent import detect_params_target_os
+        from app.services.containment import (
+            container_for_ip,
+            is_internal_ip,
+            parse_command,
+        )
+        from app.services.environment.operationalization import (
+            EnvironmentParameters,
+            EnvironmentPlatform,
+            TargetHost,
+        )
+        from app.services.environment.operationalizer import _infer_services
+        from app.services.environment.port_extractor import extract_ports
+        from app.services.environment.requirements import (
+            TechniqueEnvironmentRequirements,
+            extract_file_paths,
+        )
+
+        requirements: dict[str, TechniqueEnvironmentRequirements] = {}
+        file_owner: dict[str, str] = {}
+
+        for selection in selections:
+            technique_id = selection.get("technique_id")
+            if not technique_id:
+                continue
+            commands = [command.get("command") or "" for command in selection["commands"]]
+
+            hosts: list[TargetHost] = []
+            seen_addresses: set[str] = set()
+            ports: set[int] = set()
+            files: list[str] = []
+            for command_text in commands:
+                if not command_text:
+                    continue
+                ports.update(extract_ports(command_text))
+                for path in extract_file_paths(command_text):
+                    if path not in files:
+                        files.append(path)
+                for dest in parse_command(command_text).destinations:
+                    if not is_internal_ip(dest.value) or dest.value in seen_addresses:
+                        continue
+                    seen_addresses.add(dest.value)
+                    hosts.append(
+                        TargetHost(
+                            label=f"host_{len(hosts)}",
+                            address=dest.value,
+                            container=container_for_ip(dest.value),
+                        )
+                    )
+
+            services = _infer_services(commands, technique_id)
+            target_os = detect_params_target_os(
+                EnvironmentParameters(
+                    campaign_id=campaign,
+                    platform=EnvironmentPlatform.CONTAINER,
+                    hosts=hosts,
+                    services=services,
+                    network_context=[],
+                    origin=self.origin(),
+                )
+            )
+
+            depends_on: list[str] = []
+            for path in files:
+                owner = file_owner.setdefault(path, technique_id)
+                if owner != technique_id and owner not in depends_on:
+                    depends_on.append(owner)
+
+            existing = requirements.get(technique_id)
+            if existing is not None:
+                # Same technique selected twice: merge instead of overwriting.
+                hosts = existing.hosts + [
+                    h for h in hosts if h.address not in {x.address for x in existing.hosts}
+                ]
+                ports.update(existing.ports)
+                files = existing.files + [f for f in files if f not in existing.files]
+                depends_on = existing.depends_on + [
+                    d for d in depends_on if d not in existing.depends_on
+                ]
+                services = [s for s in services if s.description not in existing.services]
+                service_names = existing.services + [s.description for s in services]
+            else:
+                service_names = [s.description for s in services]
+
+            requirements[technique_id] = TechniqueEnvironmentRequirements(
+                technique_id=technique_id,
+                hosts=hosts,
+                target_os=target_os,
+                image_hint=None,
+                ports=sorted(ports),
+                services=service_names,
+                files=files,
+                depends_on=depends_on,
+            )
+
+        return requirements
+
 
 # ---------------------------------------------------------------------------
 # LangGraph node wrapper + persistence hook (task 7.3)
@@ -845,7 +1261,7 @@ class AiOperationalizer:
 # only produces the artifact and writes it into the state; the
 # ``persist_phase_output`` helper is the Run_Service hook (tasks 15.x) that, given
 # an injected ``Session`` and the owning ``agent_iterations`` row, writes the
-# ``agent_phase_outputs`` row (``origin=gerado_ia``) within the service's atomic
+# ``agent_phase_outputs`` row (``origin=ai_generated``) within the service's atomic
 # per-iteration transaction and links ``params_id`` to the persisted
 # ``EnvironmentParameters`` row. Keeping it separate means the node stays pure of
 # any DB session (and import-time DB deps) while the Run_Service owns the
@@ -911,11 +1327,19 @@ def build_agent(
 
         resolved_atomic = functools.partial(tool_atomic_lookup, session=session)
 
+    resolved_resolver = None
+    if session is not None:
+        from app.services.environment.image_resolver import ImageResolver
+
+        # Offline by construction: the negotiation only reads the catalog.
+        resolved_resolver = ImageResolver(session)
+
     return AiOperationalizer(
         chat=resolved_chat,
         memory=resolved_memory,
         atomic_lookup=resolved_atomic,
         trace_sink=trace_sink,
+        image_resolver=resolved_resolver,
     )
 
 
@@ -1002,7 +1426,7 @@ def node(state: AgentState, *, session: Any = None) -> dict:
     (:func:`build_agent`), reads the campaign techniques from ``stix_campaign_techniques``,
     calls :meth:`AiOperationalizer.operationalize` and writes the serialized
     result into the returned **state delta** under
-    ``artifacts.operationalization`` (``origin=gerado_ia`` — Req. 2.4). The node
+    ``artifacts.operationalization`` (``origin=ai_generated`` — Req. 2.4). The node
     performs no persistence itself; the Run_Service drives
     :func:`persist_phase_output` to write the ``agent_phase_outputs`` row within
     its atomic per-iteration transaction (Req. 11.5).
@@ -1076,11 +1500,11 @@ def persist_phase_output(
     leaving the transaction boundary to the caller.
 
     It writes one :class:`~app.models.domain.AgentPhaseOutput` for the
-    operationalization phase with ``origin=gerado_ia`` (Req. 2.4) and the
+    operationalization phase with ``origin=ai_generated`` (Req. 2.4) and the
     serialized :class:`ProducedOperationalization` as the JSON ``payload``. When
     ``persist_parameters`` is true it first persists the derived
     :class:`EnvironmentParameters` as an
-    :class:`~app.models.domain.EnvironmentParametersRow` (``origin=gerado_ia``)
+    :class:`~app.models.domain.EnvironmentParametersRow` (``origin=ai_generated``)
     and links its id via ``params_id`` — the ``params_id`` branch of the
     per-phase-output FK, exactly as the attack flow phase output links ``flow_id`` (design
     §agent_phase_outputs).

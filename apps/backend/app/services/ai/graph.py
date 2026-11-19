@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 #
 # The agent executes NOTHING itself and never runs on the host (Req. 9.3, 9.5):
 # it only adapts the serialized ``ProducedOperationalization`` (origin
-# ``gerado_ia``) into the runner's inputs and reads back the Execution phase report. No
+# ``ai_generated``) into the runner's inputs and reads back the Execution phase report. No
 # gate is modified, bypassed or re-implemented here — the agent proposes, the
 # existing machinery disposes. Every command the AI produced is still subject to
 # the same containment check and isolation gate the curated path passes through,
@@ -59,7 +59,7 @@ def execute_node(
     """Execution phase node: run the EXISTING pipeline unchanged over the AI artifacts.
 
     Hands the current iteration's AI-origin artifacts (``state["artifacts"]``,
-    stamped ``gerado_ia``) to the unchanged Execution phase
+    stamped ``ai_generated``) to the unchanged Execution phase
     :class:`~app.services.operation.runner.OperationRunner`, which enforces the
     full safety sequence (containment -> isolation -> preview/confirm ->
     execution -> 1:1 audit -> report). The agent itself executes nothing and
@@ -83,9 +83,10 @@ def execute_node(
             signature. Injected by tests/callers; when ``None`` a real
             ``OperationRunner`` is constructed lazily over ``session``.
         session: Optional SQLAlchemy ``Session`` used to build the runner and its
-            audit logger when ``runner`` is not injected. When ``None`` a
-            request-style session is opened lazily from the project's
-            ``SessionLocal`` and closed before returning.
+            audit logger when ``runner`` is not injected. ``build_graph`` passes
+            ``None`` on purpose: the node then opens its OWN session from the
+            project's ``SessionLocal`` and closes it before returning, so a
+            failure while executing never invalidates the run-wide transaction.
 
     Returns:
         A state delta ``{"report": <serialized Execution phase report>, "execution_result":
@@ -411,11 +412,11 @@ def _execution_result(result: Any) -> dict[str, Any]:
     total_success = _to_int(getattr(result, "total_success", 0))
     total_failure = _to_int(getattr(result, "total_failure", 0))
 
-    # "concluida" (COMPLETED) with at least one success and no failure is the
+    # "completed" (COMPLETED) with at least one success and no failure is the
     # single passing verdict — the same rule the evaluator applies to the report
     # when no explicit flag is present, kept in sync here so the two agree.
     executed = bool(getattr(result, "started", False))
-    verdict_success = verdict == "concluida" and total_success > 0 and total_failure == 0
+    verdict_success = verdict == "completed" and total_success > 0 and total_failure == 0
 
     return {
         "verdict": verdict,
@@ -822,7 +823,16 @@ def _route_after_eval(state):
     return globals()["route_after_eval"](state)
 
 
-def build_graph(*, checkpointer, session: Any = None):
+# Phases after which the run pauses for researcher approval (Requirement 20.1).
+_DEFAULT_INTERRUPT_AFTER = ("operationalize", "flow", "environment")
+
+
+def build_graph(
+    *,
+    checkpointer,
+    session: Any = None,
+    interrupt_after: list[str] | None = None,
+):
     """Assemble and compile the AI-curation agent ``StateGraph`` (Req. 3.1-3.3).
 
     Wires the six nodes of the improvement loop and their edges, following the
@@ -854,16 +864,42 @@ def build_graph(*, checkpointer, session: Any = None):
             keeps the live, non-serializable ``Session`` out of the checkpointed
             state while still reaching every node. When ``None`` the nodes resolve
             no session and the DB-sourced context degrades to empty (no disk read).
+            The ``execute`` node does NOT receive it: it opens its own session so a
+            failure there cannot poison the transaction the run owns.
+        interrupt_after: Nodes after which the graph pauses for researcher approval
+            (default ``["operationalize", "flow", "environment"]``). A paused run is
+            resumed with ``graph.invoke(None, config)``.
 
     Returns:
-        The compiled LangGraph application (``g.compile(checkpointer=checkpointer)``).
+        The compiled LangGraph application, paused after each ``interrupt_after`` node.
     """
-    from functools import partial
+    import contextlib
+    from functools import partial, wraps
 
     from langgraph.graph import END, START, StateGraph
 
     from app.services.ai.agents import env_agent, evaluator, flow_agent, op_agent
     from app.services.ai.state import AgentState
+
+    pause_after = (
+        list(interrupt_after) if interrupt_after is not None else list(_DEFAULT_INTERRUPT_AFTER)
+    )
+
+    def _tag_failure(name: str, fn: Any) -> Any:
+        """Wrap a node so any exception carries ``exc.node = name`` (set once) and is re-raised."""
+
+        @wraps(fn)
+        def wrapper(state: AgentState) -> dict:
+            try:
+                return fn(state)
+            except Exception as exc:
+                if getattr(exc, "node", None) is None:
+                    # Exceptions without a writable ``__dict__`` stay untagged.
+                    with contextlib.suppress(Exception):
+                        exc.node = name  # type: ignore[attr-defined]
+                raise
+
+        return wrapper
 
     g = StateGraph(AgentState)
 
@@ -873,17 +909,17 @@ def build_graph(*, checkpointer, session: Any = None):
     # is not serializable), while still reaching the flow/op agents and the
     # orchestrator/evaluator that build the DB-sourced context and RAG.
     g.add_node(
-        "orchestrate", partial(orchestrate_node, session=session)
-    )  # seeds state + RAG retrieval (DB)
-    g.add_node("flow", partial(flow_agent.node, session=session))  # flow agent (DB)
+        "orchestrate", _tag_failure("orchestrate", partial(orchestrate_node, session=session))
+    )
+    g.add_node("flow", _tag_failure("flow", partial(flow_agent.node, session=session)))
     g.add_node(
-        "operationalize", partial(op_agent.node, session=session)
-    )  # Operationalization phase agent (DB)
-    g.add_node("environment", env_agent.node)  # Environment phase agent
-    g.add_node(
-        "execute", partial(execute_node, session=session)
-    )  # Execution phase via existing OperationRunner
-    g.add_node("evaluate", evaluator.node)  # reads report, writes decision
+        "operationalize", _tag_failure("operationalize", partial(op_agent.node, session=session))
+    )
+    g.add_node("environment", _tag_failure("environment", env_agent.node))
+    # No session is bound: ``execute_node`` opens its own (``owns_session``), so a
+    # failure while executing cannot invalidate the run-wide transaction.
+    g.add_node("execute", _tag_failure("execute", partial(execute_node)))
+    g.add_node("evaluate", _tag_failure("evaluate", evaluator.node))
 
     # Linear edges: each phase has exactly one outgoing edge in sequence.
     g.add_edge(START, "orchestrate")
@@ -907,4 +943,4 @@ def build_graph(*, checkpointer, session: Any = None):
         },
     )
 
-    return g.compile(checkpointer=checkpointer)
+    return g.compile(checkpointer=checkpointer, interrupt_after=pause_after)

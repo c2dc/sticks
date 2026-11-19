@@ -350,6 +350,8 @@ class Operation(Base):
     total_failure: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     started_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
     finished_at: Mapped[dt.datetime | None] = mapped_column(DateTime, nullable=True)
+    # English code explaining why the operation was aborted (null otherwise).
+    abort_reason: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
 class AbilityResult(Base):
@@ -561,7 +563,16 @@ class AgentRun(Base):
     ``status`` persists as VARCHAR + CHECK (``native_enum=False``) from
     :class:`AgentRunStatus`, so the generated CHECK bounds the value set to the
     enum members (``pending`` / ``running`` / ``completed`` / ``failed`` /
-    ``aborted``).
+    ``aborted`` / ``awaiting_approval``).
+
+    Interactive run columns (all nullable except ``negotiation_rounds_used``):
+    ``llm_profile_id`` is the frozen language-model profile, ``current_phase``
+    the phase paused on or running, ``approvals`` the approval log,
+    ``flow_proposals`` the attack flow proposal history, ``failure`` the
+    structured failure (phase, code, cause code), ``notice_code`` a non-fatal
+    notice, ``coverage`` the planned/achieved technique coverage and
+    ``negotiation_rounds_used`` the operationalization/environment negotiation
+    rounds already consumed.
     """
 
     __tablename__ = "agent_runs"
@@ -584,6 +595,17 @@ class AgentRun(Base):
     # absent-input/cause message) and surfaced by the read endpoint (Req. 2.6,
     # 2.7). Additive and nullable so existing rows need no backfill.
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Interactive run state (additive, nullable; no backfill needed).
+    llm_profile_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    current_phase: Mapped[str | None] = mapped_column(String, nullable=True)
+    approvals: Mapped[list[Any] | None] = mapped_column(JSON, nullable=True)
+    flow_proposals: Mapped[list[Any] | None] = mapped_column(JSON, nullable=True)
+    failure: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    notice_code: Mapped[str | None] = mapped_column(String, nullable=True)
+    coverage: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    negotiation_rounds_used: Mapped[int] = mapped_column(
+        Integer, default=0, server_default="0", nullable=False
+    )
     created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=_utcnow, nullable=False)
     updated_at: Mapped[dt.datetime] = mapped_column(DateTime, default=_utcnow, nullable=False)
 

@@ -8,7 +8,7 @@ Why a dedicated builder (the bug this fixes)
 --------------------------------------------
 In the real ShadowRay run the Operation was persisted ``FINISHED`` with only a
 partial slice of ``AbilityResult`` rows collected, producing an **inconsistent**
-report: verdict "Falha", "0 nós falharam", yet techniques stuck "em execução".
+report: verdict "Failure", "0 nodes failed", yet techniques stuck "running".
 The incremental collection loop (task 3.5) already fixes the *collection* side;
 this builder guarantees the *report* side is internally consistent:
 

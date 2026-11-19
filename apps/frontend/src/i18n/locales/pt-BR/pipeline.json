@@ -72,7 +72,6 @@
     "next": "Avançar",
     "nextHint": "Selecione uma campanha para revisá-la e então avançar.",
     "run": {
-      "title": "Execução guiada por IA",
       "changeCampaign": "Trocar campanha",
       "campaign": "Campanha: {{campaign}}"
     }
@@ -83,19 +82,121 @@
     "start": "Começar a emulação",
     "preparing": "Preparando…",
     "working": "Estou trabalhando nisso…",
-    "stillWorking": "Ainda estou refinando nos bastidores — você já pode seguir.",
-    "generatingFlow": "Analisando a campanha e montando o attack flow de técnicas…",
-    "proceedQuestion": "Posso prosseguir com isto?",
-    "proceed": "Pode prosseguir",
-    "finalSummary": "Fechei a emulação após {{iteracoes}} iteração(ões).",
+    "finalSummary": "Fechei a emulação após {{iterations}} iteração(ões).",
     "executionReport": "A emulação ofensiva rodou contra os alvos e o resultado real foi registrado.",
     "evaluationRationale": "Justificativa do avaliador",
     "speech": {
-      "flow": "Gerei o attack flow das técnicas da campanha {{campaign}}. Dê uma olhada: posso prosseguir com este fluxo?",
-      "operationalization": "Estes são os comandos concretos disponíveis para cada técnica da campanha {{campaign}}. Revise-os e comece a emulação quando estiver pronto.",
-      "environment": "Ótimo. Projetei o ambiente isolado onde a campanha {{campaign}} será emulada com segurança. Posso prosseguir?",
+      "flow": "Gerei o attack flow das técnicas da campanha {{campaign}}. Dê uma olhada e aprove ou gere outro fluxo de ataque.",
+      "operationalization": "Estes são os comandos concretos disponíveis para cada técnica da campanha {{campaign}}. Revise-os e aprove para seguir ao fluxo de ataque.",
+      "environment": "Ótimo. Projetei o ambiente isolado onde a campanha {{campaign}} será emulada com segurança. Aprove para executar a emulação.",
       "execution": "Executei a emulação ofensiva da campanha {{campaign}} nos alvos e registrei o resultado real.",
       "evaluation": "Avaliei o resultado da execução da campanha {{campaign}}. Aqui está o veredito do avaliador."
+    },
+    "generateFlow": "Gerar o fluxo de ataque",
+    "generateAnotherFlow": "Gerar outro fluxo de ataque",
+    "approveOperationalization": "Aprovar comandos e seguir para o fluxo de ataque",
+    "approveFlow": "Aprovar este fluxo de ataque",
+    "approveEnvironment": "Aprovar o ambiente e executar a emulação",
+    "abort": "Cancelar a execução",
+    "stillWorkingHint": "Esta fase pode demorar um pouco mais em campanhas com muitos comandos. A execução continua em andamento.",
+    "waiting": {
+      "orchestration": "Iniciando a execução e relembrando experiências anteriores…",
+      "operationalization": "Preenchendo os parâmetros dos comandos…",
+      "flow": "Gerando o fluxo de ataque…",
+      "environment": "Projetando o ambiente isolado…",
+      "execution": "Executando a emulação…",
+      "evaluation": "Avaliando os resultados…"
+    },
+    "provenance": {
+      "title": "Como este fluxo de ataque foi obtido",
+      "exact": "Fluxo de ataque documentado, usado sem alterações",
+      "adapted": "Adaptado de fluxos de ataque de referência",
+      "created": "Criado pelo agente",
+      "references": "Fluxos de ataque de referência",
+      "noReferences": "Nenhum fluxo de ataque de referência foi usado.",
+      "coverage": "Sobreposição com o fluxo de ataque documentado mais parecido: {{coverage}}%"
+    },
+    "reason": {
+      "exact_match": "Um fluxo de ataque documentado corresponde a esta campanha.",
+      "adapted_above_threshold": "Foram encontrados fluxos de ataque documentados parecidos, que foram adaptados.",
+      "no_candidate_above_threshold": "Nenhum fluxo de ataque documentado é parecido o bastante.",
+      "all_candidates_excluded": "Todos os fluxos de ataque documentados parecidos já foram mostrados.",
+      "low_coverage_override": "O fluxo de ataque documentado cobre poucas técnicas, então o agente criou o próprio."
+    },
+    "history": {
+      "title": "Fluxos de ataque mostrados nesta execução",
+      "current": "Atual",
+      "use": "Usar este",
+      "hint": "Cada tentativa de fluxo de ataque, independente de quantas iterações completas a execução já fez."
+    },
+    "notice": {
+      "no_distinct_flow": "O agente não conseguiu produzir um fluxo de ataque diferente.",
+      "regeneration_failed": "Não foi possível gerar o novo fluxo de ataque. O anterior foi mantido.",
+      "cleanup_incomplete": "Alguns recursos do laboratório não puderam ser totalmente limpos.",
+      "interrupted_by_restart": "O backend reiniciou enquanto a execução estava em andamento."
+    },
+    "failure": {
+      "title": "A execução falhou",
+      "code": {
+        "phase_failed": "Uma fase falhou.",
+        "execution_error": "A emulação falhou durante a execução.",
+        "interrupted_by_restart": "O backend reiniciou enquanto a execução estava em andamento.",
+        "aborted_by_user": "A execução foi cancelada."
+      }
+    },
+    "error": {
+      "wrong_phase": "Esta fase não está aguardando aprovação.",
+      "phase_running": "Uma fase ainda está em andamento.",
+      "run_not_awaiting": "A execução não está aguardando aprovação.",
+      "run_already_active": "Já existe uma execução ativa para esta campanha.",
+      "invalid_phase": "Esta fase não é válida para aprovação.",
+      "run_not_found": "A execução não foi encontrada.",
+      "flow_proposal_not_found": "A proposta de fluxo de ataque selecionada não foi encontrada.",
+      "profile_unavailable": "O perfil de modelo selecionado não está disponível.",
+      "llm_blocked": "O modelo está bloqueado por causa de uma falha anterior."
+    },
+    "environment": {
+      "title": "Ambiente isolado",
+      "isolation": "Verificação de isolamento",
+      "commands": "Comandos que serão executados"
+    },
+    "operationalization": {
+      "title": "Comandos selecionados pelo agente",
+      "template": "Modelo original do Atomic",
+      "resolvedCommand": "Comando final",
+      "parameterSource": {
+        "agent_inferred": "Preenchido pelo agente",
+        "atomic_default": "Valor padrão do Atomic",
+        "unresolved": "Não resolvido"
+      },
+      "environmentRequirements": "Requisitos de ambiente desta técnica",
+      "noTechniques": "Nenhuma técnica pôde ser operacionalizada."
+    },
+    "coverage": {
+      "planned": "Cobertura planejada: {{coverage}}%",
+      "achieved": "Cobertura alcançada: {{coverage}}%",
+      "title": "Técnicas cobertas por esta execução"
+    },
+    "emulability": {
+      "planned_emulable": "Planejada para ser emulada",
+      "not_emulable": "Não emulável",
+      "executed_success": "Executada com sucesso",
+      "executed_failure": "Executada, mas falhou",
+      "not_executed": "Não executada",
+      "reason": {
+        "no_command": "Não há comando do Atomic disponível para esta técnica.",
+        "requires_vm": "Esta técnica exige uma máquina virtual.",
+        "os_unsupported": "O sistema operacional exigido não é suportado em um contêiner.",
+        "image_unavailable": "Nenhuma imagem de contêiner cobre os requisitos desta técnica.",
+        "port_conflict": "A porta exigida entra em conflito com outro serviço.",
+        "containment_blocked": "O gate de contenção bloquearia esta técnica."
+      }
+    },
+    "negotiation": {
+      "title": "Negociação entre os agentes de operacionalização e ambiente",
+      "rounds": "{{rounds}} rodada(s) de negociação",
+      "objection": "O agente de ambiente não aceitou esta proposta: {{reason}}",
+      "noObjections": "Nenhuma objeção foi levantada."
     }
   },
   "operationalization": {
@@ -150,7 +251,8 @@
       "running": "Em execução",
       "completed": "Concluído",
       "failed": "Falhou",
-      "aborted": "Abortado"
+      "aborted": "Abortado",
+      "awaiting_approval": "Aguardando sua aprovação"
     },
     "verdict": {
       "approved": "Aprovado",
@@ -158,6 +260,8 @@
       "pending": "Aguardando veredito"
     },
     "phaseName": {
+      "ready": "Pronto para começar",
+      "orchestration": "Orquestrador",
       "flow": "Agente de geração do attack flow",
       "operationalization": "Agente de operacionalização",
       "environment": "Agente de ambiente",
@@ -260,7 +364,7 @@
     "error": "Não foi possível carregar o attack flow.",
     "empty": "Nenhum attack flow foi gerado para esta campanha ainda.",
     "provenance": {
-      "title": "Proveniência",
+      "title": "Origem deste fluxo de ataque",
       "exact": "Correspondência exata",
       "adapted": "Adaptado",
       "created": "Criado",

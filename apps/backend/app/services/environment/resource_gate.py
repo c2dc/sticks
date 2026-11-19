@@ -181,16 +181,16 @@ class ResourceGate:
 
         if plan.container_count > self._limits.max_containers:
             reasons.append(
-                f"contêineres solicitados ({plan.container_count}) excedem o "
-                f"limite de {self._limits.max_containers}"
+                f"requested containers ({plan.container_count}) exceed the "
+                f"limit of {self._limits.max_containers}"
             )
         if plan.ram_gb > self._limits.max_ram_gb:
             reasons.append(
-                f"RAM solicitada ({plan.ram_gb} GB) excede o limite de {self._limits.max_ram_gb} GB"
+                f"requested RAM ({plan.ram_gb} GB) exceeds the limit of {self._limits.max_ram_gb} GB"
             )
         if plan.disk_gb > self._limits.max_disk_gb:
             reasons.append(
-                f"disco solicitado ({plan.disk_gb} GB) excede o limite de "
+                f"requested disk ({plan.disk_gb} GB) exceeds the limit of "
                 f"{self._limits.max_disk_gb} GB"
             )
 

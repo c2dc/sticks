@@ -183,11 +183,11 @@ class IsolationResult:
     def summary(self) -> str:
         """One-line human-readable summary suitable for a 409 abort message."""
         if self.passed:
-            return "Contenção satisfeita: todos os containers-alvo estão isolados."
+            return "Containment satisfied: all target containers are isolated."
         parts = []
         for verdict in self.offending:
             parts.append(f"{verdict.container}: {'; '.join(verdict.reasons)}")
-        return "Contenção não satisfeita — " + " | ".join(parts)
+        return "Containment not satisfied: " + " | ".join(parts)
 
 
 # ---------------------------------------------------------------------------
@@ -233,30 +233,30 @@ def _classify_container(container: str, inspector: ContainerInspector) -> Contai
         return ContainerIsolationVerdict(
             container=container,
             isolated=False,
-            reasons=("container não encontrado na Docker Engine API",),
+            reasons=("container not found in the Docker Engine API",),
         )
 
     # Rule 1: must be attached to at least one network.
     if not info.network_names:
-        reasons.append("container não está conectado a nenhuma rede")
+        reasons.append("container is not connected to any network")
 
     # Rule 2: every attached network must be internal.
     for network_name in info.network_names:
         if network_name in _KNOWN_EXTERNAL_NETWORK_NAMES:
             external_networks.append(network_name)
-            reasons.append(f"conectado à rede bridge externa '{network_name}'")
+            reasons.append(f"connected to external bridge network '{network_name}'")
             continue
 
         try:
             net = inspector.get_network_info(network_name)
         except NetworkNotFound:
             external_networks.append(network_name)
-            reasons.append(f"rede '{network_name}' não encontrada na Docker Engine API")
+            reasons.append(f"network '{network_name}' not found in the Docker Engine API")
             continue
 
         if not net.internal:
             external_networks.append(network_name)
-            reasons.append(f"conectado à rede não-interna '{network_name}' (Internal=false)")
+            reasons.append(f"connected to non-internal network '{network_name}' (Internal=false)")
             continue
 
         # Cross-check: an internal-flagged network whose subnets are not among the
@@ -265,8 +265,8 @@ def _classify_container(container: str, inspector: ContainerInspector) -> Contai
         if net.subnets and not any(is_internal_subnet(cidr) for cidr in net.subnets):
             external_networks.append(network_name)
             reasons.append(
-                f"rede '{network_name}' marcada internal mas com subnet fora das "
-                f"faixas internas conhecidas ({', '.join(net.subnets)})"
+                f"network '{network_name}' marked internal but with a subnet outside the "
+                f"known internal ranges ({', '.join(net.subnets)})"
             )
 
     # Rule 3: no external DNS configured.
@@ -342,15 +342,11 @@ class DockerSdkInspector:
         try:
             import docker  # local import: keep module importable without docker
         except ImportError as exc:  # pragma: no cover - dependency is declared
-            raise RuntimeError(
-                "docker SDK indisponível; não é possível inspecionar isolamento"
-            ) from exc
+            raise RuntimeError("docker SDK unavailable; cannot inspect isolation") from exc
         try:
             client = docker.from_env()
         except Exception as exc:  # pragma: no cover - needs a real daemon
-            raise RuntimeError(
-                "Docker Engine API indisponível; não é possível inspecionar isolamento"
-            ) from exc
+            raise RuntimeError("Docker Engine API unavailable; cannot inspect isolation") from exc
         return cls(client)
 
     def get_container_network_info(self, container: str) -> ContainerNetworkInfo:
