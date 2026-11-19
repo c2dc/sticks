@@ -168,6 +168,8 @@ export type AiEmulabilityStatus = "planned_emulable" | "not_emulable" | (string 
 
 export interface AiOperationalizedTechnique {
   technique_id: string
+  /** Readable ATT&CK technique name, when known. */
+  technique_name?: string | null
   commands: AiCommandProposal[]
   environment_requirements?: AiEnvironmentRequirements | null
   emulability_status?: AiEmulabilityStatus | null

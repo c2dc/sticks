@@ -5,13 +5,13 @@ import {
   CheckCircle2,
   ClipboardCheck,
   Container,
-  Loader2,
+  Network,
   Play,
   Rocket,
   Terminal,
+  type LucideIcon,
   Workflow,
   XCircle,
-  type LucideIcon,
 } from "lucide-react"
 
 import { GuidedRunView } from "@/components/GuidedRunView"
@@ -40,8 +40,8 @@ function headerPhase(
   const phase = run.status === "awaiting_approval" ? run.pending_phase : run.active_phase
   const icon = phase ? PHASE_ICONS[phase] : undefined
   if (phase && icon) return { icon, labelKey: `aiRun.phaseName.${phase}` }
-  if (phase === "orchestration") return { icon: Loader2, labelKey: "aiRun.phaseName.orchestration", spin: true }
-  return { icon: Loader2, labelKey: `aiRun.status.${run.status}`, spin: true }
+  if (phase === "orchestration") return { icon: Network, labelKey: "aiRun.phaseName.orchestration" }
+  return { icon: Network, labelKey: `aiRun.status.${run.status}` }
 }
 
 const PHASE_ICONS: Record<string, LucideIcon> = {
