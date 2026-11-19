@@ -17,7 +17,7 @@ fit with no schema migration).
 
 The origin (:class:`~app.models.enums.TranslationSource`) is explicit and
 extensible: today the whole curated derivation uses ``curadoria_humana``; a
-future ``gerado_ia`` operationalization fits without changing the model
+future ``ai_generated`` operationalization fits without changing the model
 (Req. 16.2, 16.4).
 
 _Requirements: 8.3, 8.4, 17.1, 17.2_
@@ -92,7 +92,7 @@ class EnvironmentParameters(BaseModel):
         services: Services/vulnerabilities inferred from the commands.
         network_context: Per-node network notes describing the lab network.
         origin: Derivation origin — ``curadoria_humana`` today; extensible to
-            ``gerado_ia`` without changing the model (Req. 16.2, 16.4).
+            ``ai_generated`` without changing the model (Req. 16.2, 16.4).
     """
 
     campaign_id: str

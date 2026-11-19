@@ -196,8 +196,8 @@ class IsolationRequired(RuntimeError):
 
     def __init__(self, run_id: str, *, reason: str | None = None) -> None:
         message = (
-            f"execution bloqueada: run {run_id!r} não possui prova de isolamento "
-            f"válida (egresso externo não confirmadamente cortado)"
+            f"execution blocked: run {run_id!r} has no valid isolation proof "
+            f"(external egress not confirmed as cut)"
         )
         if reason:
             message = f"{message} — {reason}"
@@ -290,8 +290,8 @@ def isolate(
     if isolated:
         reason: str | None = None
         detail = (
-            f"egresso externo cortado e verificado para {len(covered)} alvo(s); "
-            f"rede interna preservada"
+            f"external egress cut and verified for {len(covered)} target(s); "
+            f"internal network preserved"
         )
     else:
         # Compose the cause from the batch so the blocked transition is legible.
@@ -299,10 +299,10 @@ def isolate(
             v.reason or v.container for v in egress_verdicts if not (v.egress_lost and v.conclusive)
         ]
         if not egress_verdicts:
-            reason = "nenhum alvo verificado (fail-closed)"
+            reason = "no target verified (fail-closed)"
         else:
-            reason = "egresso externo não confirmadamente cortado: " + "; ".join(offenders)
-        detail = f"isolamento NÃO confirmado — {reason}"
+            reason = "external egress not confirmed as cut: " + "; ".join(offenders)
+        detail = f"isolation NOT confirmed: {reason}"
 
     sink.record(IsolationEvent(run_id=run_id, isolated=isolated, detail=detail))
 
@@ -336,7 +336,7 @@ def require_isolation(run_id: str, proof: IsolationProof | None) -> IsolationPro
             start of ``execution`` is blocked.
     """
     if proof is None:
-        raise IsolationRequired(run_id, reason="nenhuma prova de isolamento")
+        raise IsolationRequired(run_id, reason="no isolation proof")
     if proof.run_id != run_id:
         raise IsolationRequired(
             run_id,

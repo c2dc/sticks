@@ -69,6 +69,31 @@ def with_path_argument(command: str, input_arguments: Mapping[str, Any] | None) 
     return arguments
 
 
+def extract_argument_values(template: str, final: str) -> dict[str, str]:
+    """Recover the value each argument took in ``final`` from its ``template``.
+
+    Matches ``final`` against the template with every token turned into a lazy
+    capture group. Returns the first captured value per argument name, or an empty
+    dict when ``final`` does not follow the template shape (for example when the
+    agent rewrote text around the placeholders).
+    """
+    pattern = ""
+    names: list[str] = []
+    position = 0
+    for match in _TOKEN_RE.finditer(template or ""):
+        pattern += re.escape(template[position : match.start()]) + "(.*?)"
+        names.append(PATH_ARGUMENT_NAME if match.group(2) is not None else match.group(1))
+        position = match.end()
+    pattern += re.escape((template or "")[position:])
+    found = re.fullmatch(pattern, final or "", flags=re.DOTALL)
+    if found is None:
+        return {}
+    values: dict[str, str] = {}
+    for name, value in zip(names, found.groups(), strict=True):
+        values.setdefault(name, value)
+    return values
+
+
 def detect_argument_names(command: str) -> list[str]:
     """Return the distinct argument names found in ``command``, in order.
 

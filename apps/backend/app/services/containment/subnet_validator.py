@@ -229,12 +229,12 @@ class AbilityContainmentReport:
         Each line names the Ability (when known), the offending command and the
         specific external destination(s).
         """
-        label = self.ability_name or self.ability_id or "(ability desconhecida)"
+        label = self.ability_name or self.ability_id or "(unknown ability)"
         lines: list[str] = []
         for cmd in self.offending_commands:
             externals = ", ".join(dest.raw for dest in cmd.external_destinations)
             lines.append(
-                f"Ability '{label}': comando com destino externo [{externals}] -> {cmd.command}"
+                f"Ability '{label}': command with external destination [{externals}] -> {cmd.command}"
             )
         return lines
 

@@ -1,26 +1,23 @@
 """REST endpoints for AI curation runs (task 16.1).
 
-Two thin endpoints over :class:`~app.services.ai.run_service.AgentRunService`:
+Thin endpoints over :class:`~app.services.ai.run_service.AgentRunService`:
 
-* ``POST /api/campaigns/{campaign}/ai/run`` — start an AI curation run for a
-  campaign. The handler delegates synchronously to
-  :meth:`AgentRunService.start`, which creates the ``agent_runs`` row and invokes
-  the compiled StateGraph; on success the row is committed and returned. The
-  AI_Agent_System must create the row and invoke the graph within 2 seconds of
-  the start request (Req. 13.1) — this handler just delegates to the service
-  synchronously, so the 2s SLA is met by the service's own invocation path, not
-  by any extra work here.
+* ``POST /api/campaigns/{campaign}/ai/run`` — start an AI run (202). The service
+  creates and commits the ``agent_runs`` row and dispatches the ``initial`` phase
+  job in the background; the run then pauses for approval on each phase.
+  409 ``llm_blocked`` (preflight) and 409 ``run_already_active`` answer before a
+  row exists; a failure before the dispatch answers 503 and rolls the request
+  session back (Req. 13.2).
 
-  On ANY failure — a missing dependency
-  (:class:`~app.services.ai.run_service.DependencyUnavailableError`), the graph
-  invocation failing (:class:`~app.services.ai.run_service.RunFailedError`),
-  per-iteration persistence failing
-  (:class:`~app.services.ai.run_service.PersistenceError`), or any other error —
-  the handler rolls the session back so NO partial ``agent_runs`` row (nor any
-  flushed-but-uncommitted bookkeeping row) is persisted, and returns an error
-  response indicating the run could not be started (Req. 13.2). The service only
-  ``flush``es, never ``commit``s, so a rollback here discards everything the
-  failed attempt wrote.
+* ``GET .../ai/runs/active`` — the active run of the campaign (404 ``no_active_run``).
+
+* ``POST .../ai/runs/{id}/phases/{phase}/approve`` and
+  ``.../phases/flow/regenerate`` — 202, the next round runs in the background.
+  The frozen model profile is preflighted first (409 ``llm_blocked`` /
+  ``profile_unavailable``). ``.../phases/flow/select`` and ``.../abort`` answer 200.
+  ``RunTransitionError`` codes map to 404 (``run_not_found``,
+  ``flow_proposal_not_found``), 409 (``wrong_phase``, ``phase_running``,
+  ``run_not_awaiting``) and 422 (``invalid_phase``), as ``detail.reason``.
 
 * ``GET /api/campaigns/{campaign}/ai/runs/{id}`` — read a run with its iterations
   (the ``agent_iterations`` rows) and the evaluator verdict (from the
@@ -39,20 +36,21 @@ import datetime as dt
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Path, status
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.llm import selected_profile
 from app.db.session import get_db
 from app.services.ai.llm_failure import classify_llm_failure
-from app.services.ai.llm_selection import run_profile
 from app.services.ai.preflight import run_preflight
 from app.services.ai.run_service import (
     AgentRunService,
     DependencyUnavailableError,
     PersistenceError,
+    RunAlreadyActiveError,
     RunFailedError,
+    RunTransitionError,
 )
 
 router = APIRouter(prefix="/api", tags=["ai"])
@@ -127,6 +125,143 @@ class AiRunStartRequest(BaseModel):
     )
 
 
+class AiFlowSelectRequest(BaseModel):
+    """Body of ``POST .../phases/flow/select``."""
+
+    proposal_id: int = Field(..., description="``proposal_id`` of the history entry to restore.")
+
+
+class AiTechniqueCoverage(BaseModel):
+    """Emulation coverage of one campaign technique (Req. 22.3-22.5)."""
+
+    technique_id: str = Field(..., description="ATT&CK technique id.")
+    status: str = Field(
+        ...,
+        description=(
+            "Planned emulability: planned_emulable / not_emulable. Once the run "
+            "executed, the post-execution status is in ``achieved_status``."
+        ),
+    )
+    reason_code: str | None = Field(
+        default=None,
+        description=(
+            "Emulability reason code of a not_emulable technique (no_command, "
+            "port_conflict, image_unavailable, os_unsupported, requires_vm); null "
+            "when the technique is planned_emulable."
+        ),
+    )
+    achieved_status: str | None = Field(
+        default=None,
+        description=(
+            "Post-execution status: executed_success / executed_failure / "
+            "not_executed; null until the execution phase finished."
+        ),
+    )
+
+
+class AiRunCoverage(BaseModel):
+    """Planned and achieved emulation coverage of a run (``agent_runs.coverage``).
+
+    Built from the stored JSON, which accumulates the planned keys (after the
+    operationalization/environment pause) and the achieved keys (after execution).
+    """
+
+    planned_coverage: float | None = Field(
+        default=None, description="Percent of campaign techniques planned to be emulable."
+    )
+    achieved_coverage: float | None = Field(
+        default=None,
+        description="Percent of campaign techniques executed with success; null before execution.",
+    )
+    techniques: list[AiTechniqueCoverage] = Field(
+        default_factory=list, description="Per-technique status and reason code."
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _from_stored(cls, value: Any) -> Any:
+        """Shape the stored ``agent_runs.coverage`` JSON into the response fields."""
+        if not isinstance(value, dict) or "achieved_techniques" not in value:
+            # Already in response shape, or planned data only (techniques kept as is).
+            return value
+        achieved = {
+            item.get("technique_id"): item.get("status")
+            for item in value["achieved_techniques"] or []
+            if isinstance(item, dict)
+        }
+        techniques = [
+            {**item, "achieved_status": achieved.get(item.get("technique_id"))}
+            for item in value.get("techniques") or []
+            if isinstance(item, dict)
+        ]
+        return {
+            "planned_coverage": value.get("planned_coverage"),
+            "achieved_coverage": value.get("achieved_coverage"),
+            "techniques": techniques,
+        }
+
+
+class AiCommandParameterView(BaseModel):
+    """One parameter of a proposed command with its value and origin."""
+
+    name: str = Field(..., description="Placeholder name in the command template.")
+    value: str | None = Field(default=None, description="Final value; null when unresolved.")
+    source: str = Field(
+        ..., description="agent_inferred / atomic_default / unresolved (Parameter_Source)."
+    )
+
+
+class AiCommandProposalView(BaseModel):
+    """A command proposed for a technique (one ability executor)."""
+
+    command_ref: int | None = Field(
+        default=None, description="Id of the technique_commands row of the template, if known."
+    )
+    template: str = Field(..., description="Command template with placeholders.")
+    resolved_command: str = Field(..., description="Command with the parameters filled in.")
+    parameters: list[AiCommandParameterView] = Field(default_factory=list)
+
+
+class AiEnvironmentHostView(BaseModel):
+    """A host a technique needs in the lab."""
+
+    role: str = Field(..., description="Host kind (attacker/target) or its label.")
+    os: str = Field(..., description="Operating system: linux or windows.")
+    image_hint: str | None = Field(default=None, description="Best-effort image, if resolved.")
+
+
+class AiEnvironmentRequirementsView(BaseModel):
+    """Environment needs of one technique."""
+
+    hosts: list[AiEnvironmentHostView] = Field(default_factory=list)
+    ports: list[int] = Field(default_factory=list)
+    services: list[str] = Field(default_factory=list)
+    files: list[str] = Field(default_factory=list)
+
+
+class AiOperationalizedTechniqueView(BaseModel):
+    """One technique of the operationalization review."""
+
+    technique_id: str = Field(..., description="ATT&CK technique id.")
+    commands: list[AiCommandProposalView] = Field(default_factory=list)
+    environment_requirements: AiEnvironmentRequirementsView | None = None
+    emulability_status: str | None = Field(
+        default=None, description="planned_emulable / not_emulable."
+    )
+    emulability_reason_code: str | None = Field(
+        default=None, description="Reason code of a not_emulable technique."
+    )
+
+
+class AiOperationalizationReviewView(BaseModel):
+    """Command proposals and environment needs shown at the operationalization approval."""
+
+    techniques: list[AiOperationalizedTechniqueView] = Field(default_factory=list)
+    planned_coverage: float | None = Field(
+        default=None, description="Percent of techniques planned to be emulable."
+    )
+
+
 class AiRunResponse(BaseModel):
     """A single ``agent_runs`` row returned by the start/read endpoints.
 
@@ -139,7 +274,9 @@ class AiRunResponse(BaseModel):
     campaign_id: str = Field(..., description="Campaign this run curates (FK into campaigns).")
     status: str = Field(
         ...,
-        description=("Run status: pendente / em_execucao / concluido / falhou / abortado."),
+        description=(
+            "Run status: pending / running / awaiting_approval / completed / failed / aborted."
+        ),
     )
     thread_id: str = Field(
         ..., description="LangGraph checkpoint thread key making the run resumable."
@@ -160,6 +297,72 @@ class AiRunResponse(BaseModel):
             "runs that did not fail (Req. 2.6, 4.4)."
         ),
     )
+    coverage: AiRunCoverage | None = Field(
+        default=None,
+        description=(
+            "Planned/achieved emulation coverage with the per-technique status and "
+            "reason code (Req. 22.3-22.5); null until the planned coverage exists."
+        ),
+    )
+    pending_phase: str | None = Field(
+        default=None,
+        description="Phase awaiting the researcher's approval; set only while awaiting_approval.",
+    )
+    active_phase: str | None = Field(
+        default=None,
+        description="Phase currently executing in the background; set only while running.",
+    )
+    notice_code: str | None = Field(
+        default=None,
+        description="Non-fatal notice code (no_distinct_flow / regeneration_failed).",
+    )
+    failure: dict[str, Any] | None = Field(
+        default=None,
+        description="Structured failure (phase, code, cause_code) of a failed run.",
+    )
+    approvals: list[Any] = Field(
+        default_factory=list, description="Approval log of the phases approved so far."
+    )
+    flow_proposals: list[Any] = Field(
+        default_factory=list, description="Attack flow proposal history (one marked current)."
+    )
+    negotiation_rounds_used: int = Field(
+        default=0, description="Operationalization/environment negotiation rounds consumed."
+    )
+    operationalization_review: AiOperationalizationReviewView | None = Field(
+        default=None,
+        description=(
+            "Command proposals, environment requirements and planned coverage of the "
+            "operationalization phase; null until that phase produced its output."
+        ),
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _from_row(cls, value: Any) -> Any:
+        """Derive ``pending_phase`` / ``active_phase`` from an ORM row's status and phase."""
+        if isinstance(value, dict) or not hasattr(value, "current_phase"):
+            return value
+        run_status = getattr(value.status, "value", value.status)
+        phase = value.current_phase
+        return {
+            "id": value.id,
+            "campaign_id": value.campaign_id,
+            "status": run_status,
+            "thread_id": value.thread_id,
+            "max_iterations": value.max_iterations,
+            "iterations_used": value.iterations_used,
+            "final_verdict_success": value.final_verdict_success,
+            "error": value.error,
+            "coverage": value.coverage,
+            "pending_phase": phase if run_status == "awaiting_approval" else None,
+            "active_phase": phase if run_status == "running" else None,
+            "notice_code": value.notice_code,
+            "failure": value.failure,
+            "approvals": value.approvals or [],
+            "flow_proposals": value.flow_proposals or [],
+            "negotiation_rounds_used": value.negotiation_rounds_used or 0,
+        }
 
 
 class AiEvaluationView(BaseModel):
@@ -360,6 +563,142 @@ class GroundTruthComparisonResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Operationalization review (read from the stored phase output payload)
+# ---------------------------------------------------------------------------
+
+
+def _review_environment(requirement: Any) -> AiEnvironmentRequirementsView | None:
+    """Map a stored ``TechniqueEnvironmentRequirements`` dict to the review shape."""
+    if not isinstance(requirement, dict):
+        return None
+    target_os = requirement.get("target_os") or "linux"
+    hosts = [
+        AiEnvironmentHostView(
+            role=host.get("host_type") or host.get("label") or "target",
+            os=target_os,
+            image_hint=requirement.get("image_hint"),
+        )
+        for host in requirement.get("hosts") or []
+        if isinstance(host, dict)
+    ]
+    return AiEnvironmentRequirementsView(
+        hosts=hosts,
+        ports=[p for p in requirement.get("ports") or [] if isinstance(p, int)],
+        services=[str(s) for s in requirement.get("services") or []],
+        files=[str(f) for f in requirement.get("files") or []],
+    )
+
+
+def _build_operationalization_review(
+    payload: dict[str, Any], stored_coverage: Any
+) -> AiOperationalizationReviewView:
+    """Reshape a stored ``ProducedOperationalization`` payload into the review view.
+
+    Techniques follow the ability order, then any technique only known to the
+    negotiation or the environment requirements. A technique without a command, or
+    without an accepted negotiation, is ``not_emulable`` (same rules as
+    :func:`app.services.ai.coverage.derive_planned_coverage`).
+    """
+    from app.services.ai.coverage import (
+        REASON_NO_COMMAND,
+        STATUS_NOT_EMULABLE,
+        STATUS_PLANNED_EMULABLE,
+    )
+
+    abilities = (payload.get("abilities") or {}).get("abilities") or []
+    negotiation = (payload.get("negotiation") or {}).get("techniques") or {}
+    requirements = payload.get("environment_requirements") or {}
+
+    commands_by_technique: dict[str, list[AiCommandProposalView]] = {}
+    for ability in abilities:
+        technique_id = ability.get("technique_id") if isinstance(ability, dict) else None
+        if not technique_id:
+            continue
+        bucket = commands_by_technique.setdefault(technique_id, [])
+        for executor in ability.get("executors") or []:
+            command = executor.get("command")
+            if not command:
+                continue
+            bucket.append(
+                AiCommandProposalView(
+                    command_ref=executor.get("command_ref"),
+                    template=executor.get("template") or command,
+                    resolved_command=command,
+                    parameters=[
+                        AiCommandParameterView(
+                            name=p.get("name"), value=p.get("value"), source=p.get("source")
+                        )
+                        for p in executor.get("parameters") or []
+                        if isinstance(p, dict)
+                    ],
+                )
+            )
+
+    technique_ids = list(commands_by_technique)
+    for source in (negotiation, requirements):
+        for technique_id in source:
+            if technique_id not in technique_ids:
+                technique_ids.append(technique_id)
+
+    techniques: list[AiOperationalizedTechniqueView] = []
+    for technique_id in technique_ids:
+        commands = commands_by_technique.get(technique_id, [])
+        entry = negotiation.get(technique_id)
+        if entry is None or not commands:
+            status_value, reason = STATUS_NOT_EMULABLE, REASON_NO_COMMAND
+        elif entry.get("status") != STATUS_PLANNED_EMULABLE:
+            status_value = STATUS_NOT_EMULABLE
+            reason = entry.get("reason_code") or REASON_NO_COMMAND
+        else:
+            status_value, reason = STATUS_PLANNED_EMULABLE, None
+        techniques.append(
+            AiOperationalizedTechniqueView(
+                technique_id=technique_id,
+                commands=commands,
+                environment_requirements=_review_environment(requirements.get(technique_id)),
+                emulability_status=status_value,
+                emulability_reason_code=reason,
+            )
+        )
+
+    planned = stored_coverage.get("planned_coverage") if isinstance(stored_coverage, dict) else None
+    if planned is None and techniques:
+        emulable = sum(1 for t in techniques if t.emulability_status == STATUS_PLANNED_EMULABLE)
+        planned = round(100.0 * emulable / len(techniques), 1)
+    return AiOperationalizationReviewView(techniques=techniques, planned_coverage=planned)
+
+
+def _build_run_response(run: Any, db: Session) -> AiRunResponse:
+    """Build the run response, adding the operationalization review from the database.
+
+    The review comes from the payload of the newest ``operationalization`` phase
+    output of the run (latest iteration first); ``None`` when none exists yet. The
+    stored payload format is not changed, only reshaped.
+    """
+    from app.models.domain import AgentIteration, AgentPhaseOutput
+    from app.models.enums import AgentPhase
+
+    response = AiRunResponse.model_validate(run)
+    payload = (
+        db.execute(
+            select(AgentPhaseOutput.payload)
+            .join(AgentIteration, AgentPhaseOutput.iteration_id == AgentIteration.id)
+            .where(
+                AgentIteration.run_id == run.id,
+                AgentPhaseOutput.phase == AgentPhase.OPERATIONALIZATION,
+            )
+            .order_by(AgentIteration.index.desc(), AgentIteration.id.desc())
+            .limit(1)
+        )
+        .scalars()
+        .first()
+    )
+    if isinstance(payload, dict) and payload:
+        response.operationalization_review = _build_operationalization_review(payload, run.coverage)
+    return response
+
+
+# ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
 
@@ -367,13 +706,14 @@ class GroundTruthComparisonResponse(BaseModel):
 @router.post(
     "/campaigns/{campaign}/ai/run",
     response_model=AiRunResponse,
-    status_code=status.HTTP_201_CREATED,
-    summary="Start an AI curation run (create row + invoke graph within 2s)",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Start an AI run (creates the row and dispatches the first phase job)",
     responses={
         status.HTTP_409_CONFLICT: {
             "description": (
                 "The selected language model failed its preflight (reason "
-                "'llm_blocked'); nothing was started or persisted."
+                "'llm_blocked') or the campaign already has an active run (reason "
+                "'run_already_active'); nothing was started or persisted."
             )
         },
         status.HTTP_503_SERVICE_UNAVAILABLE: {
@@ -391,21 +731,20 @@ def start_ai_run(
     campaign: str = Path(..., description="Campaign to curate with the AI agents"),
     db: Session = Depends(get_db),
 ) -> AiRunResponse:
-    """Start an AI curation run for a campaign (Req. 13.1, 13.2).
+    """Start an AI run for a campaign and answer 202 (Req. 13.1, 13.2).
 
-    Delegates synchronously to :meth:`AgentRunService.start`, which creates the
-    ``agent_runs`` row and invokes the compiled StateGraph. Per Req. 13.1 the row
-    must be created and the graph invoked within 2 seconds of the start request;
-    the handler adds no extra work on the hot path — it just hands off to the
-    service, which owns the invocation — so the 2s SLA is bounded by the
-    service's own synchronous invocation.
+    Delegates to :meth:`AgentRunService.start`, which creates the ``agent_runs``
+    row, commits it and dispatches the ``initial`` phase job in the background
+    without waiting for the graph. The response is the run, ``running`` on the
+    ``orchestration`` phase; the job parks it on ``operationalization``
+    (``awaiting_approval``) and the client polls for it.
 
-    On success the created row is committed and returned. On ANY failure
-    (``DependencyUnavailableError`` / ``RunFailedError`` / ``PersistenceError`` or
-    any other error) the session is rolled back so NO partial ``agent_runs`` row
-    is persisted, and an error response indicating the run could not be started is
-    returned (Req. 13.2). Because the service only ``flush``es (never ``commit``s),
-    the rollback discards every row the failed attempt wrote.
+    A campaign that already has an active run answers 409 ``run_already_active``.
+    A failure before the job is dispatched (``DependencyUnavailableError``, a
+    failed dispatch or any other error) rolls the request session back, so the
+    materialized campaign row of the failed attempt is discarded, and answers 503.
+    The service commits the run row itself, and the phase job writes the run
+    through its own sessions, so the request session never rolls back run state.
 
     The campaign is validated against the persisted STIX campaigns
     (:func:`~app.api.campaigns._known_campaign_or_404` over ``stix_campaigns``)
@@ -458,10 +797,17 @@ def start_ai_run(
         # non-curated campaign (Req. 2.4, 2.5, 2.6). Idempotent no-op for an
         # already-materialized (curated) campaign.
         CampaignMaterializer(db).materialize(campaign, CURATED_VERSION)
-        # The profile is frozen for the whole run so a selection change mid-run
-        # cannot mix models.
-        with run_profile(profile):
-            run = AgentRunService(db).start(campaign, max_iterations=body.max_iterations)
+        # The profile is frozen on the run row; every phase job runs with it, so a
+        # selection change mid-run cannot mix models.
+        run = AgentRunService(db).start(
+            campaign, max_iterations=body.max_iterations, llm_profile_id=profile.id
+        )
+    except RunAlreadyActiveError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"reason": "run_already_active", "run_id": exc.run_id},
+        ) from exc
     except DependencyUnavailableError as exc:
         # A required dependency (checkpointer / pgvector) was unavailable: the
         # service created no row, but roll back defensively so nothing partial
@@ -516,10 +862,206 @@ def start_ai_run(
             },
         ) from exc
 
-    # Commit the created row (and any bookkeeping) so the started run is durable;
-    # the service only flushed it within the request-scoped session.
-    db.commit()
-    return AiRunResponse.model_validate(run)
+    return _build_run_response(run, db)
+
+
+# ---------------------------------------------------------------------------
+# Interactive run control: active run, approve, regenerate, select, abort
+# ---------------------------------------------------------------------------
+
+# HTTP status of each ``RunTransitionError`` code (design: API contract).
+_TRANSITION_STATUS = {
+    RunTransitionError.NOT_FOUND: status.HTTP_404_NOT_FOUND,
+    RunTransitionError.PROPOSAL_NOT_FOUND: status.HTTP_404_NOT_FOUND,
+    RunTransitionError.WRONG_PHASE: status.HTTP_409_CONFLICT,
+    RunTransitionError.PHASE_RUNNING: status.HTTP_409_CONFLICT,
+    RunTransitionError.NOT_AWAITING: status.HTTP_409_CONFLICT,
+    RunTransitionError.INVALID_PHASE: 422,
+}
+
+_APPROVABLE_PHASES = ("operationalization", "flow", "environment")
+
+
+def _transition_http_error(exc: RunTransitionError) -> HTTPException:
+    """Map a service transition error to its HTTP error (``detail.reason`` is the code)."""
+    return HTTPException(
+        status_code=_TRANSITION_STATUS.get(exc.code, status.HTTP_409_CONFLICT),
+        detail={"reason": exc.code, "run_id": exc.run_id},
+    )
+
+
+def _run_not_found(run_id: int) -> HTTPException:
+    return _transition_http_error(RunTransitionError(RunTransitionError.NOT_FOUND, run_id))
+
+
+def _require_campaign_run(db: Session, campaign: str, run_id: int) -> Any:
+    """Load the run, answering 404 ``run_not_found`` when absent or of another campaign."""
+    from app.models.domain import AgentRun
+
+    run = db.get(AgentRun, run_id, populate_existing=True)
+    if run is None or run.campaign_id != campaign:
+        raise _run_not_found(run_id)
+    return run
+
+
+def _gate_frozen_profile(run: Any) -> None:
+    """Preflight the model frozen on the run before a step that calls it.
+
+    Answers 409 ``llm_blocked`` (codes and hints) when the preflight blocks, and
+    409 ``profile_unavailable`` when the frozen profile no longer exists. The run
+    row is not changed in either case.
+    """
+    from app.services.ai.phase_job import _frozen_profile
+
+    profile = _frozen_profile(run)
+    if profile is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"reason": "profile_unavailable", "profile_id": run.llm_profile_id},
+        )
+    preflight = run_preflight(profile, force=True)
+    if preflight.status == "blocked":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "reason": "llm_blocked",
+                "profile_id": preflight.profile_id,
+                "codes": preflight.blocking_codes,
+                "hints": preflight.hints,
+            },
+        )
+
+
+@router.get(
+    "/campaigns/{campaign}/ai/runs/active",
+    response_model=AiRunResponse,
+    summary="Read the active run of the campaign",
+    responses={status.HTTP_404_NOT_FOUND: {"description": "Reason 'no_active_run'."}},
+)
+def get_active_ai_run(
+    campaign: str = Path(..., description="Campaign whose active run is read"),
+    db: Session = Depends(get_db),
+) -> AiRunResponse:
+    """Return the newest pending, running or awaiting-approval run of the campaign."""
+    run = AgentRunService(db).active_run(campaign)
+    if run is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail={"reason": "no_active_run"}
+        )
+    return _build_run_response(run, db)
+
+
+@router.post(
+    "/campaigns/{campaign}/ai/runs/{id}/phases/{phase}/approve",
+    response_model=AiRunResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Approve a paused phase and start the next one in the background",
+    responses={
+        status.HTTP_404_NOT_FOUND: {"description": "Reason 'run_not_found'."},
+        status.HTTP_409_CONFLICT: {
+            "description": (
+                "'wrong_phase', 'phase_running', 'run_not_awaiting', 'llm_blocked' or "
+                "'profile_unavailable'."
+            )
+        },
+        422: {"description": "Reason 'invalid_phase'."},
+    },
+)
+def approve_ai_phase(
+    campaign: str = Path(..., description="Campaign the run belongs to"),
+    id: int = Path(..., description="Id of the run"),
+    phase: str = Path(..., description="operationalization, flow or environment"),
+    db: Session = Depends(get_db),
+) -> AiRunResponse:
+    """Approve ``phase``; approving twice starts the next round once (409 the second time)."""
+    if phase not in _APPROVABLE_PHASES:
+        raise _transition_http_error(RunTransitionError(RunTransitionError.INVALID_PHASE, id))
+    run = _require_campaign_run(db, campaign, id)
+    _gate_frozen_profile(run)
+    try:
+        updated = AgentRunService(db).approve(id, phase)
+    except RunTransitionError as exc:
+        raise _transition_http_error(exc) from exc
+    return _build_run_response(updated, db)
+
+
+@router.post(
+    "/campaigns/{campaign}/ai/runs/{id}/phases/flow/regenerate",
+    response_model=AiRunResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Generate another attack flow while paused on the flow phase",
+    responses={
+        status.HTTP_404_NOT_FOUND: {"description": "Reason 'run_not_found'."},
+        status.HTTP_409_CONFLICT: {
+            "description": (
+                "'wrong_phase', 'phase_running', 'run_not_awaiting', 'llm_blocked' or "
+                "'profile_unavailable'."
+            )
+        },
+    },
+)
+def regenerate_ai_flow(
+    campaign: str = Path(..., description="Campaign the run belongs to"),
+    id: int = Path(..., description="Id of the run"),
+    db: Session = Depends(get_db),
+) -> AiRunResponse:
+    """Start the regeneration of the attack flow in the background."""
+    run = _require_campaign_run(db, campaign, id)
+    _gate_frozen_profile(run)
+    try:
+        updated = AgentRunService(db).regenerate(id)
+    except RunTransitionError as exc:
+        raise _transition_http_error(exc) from exc
+    return _build_run_response(updated, db)
+
+
+@router.post(
+    "/campaigns/{campaign}/ai/runs/{id}/phases/flow/select",
+    response_model=AiRunResponse,
+    summary="Go back to an earlier attack flow proposal",
+    responses={
+        status.HTTP_404_NOT_FOUND: {"description": "'run_not_found' or 'flow_proposal_not_found'."},
+        status.HTTP_409_CONFLICT: {
+            "description": "'wrong_phase', 'phase_running' or 'run_not_awaiting'."
+        },
+    },
+)
+def select_ai_flow_proposal(
+    body: AiFlowSelectRequest,
+    campaign: str = Path(..., description="Campaign the run belongs to"),
+    id: int = Path(..., description="Id of the run"),
+    db: Session = Depends(get_db),
+) -> AiRunResponse:
+    """Make an earlier proposal current again; runs in the request, without the model."""
+    _require_campaign_run(db, campaign, id)
+    try:
+        updated = AgentRunService(db).select_proposal(id, body.proposal_id)
+    except RunTransitionError as exc:
+        raise _transition_http_error(exc) from exc
+    return _build_run_response(updated, db)
+
+
+@router.post(
+    "/campaigns/{campaign}/ai/runs/{id}/abort",
+    response_model=AiRunResponse,
+    summary="Abort a run paused for approval and release its resources",
+    responses={
+        status.HTTP_404_NOT_FOUND: {"description": "Reason 'run_not_found'."},
+        status.HTTP_409_CONFLICT: {"description": "'phase_running' or 'run_not_awaiting'."},
+    },
+)
+def abort_ai_run(
+    campaign: str = Path(..., description="Campaign the run belongs to"),
+    id: int = Path(..., description="Id of the run"),
+    db: Session = Depends(get_db),
+) -> AiRunResponse:
+    """Abort the run; aborting twice answers 409 ``run_not_awaiting``."""
+    _require_campaign_run(db, campaign, id)
+    try:
+        updated = AgentRunService(db).abort(id)
+    except RunTransitionError as exc:
+        raise _transition_http_error(exc) from exc
+    return _build_run_response(updated, db)
 
 
 @router.get(
@@ -647,7 +1189,7 @@ def get_ai_run(
         iterations.append(view)
 
     return AiRunDetailResponse(
-        run=AiRunResponse.model_validate(run),
+        run=_build_run_response(run, db),
         iterations=iterations,
     )
 

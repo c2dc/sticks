@@ -19,6 +19,7 @@ unit of work; without a session they degrade to an empty context rather than
 falling back to disk, preserving the no-disk guarantee.
 """
 
+import re
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
@@ -228,7 +229,7 @@ def tool_atomic_lookup(
                 # The Command_Base is keyed by technique, not by ability; derive a
                 # stable synthetic ability id so the consumer can group commands
                 # and keep a reproducible ordering.
-                "ability_id": f"{suggestion.technique_id}-cmd-{index}",
+                "ability_id": caldera_ability_id(f"{suggestion.technique_id}-cmd-{index}"),
                 "ability_name": None,
                 "tactic": None,
                 "name": suggestion.executor or None,
@@ -237,6 +238,19 @@ def tool_atomic_lookup(
             }
         )
     return pool
+
+
+_CALDERA_ID_INVALID = re.compile(r"[^A-Za-z0-9_-]")
+
+
+def caldera_ability_id(value: str) -> str:
+    """Make ``value`` a valid Caldera ability id.
+
+    Caldera accepts only alphanumeric characters, hyphens and underscores in an
+    ability id (it answers HTTP 400 otherwise). ATT&CK sub-technique ids such as
+    ``T1071.001`` carry a dot, so every other character becomes a hyphen.
+    """
+    return _CALDERA_ID_INVALID.sub("-", value)
 
 
 def tool_parse_command(command: str) -> dict:
@@ -381,7 +395,7 @@ def tool_compose(
     method_name = method_by_action.get(action)
     if method_name is None:
         raise ValueError(
-            f"ação de compose desconhecida: {action!r} (esperado um de {sorted(method_by_action)})"
+            f"unknown compose action: {action!r} (expected one of {sorted(method_by_action)})"
         )
     operation: Callable[..., CommandResult] = getattr(executor, method_name)
 

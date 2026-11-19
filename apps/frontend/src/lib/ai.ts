@@ -19,12 +19,14 @@
  * {@link getAiRun} so each new iteration and the evaluator verdict are displayed
  * within 5s of becoming available (Req. 13.3, 13.4).
  */
-import { api } from "@/lib/api"
+import { api, ApiError } from "@/lib/api"
+import { reasonCodeFrom, type ReasonCodes } from "@/lib/llm"
 
 /** Run status — a member of the backend `AgentRunStatus` portable enum. */
 export type AgentRunStatus =
   | "pending"
   | "running"
+  | "awaiting_approval"
   | "completed"
   | "failed"
   | "aborted"
@@ -55,6 +57,140 @@ export interface AiRun {
    * that did not fail (Req. 2.6, 4.4).
    */
   error?: string | null
+  /** Phase waiting for the researcher's approval; set only while `awaiting_approval`. */
+  pending_phase?: AiRunPhase | null
+  /** Phase running in the background; set only while `running`. */
+  active_phase?: AiRunPhase | null
+  /** Non-fatal notice code (`no_distinct_flow` / `regeneration_failed`). */
+  notice_code?: AiNoticeCode | null
+  /** Structured failure of a failed run. */
+  failure?: AiRunFailure | null
+  /** Phases approved so far, oldest first. */
+  approvals?: AiApproval[]
+  /** Attack flow proposal history; one entry is marked `current`. */
+  flow_proposals?: AiFlowProposal[]
+  /** Command proposals, environment requirements and planned coverage; null until produced. */
+  operationalization_review?: AiOperationalizationReview | null
+  /** Planned and achieved emulation coverage; null until the first pause. */
+  coverage?: AiRunCoverage | null
+}
+
+/** Pipeline phase names used by the interactive run (backend `AgentPhase`). */
+export type AiRunPhase =
+  | "operationalization"
+  | "flow"
+  | "environment"
+  | "execution"
+  | "evaluation"
+  | (string & {})
+
+/** Phases the researcher can approve (`{phase}` of the approve route). */
+export type ApprovableAiPhase = "operationalization" | "flow" | "environment"
+
+/** Non-fatal notice codes of a run. */
+export type AiNoticeCode = "no_distinct_flow" | "regeneration_failed" | (string & {})
+
+/** Failure of a run: failing phase, failure code and, when known, the underlying cause code. */
+export interface AiRunFailure {
+  phase: AiRunPhase
+  /** `phase_failed`, `execution_error`, `interrupted_by_restart` or `aborted_by_user`. */
+  code: string
+  cause_code?: string | null
+}
+
+/** One entry of the approval log. */
+export interface AiApproval {
+  phase: AiRunPhase
+  approved_at: string
+  /** Flow proposal approved, when the phase is `flow`. */
+  proposal_id?: number | null
+}
+
+/** Why an attack flow was presented (`reason_code` of a flow proposal). */
+export type AiFlowReasonCode =
+  | "exact_match"
+  | "adapted_above_threshold"
+  | "no_candidate_above_threshold"
+  | "all_candidates_excluded"
+  | "low_coverage_override"
+  | (string & {})
+
+/** One attack flow presented to the researcher. */
+export interface AiFlowProposal {
+  proposal_id: number
+  /** Documented flow id when the proposal is an exact reference; null for created flows. */
+  flow_id: number | null
+  flow_hash?: string | null
+  /** Provenance kind (e.g. `exact`, `adapted`, `created`). */
+  kind?: string | null
+  /** Ids of the reference flows used. */
+  references: number[]
+  similarity?: number | null
+  reason_code?: AiFlowReasonCode | null
+  /** Share of the campaign techniques covered by the best reference flow. */
+  coverage?: number | null
+  presented_at: string
+  current: boolean
+  [key: string]: unknown
+}
+
+/** Where a command parameter value came from. */
+export type ParameterSource = "agent_inferred" | "atomic_default" | "unresolved" | (string & {})
+
+export interface AiCommandParameter {
+  name: string
+  value: string | null
+  source: ParameterSource
+}
+
+export interface AiCommandProposal {
+  command_ref: number | null
+  template: string
+  resolved_command: string
+  parameters: AiCommandParameter[]
+}
+
+export interface AiEnvironmentRequirements {
+  hosts: Array<{ role: string; os: string; image_hint?: string | null }>
+  ports: number[]
+  services: string[]
+  files: string[]
+}
+
+/** Per-technique emulability in the review. */
+export type AiEmulabilityStatus = "planned_emulable" | "not_emulable" | (string & {})
+
+export interface AiOperationalizedTechnique {
+  technique_id: string
+  commands: AiCommandProposal[]
+  environment_requirements?: AiEnvironmentRequirements | null
+  emulability_status?: AiEmulabilityStatus | null
+  /** `no_command`, `port_conflict`, `image_unavailable`, `os_unsupported`, `requires_vm`. */
+  emulability_reason_code?: string | null
+  [key: string]: unknown
+}
+
+export interface AiOperationalizationReview {
+  techniques: AiOperationalizedTechnique[]
+  planned_coverage?: number | null
+  [key: string]: unknown
+}
+
+/** Coverage of one technique (backend `AiTechniqueCoverage`). */
+export interface AiTechniqueCoverage {
+  technique_id: string
+  /** Planned emulability: `planned_emulable` / `not_emulable`. */
+  status: AiEmulabilityStatus
+  reason_code?: string | null
+  /** `executed_success` / `executed_failure` / `not_executed`; null before execution. */
+  achieved_status?: string | null
+}
+
+/** Planned and achieved coverage of a run (backend `AiRunCoverage`). */
+export interface AiRunCoverage {
+  planned_coverage?: number | null
+  achieved_coverage?: number | null
+  techniques: AiTechniqueCoverage[]
 }
 
 /**
@@ -150,8 +286,47 @@ export interface StartAiRunRequest {
 }
 
 /**
- * Start an AI curation run for a campaign (Req. 13.1). Creates the `agent_runs`
- * row and invokes the compiled StateGraph, returning the run summary row.
+ * Codes of `detail.reason` returned by the interactive run routes. 409 and 404 errors
+ * carry one of these; read it with {@link aiRunReasonFrom}.
+ */
+export type AiRunReason =
+  | "run_already_active"
+  | "phase_running"
+  | "wrong_phase"
+  | "run_not_awaiting"
+  | "invalid_phase"
+  | "run_not_found"
+  | "no_active_run"
+  | "flow_proposal_not_found"
+  | "profile_unavailable"
+  | "llm_blocked"
+  | "run_failed"
+  | "dependency_unavailable"
+
+/**
+ * Structured reason of an `ApiError` from the run routes. Reuses the LLM reason reader
+ * and adds `run_id` (present on `run_already_active` and transition errors). `reason`
+ * is null for errors without a structured body.
+ */
+export function aiRunReasonFrom(error: unknown): ReasonCodes & {
+  reason: AiRunReason | null
+  runId: number | null
+} {
+  const base = reasonCodeFrom(error)
+  const body = (error as { body?: { detail?: { run_id?: unknown } } } | null)?.body
+  const runId = body?.detail?.run_id
+  return {
+    ...base,
+    reason: base.reason as AiRunReason | null,
+    runId: typeof runId === "number" ? runId : null,
+  }
+}
+
+/**
+ * Start an AI curation run for a campaign (Req. 13.1). The backend answers 202
+ * right after creating the `agent_runs` row (`status=running`,
+ * `active_phase=operationalization`); the phases run in the background and the
+ * caller polls {@link getAiRun} or {@link getActiveAiRun}.
  *
  * `maxIterations` is optional: when omitted the backend resolves the configured
  * default; when provided it is clamped by the service to the inclusive 1..100
@@ -176,4 +351,66 @@ export function getAiRun(campaign: string, id: number | string): Promise<AiRunDe
   return api.get<AiRunDetail>(
     `/campaigns/${encodeURIComponent(campaign)}/ai/runs/${encodeURIComponent(String(id))}`,
   )
+}
+
+function runPath(campaign: string, id: number | string): string {
+  return `/campaigns/${encodeURIComponent(campaign)}/ai/runs/${encodeURIComponent(String(id))}`
+}
+
+/**
+ * The run of the campaign that is running or awaiting approval, or null when there
+ * is none (the backend answers 404 `no_active_run`). Used to resume after a reload.
+ */
+export async function getActiveAiRun(campaign: string): Promise<AiRun | null> {
+  try {
+    return await api.get<AiRun>(`/campaigns/${encodeURIComponent(campaign)}/ai/runs/active`)
+  } catch (error) {
+    if (error instanceof ApiError && aiRunReasonFrom(error).reason === "no_active_run") {
+      return null
+    }
+    throw error
+  }
+}
+
+/**
+ * Approve the pending phase and start the next one in the background (202).
+ * Errors: 404 `run_not_found`; 409 `wrong_phase`, `phase_running`, `run_not_awaiting`,
+ * `llm_blocked`, `profile_unavailable`; 422 `invalid_phase`.
+ */
+export function approveAiPhase(
+  campaign: string,
+  id: number | string,
+  phase: ApprovableAiPhase,
+): Promise<AiRun> {
+  return api.post<AiRun>(`${runPath(campaign, id)}/phases/${encodeURIComponent(phase)}/approve`)
+}
+
+/**
+ * Generate another attack flow, excluding the ones already presented (202). Same
+ * errors as {@link approveAiPhase}.
+ */
+export function regenerateAiFlow(campaign: string, id: number | string): Promise<AiRun> {
+  return api.post<AiRun>(`${runPath(campaign, id)}/phases/flow/regenerate`)
+}
+
+/**
+ * Make an earlier flow proposal the current one (200). Errors: 404 `run_not_found`,
+ * `flow_proposal_not_found`; 409 `wrong_phase`, `phase_running`, `run_not_awaiting`.
+ */
+export function selectAiFlowProposal(
+  campaign: string,
+  id: number | string,
+  proposalId: number,
+): Promise<AiRun> {
+  return api.post<AiRun>(`${runPath(campaign, id)}/phases/flow/select`, {
+    proposal_id: proposalId,
+  })
+}
+
+/**
+ * Abort a run that is awaiting approval (200). Errors: 404 `run_not_found`;
+ * 409 `phase_running`, `run_not_awaiting`.
+ */
+export function abortAiRun(campaign: string, id: number | string): Promise<AiRun> {
+  return api.post<AiRun>(`${runPath(campaign, id)}/abort`)
 }

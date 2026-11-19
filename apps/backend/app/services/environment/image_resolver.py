@@ -48,7 +48,7 @@ Resolution order (Req. 5.4, 14.4, 14.5):
 4. **Nothing covers the need →** raise :class:`ImageUnavailableError` naming the
    requested ``target_os`` (and the services it needed), so the env agent can
    treat it as a phase insufficiency the evaluator may route an environment
-   refinement for (design §"Geração de ambiente").
+   refinement for (design §"Environment generation").
 
 Conventions carried over from the other Session-injected services
 (:class:`~app.services.provisioning_map_service.ProvisioningMapService`): the ORM
@@ -136,7 +136,7 @@ class ImageUnavailableError(RuntimeError):
 
     Names the requested ``target_os`` (and the services it needed) so the env
     agent can surface the phase insufficiency and the evaluator can route an
-    environment refinement (design §"Geração de ambiente", Req. 14.4).
+    environment refinement (design §"Environment generation", Req. 14.4).
     """
 
     def __init__(self, need: ImageNeed) -> None:

@@ -72,7 +72,6 @@
     "next": "Next",
     "nextHint": "Select a campaign to review it, then continue.",
     "run": {
-      "title": "Guided AI run",
       "changeCampaign": "Change campaign",
       "campaign": "Campaign: {{campaign}}"
     }
@@ -83,19 +82,121 @@
     "start": "Start the emulation",
     "preparing": "Preparing…",
     "working": "I'm working on it…",
-    "stillWorking": "I'm still refining in the background — you can go ahead.",
-    "generatingFlow": "Analyzing the campaign and building the attack flow of techniques…",
-    "proceedQuestion": "Shall I proceed with this?",
-    "proceed": "Go ahead",
-    "finalSummary": "I closed the emulation after {{iteracoes}} iteration(s).",
+    "finalSummary": "I closed the emulation after {{iterations}} iteration(s).",
     "executionReport": "The offensive emulation ran against the targets and the real result was recorded.",
     "evaluationRationale": "Evaluator rationale",
     "speech": {
-      "flow": "I generated the attack flow for the techniques of {{campaign}}. Take a look: shall I proceed with this flow?",
-      "operationalization": "Here are the concrete commands available for each technique of {{campaign}}. Review them, then start the emulation when you're ready.",
-      "environment": "Nice. I designed the isolated environment where {{campaign}} will be emulated safely. Shall I proceed?",
+      "flow": "I generated the attack flow for the techniques of {{campaign}}. Take a look, then approve it or generate another attack flow.",
+      "operationalization": "Here are the concrete commands available for each technique of {{campaign}}. Review them, then approve to move on to the attack flow.",
+      "environment": "Nice. I designed the isolated environment where {{campaign}} will be emulated safely. Approve to run the emulation.",
       "execution": "I ran the offensive emulation of {{campaign}} against the targets and recorded the real result.",
       "evaluation": "I evaluated the execution result of {{campaign}}. Here is the evaluator's verdict."
+    },
+    "generateFlow": "Generate the attack flow",
+    "generateAnotherFlow": "Generate another attack flow",
+    "approveOperationalization": "Approve commands and proceed to the attack flow",
+    "approveFlow": "Approve this attack flow",
+    "approveEnvironment": "Approve the environment and run the emulation",
+    "abort": "Cancel the run",
+    "stillWorkingHint": "This phase can take a bit longer for campaigns with many commands. The run is still going.",
+    "waiting": {
+      "orchestration": "Starting the run and recalling past experience…",
+      "operationalization": "Filling in the command parameters…",
+      "flow": "Generating the attack flow…",
+      "environment": "Designing the isolated environment…",
+      "execution": "Running the emulation…",
+      "evaluation": "Evaluating the results…"
+    },
+    "provenance": {
+      "title": "How this attack flow was obtained",
+      "exact": "Documented attack flow, used as is",
+      "adapted": "Adapted from reference attack flows",
+      "created": "Created by the agent",
+      "references": "Reference attack flows",
+      "noReferences": "No reference attack flow was used.",
+      "coverage": "Overlap with the best matching documented attack flow: {{coverage}}%"
+    },
+    "reason": {
+      "exact_match": "A documented attack flow matches this campaign.",
+      "adapted_above_threshold": "Similar documented attack flows were found and adapted.",
+      "no_candidate_above_threshold": "No documented attack flow is similar enough.",
+      "all_candidates_excluded": "Every similar documented attack flow was already shown.",
+      "low_coverage_override": "The documented attack flow covers too few techniques, so the agent created its own."
+    },
+    "history": {
+      "title": "Attack flows shown in this run",
+      "current": "Current",
+      "use": "Use this one",
+      "hint": "Each attempt at the attack flow, independent of how many full iterations the run has completed."
+    },
+    "notice": {
+      "no_distinct_flow": "The agent could not produce a different attack flow.",
+      "regeneration_failed": "The new attack flow could not be generated. The previous one is kept.",
+      "cleanup_incomplete": "Some lab resources could not be fully cleaned up.",
+      "interrupted_by_restart": "The backend restarted while the run was in progress."
+    },
+    "failure": {
+      "title": "The run failed",
+      "code": {
+        "phase_failed": "A phase failed.",
+        "execution_error": "The emulation failed while running.",
+        "interrupted_by_restart": "The backend restarted while the run was in progress.",
+        "aborted_by_user": "The run was cancelled."
+      }
+    },
+    "error": {
+      "wrong_phase": "This phase is not waiting for approval.",
+      "phase_running": "A phase is still running.",
+      "run_not_awaiting": "The run is not waiting for approval.",
+      "run_already_active": "There is already an active run for this campaign.",
+      "invalid_phase": "This phase is not valid for approval.",
+      "run_not_found": "The run was not found.",
+      "flow_proposal_not_found": "The selected attack flow proposal was not found.",
+      "profile_unavailable": "The selected model profile is not available.",
+      "llm_blocked": "The model is blocked because of a previous failure."
+    },
+    "environment": {
+      "title": "Isolated environment",
+      "isolation": "Isolation check",
+      "commands": "Commands that will run"
+    },
+    "operationalization": {
+      "title": "Commands selected by the agent",
+      "template": "Original Atomic template",
+      "resolvedCommand": "Final command",
+      "parameterSource": {
+        "agent_inferred": "Filled in by the agent",
+        "atomic_default": "Atomic default value",
+        "unresolved": "Not resolved"
+      },
+      "environmentRequirements": "Environment requirements for this technique",
+      "noTechniques": "No technique could be operationalized."
+    },
+    "coverage": {
+      "planned": "Planned coverage: {{coverage}}%",
+      "achieved": "Achieved coverage: {{coverage}}%",
+      "title": "Techniques covered by this run"
+    },
+    "emulability": {
+      "planned_emulable": "Planned to be emulated",
+      "not_emulable": "Not emulable",
+      "executed_success": "Executed successfully",
+      "executed_failure": "Executed, but failed",
+      "not_executed": "Not executed",
+      "reason": {
+        "no_command": "No Atomic command is available for this technique.",
+        "requires_vm": "This technique requires a virtual machine.",
+        "os_unsupported": "The required operating system is not supported in a container.",
+        "image_unavailable": "No container image covers this technique's requirements.",
+        "port_conflict": "The required port conflicts with another service.",
+        "containment_blocked": "The containment gate would block this technique."
+      }
+    },
+    "negotiation": {
+      "title": "Negotiation between the operationalization and environment agents",
+      "rounds": "{{rounds}} negotiation round(s)",
+      "objection": "The environment agent could not accept this proposal: {{reason}}",
+      "noObjections": "No objections were raised."
     }
   },
   "operationalization": {
@@ -150,7 +251,8 @@
       "running": "Running",
       "completed": "Completed",
       "failed": "Failed",
-      "aborted": "Aborted"
+      "aborted": "Aborted",
+      "awaiting_approval": "Awaiting your approval"
     },
     "verdict": {
       "approved": "Passed",
@@ -158,6 +260,8 @@
       "pending": "Awaiting verdict"
     },
     "phaseName": {
+      "ready": "Ready to start",
+      "orchestration": "Orchestrator",
       "flow": "Attack flow generation agent",
       "operationalization": "Operationalization agent",
       "environment": "Environment agent",
@@ -260,7 +364,7 @@
     "error": "Could not load the attack flow.",
     "empty": "No attack flow has been generated for this campaign yet.",
     "provenance": {
-      "title": "Provenance",
+      "title": "Origin of this attack flow",
       "exact": "Exact match",
       "adapted": "Adapted",
       "created": "Created",

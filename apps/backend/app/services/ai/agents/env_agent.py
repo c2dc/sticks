@@ -25,7 +25,7 @@ pre-condition**. An AI-proposed environment that is **not** isolated does **not*
 complete Environment phase (``ProvisionedEnvironment.ready`` stays ``False``), exactly like
 curation (Req. 8.3, 9.3).
 
-Every produced artifact is stamped ``origin = AI_GENERATED`` (``"gerado_ia"``),
+Every produced artifact is stamped ``origin = AI_GENERATED`` (``"ai_generated"``),
 the value the existing enums/CHECK constraints already accept — so persisting it
 needs **no** schema migration (Req. 2.4, 2.5, Property 1).
 
@@ -39,7 +39,7 @@ LangGraph node — it builds the :class:`AiEnvironmentProvisioner` lazily, reads
 the Operationalization phase operationalization artifact in the state, calls ``provision`` and
 writes the ``ProvisionedEnvironment`` into the ``artifacts.environment`` slot of
 the returned state delta (Req. 2.4, 11.5). The **persistence** of the
-``agent_phase_outputs`` row (``origin=gerado_ia``) is kept **factored** out of the
+``agent_phase_outputs`` row (``origin=ai_generated``) is kept **factored** out of the
 node into :func:`build_phase_output` / :func:`persist_phase_output` so the
 session-bound ``AgentRunService`` (tasks 15.x) can drive it with its injected
 ``Session`` — the node itself stays pure (no DB, no ``Session``) so the StateGraph
@@ -60,11 +60,13 @@ from app.services.environment.image_resolver import (
     ImageNeed,
     ImageResolution,
     ImageResolver,
+    ImageUnavailableError,
     detect_target_os,
 )
 from app.services.environment.operationalization import (
     EnvironmentParameters,
     EnvironmentPlatform,
+    RequiredService,
 )
 from app.services.environment.provisioner import (
     DeprovisioningResult,
@@ -73,6 +75,11 @@ from app.services.environment.provisioner import (
     ProvisionedEnvironment,
     ProvisioningResult,
     SubphaseSummary,
+)
+from app.services.environment.requirements import (
+    Objection,
+    ObjectionCode,
+    TechniqueEnvironmentRequirements,
 )
 from app.services.environment.resource_gate import (
     ProposedTarget,
@@ -91,6 +98,7 @@ __all__ = [
     "AiEnvironmentProvisioner",
     "build_phase_output",
     "detect_params_target_os",
+    "evaluate_environment_requirements",
     "node",
     "persist_phase_output",
     "resolve_image_for_params",
@@ -98,7 +106,7 @@ __all__ = [
 
 
 class AiEnvironmentProvisioner:
-    """Environment phase agent — proposes/creates the contained environment, stamps ``gerado_ia``.
+    """Environment phase agent — proposes/creates the contained environment, stamps ``ai_generated``.
 
     Structural implementation of the
     :class:`~app.services.environment.provisioner.EnvironmentProvisioner` seam
@@ -124,7 +132,7 @@ class AiEnvironmentProvisioner:
     AI-proposed environment keeps ``ProvisionedEnvironment.ready`` ``False`` and
     does **not** complete Environment phase, exactly like curation.
 
-    Every produced artifact carries ``origin = AI_GENERATED`` (``"gerado_ia"``) —
+    Every produced artifact carries ``origin = AI_GENERATED`` (``"ai_generated"``) —
     a value the existing enums/CHECK constraints already accept, so persistence
     needs no schema migration (Req. 2.4, 2.5).
 
@@ -417,11 +425,11 @@ class AiEnvironmentProvisioner:
     # -- EnvironmentProvisioner seam --------------------------------------
 
     def origin(self) -> TranslationSource:
-        """Stamp ``gerado_ia`` on the Environment phase output (Req. 2.4, 16.3).
+        """Stamp ``ai_generated`` on the Environment phase output (Req. 2.4, 16.3).
 
         The AI implementation stamps
         :attr:`~app.models.enums.TranslationSource.AI_GENERATED` — the exact string
-        value ``"gerado_ia"`` the existing enums/CHECK constraints already accept,
+        value ``"ai_generated"`` the existing enums/CHECK constraints already accept,
         so persisting the produced artifact needs no schema migration (Req. 2.5).
         """
         return TranslationSource.AI_GENERATED
@@ -540,17 +548,24 @@ class AiEnvironmentProvisioner:
             # record (Req. 14.7, 14.8). Every other verdict, summary, health,
             # isolation, subphase outcome and failed_step/error_message the
             # unchanged pipeline computed is preserved verbatim (Req. 2.7).
-            environment = (
-                self._get_pipeline()
-                .provision(params, on_log=on_log)
-                .model_copy(
-                    update={
-                        "origin": self.origin(),
-                        "platform": EnvironmentPlatform.CONTAINER,
-                        "vm_confirmation": vm_confirmation,
-                    }
-                )
+            pipeline = self._get_pipeline()
+            try:
+                provisioned = pipeline.provision(params, on_log=on_log)
+            except Exception:
+                # A raise may leave containers/networks from a partial ``up``.
+                self._cleanup_partial(pipeline, params, on_log=on_log)
+                raise
+            environment = provisioned.model_copy(
+                update={
+                    "origin": self.origin(),
+                    "platform": EnvironmentPlatform.CONTAINER,
+                    "vm_confirmation": vm_confirmation,
+                }
             )
+            if not environment.ready:
+                # Failed run: tear down what the partial provisioning left, so the
+                # agent path does not leave ``sticks-*`` leftovers (``down`` is idempotent).
+                self._cleanup_partial(pipeline, params, on_log=on_log, environment=environment)
             return environment
         finally:
             # Append the AgentTrace for the environment phase (Req. 1.3, 2.2, 2.3)
@@ -628,6 +643,27 @@ class AiEnvironmentProvisioner:
                         },
                     }
                 )
+
+    @staticmethod
+    def _cleanup_partial(
+        pipeline: Any,
+        params: Any,
+        *,
+        on_log: Callable[[LogLine], None],
+        environment: ProvisionedEnvironment | None = None,
+    ) -> None:
+        """Best-effort teardown after a failed or raised provisioning.
+
+        Never raises: the original failure must stay the reported cause.
+        """
+        try:
+            target = environment or ProvisionedEnvironment(
+                campaign_id=params.campaign_id,
+                platform=EnvironmentPlatform.CONTAINER,
+            )
+            pipeline.deprovision(target, on_log=on_log)
+        except Exception:  # noqa: BLE001 -- cleanup must not mask the original failure
+            return
 
     def deprovision(
         self,
@@ -828,6 +864,100 @@ def resolve_image_for_params(
     return resolver.resolve(ImageNeed(target_os=target_os, services=services))
 
 
+#: Ports taken by lab infrastructure, keyed by the logical lab host that owns
+#: them. Only the Caldera C2 port is listed: it is the one fixed port the compose
+#: file publishes. A technique that needs such a port without targeting the owning
+#: host would collide with the infrastructure service.
+LAB_RESERVED_PORTS: dict[str, frozenset[int]] = {"caldera": frozenset({8888})}
+
+
+def _requirements_to_params(
+    requirements: TechniqueEnvironmentRequirements,
+) -> EnvironmentParameters:
+    """Project a technique's requirements into the parameters the resolver reads."""
+    return EnvironmentParameters(
+        campaign_id="negotiation",
+        platform=EnvironmentPlatform.CONTAINER,
+        hosts=list(requirements.hosts),
+        services=[
+            RequiredService(description=description, origin_technique=requirements.technique_id)
+            for description in requirements.services
+        ],
+        network_context=[],
+        origin=TranslationSource.AI_GENERATED,
+    )
+
+
+def _port_conflicts(requirements: TechniqueEnvironmentRequirements) -> list[int]:
+    """Ports in ``requirements`` that collide with lab infrastructure ports."""
+    targeted = {
+        host.container for host in requirements.hosts if host.container
+    }  # logical names such as "caldera", "nginx"
+    conflicts: list[int] = []
+    for owner, reserved in LAB_RESERVED_PORTS.items():
+        if owner in targeted:
+            continue
+        conflicts.extend(port for port in requirements.ports if port in reserved)
+    return sorted(set(conflicts))
+
+
+def evaluate_environment_requirements(
+    requirements: TechniqueEnvironmentRequirements,
+    resolver: ImageResolver | None = None,
+) -> Objection | None:
+    """Lightweight environment check of one technique's requirements (design D14).
+
+    Nothing is provisioned: the check reads the lab topology constants and, when a
+    ``resolver`` is given, asks :func:`resolve_image_for_params` for an image
+    (catalog first; the resolver decides whether Docker Hub is reachable). Checks,
+    in order:
+
+    1. ``os_unsupported``: the target OS is neither ``linux`` nor ``windows``.
+    2. ``port_conflict``: a required port belongs to lab infrastructure
+       (:data:`LAB_RESERVED_PORTS`) and the technique does not target that host.
+    3. ``image_unavailable`` / ``requires_vm``: no image covers the need. A
+       Windows target that no image covers needs a VM, because the lab runs Linux
+       containers only; any other target is simply unavailable.
+
+    On success with a resolver, ``requirements.image_hint`` is set to the resolved
+    image (best effort; a missing resolver or a failing lookup leaves it alone).
+
+    Returns:
+        The first :class:`Objection`, or ``None`` when the requirements are met.
+    """
+    technique_id = requirements.technique_id
+    if requirements.target_os not in {"linux", "windows"}:
+        return Objection(
+            technique_id=technique_id,
+            code=ObjectionCode.OS_UNSUPPORTED,
+            detail=f"target_os={requirements.target_os}",
+        )
+
+    conflicts = _port_conflicts(requirements)
+    if conflicts:
+        return Objection(
+            technique_id=technique_id,
+            code=ObjectionCode.PORT_CONFLICT,
+            detail=",".join(str(port) for port in conflicts),
+        )
+
+    if resolver is None:
+        return None
+    try:
+        resolution = resolve_image_for_params(_requirements_to_params(requirements), resolver)
+    except ImageUnavailableError as exc:
+        code = (
+            ObjectionCode.REQUIRES_VM
+            if requirements.target_os == "windows"
+            else ObjectionCode.IMAGE_UNAVAILABLE
+        )
+        return Objection(technique_id=technique_id, code=code, detail=str(exc))
+    except Exception:  # noqa: BLE001 -- the check is advisory; never fail the phase
+        return None
+    requirements.image_hint = resolution.image
+    return None
+
+
 def node(state: AgentState) -> dict:
     """LangGraph node wrapping :class:`AiEnvironmentProvisioner` (Req. 2.4, 11.5).
 
@@ -835,7 +965,7 @@ def node(state: AgentState) -> dict:
     graph open no network/daemon — Req. 7.4), reads the Operationalization phase
     :class:`EnvironmentParameters` from the operationalization artifact in
     ``state``, calls :meth:`AiEnvironmentProvisioner.provision` and writes the
-    resulting :class:`ProvisionedEnvironment` (``origin=gerado_ia``) into the
+    resulting :class:`ProvisionedEnvironment` (``origin=ai_generated``) into the
     ``artifacts.environment`` slot of the returned state delta. The unchanged
     read-only, fail-closed isolation gate inside ``provision`` stays the Environment phase
     completion pre-condition — a non-isolated environment is written back with
@@ -845,7 +975,7 @@ def node(state: AgentState) -> dict:
     ``environment`` added, preserving the ``flow``/``operationalization`` the
     earlier nodes wrote) and an append-only ``history`` entry. It performs **no**
     persistence and holds **no** ``Session``: persisting the
-    ``agent_phase_outputs`` row (``origin=gerado_ia``) is kept factored into
+    ``agent_phase_outputs`` row (``origin=ai_generated``) is kept factored into
     :func:`build_phase_output` / :func:`persist_phase_output`, which the
     session-bound ``AgentRunService`` (tasks 15.x) drives after this node runs.
     This keeps the node pure so the StateGraph can run it and the PostgreSQL
@@ -909,7 +1039,7 @@ def build_phase_output(
     Factored out of :func:`node` so the session-bound ``AgentRunService`` (tasks
     15.x) can persist it with its injected ``Session`` — the node stays pure
     (Req. 11.5). The row is stamped ``phase = ENVIRONMENT`` and
-    ``origin = gerado_ia`` (the value the existing portable enum/CHECK already
+    ``origin = ai_generated`` (the value the existing portable enum/CHECK already
     accepts, so persisting needs no schema migration — Req. 2.4, 2.5, 11.8), its
     ``payload`` carrying the serialized ``ProvisionedEnvironment`` the node wrote
     into ``artifacts.environment``.

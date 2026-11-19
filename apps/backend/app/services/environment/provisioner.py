@@ -6,7 +6,7 @@ provisioning seam for compatibility. It separates *how* a Campaign's
 environment is created/verified (today by curation over the static
 ``docker-compose`` lab, tomorrow by an AI agent that **creates**
 containers/VMs/networks dynamically) from the *rest* of the system, so a
-``gerado_ia`` implementation can be plugged in later **without** changing this
+``ai_generated`` implementation can be plugged in later **without** changing this
 signature (Req. 9.1, 16.3, 16.4).
 
 Typed the environment phase output (task 7.1):
@@ -116,6 +116,7 @@ from app.services.environment.target_setup import (
 )
 from app.services.environment.topology_builder import (
     HOST_CONTAINERS,
+    HOST_ROLES,
     TopologyResponse,
     build_hosts,
     build_mermaid,
@@ -124,6 +125,23 @@ from app.services.environment.topology_builder import (
     target_container_names,
 )
 from app.services.environment.vm_confirmation_gate import VmConfirmationRecord
+
+
+def _is_target_host(container: str | None) -> bool:
+    """Tell whether a host reference is NOT an attacker host (``caldera``/``kali``).
+
+    ``container`` may be the logical name (``caldera``) or the real container name
+    (``sticks-caldera-attacker``). Attacker hosts sit on the management bridge on
+    purpose, so they never enter the isolation check nor the build_online/
+    runtime_isolated subphases. Unknown names are kept (treated as targets).
+    """
+    if not container:
+        return False
+    for host, role in HOST_ROLES.items():
+        if role == "attacker" and container in (host, HOST_CONTAINERS.get(host, host)):
+            return False
+    return True
+
 
 # ---------------------------------------------------------------------------
 # Typed the environment phase output DTOs (task 7.1)
@@ -306,7 +324,7 @@ class ProvisionedEnvironment(BaseModel):
         loaded_abilities: ``True`` iff the ordered Abilities were loaded into
             Caldera in the attack flow order (Req. 5.2, 9.5).
         origin: Provisioning origin — ``curadoria_humana`` today; extensible to
-            ``gerado_ia`` without changing the model (Req. 16.3, 16.4).
+            ``ai_generated`` without changing the model (Req. 16.3, 16.4).
         subphases: :class:`SubphaseSummary` with the outcome of the environment-phase
             subphases build_online (Build online) / runtime_isolated (Runtime isolated) — the online
             prerequisites, the egress window closure, the positively-verified
@@ -505,7 +523,7 @@ class EnvironmentProvisioner(Protocol):
     A ``@runtime_checkable Protocol`` that defines the **extension point** of the
     environment creation, following the precedent of the other per-origin seams
     (``FlowGenerator`` in the flow phase, ``OperationalizerByOrigin`` in the operationalization phase): each
-    origin (``curadoria_humana`` today, ``gerado_ia`` in the future) is an
+    origin (``curadoria_humana`` today, ``ai_generated`` in the future) is an
     implementation interchangeable by injection, **without** redesign (Req. 16.3,
     16.4).
 
@@ -540,7 +558,7 @@ class EnvironmentProvisioner(Protocol):
         """The :class:`~app.models.enums.TranslationSource` of this implementation.
 
         Stamped in ``ProvisionedEnvironment.origin`` — ``HUMAN_CURATION`` in
-        curation; ``gerado_ia`` in a future AI implementation (Req. 16.3).
+        curation; ``ai_generated`` in a future AI implementation (Req. 16.3).
         """
         ...
 
@@ -752,6 +770,8 @@ class CurationEnvironmentProvisioner:
         """
         resolved: list[str] = []
         for host in params.hosts:
+            if not _is_target_host(host.container):
+                continue
             if host.container:
                 # Resolve the host's logical name (e.g. ``nginx``, ``db``) to the
                 # lab's real ``container_name`` (e.g. ``sticks-nginx-target``,
@@ -999,7 +1019,7 @@ class CurationEnvironmentProvisioner:
         pairs: list[tuple[Any, str]] = []
         seen: set[str] = set()
         for host in params.hosts:
-            if not host.container:
+            if not host.container or not _is_target_host(host.container):
                 continue
             name = HOST_CONTAINERS.get(host.container, host.container)
             if name in seen:
@@ -1021,7 +1041,7 @@ class CurationEnvironmentProvisioner:
             LogLine(
                 step="encerrar_egresso",
                 stream="info",
-                text=f"fail-safe: encerrando a janela de egresso de {container}",
+                text=f"fail-safe: closing the egress window of {container}",
                 subphase="build_online",
             )
         )
@@ -1079,7 +1099,7 @@ class CurationEnvironmentProvisioner:
                     LogLine(
                         step="build_online",
                         stream="info",
-                        text=f"build online de {container}: abrindo janela de egresso",
+                        text=f"build online of {container}: opening egress window",
                         subphase="build_online",
                     )
                 )
@@ -1088,7 +1108,7 @@ class CurationEnvironmentProvisioner:
                     self._fail_safe(container, on_log=on_log)
                     return _SubphaseOutcome.failure(
                         "build_online",
-                        window.reason or f"falha ao abrir a janela de egresso de {container}",
+                        window.reason or f"failed to open the egress window of {container}",
                         summary=SubphaseSummary(),
                     )
 
@@ -1108,7 +1128,7 @@ class CurationEnvironmentProvisioner:
                     self._fail_safe(container, on_log=on_log)
                     return _SubphaseOutcome.failure(
                         "build_online",
-                        f"falha ao instalar os pré-requisitos online de "
+                        f"failed to install the online prerequisites of "
                         f"{container} (code={applied.code})",
                         summary=SubphaseSummary(),
                     )
@@ -1116,14 +1136,14 @@ class CurationEnvironmentProvisioner:
                     self._fail_safe(container, on_log=on_log)
                     return _SubphaseOutcome.failure(
                         "encerrar_egresso",
-                        closed.reason or f"falha ao encerrar a janela de egresso de {container}",
+                        closed.reason or f"failed to close the egress window of {container}",
                         summary=SubphaseSummary(),
                     )
         except Exception as exc:  # noqa: BLE001 -- subphase failure is reported and the egress fail-safe runs
             self._fail_safe_all(containers, on_log=on_log)
             return _SubphaseOutcome.failure(
                 "build_online",
-                f"falha inesperada na subfase build_online: {exc}",
+                f"unexpected failure in the build_online subphase: {exc}",
                 summary=SubphaseSummary(),
             )
 
@@ -1158,7 +1178,7 @@ class CurationEnvironmentProvisioner:
                         self._fail_safe_all(containers, on_log=on_log)
                         return _SubphaseOutcome.failure(
                             "reisolar",
-                            f"falha ao reatar a rede de ataque {network!r} a "
+                            f"failed to reattach attack network {network!r} to "
                             f"{container!r} (code={result.code})",
                             summary=summary,
                         )
@@ -1166,7 +1186,7 @@ class CurationEnvironmentProvisioner:
             self._fail_safe_all(containers, on_log=on_log)
             return _SubphaseOutcome.failure(
                 "reisolar",
-                f"falha inesperada ao reisolar: {exc}",
+                f"unexpected failure while re-isolating: {exc}",
                 summary=summary,
             )
 
@@ -1178,7 +1198,7 @@ class CurationEnvironmentProvisioner:
                 LogLine(
                     step="verificar_egresso",
                     stream="info",
-                    text=f"verificando a perda de egresso de {container}",
+                    text=f"checking the egress loss of {container}",
                     subphase="runtime_isolated",
                 )
             )
@@ -1231,7 +1251,7 @@ class CurationEnvironmentProvisioner:
             if applied.code != 0:
                 return _SubphaseOutcome.failure(
                     "setup_offline",
-                    f"falha ao aplicar o setup offline de {container} (code={applied.code})",
+                    f"failed to apply the offline setup of {container} (code={applied.code})",
                     summary=summary,
                 )
         summary = summary.model_copy(update={"offline_applied": True})
@@ -1248,8 +1268,8 @@ class CurationEnvironmentProvisioner:
         loaded_abilities = self._load_abilities(params)
         if not loaded_abilities:
             cause = (
-                "falha ao carregar as Abilities no Caldera "
-                "(Caldera indisponível, erro de API ou artefato ausente)"
+                "failed to load the Abilities into Caldera "
+                "(Caldera unavailable, API error or missing artifact)"
             )
             on_log(
                 LogLine(
@@ -1277,16 +1297,13 @@ class CurationEnvironmentProvisioner:
         fail-closed). An empty list of verdicts fails closed with its own message.
         """
         if not verdicts:
-            return (
-                "nenhum host-alvo sondado; a verificação de egresso reprova "
-                "fail-closed (lista vazia)"
-            )
+            return "no target host probed; the egress check fails fail-closed (empty list)"
         offenders = [
-            f"{v.container} ({v.reason or ('egresso presente' if not v.egress_lost else 'inconclusivo')})"
+            f"{v.container} ({v.reason or ('egress present' if not v.egress_lost else 'inconclusive')})"
             for v in verdicts
             if not (v.egress_lost and v.conclusive)
         ]
-        return "egresso não comprovadamente perdido: " + "; ".join(offenders)
+        return "egress not proven lost: " + "; ".join(offenders)
 
     def provision(
         self,
@@ -1384,6 +1401,13 @@ class CurationEnvironmentProvisioner:
         # --- Step 1: subir_conteineres (docker compose up -d --wait) — Req. 3.1.
         up_result = self._get_compose_executor().up(compose_path(), on_log=on_log)
         if up_result.code != 0:
+            # A build failure (step ``construir_imagens``) is its own step; the
+            # executor's last line already names the service that failed.
+            if up_result.lines and up_result.lines[-1].step == "construir_imagens":
+                return _output(
+                    failed_step="construir_imagens",
+                    error_message=up_result.lines[-1].text,
+                )
             cause = self._up_cause(up_result)
             return _output(failed_step="subir_conteineres", error_message=cause)
 
@@ -1431,8 +1455,8 @@ class CurationEnvironmentProvisioner:
             loaded_abilities = self._load_abilities(params)
             if not loaded_abilities:
                 cause = (
-                    "falha ao carregar as Abilities no Caldera "
-                    "(Caldera indisponível, erro de API ou artefato ausente)"
+                    "failed to load the Abilities into Caldera "
+                    "(Caldera unavailable, API error or missing artifact)"
                 )
                 on_log(LogLine(step="carregar_abilities", stream="stderr", text=cause))
                 return _output(
@@ -1459,7 +1483,7 @@ class CurationEnvironmentProvisioner:
             LogLine(
                 step="verificar_isolamento",
                 stream="info",
-                text="Verificando o isolamento dos contêineres-alvo (somente leitura)",
+                text="Verifying the isolation of the target containers (read-only)",
             )
         )
         isolation = self._check_isolation(containers)
@@ -1478,7 +1502,7 @@ class CurationEnvironmentProvisioner:
             LogLine(
                 step="verificar_isolamento",
                 stream="info",
-                text="Isolamento approved para todos os contêineres-alvo",
+                text="Isolation approved for all target containers",
             )
         )
 
@@ -1504,7 +1528,7 @@ class CurationEnvironmentProvisioner:
         else:
             output = [line.text for line in result.lines if line.stream in ("stdout", "stderr")]
             last = output[-1] if output else ""
-        prefix = f"falha ao subir os contêineres (código {result.code})"
+        prefix = f"failed to bring up the containers (code {result.code})"
         return f"{prefix}: {last}" if last else prefix
 
     def _check_health(
@@ -1523,16 +1547,16 @@ class CurationEnvironmentProvisioner:
             LogLine(
                 step="aguardar_saude",
                 stream="info",
-                text="Confirmando a saúde dos contêineres-alvo (running + healthy)",
+                text="Confirming the health of the target containers (running + healthy)",
             )
         )
         health = inspect_health(containers, self._state_inspector)
         for verdict in health.verdicts:
             if verdict.approved:
-                text = f"{verdict.container}: saudável"
+                text = f"{verdict.container}: healthy"
                 stream = "stdout"
             else:
-                text = f"{verdict.container}: {verdict.reason or 'não saudável'}"
+                text = f"{verdict.container}: {verdict.reason or 'unhealthy'}"
                 stream = "stderr"
             on_log(LogLine(step="aguardar_saude", stream=stream, text=text))
         return health
@@ -1547,9 +1571,9 @@ class CurationEnvironmentProvisioner:
         """
         unhealthy = health.unhealthy
         if not unhealthy:
-            return "nenhum contêiner-alvo a verificar; a saúde reprova fail-closed (lista vazia)"
-        parts = [f"{v.container} ({v.reason or 'não saudável'})" for v in unhealthy]
-        return "contêineres não saudáveis: " + "; ".join(parts)
+            return "no target container to verify; the health check fails fail-closed (empty list)"
+        parts = [f"{v.container} ({v.reason or 'unhealthy'})" for v in unhealthy]
+        return "unhealthy containers: " + "; ".join(parts)
 
     @staticmethod
     def _isolation_cause(isolation: IsolationResult) -> str:
@@ -1562,10 +1586,10 @@ class CurationEnvironmentProvisioner:
         non_isolated = [v for v in isolation.verdicts if not v.isolated]
         if not non_isolated:
             return (
-                "nenhum contêiner-alvo a verificar; o isolamento reprova fail-closed (lista vazia)"
+                "no target container to verify; the isolation check fails fail-closed (empty list)"
             )
-        parts = [f"{v.container} ({'; '.join(v.reasons) or 'não isolado'})" for v in non_isolated]
-        return "contêineres não isolados: " + "; ".join(parts)
+        parts = [f"{v.container} ({'; '.join(v.reasons) or 'not isolated'})" for v in non_isolated]
+        return "non-isolated containers: " + "; ".join(parts)
 
     def _check_isolation(self, containers: list[str]) -> IsolationResult:
         """Verify the isolation (read-only) with full fail-closed (Req. 9.6, 14).
@@ -1585,7 +1609,7 @@ class CurationEnvironmentProvisioner:
             # container, with the reason, keeps the environment phase incomplete.
             from app.services.containment import ContainerIsolationVerdict
 
-            reason = "Docker Engine API indisponível; isolation não verificável"
+            reason = "Docker Engine API unavailable; isolation cannot be verified"
             verdicts = tuple(
                 ContainerIsolationVerdict(container=c, isolated=False, reasons=(reason,))
                 for c in containers
@@ -1674,7 +1698,7 @@ class CurationEnvironmentProvisioner:
                 deprovisioned=True,
                 remaining_resources=[],
                 origin=self.origin(),
-                message="Ambiente deprovisioned: contêineres do laboratório removidos.",
+                message="Environment deprovisioned: lab containers removed.",
             )
 
         # A teardown failure (``compose down`` failed OR the egress network could
@@ -1730,7 +1754,7 @@ class CurationEnvironmentProvisioner:
             output = [line.text for line in result.lines if line.stream in ("stdout", "stderr")]
             last = output[-1] if output else ""
         prefix = (
-            f"falha ao remover a rede de egresso efêmera {EGRESS_NETWORK!r} (código {result.code})"
+            f"failed to remove the ephemeral egress network {EGRESS_NETWORK!r} (code {result.code})"
         )
         return f"{prefix}: {last}" if last else prefix
 
@@ -1749,7 +1773,7 @@ class CurationEnvironmentProvisioner:
         else:
             output = [line.text for line in result.lines if line.stream in ("stdout", "stderr")]
             last = output[-1] if output else ""
-        prefix = f"falha ao deprovision os contêineres (código {result.code})"
+        prefix = f"failed to deprovision the containers (code {result.code})"
         return f"{prefix}: {last}" if last else prefix
 
     def prepare(self, campaign: str) -> ProvisioningResult:

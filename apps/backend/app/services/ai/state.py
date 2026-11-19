@@ -44,7 +44,7 @@ class ExecutionResult(TypedDict, total=False):
     records them for the evaluator (Req. 2.2 — real containment/isolation state).
     """
 
-    verdict: str  # the runner RunOutcome value, e.g. "concluida" / "isolamento_falhou"
+    verdict: str  # the runner RunOutcome value, e.g. "completed" / "isolation_failed"
     verdict_success: bool  # True iff the Operation ran to completion and passed
     executed: bool  # True iff the Operation actually started executing on Caldera
     containment_passed: bool | None  # containment pre-flight verdict (None if absent)
@@ -60,6 +60,8 @@ class EvaluationResult(TypedDict, total=False):
     success_rate: float
     procedural_coverage: float
     verdict_success: bool
+    achieved_coverage: float  # percentage 0-100, absent when no coverage could be derived
+    planned_coverage: float  # percentage 0-100, absent when not derived
     failed_nodes: list[str]
     decision: str  # EvaluatorDecision value
     rationale: str
@@ -100,3 +102,7 @@ class AgentState(TypedDict, total=False):
     history: Annotated[list[dict], add]  # append-only per-node trace (reducer)
     traces: Annotated[list[dict], add]  # NEW: per-node input+processing trace
     error: str | None
+    # Attack flows already presented in this run (from ``agent_runs.flow_proposals``);
+    # the flow phase avoids them when asked to generate another one.
+    excluded_flow_ids: list[int]
+    excluded_hashes: list[str]

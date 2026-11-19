@@ -76,8 +76,8 @@ that feed the system are the **seeds**: versioned, read-only files in
 itself writes them into the database; nothing at runtime reads or writes them
 as storage.
 
-1. Start the infrastructure (PostgreSQL with pgvector is published on
-   `127.0.0.1:5432`): `cd ops/docker && docker compose up -d`.
+1. Start the database (PostgreSQL with pgvector is published on
+   `127.0.0.1:5432`): `npm run db:up`.
 2. Prepare the native environment once (backend venv + frontend dependencies):
    `npm run setup`.
 3. Apply the Alembic migrations: `npm run db:migrate` (`npm run dev` also applies
@@ -382,6 +382,79 @@ Salesforce Data Exfiltration, ShadowRay.
 - **Ops** — the contained Docker lab (Caldera, Kali attacker, nginx target, DB)
   on static internal-only networks.
 
+### Multi-agent architecture
+
+The agent loop is a LangGraph graph (`apps/backend/app/services/ai/graph.py`)
+with a Postgres checkpointer:
+
+| Node | Uses a model | Role |
+|------|--------------|------|
+| `orchestrate` | No | Orchestrator: seeds the state (campaign, `iteration`, `max_iterations`) and routes. |
+| `operationalize` | Yes | Operationalization_Agent: chooses and adapts the Atomic commands. |
+| `flow` | Yes | Flow_Agent: produces the attack flow. |
+| `environment` | Yes | Environment_Agent: provisions the contained lab. |
+| `execute` | No | Execution node: runs the commands through Caldera. |
+| `evaluate` | Yes | Evaluator: judges the real result. |
+
+After `evaluate`, `route_after_eval` either finishes or sends a refinement back to
+`operationalize`, `flow` or `environment`. The loop is bounded: it aborts when
+`iteration + 1 >= max_iterations` (default 3, from configuration).
+
+In the UI, the **orchestrator robot** is the persona that speaks for the
+orchestrator: it asks for approvals and narrates each phase. It is an interface
+persona only; the orchestrator node itself calls no model.
+
+### Interactive run with approval per phase
+
+A run no longer executes in one call. The graph is compiled with
+`interrupt_after` on `operationalize`, `flow` and `environment`, so it pauses after
+each of them until the researcher approves. Phases run as background jobs and the
+UI polls the run.
+
+Order: `operationalization` → approval → `flow` → approval → `environment` →
+approval → `execution` → `evaluation`. Nothing offensive runs before the third
+approval.
+
+**Run states** (`agent_runs.status`): `pending`, `running`, `awaiting_approval`,
+`completed`, `failed`, `aborted`. `current_phase` names the phase in progress or
+paused. A run left `running` by a backend restart is marked `failed`
+(`interrupted_by_restart`) by the Reconciler at startup.
+
+**Routes** (prefix `/api/campaigns/{campaign}/ai`). Errors carry the code in
+`detail.reason`:
+
+| Route | Purpose | Error codes |
+|-------|---------|-------------|
+| `POST /run` | Starts a run (202, first phase in the background). | 409 `run_already_active`, `llm_blocked`; 503 `run_failed` |
+| `GET /runs/active` | Active run of the campaign. | 404 `no_active_run` |
+| `GET /runs/{id}` | Run detail (iterations, verdict, approvals, proposals, coverage). | 404 `run_not_found` |
+| `POST /runs/{id}/phases/{phase}/approve` | Approves `operationalization`, `flow` or `environment` and starts the next phase (202). | 404 `run_not_found`; 409 `wrong_phase`, `phase_running`, `run_not_awaiting`, `llm_blocked`, `profile_unavailable`; 422 `invalid_phase` |
+| `POST /runs/{id}/phases/flow/regenerate` | Generates another attack flow while paused on `flow` (202). | 404 `run_not_found`; 409 same as approve |
+| `POST /runs/{id}/phases/flow/select` | Goes back to an earlier attack flow proposal. | 404 `run_not_found`, `flow_proposal_not_found`; 409 `wrong_phase`, `phase_running`, `run_not_awaiting` |
+| `POST /runs/{id}/abort` | Aborts a paused run and releases its lab. | 404 `run_not_found`; 409 `phase_running`, `run_not_awaiting` |
+
+A run uses the model profile frozen when it started; the pre-start check is
+repeated on start, approve and regenerate.
+
+**Negotiation (Operationalization_Agent ↔ Environment_Agent).** During
+`operationalize`, each technique gets its environment requirements (hosts, target
+OS, image hint, ports, services, files). The Environment_Agent evaluates them
+lightly, without provisioning anything, and may return an objection:
+`port_conflict`, `image_unavailable`, `os_unsupported` or `requires_vm`. The
+Operationalization_Agent adjusts the commands (for example, moves a port or
+switches to Linux commands) and asks again, up to
+`OPERATIONALIZATION_NEGOTIATION_MAX_ROUNDS` adjustment rounds (default 1). A
+technique still objected to is marked `not_emulable` with the last objection code
+(or `no_command` when no Atomic command exists). A run never fails because of an
+objection. Each round is recorded in the phase trace.
+
+**Emulation coverage (percentage).** Planned coverage is the share of campaign
+techniques that are `planned_emulable` after the negotiation, shown at the
+operationalization and environment approvals. Achieved coverage is the share
+executed with success after `execution`. Both are stored in `agent_runs.coverage`
+with a per-technique status. The evaluator compares achieved coverage with
+`RUN_SUCCESS_COVERAGE_MIN`; what counts as a successful run is still under study.
+
 ### Isolated lab network
 
 | Network | Subnet | Host | IP |
@@ -433,14 +506,14 @@ There are three `node_modules` directories, all ignored by git:
 
 **Prerequisites:** Docker (+ Compose), Node.js 18+, Python 3.11+.
 
-The lab infrastructure (including PostgreSQL) runs in Docker; the backend and
-frontend run natively on the host with hot-reload against the containerized
-Postgres.
+Only PostgreSQL runs in Docker by default; the backend and frontend run natively
+on the host with hot-reload against it. The lab (Caldera, Kali, nginx and
+database targets) is **not** started by hand: the `environment` phase of each run
+builds and starts it (see [Validating the environment from scratch](#validating-the-environment-from-scratch)).
 
 ```bash
-# 1. Start the contained infrastructure
-#    (Caldera, lab targets, PostgreSQL on 127.0.0.1:5432)
-cd ops/docker && docker compose up -d
+# 1. Start PostgreSQL only (127.0.0.1:5432), from the repository root
+npm run db:up
 
 # 2. Setup (installation): prepare the native environment once (backend venv + frontend deps)
 #    from the repository root
@@ -452,9 +525,47 @@ npm run dev
 
 - **UI:** http://localhost:8000
 - **API:** http://localhost:8010 - health check: `GET /health` -> `{"status": "ok"}`
-- **Caldera:** http://localhost:8888 (login `red` / `admin`)
+- **Caldera:** http://localhost:8888 (login `red` / `admin`), available only
+  while a run has provisioned the lab.
 
 Database migrations can be applied on their own with `npm run db:migrate`.
+
+### npm scripts (repository root)
+
+| Script | What it does |
+|--------|--------------|
+| `npm run db:up` | Starts only the `postgres` container (`docker compose -f ops/docker/docker-compose.yml up -d postgres`). |
+| `npm run setup` | One-time setup: backend venv and frontend dependencies. |
+| `npm run db:migrate` | Applies the Alembic migrations. |
+| `npm run dev` | Applies the migrations, then starts the backend (uvicorn `--reload`, port 8010) and the frontend (Vite, port 8000) natively. |
+| `npm run dev:backend` | Same as `dev`, backend only. |
+| `npm run dev:frontend` | Same as `dev`, frontend only. |
+| `npm run dev:containers` | Optional. Starts postgres, backend and frontend as containers (the `containers` compose profile). Not the default workflow. |
+
+> **Warning: do not edit backend files while a run is in progress.** uvicorn
+> `--reload` restarts the backend on any change under `apps/backend/app`, and the
+> restart kills the in-flight run. At the next start the Reconciler marks such a
+> run `failed` (`interrupted_by_restart`) and its Caldera operation `aborted`. A
+> run paused in `awaiting_approval` survives a restart. Frontend edits are
+> hot-reloaded by Vite and do not affect a run.
+
+### Validating the environment from scratch
+
+To check that a run can build its lab from nothing, keep only `sticks-postgres`
+running: remove the `sticks-*` lab containers, the volume
+`sticks-mariadb-target-data`, the lab networks and, if you want a full rebuild,
+the lab images (never `sticks-postgres` or its volume). Then run `npm run db:up`,
+`npm run dev`, start a run in the UI and approve the attack flow. The
+`environment` phase builds the images from `ops/docker/.docker/*`, starts the four
+lab containers (`caldera-attacker`, `kali-attacker`, `nginx-target`,
+`mariadb-target`), cuts external egress and verifies it, then pauses for approval.
+No offensive command runs before you approve the environment.
+
+- **Disk:** the Caldera image is about 7.3 GB (figure from the spec design).
+  Check the total with `docker system df`.
+- **Time:** the first build takes tens of minutes, mostly Caldera. A precise
+  figure has not been recorded yet; it is tracked in the spec task 14.1. The
+  build runs as a background job, so the UI does not time out.
 
 #### Upgrading to the phase-name migration (back up first)
 

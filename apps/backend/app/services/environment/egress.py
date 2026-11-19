@@ -302,7 +302,7 @@ class DockerEgressWindow:
                     container=container,
                     opened=False,
                     reason=(
-                        f"falha ao desanexar a rede de ataque {network!r} de "
+                        f"failed to detach attack network {network!r} from "
                         f"{container!r} (code={result.code})"
                     ),
                 )
@@ -321,7 +321,7 @@ class DockerEgressWindow:
                     container=container,
                     opened=False,
                     reason=(
-                        f"falha ao criar a rede de egresso {EGRESS_NETWORK!r} (code={created.code})"
+                        f"failed to create egress network {EGRESS_NETWORK!r} (code={created.code})"
                     ),
                 )
 
@@ -332,7 +332,7 @@ class DockerEgressWindow:
                 container=container,
                 opened=False,
                 reason=(
-                    f"falha ao anexar a rede de egresso {EGRESS_NETWORK!r} a "
+                    f"failed to attach egress network {EGRESS_NETWORK!r} to "
                     f"{container!r} (code={attached.code})"
                 ),
             )
@@ -347,7 +347,7 @@ class DockerEgressWindow:
                 container=container,
                 closed=False,
                 reason=(
-                    f"falha ao desanexar a rede de egresso {EGRESS_NETWORK!r} de "
+                    f"failed to detach egress network {EGRESS_NETWORK!r} from "
                     f"{container!r} (code={result.code})"
                 ),
             )
@@ -513,7 +513,7 @@ class DockerEgressProber:
                 container=container,
                 egress_lost=False,
                 conclusive=True,
-                reason=(f"egresso ainda presente: {container!r} alcançou {PROBE_ENDPOINT!r}"),
+                reason=(f"egress still present: {container!r} reached {PROBE_ENDPOINT!r}"),
             )
 
         # Non-zero exit: the endpoint was unreachable (no route / timeout) ⇒ egress
@@ -524,8 +524,7 @@ class DockerEgressProber:
             egress_lost=True,
             conclusive=True,
             reason=(
-                f"egresso perdido: {container!r} não alcançou "
-                f"{PROBE_ENDPOINT!r} (code={result.code})"
+                f"egress lost: {container!r} did not reach {PROBE_ENDPOINT!r} (code={result.code})"
             ),
         )
 

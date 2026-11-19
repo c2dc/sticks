@@ -5,16 +5,21 @@
 // to run the same on Windows, Linux and macOS:
 //   * detects the venv in .venv/Scripts (Windows) or .venv/bin (Unix);
 //   * invokes Python tools via `python -m <tool>` (robust across shells);
-//   * uses the concurrently programmatic API (no shell, no arg splitting);
+//   * spawns backend and frontend directly (no shell, no arg splitting);
 //   * the DB URL comes from the environment / the backend .env (not hardcoded here).
 //
-// Usage: npm run dev (see package.json).
+// Native hot reload: the database runs in a container (npm run db:up), backend and
+// frontend run on the host. On Windows the uvicorn reloader sends CTRL_C_EVENT to
+// every process on its console, which used to take the frontend down. The backend
+// therefore runs detached (own hidden console), so the signal never reaches the
+// frontend. Each exit is logged and no process kills the others.
+//
+// Usage: npm run dev | npm run dev:backend | npm run dev:frontend (see package.json).
 
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import concurrently from "concurrently";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(scriptDir, "..");
@@ -53,35 +58,70 @@ migrate.on("exit", (code) => {
     process.exit(code ?? 1);
   }
 
-  // 2) Backend + frontend in parallel via the concurrently API.
-  // Each command has its own cwd; the backend argv goes as a single quoted
-  // string for the concurrently shell (avoids splitting on Windows).
-  const q = (s) => (isWindows ? `"${s}"` : `'${s}'`);
+  const only = process.argv.includes("--backend-only")
+    ? "backend"
+    : process.argv.includes("--frontend-only")
+      ? "frontend"
+      : null;
 
-  const { result } = concurrently(
-    [
-      {
-        name: "backend",
-        command: `${q(venvPython)} -m uvicorn app.main:app --host 127.0.0.1 --port 8010 --reload`,
-        cwd: backendDir,
-        env: backendEnv,
-        prefixColor: "cyan",
-      },
-      {
-        name: "frontend",
-        command: "npm --silent run dev --workspace apps/frontend",
-        cwd: root,
-        prefixColor: "magenta",
-      },
-    ],
-    {
-      killOthersOn: ["failure"],
-      prefix: "name",
+  const children = [];
+
+  const pipeWithPrefix = (stream, name, out) => {
+    let pending = "";
+    stream.on("data", (chunk) => {
+      const lines = (pending + chunk.toString()).split(/\r?\n/);
+      pending = lines.pop() ?? "";
+      for (const line of lines) out.write(`[${name}] ${line}\n`);
+    });
+  };
+
+  const start = (name, command, args, options) => {
+    const child = spawn(command, args, { ...options, stdio: ["ignore", "pipe", "pipe"] });
+    children.push(child);
+    pipeWithPrefix(child.stdout, name, process.stdout);
+    pipeWithPrefix(child.stderr, name, process.stderr);
+    child.on("exit", (exitCode, signal) => {
+      console.log(`[dev] ${name} exited with code ${exitCode ?? signal}`);
+    });
+    return child;
+  };
+
+  if (only !== "frontend") {
+    // detached: own console/process group on Windows, so the reloader's
+    // CTRL_C_EVENT stays inside the backend.
+    start(
+      "backend",
+      venvPython,
+      ["-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "8010", "--reload", "--reload-dir", "app"],
+      { cwd: backendDir, env: backendEnv, detached: true, windowsHide: true }
+    );
+  }
+
+  if (only !== "backend") {
+    // Run Vite with node directly: no npm.cmd/cmd.exe wrapper to prompt "Terminate batch job".
+    const vite = path.join(root, "node_modules", "vite", "bin", "vite.js");
+    start("frontend", process.execPath, [vite], {
+      cwd: path.join(root, "apps", "frontend"),
+      env: process.env,
+    });
+  }
+
+  const stopAll = () => {
+    for (const child of children) {
+      if (child.exitCode !== null || !child.pid) continue;
+      if (isWindows) {
+        spawn("taskkill", ["/pid", String(child.pid), "/t", "/f"], { stdio: "ignore" });
+      } else {
+        child.kill("SIGTERM");
+      }
     }
-  );
-
-  result.then(
-    () => process.exit(0),
-    () => process.exit(1)
-  );
+  };
+  process.on("SIGINT", () => {
+    stopAll();
+    setTimeout(() => process.exit(0), 1500);
+  });
+  process.on("SIGTERM", () => {
+    stopAll();
+    setTimeout(() => process.exit(0), 1500);
+  });
 });

@@ -25,9 +25,9 @@ class TranslationSource(enum.StrEnum):
     :class:`FlowOrigin`: the columns that use this enum
     (``Ability``/``Adversary``/``Case.origem_traducao`` and
     ``EnvironmentParameters.origem``) persist with ``native_enum=False``
-    (VARCHAR + CHECK), so the generated ``CHECK`` already includes ``gerado_ia``
+    (VARCHAR + CHECK), so the generated ``CHECK`` already includes ``ai_generated``
     from the first migration. As a result, persisting an artifact with origin
-    ``gerado_ia`` in the future does **not** require any schema change or
+    ``ai_generated`` in the future does **not** require any schema change or
     migration (Req. 16.2, 16.4). Implementing the AI agent that would produce
     such artifacts is a non-goal of this spec (Req. 18.1).
 
@@ -175,6 +175,8 @@ class AgentRunStatus(enum.StrEnum):
     COMPLETED = "completed"
     FAILED = "failed"
     ABORTED = "aborted"  # hit the max-iteration guard without a passing verdict
+    # Paused after a phase, waiting for the researcher to approve the next one.
+    AWAITING_APPROVAL = "awaiting_approval"
 
 
 class AgentPhase(enum.StrEnum):

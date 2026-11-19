@@ -153,7 +153,7 @@ class AuditLogger:
         except SQLAlchemyError as exc:  # persistence failure — make it observable
             self._session.rollback()
             raise AuditPersistenceError(
-                "Falha ao persistir o registro de auditoria "
+                "Failed to persist the audit record "
                 f"(command={command!r}, container={target_container!r}).",
                 command=command,
                 target_container=target_container,

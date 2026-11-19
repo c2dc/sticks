@@ -52,6 +52,7 @@ spawns no subprocess and touches no database.
 from __future__ import annotations
 
 import contextlib
+import os
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:  # pragma: no cover - typing only, no runtime import
@@ -66,6 +67,13 @@ __all__ = ["node", "persist_evaluation"]
 # ``agent_evaluations.rationale`` (``_RATIONALE_MAX_LENGTH`` in models.domain).
 _RATIONALE_MAX_LENGTH = 10_000
 
+# Minimum ``achieved_coverage`` (percent of campaign techniques executed with
+# success) for a passing verdict. The initial value is a choice made WITHOUT any
+# measurement: it is not calibrated and must be recalibrated once real runs exist
+# (Req. 22.9, design D17). Override with the ``RUN_SUCCESS_COVERAGE_MIN`` env var.
+SUCCESS_COVERAGE_ENV_VAR = "RUN_SUCCESS_COVERAGE_MIN"
+DEFAULT_SUCCESS_COVERAGE_MIN = 50.0
+
 # The Execution phase runner outcomes that mean the safety machinery rejected the
 # proposal (or the run never executed): each is a failed/blocked iteration the
 # evaluator must treat as eligible for refinement (Req. 8.6, 10.6). The values
@@ -73,17 +81,17 @@ _RATIONALE_MAX_LENGTH = 10_000
 # importing this module needs no runner import (Req. 1.7).
 _GATE_REJECTION_OUTCOMES = frozenset(
     {
-        "nao_confirmada",  # NOT_CONFIRMED — missing explicit confirmation (Req. 8.7)
-        "contencao_recusada",  # CONTAINMENT_REFUSED — external destination (Req. 8.2)
-        "isolamento_falhou",  # ISOLATION_FAILED — non-isolated container (Req. 8.3)
-        "isolamento_quebrado",  # ISOLATION_BROKEN — isolation stopped passing
-        "caldera_indisponivel",  # CALDERA_UNAVAILABLE — gate returned no decision
+        "not_confirmed",  # NOT_CONFIRMED — missing explicit confirmation (Req. 8.7)
+        "containment_refused",  # CONTAINMENT_REFUSED — external destination (Req. 8.2)
+        "isolation_failed",  # ISOLATION_FAILED — non-isolated container (Req. 8.3)
+        "isolation_broken",  # ISOLATION_BROKEN — isolation stopped passing
+        "caldera_unavailable",  # CALDERA_UNAVAILABLE — gate returned no decision
     }
 )
 
 # The runner outcome that means the Operation actually ran to completion; only
 # then is the Execution phase procedural-sufficiency metric meaningful as a score.
-_COMPLETED_OUTCOME = "concluida"
+_COMPLETED_OUTCOME = "completed"
 
 
 def node(
@@ -188,6 +196,14 @@ def node(
     # falls back to reading the report when no execution result was carried.
     verdict_success = _verdict_success_from(execution_result, report)
 
+    # Coverage-based verdict (design D17, Req. 22.9): when the achieved coverage
+    # can be derived, the configurable threshold replaces the binary verdict.
+    artifacts = state.get("artifacts") or {}
+    achieved_coverage = _read_achieved_coverage(artifacts, report)
+    planned_coverage = _read_planned_coverage(artifacts)
+    if achieved_coverage is not None:
+        verdict_success = achieved_coverage >= success_coverage_min()
+
     # Record the procedural-sufficiency metric UNCHANGED as the iteration's
     # score (Req. 10.1, 10.5): read the Execution phase numbers, never recompute them.
     evaluation: dict[str, Any] = {
@@ -196,6 +212,10 @@ def node(
         "verdict_success": verdict_success,
         "failed_nodes": _read_failed_nodes(report),
     }
+    if achieved_coverage is not None:
+        evaluation["achieved_coverage"] = achieved_coverage
+    if planned_coverage is not None:
+        evaluation["planned_coverage"] = planned_coverage
 
     if verdict_success:
         # Passing verdict → FINISH (Req. 10.2). The router then routes to END and
@@ -273,13 +293,11 @@ def _report_read_error(report: Any) -> str | None:
     is returned so the node can record it and refine.
     """
     if report is None:
-        return "Relatório da fase execution ausente: nenhuma execução foi registrada."
+        return "Execution phase report missing: no execution was recorded."
     if not isinstance(report, dict):
-        return (
-            f"Relatório da fase execution ilegível: formato inesperado ({type(report).__name__})."
-        )
+        return f"Execution phase report unreadable: unexpected format ({type(report).__name__})."
     if not report:
-        return "Relatório da fase execution vazio: nenhuma métrica disponível."
+        return "Execution phase report empty: no metrics available."
     return None
 
 
@@ -335,27 +353,65 @@ def _verdict_success_from(execution_result: dict[str, Any] | None, report: dict[
     return _read_verdict_success(report)
 
 
+def success_coverage_min() -> float:
+    """Return the minimum achieved coverage (percent) for a passing verdict.
+
+    Reads ``RUN_SUCCESS_COVERAGE_MIN`` (a number in ``[0, 100]``); an absent,
+    non-numeric or out-of-range value falls back to
+    ``DEFAULT_SUCCESS_COVERAGE_MIN``.
+    """
+    raw = os.environ.get(SUCCESS_COVERAGE_ENV_VAR)
+    if raw is None or not raw.strip():
+        return DEFAULT_SUCCESS_COVERAGE_MIN
+    try:
+        value = float(raw)
+    except ValueError:
+        return DEFAULT_SUCCESS_COVERAGE_MIN
+    if not 0.0 <= value <= 100.0:
+        return DEFAULT_SUCCESS_COVERAGE_MIN
+    return value
+
+
+def _read_achieved_coverage(artifacts: Any, report: Any) -> float | None:
+    """Derive the achieved coverage from the artifacts and the report, if possible."""
+    from app.services.ai.coverage import derive_achieved_coverage
+
+    if not isinstance(artifacts, dict):
+        return None
+    achieved = derive_achieved_coverage(artifacts, report if isinstance(report, dict) else None)
+    if achieved is None or not achieved.get("achieved_techniques"):
+        return None
+    return float(achieved["achieved_coverage"])
+
+
+def _read_planned_coverage(artifacts: Any) -> float | None:
+    """Derive the planned coverage from the artifacts, if possible."""
+    from app.services.ai.coverage import derive_planned_coverage
+
+    if not isinstance(artifacts, dict):
+        return None
+    planned = derive_planned_coverage(artifacts)
+    return None if planned is None else float(planned["planned_coverage"])
+
+
 def _gate_cause_message(outcome_value: str, report: dict[str, Any]) -> str:
     """Map a gate-rejection outcome to a human-readable cause for the evaluation."""
     mapping = {
-        "nao_confirmada": (
-            "Proposta bloqueada pela confirmação explícita: execução não confirmada."
+        "not_confirmed": (
+            "Proposal blocked by the explicit confirmation: execution not confirmed."
         ),
-        "contencao_recusada": (
-            "Proposta rejeitada pela verificação de contenção: destino externo detectado."
+        "containment_refused": (
+            "Proposal rejected by the containment check: external destination detected."
         ),
-        "isolamento_falhou": (
-            "Proposta rejeitada pela verificação de isolamento: contêiner não isolado."
+        "isolation_failed": ("Proposal rejected by the isolation check: container not isolated."),
+        "isolation_broken": (
+            "Execution interrupted: container isolation can no longer be guaranteed."
         ),
-        "isolamento_quebrado": (
-            "Execução interrompida: o isolamento do contêiner deixou de ser garantido."
-        ),
-        "caldera_indisponivel": (
-            "Proposta bloqueada: a máquina de segurança não retornou uma decisão "
-            "(Caldera indisponível)."
+        "caldera_unavailable": (
+            "Proposal blocked: the safety gate returned no decision (Caldera unavailable)."
         ),
     }
-    base = mapping.get(outcome_value, f"Proposta bloqueada (outcome={outcome_value}).")
+    base = mapping.get(outcome_value, f"Proposal blocked (outcome={outcome_value}).")
     message = report.get("message")
     if isinstance(message, str) and message.strip():
         return f"{base} {message.strip()}"
@@ -386,7 +442,7 @@ def _read_verdict_success(report: dict[str, Any]) -> bool:
 
     Honours an explicit ``verdict_success`` (top-level or inside ``metrics``);
     otherwise derives it from the real runner result: a run passes only when it
-    ran to completion (``outcome == "concluida"``) with at least one success and
+    ran to completion (``outcome == "completed"``) with at least one success and
     no failures.
     """
     metrics = _metrics(report)
@@ -498,36 +554,36 @@ def _diagnose_failing_phase(report: Any, experience: list[dict[str, Any]]) -> tu
     failed_nodes = _read_failed_nodes(report_dict) if report_dict else []
     experience_count = len(experience or [])
 
-    if outcome in {"isolamento_falhou", "isolamento_quebrado"}:
+    if outcome in {"isolation_failed", "isolation_broken"}:
         phase = AgentPhase.ENVIRONMENT
         why = (
-            "o gate de isolamento rejeitou o ambiente proposto; refinar o "
-            "fase environment para garantir contêineres isolados."
+            "the isolation gate rejected the proposed environment; refine the "
+            "environment phase to guarantee isolated containers."
         )
-    elif outcome in {"contencao_recusada", "nao_confirmada", "caldera_indisponivel"}:
+    elif outcome in {"containment_refused", "not_confirmed", "caldera_unavailable"}:
         phase = AgentPhase.OPERATIONALIZATION
         why = (
-            "a proposta foi bloqueada antes da execução (contenção/confirmação); "
-            "refinar a fase operationalization para propor comandos "
-            "contidos e executáveis."
+            "the proposal was blocked before execution (containment/confirmation); "
+            "refine the operationalization phase to propose contained, "
+            "executable commands."
         )
     elif failed_nodes:
         phase = AgentPhase.OPERATIONALIZATION
         why = (
-            "nós executados falharam em cumprir a técnica "
-            f"({', '.join(failed_nodes[:5])}); refinar a fase operationalization "
-            "(operacionalização) para ajustar a semântica dos comandos."
+            "executed nodes failed to fulfil the technique "
+            f"({', '.join(failed_nodes[:5])}); refine the operationalization "
+            "phase to adjust the command semantics."
         )
     else:
         phase = AgentPhase.OPERATIONALIZATION
         why = (
-            "veredito de insucesso sem nó falho identificado; refinar o "
-            "fase operationalization como alvo padrão."
+            "failure verdict with no failed node identified; refine the "
+            "operationalization phase as the default target."
         )
 
     rationale = (
-        f"Decisão REFINAR. Alvo: {phase.value}. Motivo: {why} "
-        f"Experiência cruzada utilizada: {experience_count} registro(s)."
+        f"Decision REFINE. Target: {phase.value}. Reason: {why} "
+        f"Cross-campaign experience used: {experience_count} record(s)."
     )
     return phase.value, rationale
 
@@ -535,10 +591,10 @@ def _diagnose_failing_phase(report: Any, experience: list[dict[str, Any]]) -> tu
 def _finish_rationale(report: dict[str, Any], evaluation: dict[str, Any]) -> str:
     """Build the auditable rationale for a FINISH decision (passing verdict)."""
     return (
-        "Decisão FINALIZAR. Veredito de sucesso na fase execution: taxa de sucesso "
-        f"{evaluation.get('success_rate')}, cobertura procedural "
-        f"{evaluation.get('procedural_coverage')}. A curadoria gerada atende à "
-        "métrica de suficiência procedural; encerrando o laço."
+        "Decision FINISH. Success verdict in the execution phase: success rate "
+        f"{evaluation.get('success_rate')}, procedural coverage "
+        f"{evaluation.get('procedural_coverage')}. The generated curation meets the "
+        "procedural sufficiency metric; ending the loop."
     )
 
 

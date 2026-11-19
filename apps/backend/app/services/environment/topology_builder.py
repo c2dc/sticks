@@ -89,8 +89,8 @@ class TopologyResponse(BaseModel):
     isolated: bool = Field(
         default=True,
         description=(
-            "Todas as networks do plano de ataque são internal: true (sem rota ao "
-            "host ou à internet). O ataque não sai do ambiente controlado."
+            "All networks of the attack plan are internal: true (no route to the "
+            "host or the internet). The attack does not leave the controlled environment."
         ),
     )
     hosts: list[HostView]
