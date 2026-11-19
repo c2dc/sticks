@@ -598,14 +598,17 @@ def _review_environment(requirement: Any) -> AiEnvironmentRequirementsView | Non
 
 
 def _build_operationalization_review(
-    payload: dict[str, Any], stored_coverage: Any
+    payload: dict[str, Any], stored_coverage: Any, campaign_techniques: list[Any] | None = None
 ) -> AiOperationalizationReviewView:
     """Reshape a stored ``ProducedOperationalization`` payload into the review view.
 
-    Techniques follow the ability order, then any technique only known to the
-    negotiation or the environment requirements. A technique without a command, or
-    without an accepted negotiation, is ``not_emulable`` (same rules as
-    :func:`app.services.ai.coverage.derive_planned_coverage`).
+    Every technique of the campaign (``campaign_techniques``, when given) is shown, even
+    one with no Ability, no negotiation entry and no Environment_Requirements at all --
+    it is listed as ``no_command``/``not_emulable`` so the Researcher sees what the agent
+    still cannot operationalize. Techniques follow the campaign order when given, else the
+    ability order, then any technique only known to the negotiation or the environment
+    requirements. A technique without a command, or without an accepted negotiation, is
+    ``not_emulable`` (same rules as :func:`app.services.ai.coverage.derive_planned_coverage`).
     """
     from app.services.ai.coverage import (
         REASON_NO_COMMAND,
@@ -646,7 +649,18 @@ def _build_operationalization_review(
                 )
             )
 
-    technique_ids = list(commands_by_technique)
+    technique_ids: list[str] = []
+    for technique in campaign_techniques or []:
+        technique_id = getattr(technique, "technique_id", None)
+        if not technique_id or technique_id in technique_ids:
+            continue
+        technique_ids.append(technique_id)
+        technique_name = getattr(technique, "technique_name", None)
+        if technique_name and technique_id not in names_by_technique:
+            names_by_technique[technique_id] = technique_name
+    for technique_id in commands_by_technique:
+        if technique_id not in technique_ids:
+            technique_ids.append(technique_id)
     for source in (negotiation, requirements):
         for technique_id in source:
             if technique_id not in technique_ids:
@@ -681,12 +695,33 @@ def _build_operationalization_review(
     return AiOperationalizationReviewView(techniques=techniques, planned_coverage=planned)
 
 
+def _campaign_techniques_or_none(campaign_id: str, db: Session) -> list[Any] | None:
+    """The full technique list of the campaign (``stix_campaign_techniques``), or ``None``.
+
+    Best effort: an unpersisted base or an unknown campaign yields ``None`` rather than
+    failing the run read, so the review still shows the operationalized techniques alone.
+    """
+    from app.api.campaigns import CURATED_VERSION
+    from app.services.stix.stix_package_read_service import (
+        CampaignNotFoundError,
+        StixPackageNotPersistedError,
+        StixPackageReadService,
+    )
+
+    try:
+        overview = StixPackageReadService(db).campaign_overview(CURATED_VERSION, campaign_id)
+    except (CampaignNotFoundError, StixPackageNotPersistedError):
+        return None
+    return sorted(overview.techniques, key=lambda t: t.technique_id)
+
+
 def _build_run_response(run: Any, db: Session) -> AiRunResponse:
     """Build the run response, adding the operationalization review from the database.
 
     The review comes from the payload of the newest ``operationalization`` phase
-    output of the run (latest iteration first); ``None`` when none exists yet. The
-    stored payload format is not changed, only reshaped.
+    output of the run (latest iteration first); ``None`` when none exists yet. Every
+    technique of the campaign is listed, even one with no Ability at all (Req. 20.2,
+    20.3). The stored payload format is not changed, only reshaped.
     """
     from app.models.domain import AgentIteration, AgentPhaseOutput
     from app.models.enums import AgentPhase
@@ -707,7 +742,11 @@ def _build_run_response(run: Any, db: Session) -> AiRunResponse:
         .first()
     )
     if isinstance(payload, dict) and payload:
-        response.operationalization_review = _build_operationalization_review(payload, run.coverage)
+        response.operationalization_review = _build_operationalization_review(
+            payload,
+            run.coverage,
+            campaign_techniques=_campaign_techniques_or_none(run.campaign_id, db),
+        )
     return response
 
 
