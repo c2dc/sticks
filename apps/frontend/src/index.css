@@ -34,24 +34,24 @@
 
   /* Modo_Escuro (cultura hacker, Req. 7.1) — fundo escuro, texto claro. */
   .dark {
-    --background: 222.2 84% 4.9%;
+    --background: 212 18.5% 15.9%;
     --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
+    --card: 212 14.3% 20.6%;
     --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
+    --popover: 212 14.3% 20.6%;
     --popover-foreground: 210 40% 98%;
     --primary: 210 40% 98%;
     --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
+    --secondary: 213.8 12.7% 24.7%;
     --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
+    --muted: 213.8 12.7% 24.7%;
     --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
+    --accent: 213.8 12.7% 24.7%;
     --accent-foreground: 210 40% 98%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
+    --border: 213.8 12.7% 24.7%;
+    --input: 213.8 12.7% 24.7%;
     --ring: 212.7 26.8% 83.9%;
 
     /* Paleta team — tons mais luminosos para contraste em fundo escuro. */

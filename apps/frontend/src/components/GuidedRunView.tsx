@@ -4,14 +4,12 @@ import {
   CheckCircle2,
   ChevronDown,
   Loader2,
-  RefreshCw,
   Sparkles,
   XCircle,
 } from "lucide-react"
 
 import { EnvironmentApprovalStep } from "@/components/EnvironmentApprovalStep"
 import { FlowPhaseView } from "@/components/FlowPhaseView"
-import { FlowProposalHistory } from "@/components/FlowProposalHistory"
 import { FlowProvenanceCard } from "@/components/FlowProvenanceCard"
 import { OperationalizationApprovalStep } from "@/components/OperationalizationApprovalStep"
 import { OperationalizationScreen } from "@/components/OperationalizationScreen"
@@ -118,6 +116,17 @@ export function GuidedRunView({
   const proposals = run.flow_proposals ?? []
   const currentProposal = proposals.find((proposal) => proposal.current)
   const review = run.operationalization_review
+  // The approve action of the current pause, rendered in the shared action row
+  // next to "Cancel the run".
+  const approveLabels = {
+    operationalization: t("guided.approveOperationalization"),
+    flow: t("guided.approveFlow"),
+    environment: t("guided.approveEnvironment"),
+  } as const
+  const approveAction =
+    pending === "operationalization" || pending === "flow" || pending === "environment"
+      ? { phase: pending, label: approveLabels[pending] }
+      : null
 
   // Final commands that will run, from the operationalization review (the only
   // typed source of resolved commands in `AiRun`).
@@ -150,34 +159,22 @@ export function GuidedRunView({
       {pending === "operationalization" ? (
         <PauseTurn line={t("guided.speech.operationalization", { campaign: displayName })} phase="operationalization">
           {review ? <OperationalizationApprovalStep review={review} /> : null}
-          <ApproveButton
-            label={t("guided.approveOperationalization")}
-            busy={busy}
-            onClick={() => void ai.approve("operationalization")}
-          />
         </PauseTurn>
       ) : null}
 
       {pending === "flow" ? (
         <PauseTurn line={t("guided.speech.flow", { campaign: displayName })} phase="flow">
-          <FlowPhaseView campaign={campaignId} flowId={currentProposal?.flow_id ?? undefined} showProvenance={false} />
-          {currentProposal ? <FlowProvenanceCard proposal={currentProposal} /> : null}
-          <FlowProposalHistory
+          <FlowPhaseView
+            campaign={campaignId}
+            currentProposal={currentProposal}
+            showProvenance={false}
             proposals={proposals}
-            onSelect={(proposalId) => void ai.selectFlowProposal(proposalId)}
-            disabled={busy}
+            maxProposals={run.flow_proposal_max}
+            onSelectProposal={(proposalId) => void ai.selectFlowProposal(proposalId)}
+            onRegenerate={() => void ai.regenerateFlow()}
+            busy={busy}
           />
-          <div className="flex flex-wrap items-center justify-center gap-2">
-            <ApproveButton
-              label={t("guided.approveFlow")}
-              busy={busy}
-              onClick={() => void ai.approve("flow")}
-            />
-            <Button variant="outline" disabled={busy} onClick={() => void ai.regenerateFlow()}>
-              <RefreshCw className="size-4" aria-hidden />
-              {t("guided.generateAnotherFlow")}
-            </Button>
-          </div>
+          {currentProposal ? <FlowProvenanceCard proposal={currentProposal} /> : null}
         </PauseTurn>
       ) : null}
 
@@ -186,11 +183,6 @@ export function GuidedRunView({
           <EnvironmentApprovalStep
             commands={environmentCommands}
             plannedCoverage={run.coverage?.planned_coverage ?? review?.planned_coverage}
-          />
-          <ApproveButton
-            label={t("guided.approveEnvironment")}
-            busy={busy}
-            onClick={() => void ai.approve("environment")}
           />
         </PauseTurn>
       ) : null}
@@ -217,8 +209,24 @@ export function GuidedRunView({
       ) : null}
 
       {!terminal ? (
-        <div className="flex justify-center">
-          <Button variant="ghost" size="sm" disabled={busy} onClick={() => void ai.abort()}>
+        <div
+          className="flex flex-wrap items-center justify-center gap-3"
+          data-section="guided-actions"
+        >
+          {approveAction ? (
+            <ApproveButton
+              label={approveAction.label}
+              busy={busy}
+              onClick={() => void ai.approve(approveAction.phase)}
+            />
+          ) : null}
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-team-red/30 bg-team-red/5 text-team-red shadow-none hover:bg-team-red/10 hover:text-team-red"
+            disabled={busy}
+            onClick={() => void ai.abort()}
+          >
             <XCircle className="size-4" aria-hidden />
             {t("guided.abort")}
           </Button>
@@ -318,12 +326,10 @@ function ApproveButton({
   onClick: () => void
 }) {
   return (
-    <div className="flex justify-center">
-      <Button onClick={onClick} disabled={busy} className="px-6">
-        {busy ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <CheckCircle2 className="size-4" aria-hidden />}
-        {label}
-      </Button>
-    </div>
+    <Button onClick={onClick} disabled={busy} className="px-6">
+      {busy ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <CheckCircle2 className="size-4" aria-hidden />}
+      {label}
+    </Button>
   )
 }
 
@@ -414,17 +420,41 @@ function OrchestratorBubble({
 const STILL_WORKING_DELAY_MS = 20_000
 
 /**
+ * The slow-phase hint per phase, limited to what is known to be in flight: the
+ * operationalization and flow nodes wait on a language model call, the environment
+ * node waits on the lab containers (it makes no language model call). Other
+ * phases show only the elapsed time.
+ */
+const STILL_WORKING_HINTS: Partial<Record<string, string>> = {
+  operationalization: "guided.stillWorkingHint",
+  flow: "guided.stillWorkingHint",
+  environment: "guided.stillWorkingHintEnvironment",
+}
+
+/**
  * The phase-specific waiting text with a spinner. After a while in the same
  * phase it adds a reassurance line; the timer restarts when the phase changes.
  */
 function WaitingMessage({ phase }: { phase: string }) {
   const { t } = useTranslation("pipeline")
   const [slow, setSlow] = useState<string | null>(null)
+  // Wall-clock seconds since this phase started waiting. Keyed by phase so a phase
+  // change restarts the count without a synchronous reset inside the effect.
+  const [elapsed, setElapsed] = useState<{ phase: string; seconds: number }>({ phase, seconds: 0 })
 
   useEffect(() => {
+    const startedAt = Date.now()
     const timer = setTimeout(() => setSlow(phase), STILL_WORKING_DELAY_MS)
-    return () => clearTimeout(timer)
+    const ticker = setInterval(
+      () => setElapsed({ phase, seconds: Math.floor((Date.now() - startedAt) / 1000) }),
+      1000,
+    )
+    return () => {
+      clearTimeout(timer)
+      clearInterval(ticker)
+    }
   }, [phase])
+  const seconds = elapsed.phase === phase ? elapsed.seconds : 0
 
   return (
     <div className="flex flex-col gap-1" role="status" data-section="phase-waiting" data-phase={phase}>
@@ -432,9 +462,12 @@ function WaitingMessage({ phase }: { phase: string }) {
         <Loader2 className="size-4 shrink-0 animate-spin" aria-hidden />
         {t(`guided.waiting.${phase}`, { defaultValue: t("guided.working") })}
       </span>
-      {slow === phase ? (
+      <span className="text-xs tabular-nums text-muted-foreground" data-section="elapsed-time">
+        {t("guided.waiting.elapsed", { seconds })}
+      </span>
+      {slow === phase && STILL_WORKING_HINTS[phase] ? (
         <span className="text-xs text-muted-foreground" data-section="still-working-hint">
-          {t("guided.stillWorkingHint")}
+          {t(STILL_WORKING_HINTS[phase])}
         </span>
       ) : null}
     </div>

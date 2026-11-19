@@ -1,8 +1,10 @@
 import { useTranslation } from "react-i18next"
 
 import { useAsyncData } from "@/lib/use-async-data"
+import { FlowProposalSelector } from "@/components/FlowProposalSelector"
 import { MermaidDiagram } from "@/components/MermaidDiagram"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import type { AiFlowProposal } from "@/lib/ai"
 import {
   getFlow,
   getFlows,
@@ -16,19 +18,33 @@ import {
  * its provenance badge (exact / adapted / created), the MITRE reference flows
  * and, when present, the list of detected cycles (Req. 3.6, 2.6).
  *
- * Pass `flow` to render an already-loaded flow, or `campaign` (optionally with
- * `flowId`) to have the view fetch it. Without a `flowId` the most recent flow
- * of the campaign is shown.
+ * Pass `flow` to render an already-loaded flow, or `campaign` to have the view
+ * fetch it: by `flowId` when given, else the campaign flow matching
+ * `currentProposal`'s `(origin, identifier)`, else the most recent campaign flow.
  */
 export interface FlowPhaseViewProps {
   campaign?: string
   flowId?: number
   flow?: FlowDetail
   /**
+   * The attack flow proposal to show. Its `(origin, identifier)` is the key of the
+   * campaign `attack_flows` row that backs it (the same key the backend uses).
+   */
+  currentProposal?: Pick<AiFlowProposal, "origin" | "identifier">
+  /**
    * Show the provenance badge and the references section. Defaults to true; the guided
    * run turns it off because `FlowProvenanceCard` already reports the origin there.
    */
   showProvenance?: boolean
+  /**
+   * Optional compact attempt selector shown at the top-right of the card header.
+   * Omit `proposals` (or pass an empty list) to hide it.
+   */
+  proposals?: AiFlowProposal[]
+  maxProposals?: number
+  onSelectProposal?: (proposalId: number) => void
+  onRegenerate?: () => void
+  busy?: boolean
 }
 
 const PROVENANCE_STYLES: Record<FlowProvenanceKind, string> = {
@@ -37,18 +53,42 @@ const PROVENANCE_STYLES: Record<FlowProvenanceKind, string> = {
   created: "border-blue-500/50 bg-blue-500/10 text-blue-700 dark:text-blue-300",
 }
 
-export function FlowPhaseView({ campaign, flowId, flow: providedFlow, showProvenance = true }: FlowPhaseViewProps) {
+export function FlowPhaseView({
+  campaign,
+  flowId,
+  flow: providedFlow,
+  currentProposal,
+  showProvenance = true,
+  proposals,
+  maxProposals = 0,
+  onSelectProposal,
+  onRegenerate,
+  busy = false,
+}: FlowPhaseViewProps) {
   const { t } = useTranslation("pipeline")
   const request = useAsyncData<FlowDetail | null>(
-    providedFlow || !campaign ? null : JSON.stringify([campaign, flowId ?? null]),
+    providedFlow || !campaign
+      ? null
+      : JSON.stringify([
+          campaign,
+          flowId ?? null,
+          currentProposal?.origin ?? null,
+          currentProposal?.identifier ?? null,
+        ]),
     async () => {
       const campaignId = campaign as string
       let id = flowId
       if (id === undefined) {
         const { flows } = await getFlows(campaignId)
-        const latest = [...flows].sort((a, b) => b.created_at.localeCompare(a.created_at))[0]
-        if (!latest) return null
-        id = latest.id
+        const match = currentProposal
+          ? flows.find(
+              (summary) =>
+                summary.origin === currentProposal.origin &&
+                summary.identifier === currentProposal.identifier,
+            )
+          : [...flows].sort((a, b) => b.created_at.localeCompare(a.created_at))[0]
+        if (!match) return null
+        id = match.id
       }
       return getFlow(campaignId, id)
     },
@@ -98,6 +138,15 @@ export function FlowPhaseView({ campaign, flowId, flow: providedFlow, showProven
             >
               {t(`flow.provenance.${provenance.kind}`, { defaultValue: provenance.kind })}
             </span>
+          ) : null}
+          {proposals && proposals.length > 0 && onSelectProposal && onRegenerate ? (
+            <FlowProposalSelector
+              proposals={proposals}
+              maxProposals={maxProposals}
+              onSelect={onSelectProposal}
+              onRegenerate={onRegenerate}
+              busy={busy}
+            />
           ) : null}
         </div>
         {flow.description ? (

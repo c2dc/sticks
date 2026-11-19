@@ -98,12 +98,14 @@
     "approveFlow": "Approve this attack flow",
     "approveEnvironment": "Approve the environment and run the emulation",
     "abort": "Cancel the run",
-    "stillWorkingHint": "This phase can take a bit longer for campaigns with many commands. The run is still going.",
+    "stillWorkingHint": "Waiting for the configured language model to respond. Campaigns with more commands take longer.",
+    "stillWorkingHintEnvironment": "Waiting for the lab containers to start and pass their health checks. This phase does not call the language model.",
     "waiting": {
-      "orchestration": "Starting the run and recalling past experience…",
-      "operationalization": "Filling in the command parameters…",
-      "flow": "Generating the attack flow…",
-      "environment": "Designing the isolated environment…",
+      "elapsed": "{{seconds}}s elapsed",
+      "orchestration": "Orchestrator: loading the campaign context and retrieving cross-campaign experience before handing off to the operationalization agent…",
+      "operationalization": "Operationalization agent: resolving the Atomic Red Team command parameters via the configured language model…",
+      "flow": "Attack flow generation agent: building the technique graph and classifying its provenance via the configured language model…",
+      "environment": "Environment agent: checking the resource limits, starting the lab containers and verifying their network isolation…",
       "execution": "Running the emulation…",
       "evaluation": "Evaluating the results…"
     },
@@ -124,10 +126,8 @@
       "low_coverage_override": "The documented attack flow covers too few techniques, so the agent created its own."
     },
     "history": {
-      "title": "Attack flows shown in this run",
-      "current": "Current",
-      "use": "Use this one",
-      "hint": "Each attempt at the attack flow, independent of how many full iterations the run has completed."
+      "limitReached": "The limit of attack flow attempts was reached.",
+      "selectAriaLabel": "Choose the attack flow attempt"
     },
     "notice": {
       "no_distinct_flow": "The agent could not produce a different attack flow.",
@@ -151,6 +151,7 @@
       "run_already_active": "There is already an active run for this campaign.",
       "invalid_phase": "This phase is not valid for approval.",
       "run_not_found": "The run was not found.",
+      "flow_proposal_limit_reached": "The maximum number of attack flow attempts was already reached.",
       "flow_proposal_not_found": "The selected attack flow proposal was not found.",
       "profile_unavailable": "The selected model profile is not available.",
       "llm_blocked": "The model is blocked because of a previous failure."

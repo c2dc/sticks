@@ -171,12 +171,29 @@ class RunFailedError(RuntimeError):
         )
 
 
+#: Default cap of attack flow proposals kept (and generated) per run.
+DEFAULT_FLOW_PROPOSAL_MAX = 5
+FLOW_PROPOSAL_MAX_ENV_VAR = "AI_RUN_FLOW_PROPOSAL_MAX"
+
+
+def flow_proposal_max() -> int:
+    """Configured proposal cap per run (``AI_RUN_FLOW_PROPOSAL_MAX``, default 5).
+
+    Same reading rule as the other ``_MAX`` settings: unset, empty or invalid
+    falls back to :data:`DEFAULT_FLOW_PROPOSAL_MAX`.
+    """
+    from app.services.ingestion.workdir import read_env_int
+
+    return read_env_int(FLOW_PROPOSAL_MAX_ENV_VAR, DEFAULT_FLOW_PROPOSAL_MAX)
+
+
 class RunTransitionError(RuntimeError):
     """Raised when an approval, regeneration or selection cannot be applied.
 
     ``code`` is the contract code the route maps to an HTTP status: 404
     ``run_not_found`` / ``flow_proposal_not_found``; 409 ``wrong_phase``,
-    ``phase_running`` or ``run_not_awaiting``; 422 ``invalid_phase``.
+    ``phase_running``, ``run_not_awaiting`` or ``flow_proposal_limit_reached``;
+    422 ``invalid_phase``.
     """
 
     NOT_FOUND = "run_not_found"
@@ -185,6 +202,7 @@ class RunTransitionError(RuntimeError):
     PHASE_RUNNING = "phase_running"
     NOT_AWAITING = "run_not_awaiting"
     INVALID_PHASE = "invalid_phase"
+    PROPOSAL_LIMIT_REACHED = "flow_proposal_limit_reached"
 
     def __init__(self, code: str, run_id: int) -> None:
         self.code = code
@@ -439,11 +457,14 @@ class AgentRunService:
         Same atomic guard and dispatch as :meth:`approve`, without an approval entry.
 
         Raises:
-            RunTransitionError: ``run_not_found``, ``phase_running``,
-                ``wrong_phase`` or ``run_not_awaiting``.
+            RunTransitionError: ``run_not_found``, ``flow_proposal_limit_reached``,
+                ``phase_running``, ``wrong_phase`` or ``run_not_awaiting``.
         """
         from app.services.ai import phase_job
 
+        run = self._require_run(run_id)
+        if len(run.flow_proposals or []) >= flow_proposal_max():
+            raise RunTransitionError(RunTransitionError.PROPOSAL_LIMIT_REACHED, run_id)
         action = phase_job.PhaseAction.REGENERATE_FLOW
         return self._begin_and_dispatch(run_id, "flow", phase_job.active_phase_of(action), action)
 

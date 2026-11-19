@@ -69,6 +69,8 @@ export interface AiRun {
   approvals?: AiApproval[]
   /** Attack flow proposal history; one entry is marked `current`. */
   flow_proposals?: AiFlowProposal[]
+  /** Maximum number of attack flow proposals per run (same for every run). */
+  flow_proposal_max: number
   /** Command proposals, environment requirements and planned coverage; null until produced. */
   operationalization_review?: AiOperationalizationReview | null
   /** Planned and achieved emulation coverage; null until the first pause. */
@@ -120,6 +122,10 @@ export interface AiFlowProposal {
   proposal_id: number
   /** Documented flow id when the proposal is an exact reference; null for created flows. */
   flow_id: number | null
+  /** `FlowOrigin` of the campaign `attack_flows` row that backs this proposal. */
+  origin: string
+  /** Identifier of that row; with `origin` it is the key the backend loads it by. */
+  identifier: string
   flow_hash?: string | null
   /** Provenance kind (e.g. `exact`, `adapted`, `created`). */
   kind?: string | null
@@ -298,6 +304,7 @@ export type AiRunReason =
   | "run_not_found"
   | "no_active_run"
   | "flow_proposal_not_found"
+  | "flow_proposal_limit_reached"
   | "profile_unavailable"
   | "llm_blocked"
   | "run_failed"
