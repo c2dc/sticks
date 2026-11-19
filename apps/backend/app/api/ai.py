@@ -17,7 +17,7 @@ Thin endpoints over :class:`~app.services.ai.run_service.AgentRunService`:
   ``profile_unavailable``). ``.../phases/flow/select`` and ``.../abort`` answer 200.
   ``RunTransitionError`` codes map to 404 (``run_not_found``,
   ``flow_proposal_not_found``), 409 (``wrong_phase``, ``phase_running``,
-  ``run_not_awaiting``) and 422 (``invalid_phase``), as ``detail.reason``.
+  ``run_not_awaiting``, ``flow_proposal_limit_reached``) and 422 (``invalid_phase``), as ``detail.reason``.
 
 * ``GET /api/campaigns/{campaign}/ai/runs/{id}`` — read a run with its iterations
   (the ``agent_iterations`` rows) and the evaluator verdict (from the
@@ -51,6 +51,7 @@ from app.services.ai.run_service import (
     RunAlreadyActiveError,
     RunFailedError,
     RunTransitionError,
+    flow_proposal_max,
 )
 
 router = APIRouter(prefix="/api", tags=["ai"])
@@ -325,6 +326,10 @@ class AiRunResponse(BaseModel):
     )
     flow_proposals: list[Any] = Field(
         default_factory=list, description="Attack flow proposal history (one marked current)."
+    )
+    flow_proposal_max: int = Field(
+        default_factory=flow_proposal_max,
+        description="Maximum number of attack flow proposals per run (same for every run).",
     )
     negotiation_rounds_used: int = Field(
         default=0, description="Operationalization/environment negotiation rounds consumed."
@@ -876,6 +881,7 @@ _TRANSITION_STATUS = {
     RunTransitionError.WRONG_PHASE: status.HTTP_409_CONFLICT,
     RunTransitionError.PHASE_RUNNING: status.HTTP_409_CONFLICT,
     RunTransitionError.NOT_AWAITING: status.HTTP_409_CONFLICT,
+    RunTransitionError.PROPOSAL_LIMIT_REACHED: status.HTTP_409_CONFLICT,
     RunTransitionError.INVALID_PHASE: 422,
 }
 
@@ -994,8 +1000,8 @@ def approve_ai_phase(
         status.HTTP_404_NOT_FOUND: {"description": "Reason 'run_not_found'."},
         status.HTTP_409_CONFLICT: {
             "description": (
-                "'wrong_phase', 'phase_running', 'run_not_awaiting', 'llm_blocked' or "
-                "'profile_unavailable'."
+                "'wrong_phase', 'phase_running', 'run_not_awaiting', "
+                "'flow_proposal_limit_reached', 'llm_blocked' or 'profile_unavailable'."
             )
         },
     },

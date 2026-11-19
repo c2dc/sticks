@@ -373,7 +373,7 @@ class FlowAgent:
                 return [
                     ProducedFlow(
                         origin=FlowOrigin.AI_GENERATED,
-                        identifier=campaign,
+                        identifier=self._flow_identifier(campaign, produced_hash),
                         label=label,
                         content=content,
                         gaps=gaps,
@@ -618,14 +618,25 @@ class FlowAgent:
                 f"{flow.back_edges} are excluded from execution"
             )
         content = self._flow_content(flow)
+        content_hash = self._content_hash(content)
         return ProducedFlow(
             origin=FlowOrigin.AI_GENERATED,
-            identifier=campaign,
+            identifier=self._flow_identifier(campaign, content_hash),
             label=corpus_flow.get("label") or flow.name or None,
             content=content,
             gaps=self._collect_gaps(content),
-            provenance={**provenance, "flow_hash": self._content_hash(content)},
+            provenance={**provenance, "flow_hash": content_hash},
         )
+
+    @staticmethod
+    def _flow_identifier(campaign: str, content_hash: str) -> str:
+        """Identifier of an AI-generated flow: the campaign plus a content suffix.
+
+        ``persist_flow_phase_output`` upserts on ``(campaign_id, origin, identifier)``.
+        The suffix keeps distinct regenerated flows in separate rows, while a
+        byte-identical re-run (same hash) still reuses its row.
+        """
+        return f"{campaign}#{content_hash[:12]}"
 
     @staticmethod
     def _content_hash(content: dict) -> str:

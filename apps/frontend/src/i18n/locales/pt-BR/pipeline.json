@@ -98,12 +98,14 @@
     "approveFlow": "Aprovar este fluxo de ataque",
     "approveEnvironment": "Aprovar o ambiente e executar a emulação",
     "abort": "Cancelar a execução",
-    "stillWorkingHint": "Esta fase pode demorar um pouco mais em campanhas com muitos comandos. A execução continua em andamento.",
+    "stillWorkingHint": "Aguardando a resposta do modelo de linguagem configurado. Campanhas com mais comandos demoram mais.",
+    "stillWorkingHintEnvironment": "Aguardando os contêineres do laboratório subirem e passarem nas verificações de saúde. Esta fase não chama o modelo de linguagem.",
     "waiting": {
-      "orchestration": "Iniciando a execução e relembrando experiências anteriores…",
-      "operationalization": "Preenchendo os parâmetros dos comandos…",
-      "flow": "Gerando o fluxo de ataque…",
-      "environment": "Projetando o ambiente isolado…",
+      "elapsed": "{{seconds}}s decorridos",
+      "orchestration": "Orquestrador: carregando o contexto da campanha e buscando experiência de outras campanhas antes de passar ao agente de operacionalização…",
+      "operationalization": "Agente de operacionalização: resolvendo os parâmetros dos comandos do Atomic Red Team via o modelo de linguagem configurado…",
+      "flow": "Agente de geração do fluxo de ataque: montando o grafo de técnicas e classificando sua proveniência via o modelo de linguagem configurado…",
+      "environment": "Agente de ambiente: verificando os limites de recursos, subindo os contêineres do laboratório e verificando o isolamento de rede…",
       "execution": "Executando a emulação…",
       "evaluation": "Avaliando os resultados…"
     },
@@ -124,10 +126,8 @@
       "low_coverage_override": "O fluxo de ataque documentado cobre poucas técnicas, então o agente criou o próprio."
     },
     "history": {
-      "title": "Fluxos de ataque mostrados nesta execução",
-      "current": "Atual",
-      "use": "Usar este",
-      "hint": "Cada tentativa de fluxo de ataque, independente de quantas iterações completas a execução já fez."
+      "limitReached": "O limite de tentativas de fluxo de ataque foi atingido.",
+      "selectAriaLabel": "Escolher a tentativa de fluxo de ataque"
     },
     "notice": {
       "no_distinct_flow": "O agente não conseguiu produzir um fluxo de ataque diferente.",
@@ -151,6 +151,7 @@
       "run_already_active": "Já existe uma execução ativa para esta campanha.",
       "invalid_phase": "Esta fase não é válida para aprovação.",
       "run_not_found": "A execução não foi encontrada.",
+      "flow_proposal_limit_reached": "O número máximo de tentativas de fluxo de ataque já foi atingido.",
       "flow_proposal_not_found": "A proposta de fluxo de ataque selecionada não foi encontrada.",
       "profile_unavailable": "O perfil de modelo selecionado não está disponível.",
       "llm_blocked": "O modelo está bloqueado por causa de uma falha anterior."
