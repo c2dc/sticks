@@ -244,6 +244,9 @@ class AiOperationalizedTechniqueView(BaseModel):
     """One technique of the operationalization review."""
 
     technique_id: str = Field(..., description="ATT&CK technique id.")
+    technique_name: str | None = Field(
+        default=None, description="Readable ATT&CK technique name, when known."
+    )
     commands: list[AiCommandProposalView] = Field(default_factory=list)
     environment_requirements: AiEnvironmentRequirementsView | None = None
     emulability_status: str | None = Field(
@@ -615,10 +618,14 @@ def _build_operationalization_review(
     requirements = payload.get("environment_requirements") or {}
 
     commands_by_technique: dict[str, list[AiCommandProposalView]] = {}
+    names_by_technique: dict[str, str] = {}
     for ability in abilities:
         technique_id = ability.get("technique_id") if isinstance(ability, dict) else None
         if not technique_id:
             continue
+        technique_name = ability.get("technique_name") if isinstance(ability, dict) else None
+        if technique_name and technique_id not in names_by_technique:
+            names_by_technique[technique_id] = technique_name
         bucket = commands_by_technique.setdefault(technique_id, [])
         for executor in ability.get("executors") or []:
             command = executor.get("command")
@@ -659,6 +666,7 @@ def _build_operationalization_review(
         techniques.append(
             AiOperationalizedTechniqueView(
                 technique_id=technique_id,
+                technique_name=names_by_technique.get(technique_id),
                 commands=commands,
                 environment_requirements=_review_environment(requirements.get(technique_id)),
                 emulability_status=status_value,

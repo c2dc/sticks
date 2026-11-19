@@ -45,7 +45,12 @@ export function OperationalizationApprovalStep({
               data-technique-id={technique.technique_id}
             >
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="font-mono text-sm font-medium">{technique.technique_id}</span>
+                <span className="flex items-baseline gap-1.5">
+                  <span className="font-mono text-sm font-medium">{technique.technique_id}</span>
+                  {technique.technique_name ? (
+                    <span className="text-sm text-muted-foreground">{technique.technique_name}</span>
+                  ) : null}
+                </span>
                 {status ? (
                   <span
                     className={cn(
