@@ -27,4 +27,4 @@ npm run lint     # type-check without emitting
 - `src/components/ui/` — shadcn/ui components.
 
 The phase screens, the campaign selector, and the emulation confirmation are
-already implemented. Detailed progress is in `../../docs/project-status.md`.
+already implemented. How the system works is in `../../docs/pipeline.md`.

@@ -1,767 +1,148 @@
-# STICKS
+<div align="center">
 
-### The Procedural Semantics Gap in ATT&CK-in-STIX — Measuring Procedural Sufficiency for APT Emulation
+<img src="https://capsule-render.vercel.app/api?type=waving&color=0:0b0f14,50:3b1e54,100:c8102e&height=210&section=header&text=STICKS&fontSize=60&fontColor=ffffff&animation=fadeIn&fontAlignY=36&desc=Measuring%20procedural%20sufficiency%20of%20ATT%26CK-in-STIX%20for%20APT%20emulation&descAlignY=58&descSize=17" alt="STICKS" width="100%" />
 
-STICKS is a research platform that evaluates the **procedural completeness** of
-STIX-based cyber threat intelligence (CTI) and its ability to **reproduce APT
-campaign behavior** inside a fully contained laboratory. It pairs a modern,
-guided **web application (Pipeline_UI)** with a MITRE Caldera adversary-emulation
-lab, so a researcher can carry a campaign end to end — from raw STIX to a
-measured execution report — one explicit agentic phase at a time.
+<a href="#-quick-start">
+  <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=600&size=21&pause=1100&color=FF4D6D&center=true&vCenter=true&width=760&lines=From+raw+STIX+to+a+measured+execution+report;Five+agentic+phases%2C+human+approval+at+each+gate;Isolated+Docker+lab+driven+by+MITRE+Caldera;Human+curation+vs.+AI-generated+attack+flows" alt="STICKS" />
+</a>
 
-> This repository accompanies the paper
-> *"The Procedural Semantics Gap in ATT&CK-in-STIX: Measuring Procedural
+<br />
+
+<img src="https://img.shields.io/badge/Python-3.11%2B-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.11+" />
+<img src="https://img.shields.io/badge/FastAPI-backend-009688?style=for-the-badge&logo=fastapi&logoColor=white" alt="FastAPI" />
+<img src="https://img.shields.io/badge/LangGraph-agents-1C3C3C?style=for-the-badge" alt="LangGraph" />
+<img src="https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="React 19" />
+<br />
+<img src="https://img.shields.io/badge/PostgreSQL-pgvector-4169E1?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL + pgvector" />
+<img src="https://img.shields.io/badge/MITRE-Caldera-C8102E?style=for-the-badge" alt="MITRE Caldera" />
+<img src="https://img.shields.io/badge/Docker-lab-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker" />
+<img src="https://img.shields.io/badge/License-GPLv3-2EA043?style=for-the-badge" alt="GPLv3" />
+
+<br /><br />
+
+**[Quick start](#-quick-start)** ·
+**[How it works](#-how-it-works)** ·
+**[Safety](#-safety)** ·
+**[Docs](#-documentation)** ·
+**[Layout](#-repository-layout)**
+
+</div>
+
+---
+
+## 🔎 About
+
+Structured CTI says **which** ATT&CK techniques a campaign used, but not the **procedure**: the commands, their
+order and their dependencies. STICKS makes that gap measurable. A researcher picks a STIX campaign, a multi-agent AI
+loop turns it into commands, an attack flow and a lab, and the campaign runs in an isolated Docker lab through
+MITRE Caldera. The output is a report with success rate, per-technique telemetry and a verdict.
+
+> This repository accompanies the paper *"The Procedural Semantics Gap in ATT&CK-in-STIX: Measuring Procedural
 > Sufficiency for APT Emulation."*
 
----
-
-## What it does
-
-Structured CTI tells you **which** ATT&CK techniques a campaign used, but not the
-**procedure** — the concrete commands, their order, and their dependencies. STICKS
-makes that gap measurable:
-
-- It is **agentic-centric**: once the researcher picks a STIX base and campaign
-  (the **Input**), a multi-agent AI loop drives the emulation through semantic,
-  number-free **agentic phases**.
-- It executes the campaign against an **isolated Docker lab** through
-  MITRE Caldera, tracking each technique live.
-- It measures **procedural sufficiency** and produces a consistent execution
-  report (success rate, per-technique telemetry, failed nodes, verdict).
-
-Security containment is **non-negotiable**: adversary commands never run on the
-host or reach external targets — they execute only inside internal-only Docker
-networks, verified before and during every run.
-
----
-
-## Glossary: setup, ingestion, input, and agentic phases
-
-- **Setup** — installation and first-run ingestion of the knowledge bases
-  (curated cases, Atomic Red Team, Docker image catalog, Attack Flow corpus, STIX package),
-  plus the verification that runs at every start. It is **not** a screen and
-  **not** a run phase.
-- **Ingestion** — the idempotent background process that performs the data part
-  of setup (and the verification at each start).
-- **Input** (`input`, `Input_Phase`) — the per-run phase where the researcher
-  picks the STIX version (the package) and the campaign. Never called "setup".
-- **Agentic phases** — `operationalization → flow → environment → execution →
-  evaluation`; `input` precedes them and is not one of them.
-
-## Setup, Input, and the Agentic phases
-
-STICKS has **three** separate concepts. They run at different times, for
-different consumers — do not treat them as synonyms. The phase names are
-**semantic and number-free**; the earlier numbered naming has been removed.
-Every phase decision (how many phases, their names, splitting execution from
-evaluation, and the network boundary) is traceable to the academic sources in
-[`docs/agentic-phases-literature.md`](docs/agentic-phases-literature.md).
-
-| Concept | When | Nature |
-|---------|------|--------|
-| **Setup (installation + ingestion)** | Automatic at the first start; verified at every start | Background, **idempotent** ingestion that populates the databases from the knowledge sources (curated cases seed, Atomic Red Team, Docker catalog, Attack Flow corpus, STIX package). |
-| **Input** (`input`) | Per run | The researcher selects the STIX version (the package) + campaign. **Not an agent phase** — it precedes the agentic loop. Never called "setup". |
-| **Agentic phases** | Per run | The agent loop: `operationalization → flow → environment → execution → evaluation`. |
-
-Relationship: **Setup (ingestion) fills the databases → Input reads from them** to build
-the initial context → the agentic phases run. Setup is a prerequisite for
-everything else.
-
-### First run (fresh installation)
-
-A new installation starts with an empty database. Principle: **runtime data lives
-in the databases** (relational + vector). The only JSON files in the repository
-that feed the system are the **seeds**: versioned, read-only files in
-`apps/backend/app/seeds/data/<slug>.json` (one per campaign, 8 files, about 124 KB). The backend loads them through `importlib.resources` and the setup
-itself writes them into the database; nothing at runtime reads or writes them
-as storage.
-
-1. Start the database (PostgreSQL with pgvector is published on
-   `127.0.0.1:5432`): `npm run db:up`.
-2. Prepare the native environment once (backend venv + frontend dependencies):
-   `npm run setup`.
-3. Apply the Alembic migrations: `npm run db:migrate` (`npm run dev` also applies
-   them before serving).
-4. Start the backend and frontend: `npm run dev`. On this first start the
-   ingestion runs in the background, without blocking the UI, and loads every
-   source below, including the curated cases (source `curated_seed`). Progress is
-   shown in the UI and at `GET /api/ingestion/status`; when all sources are
-   `ready` the setup is complete.
-
-Manual alternatives and maintenance:
-
-- Apply only the curated seed, from `apps/backend` with the backend venv active:
-  `python -m app.seeds.curated`. It is idempotent, prints a JSON summary of
-  inserted/updated/existing rows per kind, and never prints the database URL.
-- Regenerate the seed from a database that already holds the curated cases (read
-  only, it never writes to that database):
-  `python ops/database/scripts/export_curated_seed.py --output-dir apps/backend/app/seeds/data`
-  (use the backend venv: `apps/backend/.venv/Scripts/python` on Windows,
-  `apps/backend/.venv/bin/python` on Linux/macOS). It rewrites the 8 JSON files
-  and fails if the counts differ from 8 campaigns, 108 abilities and 8
-  adversaries. The documented `KNOWN_CORRECTIONS` are applied: the `outer_space` ordering fix and the pruning of every flow node to `node_id`, `node_type`, `technique_id`, `technique_name` and `tactic` (and of the flow content to `campaign_name`, `edges` and `structural_nodes`). The seed has no `curated` flag or flow `origin`: the applier always stores `curated = true` and `origin = human_curation`. A `costaricto` ability that points to `shadowray` is valid,
-  since abilities are resolved globally across campaigns. See
-  [`ops/database/README.md`](ops/database/README.md).
-
-### Ingestion (automatic) — operations, inputs, persistence
-
-Ingestion runs **automatically in the background on the first start** and is
-**verified on every start**: the Ingestion Orchestrator checks that each source
-is loaded and vectorized and completes only what is missing, without blocking the
-UI. It is idempotent (re-running the same sources does not duplicate rows or
-embeddings). It populates both stores:
-
-| Source | Operation | Persistence |
-|--------|-----------|-------------|
-| **STIX bundles** (ATT&CK-in-STIX, e.g. v18.0 / v19.0 / v19.1) | Parse and persist campaigns, techniques, relationships. | Relational `stix_*` tables + STIX-context embeddings. |
-| **Curated cases** (`curated_seed`; versioned read-only JSON seeds in `app/seeds/data`, no network) | Idempotent upsert of the 8 curated campaigns, 108 abilities, 8 adversaries and 8 attack flows (`human_curation`). Rows edited or generated by the AI are never overwritten. | Relational `campaigns` (`curated = true`), `abilities`, `adversaries`, `attack_flows`. |
-| **Atomic Red Team** (`redcanaryco/atomic-red-team`) | Index per-technique commands. | Relational `technique_commands` + command affinities in the Vector store (`experience_memory`). |
-| **Attack Flow corpus** ([Attack Flow](https://center-for-threat-informed-defense.github.io/attack-flow/), MITRE Center for Threat-Informed Defense; [repository](https://github.com/center-for-threat-informed-defense/attack-flow)) | Download the published `.afb` flows from a pinned tag, parse them, and record cycles when present. | Relational `attack_flows` (+ objects and edges) + one flow-description embedding per flow in `experience_memory`. |
-| **Docker image catalog** | Fetch **text-only** image descriptions via the public Docker Hub API (official images plus popular ones found by curated search terms; no image layers; caps ~10k images / ~10 MB; see the strategy below). | Relational `image_catalog` keyed by `(image, target_os)` + best-effort description/services embeddings (a Vector-store failure never aborts the relational write). |
-
-Sources run sequentially in this order: `stix_packages` → `curated_seed` →
-`atomic` → `docker_catalog` → `attack_flow`. `curated_seed` runs before `atomic`
-because the Atomic affinity bootstrap derives from the curated cases. The seed
-module is large, so it is imported only when something is missing; verifying a
-complete database does not load it.
-
-Ingestion requires **no campaign run** and isolates per-source failures: a
-failure in one source preserves what the others already persisted, without
-corrupting the databases.
-
-Each source (`stix_packages`, `curated_seed`, `atomic`, `docker_catalog`, `attack_flow`) reports a status:
-
-| Status | Meaning |
-|--------|---------|
-| `pending` | Not started yet. |
-| `running` | Ingestion in progress. A second concurrent start of the same source is rejected. |
-| `ready` | Loaded and vectorized; the next start only verifies. |
-| `failed` | Stopped with a recorded cause (for example, no network). The next verification resumes only the pending work, and the other sources are unaffected. |
-
-Status is exposed at `GET /api/ingestion/status` (counts of loaded and vectorized
-items) and shown in the UI without blocking it. Configuration (environment
-variables, also readable from `.env`):
-
-| Variable | Purpose |
-|----------|---------|
-| `STICKS_INGEST_ON_START` | Enables the automatic ingestion at start (default `true`). Tests turn it off so nothing touches the network. |
-| `ATTACK_FLOW_REF` | Git ref (tag) of the Attack Flow repository that the corpus is read from. |
-| `GITHUB_TOKEN` | Optional token for the GitHub listing call (raises the anonymous rate limit). |
-| `OLLAMA_BASE_URL` | Base URL of the Ollama service that produces embeddings. |
-| `OLLAMA_EMBED_MODEL` | Embedding model name used for every vectorized source. |
-| `OLLAMA_EMBED_TIMEOUT` | Timeout, in seconds, of each embedding request to Ollama (default `120`, so a cold model has time to load). Missing, non-numeric, zero or negative values fall back to the default. |
-| `LLM_CONNECT_TIMEOUT_SECONDS` | Connection limit, in seconds, of every language-model client (default `5`). Missing, unreadable, zero or negative values fall back to the default. |
-| `LLM_READ_TIMEOUT_SECONDS` | Response limit, in seconds, of every language-model client (default `180`). Same fallback rule. There is no automatic retry. |
-| `LLM_PREFLIGHT_RESPONSE_TIMEOUT_SECONDS` | Limit, in seconds, of the one-token test call of the pre-start check (default `120`, so a cold local model has time to load). Same fallback rule. |
-| `INGEST_WORK_DIR` | Absolute directory for the ingestion's temporary files (for example `C:\sticks-ingest`, a folder with an **antivirus exception**). Unset or empty (default): nothing is written to disk, the Atomic Red Team YAML files are parsed in memory. When valid, the selected YAML files are staged in a unique `atomic_red_team_<uuid>` subfolder, removed at the end (success or failure). A relative or unusable path logs a warning and behaves as unset. |
-| `ATOMIC_MIN_TECHNIQUES` | Plausibility floor for the Atomic Red Team source (default `100`; the full repository has about 350 techniques). A download with zero techniques or fewer than this ends `failed` with `implausible_atomic_count`, never `ready`. |
-| `DOCKER_CATALOG_MIN_IMAGES` | Completeness floor of the Docker image catalog (default `150`). A catalog with fewer images (for example the 200 of the old search) is fetched again; upserts only add. |
-| `DOCKER_CATALOG_MIN_PULLS` | Minimum pull count for a **non-official** image to enter the catalog (default `100000`). Official images are not filtered by pulls. |
-
-Atomic Red Team ingestion: the repository tarball is downloaded as a stream from
-`codeload.github.com` (identifiable `User-Agent`, retries with backoff for 5xx/429/timeouts)
-and only `atomics/T####/T####.yaml` is read; the repository is never extracted. All
-commands (`technique_commands`, unique per technique and command hash) are saved
-and committed first, then vectorized in batches. If Ollama fails, the source ends
-`failed` with the embedder cause, the relational part stays complete and the next
-verification only vectorizes what is missing. A truncated download is never returned as a partial result: the gzip stream is drained to its trailer (CRC/size) and the bytes read are checked against `Content-Length`, so a truncation is retried with the same backoff and ends in `AtomicFetchError` once retries run out. `#{argument}` placeholders are kept
-literally; `manual` tests (no command) are discarded; every platform listed by
-the test, including `containers` and `iaas:*`, is kept. A command listed for
-several platforms is stored once per technique (the first platform/executor seen
-is the one kept), so `expected_count` is the number of unique
-(technique, command) pairs. A malformed YAML file is isolated and reported in the
-source's `skipped` list (`{item, reason}`) without stopping the others.
-
-Vectorization runs in batches of 32 (one `/api/embed` call each); a batch that
-fails is redone entry by entry so one bad entry never blocks the rest.
-`progress(done, total)` and the heartbeat keep the status counts and the lock
-alive during the download, the relational phase and the embedding.
-
-When the next run downloads again: nothing is stored; the previous run failed for
-a reason other than the embedder; fewer techniques than `ATOMIC_MIN_TECHNIQUES`
-are stored; or the relational part was never recorded as complete
-(`expected_count` unknown or larger than the stored rows, for example a run
-interrupted after a few rows); or any stored command still has a NULL
-`input_arguments` (rows ingested before that column existed). Otherwise it only
-vectorizes what is missing, and with nothing missing the plan is empty and no
-network is used.
-
-Re-ingest to backfill `input_arguments`: nothing manual is needed. The next start
-(or `POST /api/ingestion/atomic/start`) sees the NULL column, downloads the
-Atomic repository again and updates the existing rows in place (same
-`(technique, command_hash, source)` key), so no row and no embedding is
-duplicated. A test without arguments is stored as `{}` (processed, nothing to
-substitute) and a row that no longer exists upstream is also set to `{}`, so after
-one successful run the plan is empty again and the network is not used.
-
-#### Command template, Atomic defaults and agent adaptation
-
-`technique_commands` stores the **canonical command template**, not a ready
-command: `command` keeps the Atomic text byte for byte, with its `#{name}`
-placeholders, and `input_arguments` keeps each argument's name, description,
-type and default. No substituted command is ever written to the database.
-
-- **Defaults are a suggestion.** The Atomic defaults (Windows paths, example IPs)
-  describe the Atomic Red Team's own test bed and may not exist in the emulated
-  environment, which changes with every campaign.
-- **Example on the Operationalization screen.** When the screen shows a command
-  filled with the Atomic defaults, it is labeled as an example with the Atomic
-  default values (not as the command to run), the copy button says so, and a
-  collapsible "template" section shows the original `command`. The API keeps
-  returning `command` (template), `resolved_command` (example), `arguments_used`
-  and `unresolved_arguments`. Without a difference between the two, the screen
-  shows a single plain block. *Implemented.*
-- **`PathToAtomicsFolder` is an agent argument.** The token
-  `PathToAtomicsFolder` / `$PathToAtomicsFolder` (the folder where the payload
-  lives in the campaign container) is never substituted: it stays intact in the
-  template and in the example, and is reported in `unresolved_arguments`. No
-  environment variable configures it; the agent decides the folder per
-  campaign. *Implemented.*
-- **The agent receives the template and the arguments.** The pool the
-  operationalization agent queries (`atomic_lookup`) returns, for each
-  candidate, the unsubstituted template, its `command_ref` (the
-  `technique_commands` row id) and its `input_arguments` plus
-  `PathToAtomicsFolder`. A candidate found by similarity, without stored
-  arguments, carries only the template and the detected placeholder names.
-  *Implemented.*
-- **The agent adapts the command to the environment.** The design is for the
-  agent prompt to say that defaults are suggestions, that the environment is
-  emulated and changes per campaign, and that the agent chooses IPs, hosts,
-  containers and paths (including the payload folder) and answers with
-  `{"template", "command"}` items without remaining placeholders. *Pending
-  (tasks 45.3 and 45.4); the current prompt does not do this yet.*
-- **Validation and fallback.** The design accepts a final command only if its
-  `template` is in the technique's pool and it has no `#{...}` and no
-  `PathToAtomicsFolder`; otherwise the reason goes to the trace and the
-  deterministic fallback runs. Without a chat model, the fallback fills the
-  placeholders with the Atomic defaults, records `atomic_defaults` as the source
-  in the trace and keeps `command_ref`. *Pending (task 45.4).*
-
-Docker image catalog ingestion: only text is read from the public Docker Hub API (no image layers). The anonymous API serves at most 200 results per query (a deeper page answers `403 pagination ... anonymous`, which ends that query normally; `next` is never followed), so the catalog is built from several short queries: the **official** images (`/v2/repositories/library/?page_size=100`, queried with `ordering=name` and `ordering=-name`; the union by name covers the whole namespace, about 180 images) and **popular** images found through a curated list of lab-relevant search terms (pages 1-2, `page_size=100`), keeping only results with a description and at least `DOCKER_CATALOG_MIN_PULLS` pulls. 429/5xx/timeouts are retried up to 4 attempts with exponential backoff plus jitter (honoring `Retry-After` / `x-ratelimit-reset`) and an identifiable `User-Agent` (`sticks-ingest/1.0`). If a query fails for good but others delivered images, the ingestion ends `ready` with the failure listed as a warning (skipped item); it only fails when no image was obtained, and the recorded `error` keeps the original cause (HTTP status, URL path and API message). A fresh catalog has about 1600 images. Every image is cataloged as `linux`: Docker Hub has **no official Windows images** (Microsoft publishes them on `mcr.microsoft.com`). The source is fetched again when the catalog is empty, below `DOCKER_CATALOG_MIN_IMAGES` or the last run failed; upserts only add, so loaded images are never lost.
-
-### Input (`input`, per run) — operations, inputs, persistence
-
-The researcher picks a STIX base version and a campaign from it. The system
-extracts the campaign's attributes (techniques, relationships, indicators,
-infrastructure, malware) by **reading from the ingested databases** — no disk,
-no network at request time. `input` is the human choosing the target; it is
-**not counted or numbered as an agent phase**. Its output (campaign identity +
-techniques) is the initial context the agentic loop consumes.
-
-### Agentic phases — operations, inputs, persistence
-
-The agent loop runs five semantic phases, in this order. The Atomic commands come
-**before** the flow, so the researcher validates the operationalization first.
-`evaluation` observes the **real** execution result and either finishes (success)
-or routes a refinement back to `operationalization`, `flow`, or `environment`,
-bounded by a max-iterations guard.
-
-| Phase | Operation | Input | Persistence |
-|-------|-----------|-------|-------------|
-| **`operationalization`** | For each technique of the campaign, list and choose concrete commands from the Atomic Red Team base (exact relational lookup by technique ID; the vector query is only a secondary aid — commands are never invented). | Campaign identity + techniques (from `input`). | Chosen commands per technique; audit trace. |
-| **`flow`** | Build the **attack flow** of the campaign with the three-path policy below, and record its provenance. | The techniques and the chosen commands. | Attack flow objects/edges + provenance; per-phase trace + experience in the Vector store. |
-| **`environment`** | Provision the contained lab. Resolve images **catalog-first** (Docker image catalog, then Docker Hub online only as fallback). **External egress is allowed here, automatically**, to pull images. | The attack flow and commands, with the environment parameters they require. | Provisioning map; environment state + audit trace. |
-| **`execution`** | Run the offensive commands through Caldera against the targets over the **internal** lab network. Starts only after the **isolation gate** confirms external egress is cut; every command destination is validated by `is_internal_ip`. | The provisioned, **isolated** lab. | Run results, 1:1 audit trail, isolation proof/events. |
-| **`evaluation`** | Judge the real execution result (runner verdict, containment/isolation state); decide finish vs. refine; write the experience. | The execution result. | Verdict + experience (success/failure) in the Vector store. |
-
-**Network boundary (`environment` → `execution`).** Isolation is **cutting
-external egress, not cutting the network**. After provisioning, an auditable
-isolation gate severs external egress while **keeping the internal lab network
-alive** — Caldera (the C2) needs it to reach the targets during `execution`.
-`execution` cannot start without a valid isolation proof, and every command
-destination must be internal/contained (`is_internal_ip`). See the network
-boundary rationale and its sources in
-[`docs/agentic-phases-literature.md`](docs/agentic-phases-literature.md).
-
-#### Attack flow and the three-path policy
-
-The **attack flow** replaces the former plain-graph concept. The format is
-[Attack Flow](https://center-for-threat-informed-defense.github.io/attack-flow/),
-from the MITRE Center for Threat-Informed Defense (source:
-[center-for-threat-informed-defense/attack-flow](https://github.com/center-for-threat-informed-defense/attack-flow)).
-It models adversary behavior as actions, conditions, operators, and assets, with
-the edges given by each object's effect references. The published corpus is not
-strictly acyclic (a few flows contain cycles), so STICKS keeps the original graph,
-logs the cycles with the objects involved, and derives an acyclic execution view;
-a cycle never stops the application.
-*Description paraphrased from the project documentation for compliance with
-licensing restrictions.*
-
-The `flow` phase chooses one of three paths and records it as the flow's
-**provenance** (path plus the IDs of the reference flows), shown in the UI:
-
-| Path | When | Result |
-|------|------|--------|
-| `exact` | A documented flow of the corpus matches the campaign exactly. | The documented flow is used as is. |
-| `adapted` | There is no exact match, but similar flows exist. | The closest flows are adapted into the nearest possible flow. |
-| `created` | No reference flow exists. | The agent creates an original flow. |
-
-Similar flows are found by vector similarity over the flow description and by a
-relational query over the structured flows.
-
-#### Curated campaigns are only a flag
-
-The old curated pipeline (its service, its numbered routes, and their screens)
-was removed. "Curated" is now only the `curated` flag in the database: the flow,
-commands, and environment of the 8 human-curated campaigns stay as **data**, and
-serve as ground truth to compare against the AI-generated result. On a fresh
-installation they are loaded by the `curated_seed` ingestion source (see
-[First run](#first-run-fresh-installation)).
-
-### STIX base selection - where the packages live
-
-STIX packages live **only in the database**; no bundle file is ever written to
-disk. The `stix_packages` knowledge source of the ingestion orchestrator
-downloads each `enterprise-attack-{version}.json` (~50 MB) from the official MITRE
-repository **into memory** and persists its derived content (type counts,
-campaigns, techniques, actors) straight into the relational tables, then indexes
-the campaigns in the vector store. The ingestion is idempotent per version,
-resumable and isolates failures: one failing version never blocks the others.
-
-It runs on the first start (and on every start, doing nothing when nothing is
-missing). The versions kept ingested are the union of:
-
-- **the newest ATT&CK version (the default).** A fresh installation downloads the
-  most recent Enterprise version. The backend asks the upstream index
-  (`index.json` of `mitre-attack/attack-stix-data`) which one that is; offline
-  or on any error it falls back to the newest version built into the backend
-  (`KNOWN_VERSIONS`), without failing. Setting `STIX_VERSIONS` (comma or
-  whitespace separated, e.g. `STIX_VERSIONS=19.1,latest`; `latest` is the newest
-  version) replaces **only this item**;
-- **the version required by the curated cases (today `18.0`).** The 8 curated
-  campaigns were curated against ATT&CK 18.0; every seed file declares it
-  (`campaign.stix_version`, with `campaign.stix_campaign_key`, e.g. `C0045`).
-  `STIX_VERSIONS` can never remove it;
-- every version already in the database (never dropped);
-- any version picked in the UI that is not ingested yet: choosing it calls
-  `POST /api/stix/bases/{version}/download`, which starts the ingestion in the
-  background (`202`) while `GET /api/stix/bases` (`downloaded`) and
-  `GET /api/ingestion/status` report the progress.
-
-
-Cost of the first start: each version is about 50 MB to download and persist, and
-a fresh installation downloads **two** versions (the newest and 18.0), so expect
-roughly 100 MB of traffic and a few minutes on a typical connection (progress is
-in `GET /api/ingestion/status`). Later
-starts download nothing when nothing is missing. If a version fails (for example
-offline), only that version is left missing, the source is reported `failed`, and
-the next start resumes just the missing ones.
-
-Following new releases: when ATT&CK publishes a version newer than the newest one
-installed (detected through the cached upstream index: 1 h cache, 5 s timeout,
-offline falls back to `KNOWN_VERSIONS`), the next start or `POST /api/ingestion/verify`
-downloads it (about 50 MB per version, in addition to the versions you already
-have). The verify request never waits for the network; the index is refreshed in
-the background. When the newest version is already installed the plan is empty.
-To turn this off, pin the versions with `STIX_VERSIONS` (e.g. `STIX_VERSIONS=19.1`).
-
-Version list in the UI: `GET /api/stix/bases` lists the Enterprise versions
-published in the upstream index, newest first, **plus** every version already in
-the database (a persisted version is never hidden). The index is cached for 1 h
-(5 s timeout, warmed in the background at startup, so the API never waits for it
-to come up). When it is unreachable, empty or invalid, the list falls back to the
-built-in `KNOWN_VERSIONS` and that failure is cached for 60 s, so an offline
-machine is not queried on every request. `POST /api/stix/bases/{version}/download`
-accepts only versions of that list (`422` `falha_download` otherwise). Each
-version costs about 50 MB of download.
-
-**Curated campaigns** (flagged `curated`): APT41 - DUST, ATT&CK Campaign C0010, ATT&CK Campaign
-C0026, CostaRicto, Operation MidnightEclipse, Operation Outer Space,
-Salesforce Data Exfiltration, ShadowRay.
-
----
-
-## Architecture
-
-- **Backend** — FastAPI + SQLAlchemy + Alembic, **PostgreSQL only**. Orchestrates
-  the agentic phases, exposes the REST/WebSocket API, enforces containment, and persists
-  state. Live technique-by-technique progress streams over WebSocket.
-- **Frontend** — React 19 + TypeScript + Vite + Tailwind + shadcn/ui + i18next
-  (pt-BR / en). A guided wizard renders every phase with Input/Processing/Output,
-  live execution tracking, and the consolidated report.
-- **Ops** — the contained Docker lab (Caldera, Kali attacker, nginx target, DB)
-  on static internal-only networks.
-
-### Multi-agent architecture
-
-The agent loop is a LangGraph graph (`apps/backend/app/services/ai/graph.py`)
-with a Postgres checkpointer:
-
-| Node | Uses a model | Role |
-|------|--------------|------|
-| `orchestrate` | No | Orchestrator: seeds the state (campaign, `iteration`, `max_iterations`) and routes. |
-| `operationalize` | Yes | Operationalization_Agent: chooses and adapts the Atomic commands. |
-| `flow` | Yes | Flow_Agent: produces the attack flow. |
-| `environment` | Yes | Environment_Agent: provisions the contained lab. |
-| `execute` | No | Execution node: runs the commands through Caldera. |
-| `evaluate` | Yes | Evaluator: judges the real result. |
-
-After `evaluate`, `route_after_eval` either finishes or sends a refinement back to
-`operationalize`, `flow` or `environment`. The loop is bounded: it aborts when
-`iteration + 1 >= max_iterations` (default 3, from configuration).
-
-In the UI, the **orchestrator robot** is the persona that speaks for the
-orchestrator: it asks for approvals and narrates each phase. It is an interface
-persona only; the orchestrator node itself calls no model.
-
-### Interactive run with approval per phase
-
-A run no longer executes in one call. The graph is compiled with
-`interrupt_after` on `operationalize`, `flow` and `environment`, so it pauses after
-each of them until the researcher approves. Phases run as background jobs and the
-UI polls the run.
-
-Order: `operationalization` → approval → `flow` → approval → `environment` →
-approval → `execution` → `evaluation`. Nothing offensive runs before the third
-approval.
-
-**Run states** (`agent_runs.status`): `pending`, `running`, `awaiting_approval`,
-`completed`, `failed`, `aborted`. `current_phase` names the phase in progress or
-paused. A run left `running` by a backend restart is marked `failed`
-(`interrupted_by_restart`) by the Reconciler at startup.
-
-**Routes** (prefix `/api/campaigns/{campaign}/ai`). Errors carry the code in
-`detail.reason`:
-
-| Route | Purpose | Error codes |
-|-------|---------|-------------|
-| `POST /run` | Starts a run (202, first phase in the background). | 409 `run_already_active`, `llm_blocked`; 503 `run_failed` |
-| `GET /runs/active` | Active run of the campaign. | 404 `no_active_run` |
-| `GET /runs/{id}` | Run detail (iterations, verdict, approvals, proposals, coverage). | 404 `run_not_found` |
-| `POST /runs/{id}/phases/{phase}/approve` | Approves `operationalization`, `flow` or `environment` and starts the next phase (202). | 404 `run_not_found`; 409 `wrong_phase`, `phase_running`, `run_not_awaiting`, `llm_blocked`, `profile_unavailable`; 422 `invalid_phase` |
-| `POST /runs/{id}/phases/flow/regenerate` | Generates another attack flow while paused on `flow` (202). | 404 `run_not_found`; 409 same as approve |
-| `POST /runs/{id}/phases/flow/select` | Goes back to an earlier attack flow proposal. | 404 `run_not_found`, `flow_proposal_not_found`; 409 `wrong_phase`, `phase_running`, `run_not_awaiting` |
-| `POST /runs/{id}/abort` | Aborts a paused run and releases its lab. | 404 `run_not_found`; 409 `phase_running`, `run_not_awaiting` |
-
-A run uses the model profile frozen when it started; the pre-start check is
-repeated on start, approve and regenerate.
-
-**Negotiation (Operationalization_Agent ↔ Environment_Agent).** During
-`operationalize`, each technique gets its environment requirements (hosts, target
-OS, image hint, ports, services, files). The Environment_Agent evaluates them
-lightly, without provisioning anything, and may return an objection:
-`port_conflict`, `image_unavailable`, `os_unsupported` or `requires_vm`. The
-Operationalization_Agent adjusts the commands (for example, moves a port or
-switches to Linux commands) and asks again, up to
-`OPERATIONALIZATION_NEGOTIATION_MAX_ROUNDS` adjustment rounds (default 1). A
-technique still objected to is marked `not_emulable` with the last objection code
-(or `no_command` when no Atomic command exists). A run never fails because of an
-objection. Each round is recorded in the phase trace.
-
-**Emulation coverage (percentage).** Planned coverage is the share of campaign
-techniques that are `planned_emulable` after the negotiation, shown at the
-operationalization and environment approvals. Achieved coverage is the share
-executed with success after `execution`. Both are stored in `agent_runs.coverage`
-with a per-technique status. The evaluator compares achieved coverage with
-`RUN_SUCCESS_COVERAGE_MIN`; what counts as a successful run is still under study.
-
-### Isolated lab network
-
-| Network | Subnet | Host | IP |
-|---------|--------|------|----|
-| caldera-kali-network | 192.168.10.0/24 | caldera | 192.168.10.10 |
-| caldera-kali-network | 192.168.10.0/24 | kali | 192.168.10.20 |
-| kali-nginx-network | 192.168.20.0/24 | kali | 192.168.20.20 |
-| kali-nginx-network | 192.168.20.0/24 | nginx | 192.168.20.30 |
-| nginx-db-network | 192.168.30.0/24 | nginx | 192.168.30.30 |
-| nginx-db-network | 192.168.30.0/24 | db | 192.168.30.40 |
-
----
-
-## Repository layout
+<div align="center">
+
+| 🎯 Curated campaigns | 🧩 Abilities | 🤖 Agentic phases | 📚 Knowledge sources | 🧪 Tests |
+|:---:|:---:|:---:|:---:|:---:|
+| **8** | **108** | **5** | **5** | **10** |
+
+</div>
+
+## 🧭 How it works
+
+```mermaid
+flowchart LR
+    SRC[("📚 5 sources<br/>STIX · Atomic · Docker Hub<br/>Attack Flow · curated seeds")]
+    DB[("🐘 PostgreSQL<br/>tables + pgvector")]
+    IN["👤 input<br/>STIX version + campaign"]
+    OP["🧩 operationalization"]
+    FL["🕸️ flow"]
+    EN["🐳 environment"]
+    EX["⚔️ execution"]
+    EV["📊 evaluation"]
+
+    SRC -- "setup / ingestion" --> DB
+    DB --> IN --> OP --> FL --> EN --> EX --> EV
+    EV -. "refine (max 3)" .-> OP
+    EV --> R(["📄 report"])
+```
+
+| Concept | When | What it is |
+|---------|------|------------|
+| **Setup** | First start, verified on every start | Background, idempotent ingestion that fills the database. Not a screen, not a run phase |
+| **Input** | Per run | You pick the STIX version and the campaign. Not an agent phase |
+| **Agentic phases** | Per run | `operationalization → flow → environment → execution → evaluation`. The run pauses for your approval after the first three |
+
+Per-phase inputs, processing and outputs: [`docs/pipeline.md`](docs/pipeline.md).
+
+## 🚀 Quick start
+
+> [!NOTE]
+> Needs Docker (with Compose), Node.js 18+ and Python 3.11+. The first start downloads about 100 MB of STIX data
+> and builds embeddings with [Ollama](https://ollama.com) (`nomic-embed-text`). The lab image build (Caldera,
+> about 7 GB) happens later, in the first run's `environment` phase.
+
+```bash
+npm run db:up      # PostgreSQL + pgvector on 127.0.0.1:5432
+npm run setup      # once: backend venv + frontend dependencies
+npm run dev        # migrations, then backend + frontend with hot reload
+```
+
+| Service | URL |
+|---------|-----|
+| 🖥️ UI | <http://localhost:8000> |
+| ⚙️ API | <http://localhost:8010> (`GET /health`) |
+| 🧪 Caldera | <http://localhost:8888>, only while a run has the lab up |
+
+On the first start, ingestion runs in the background. Watch it in the UI or at `GET /api/ingestion/status`;
+when every source is `ready`, setup is done. You also need a language model: the work profile
+(`SEPINF_*` in `.env`) or a local Ollama model. Details in [`docs/operations.md`](docs/operations.md).
+
+> [!WARNING]
+> Do not edit backend files during a run. `uvicorn --reload` restarts the backend and kills the run in progress.
+
+## 🛡️ Safety
+
+Containment is non-negotiable. Adversary commands never run on the host and never reach external targets.
+
+- `environment` is the only phase with external egress, and only to pull images.
+- An **isolation gate** cuts egress and proves it. `execution` cannot start without that proof.
+- Every command destination is checked by `is_internal_ip`, and every executed command is audited 1:1.
+- Agents only propose. The same containment code that guards a human-curated run guards an AI run.
+
+## 📖 Documentation
+
+| Where | Answers | Read it when |
+|-------|---------|--------------|
+| **`README.md`** (here) | What is this, how do I run it, where is everything | First contact |
+| [`docs/pipeline.md`](docs/pipeline.md) | What each phase and agent takes in, does and puts out | You want to understand the system |
+| [`docs/storage.md`](docs/storage.md) | Which databases, which tables, who reads and writes them | You touch data or ingestion |
+| [`docs/operations.md`](docs/operations.md) | Config, ingestion details, model profiles, migrations, dev checks | You install, configure or debug |
+| [`docs/agentic-phases-literature.md`](docs/agentic-phases-literature.md) | Academic sources behind the phase model | You write or review the paper |
+| [`docs/history.md`](docs/history.md) | How the project got here, on one page | You meet an old name or want context |
+| [`ops/database/README.md`](ops/database/README.md) | Database helper scripts, curated seed export | You maintain the seeds |
+
+
+## 📁 Repository layout
 
 ```
 .
-|-- apps/
-|   |-- backend/            # FastAPI backend (API, services, Alembic migrations, tests)
-|   `-- frontend/           # React + TypeScript (Vite) frontend
-|-- ops/
-|   |-- docker/             # Contained lab: compose + Caldera / Kali / nginx / db
-|   |-- kubernetes/         # Planned (not implemented yet)
-|   |-- aws/                # Planned (not implemented yet)
-|   `-- database/           # Platform-agnostic database assets
-|-- scripts/                # Cross-platform dev / setup / migrate runners (Node)
-|-- docs/                   # Project documentation & journal
-|-- .kiro/specs/            # Spec-driven plans (requirements -> design -> tasks)
-|-- presentation/           # Slidev slides (separate project, outside the workspaces)
-`-- package.json            # npm workspaces (apps/frontend only) + single dev commands
+├── apps/
+│   ├── backend/     # FastAPI, LangGraph agents, Alembic migrations, tests
+│   └── frontend/    # React + TypeScript + Vite + Tailwind + shadcn/ui (pt-BR / en)
+├── ops/
+│   ├── docker/      # Contained lab: Caldera, Kali attacker, nginx and MariaDB targets, PostgreSQL
+│   └── database/    # Platform-agnostic database scripts
+├── scripts/         # Cross-platform dev, setup and migrate runners (Node)
+└── docs/            # Documentation
 ```
 
-### `node_modules` folders
+## 🔬 Research goal
 
-There are three `node_modules` directories, all ignored by git:
+Empirically measure procedural sufficiency in structured CTI: how complete STIX datasets are, how much operational
+knowledge a campaign needs to run, what is missing to reproduce APT behavior, and how **human curation** compares with
+**AI-generated** curation.
 
-- **Root `node_modules/`**: the hoisted dependencies of the `apps/frontend`
-  workspace. The root `package.json` declares `workspaces: ["apps/frontend"]`;
-  `packages/*` was removed because that folder no longer exists.
-- **`apps/frontend/node_modules/`**: only Vite caches (the dependencies themselves
-  are hoisted to the root).
-- **`presentation/node_modules/`**: the Slidev project, which is separate and not
-  part of the workspaces. It has its own `package-lock.json`; install it with
-  `npm install` inside `presentation/`.
-
----
-
-## Quick start
-
-**Prerequisites:** Docker (+ Compose), Node.js 18+, Python 3.11+.
-
-Only PostgreSQL runs in Docker by default; the backend and frontend run natively
-on the host with hot-reload against it. The lab (Caldera, Kali, nginx and
-database targets) is **not** started by hand: the `environment` phase of each run
-builds and starts it (see [Validating the environment from scratch](#validating-the-environment-from-scratch)).
-
-```bash
-# 1. Start PostgreSQL only (127.0.0.1:5432), from the repository root
-npm run db:up
-
-# 2. Setup (installation): prepare the native environment once (backend venv + frontend deps)
-#    from the repository root
-npm run setup
-
-# 3. Run backend + frontend with hot-reload (applies Alembic migrations first)
-npm run dev
-```
-
-- **UI:** http://localhost:8000
-- **API:** http://localhost:8010 - health check: `GET /health` -> `{"status": "ok"}`
-- **Caldera:** http://localhost:8888 (login `red` / `admin`), available only
-  while a run has provisioned the lab.
-
-Database migrations can be applied on their own with `npm run db:migrate`.
-
-### npm scripts (repository root)
-
-| Script | What it does |
-|--------|--------------|
-| `npm run db:up` | Starts only the `postgres` container (`docker compose -f ops/docker/docker-compose.yml up -d postgres`). |
-| `npm run setup` | One-time setup: backend venv and frontend dependencies. |
-| `npm run db:migrate` | Applies the Alembic migrations. |
-| `npm run dev` | Applies the migrations, then starts the backend (uvicorn `--reload`, port 8010) and the frontend (Vite, port 8000) natively. |
-| `npm run dev:backend` | Same as `dev`, backend only. |
-| `npm run dev:frontend` | Same as `dev`, frontend only. |
-| `npm run dev:containers` | Optional. Starts postgres, backend and frontend as containers (the `containers` compose profile). Not the default workflow. |
-
-> **Warning: do not edit backend files while a run is in progress.** uvicorn
-> `--reload` restarts the backend on any change under `apps/backend/app`, and the
-> restart kills the in-flight run. At the next start the Reconciler marks such a
-> run `failed` (`interrupted_by_restart`) and its Caldera operation `aborted`. A
-> run paused in `awaiting_approval` survives a restart. Frontend edits are
-> hot-reloaded by Vite and do not affect a run.
-
-### Validating the environment from scratch
-
-To check that a run can build its lab from nothing, keep only `sticks-postgres`
-running: remove the `sticks-*` lab containers, the volume
-`sticks-mariadb-target-data`, the lab networks and, if you want a full rebuild,
-the lab images (never `sticks-postgres` or its volume). Then run `npm run db:up`,
-`npm run dev`, start a run in the UI and approve the attack flow. The
-`environment` phase builds the images from `ops/docker/.docker/*`, starts the four
-lab containers (`caldera-attacker`, `kali-attacker`, `nginx-target`,
-`mariadb-target`), cuts external egress and verifies it, then pauses for approval.
-No offensive command runs before you approve the environment.
-
-- **Disk:** the Caldera image is about 7.3 GB (figure from the spec design).
-  Check the total with `docker system df`.
-- **Time:** the first build takes tens of minutes, mostly Caldera. A precise
-  figure has not been recorded yet; it is tracked in the spec task 14.1. The
-  build runs as a background job, so the UI does not time out.
-
-#### Upgrading to the phase-name migration (back up first)
-
-Migration `b0c1d2e3f4a5` renames persisted names so every phase is called by its
-name (`input`, `operationalization`, `flow`, `environment`, `execution`,
-`evaluation`) instead of a number. Both `npm run dev` and `npm run db:migrate`
-apply it automatically, so **back up the database before the first run after
-pulling this change**:
-
-```bash
-# Backup (write the dump outside the repository)
-docker exec sticks-postgres pg_dump -U pipeline_ui -Fc pipeline_ui > sticks-backup.dump
-
-# Restore, if needed
-docker exec -i sticks-postgres pg_restore -U pipeline_ui --clean --if-exists -d pipeline_ui < sticks-backup.dump
-```
-
-- **Finish running agent executions first.** The LangGraph checkpoints are not
-  migrated. An execution started before the upgrade and resumed after it is not
-  supported, because its checkpoint lacks the renamed state channel.
-- **What changes:** three tables are renamed (old names below), the phase number column becomes a phase name column plus a `subphase` column, and related columns, constraints and one JSON key are renamed too.
-  - `stage_runs` becomes `phase_runs` <!-- sweep-allow: documents the rename migration -->
-  - `agent_stage_outputs` becomes `agent_phase_outputs` <!-- sweep-allow: documents the rename migration -->
-  - `agent_stage_traces` becomes `agent_phase_traces` <!-- sweep-allow: documents the rename migration -->
-  - JSON key `substages` becomes `subphases` <!-- sweep-allow: documents the rename migration -->
-- **Rolling back:** from `apps/backend`, run
-  `alembic downgrade a9b0c1d2e3f4` (with `PIPELINE_UI_DATABASE_URL` set), or
-  restore the dump. The downgrade stops without changes if a phase value has no
-  numbered equivalent (for example `evaluation`); restore the dump in that case.
-
-#### Upgrading to the model-profile migration (back up first)
-
-Migration `c1d2e3f4a5b6` adds the nullable column `preferences.llm_profile_id`
-(the selected model profile). It is additive and reversible, and it does not
-change existing rows. `npm run dev` and `npm run db:migrate` apply it
-automatically, so take the same backup shown above before the first run after
-pulling this change. To roll back, run `alembic downgrade b0c1d2e3f4a5` from
-`apps/backend`.
-
----
-
-## Language-model profiles and the pre-start check
-
-The agents and the threat-intelligence extraction call one language model, the
-**selected profile**. Profiles are not registered by hand; they are discovered.
-
-- **Work profile (default).** Built from `SEPINF_BASE_URL`, `SEPINF_MODEL_ID` and
-  `SEPINF_API_KEY` (OpenAI-compatible server). It is used while no other profile
-  is selected. **It depends on the work VPN:** if the server is unreachable, turn
-  the VPN on and check again.
-- **Local profiles (Ollama).** One profile per model listed by
-  `GET {OLLAMA_BASE_URL}/api/tags` that can generate text. Remote and
-  embedding-only models are ignored. If Ollama does not answer the listing within
-  2 s, only the work profile is offered.
-- **Selection.** `PUT /api/llm/selection` stores the profile id in
-  `preferences.llm_profile_id`. An unknown id answers 404 (`unknown_profile`)
-  and keeps the previous selection. If the stored model later disappears from
-  Ollama, the check reports `model_missing`; the app never switches profile silently.
-- **API key.** The key stays only in the `SEPINF_API_KEY` environment variable
-  (root `.env`). It is never written to the database, returned by the API or logged;
-  a profile only records the **name** of the variable.
-
-### What the check verifies
-
-`POST /api/llm/preflight` (cached for 30 s per profile, `force` skips the cache)
-returns only reason codes and numbers; the frontend translates them.
-
-| Check | Applies to | Result codes |
-|-------|-----------|--------------|
-| Reachability | OpenAI-compatible | Server reached within 5 s: `reachable` / `unreachable` (the work profile then also gets the `vpn` hint). |
-| Response | both, after the server is reachable | One-call test with `max_tokens` = 1, limited by `LLM_PREFLIGHT_RESPONSE_TIMEOUT_SECONDS`: `responds` / `no_response`. |
-| Daemon and model | Ollama | `daemon_running` / `daemon_down`, `model_present` / `model_missing`. |
-| Memory | Ollama | `fits_gpu`, `fits_ram_only`, `too_large`, `memory_unknown`. The OpenAI-compatible profile reports `not_applicable` (skipped). |
-| Embedder | always | The model in `OLLAMA_EMBED_MODEL` is installed: `embedder_available` / `embedder_missing`. |
-
-**Memory rule.** A local model fits when its size times **1.2** is at most the
-free memory. The factor leaves headroom for the context cache and runtime
-buffers, which are not part of the file size. The rule is tried on the free GPU
-memory first (read with `nvidia-smi`; `memory_unknown` if the command is missing
-or fails), then on the free RAM. `fits_gpu` means GPU, `fits_ram_only` means
-RAM only (slower), `too_large` means neither.
-
-### Block or warn
-
-- **Blocks** (`status` = `blocked`): the profile is not configured
-  (`not_configured`), the server is unreachable or does not
-  respond, the daemon is down, the model is missing, or the model is `too_large`.
-- **Warns only** (`status` = `warning`): for example `fits_ram_only`,
-  `memory_unknown` or `embedder_missing` (the agents then run without the
-  embedding memory).
-- Otherwise `status` = `ok`.
-
-`POST /api/campaigns/{campaign}/ai/run` repeats the check (`force`) before creating
-anything. If it is blocked, the answer is 409 `llm_blocked` with the code list
-and no run is created. If the model fails during a run, the answer is 503
-`run_failed` with a `cause_code` (`llm_unreachable`, `llm_timeout`,
-`llm_not_configured`, `llm_error` or `run_error`). In the UI the
-"Start the emulation" button stays disabled while the check is running or blocked,
-and a panel above it lists each check.
-
-### Status icon
-
-The top bar, next to theme and language, shows one status icon: check (ok),
-alert (warning), error (blocked), spinner (checking) or question mark (the check
-itself failed). The shape differs by state, so color is not the only signal. Hover
-or focus shows the model name and state; activating it opens a panel with the
-profiles, the size and memory fit of each local model, the selection and a
-"check again" button.
-
----
-
-## Development
-
-```bash
-# The whole repository keeps only 10 tests (8 backend, 2 frontend); see
-# .kiro/steering/test-policy.md. New tests need explicit owner approval.
-# Backend tests (from apps/backend, using the project venv)
-.venv/Scripts/python -m pytest          # Windows
-.venv/bin/python -m pytest              # Linux / macOS
-
-# Frontend type-check + tests (from apps/frontend)
-npm run lint         # tsc --noEmit
-npm run test         # vitest
-```
-
-### Linting and formatting
-
-Linters are configured per app and must be run from that app's directory. Both
-should finish with no findings.
-
-```bash
-# Frontend (from apps/frontend)
-npm run lint:eslint   # ESLint 9 (flat config): typescript-eslint, react-hooks, jsx-a11y
-npm run lint          # tsc --noEmit (type-check only)
-
-# Backend (from apps/backend, using the project venv)
-.venv/Scripts/python -m ruff check .            # Windows: lint
-.venv/Scripts/python -m ruff format --check .   # Windows: formatting check
-.venv/bin/python -m ruff check .                # Linux / macOS: lint
-.venv/bin/python -m ruff format --check .       # Linux / macOS: formatting check
-```
-
-What each command covers:
-
-- `npm run lint:eslint` lints the frontend TypeScript/TSX files (`src`, tests
-  and `.ts` configs; `dist` and `coverage` are ignored). The `react-hooks` and `jsx-a11y` accessibility rules
-  are errors. Unused
-  `eslint-disable` directives are reported as errors too.
-- `npm run lint` is the TypeScript type-check; it does not run ESLint.
-- `ruff check` applies the rule families `E, F, W, I, B, UP, C4, SIM, BLE, S, PGH,
-  RUF` configured in `apps/backend/pyproject.toml` (`E501` is ignored: the formatter
-  controls line width, 100 columns). The enums use `enum.StrEnum` (`UP042`), so
-  `str(member)` and f-strings return the value; code that needs the value still
-  uses `.value` explicitly.
-- `ruff format --check` only verifies formatting. To apply it, run
-  `ruff format .` (same directory and interpreter).
-
-Conventions:
-
-- **Suppressions need a reason.** Name the rule and explain why after ` -- `, for
-  example `# noqa: BLE001 -- <reason>` (Python) or
-  `// eslint-disable-next-line <rule> -- <reason>` (frontend). Never disable a
-  whole file or turn a rule off in the config. `# type: ignore[code]` also keeps
-  its code and reason.
-- **mypy is not used.** Python type checking is not part of the tooling; Ruff
-  covers lint and format only.
-- **`ops/` is never scanned.** It holds the vendored Caldera. The commands above
-  run only inside `apps/frontend` and `apps/backend`, so they never reach it.
-- There is no CI or pre-commit hook (the repository has no `.github`,
-  `.pre-commit-config.yaml` or `.husky`), so these checks are run by hand.
-- Dependencies: the frontend lint tools are pinned `devDependencies`, and `ruff`
-  is pinned in the backend `dev` extra, so `npm run setup` installs them.
-- `apps/frontend/package-lock.json` is kept in sync with `apps/frontend/package.json`
-  because the frontend `Dockerfile` uses `npm ci`. `npm run setup` uses the root
-  `package-lock.json` (npm workspaces). After changing frontend dependencies,
-  update both lockfiles.
-
-The test suite is intentionally small: 10 tests in total. The backend keeps 8
-safety and data-integrity checks (mostly **property-based**, Hypothesis, 10
-examples each); the frontend keeps 2 (the i18n catalog guard and a render test,
-Vitest + Testing Library). The
-project is **spec-driven**: each feature is planned under `.kiro/specs/` as
-requirements -> design -> tasks before implementation.
-
----
-
-## Research goal
-
-STICKS exists to **empirically measure procedural sufficiency** in structured CTI:
-evaluate the structural completeness of STIX datasets, quantify the operational
-knowledge required to execute a campaign, surface what is missing to reproduce
-APT behavior, and support automated adversary-emulation experiments - ultimately
-to compare human curation against future AI-generated curation.
-
----
-
-## License
+## 📄 License
 
 GNU GPLv3.
