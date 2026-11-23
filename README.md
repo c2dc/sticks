@@ -1,6 +1,15 @@
 <div align="center">
 
-<img src="https://capsule-render.vercel.app/api?type=waving&color=0:0b0f14,50:3b1e54,100:c8102e&height=210&section=header&text=STICKS&fontSize=60&fontColor=ffffff&animation=fadeIn&fontAlignY=36&desc=Measuring%20procedural%20sufficiency%20of%20ATT%26CK-in-STIX%20for%20APT%20emulation&descAlignY=58&descSize=17" alt="STICKS" width="100%" />
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="apps/frontend/public/sticks-logomarca-modo-claro.png">
+  <img src="apps/frontend/public/sticks-logomarca-modo-escuro.png" alt="STICKS" width="520" />
+</picture>
+
+<br />
+
+<b>Measuring procedural sufficiency of ATT&amp;CK-in-STIX for APT emulation</b>
+
+<br />
 
 <a href="#-quick-start">
   <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=600&size=21&pause=1100&color=FF4D6D&center=true&vCenter=true&width=760&lines=From+raw+STIX+to+a+measured+execution+report;Five+agentic+phases%2C+human+approval+at+each+gate;Isolated+Docker+lab+driven+by+MITRE+Caldera;Human+curation+vs.+AI-generated+attack+flows" alt="STICKS" />
